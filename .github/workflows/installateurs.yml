@@ -241,7 +241,5 @@ jobs:
             exit 0
           fi
           packaging/notes-version.sh --installateurs "$V" > /dev/null
-          PRE=""
-          [[ "$V" == 0.* ]] && PRE="--prerelease"  # pré-version tant que le numéro commence par 0
           gh release create "v$V" dist/*.AppImage dist/*.exe dist/*.dmg --repo "$GITHUB_REPOSITORY" \
-            --verify-tag --title "Auto-montage $V" --notes-file "dist/notes-v$V.md" $PRE
+            --verify-tag --title "Auto-montage $V" --notes-file "dist/notes-v$V.md" --prerelease

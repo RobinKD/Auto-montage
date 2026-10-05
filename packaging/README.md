@@ -30,8 +30,7 @@ section `## 0.3`, pousser sur main, puis pousser le tag de la version :
     git tag v0.3 && git push origin v0.3
 
 GitHub Actions (`.github/workflows/installateurs.yml`) construit et vérifie alors les trois
-installateurs, puis publie la version `v0.3` avec eux (pré-version tant que le numéro commence
-par 0). Notes : les sections de `CHANGELOG.md` depuis la dernière version publiée
+installateurs, puis publie la version `v0.3` avec eux (toujours en pré-version). Notes : les sections de `CHANGELOG.md` depuis la dernière version publiée
 (`notes-version.sh --installateurs`), puis `release-notes.md`. Le tag doit être posé sur un
 commit dont `VERSION` porte ce numéro, sinon rien n'est publié. Un numéro déjà publié avec ses
 installateurs n'est jamais refait ; une version publiée sans installateurs (voir ci-dessous) les
@@ -42,8 +41,8 @@ Sans GitHub Actions, la version peut être publiée sans installateurs :
 
     packaging/publish-release.sh           # --essai : affiche les notes sans rien publier
 
-Le script crée la version `v0.3` sur GitHub (tag sur le commit poussé, pré-version tant que le
-numéro commence par 0) avec les sections du changelog depuis la dernière version publiée, et
+Le script crée la version `v0.3` sur GitHub (tag sur le commit poussé, toujours en
+pré-version) avec les sections du changelog depuis la dernière version publiée, et
 renvoie vers les installateurs de la dernière version qui en a. Accès : commande `gh` connectée,
 ou jeton dans `GH_TOKEN` (droit « Contents : Read and write »). Les installations existantes se
 mettent à jour par la page « Mises à jour », qui n'a besoin que du tag.

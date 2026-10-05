@@ -4,6 +4,15 @@ Chaque version publiée reprend sa section dans ses notes (onglet Releases). Une
 section, le numéro dans `VERSION` et le tag `v<numéro>` poussé publient la version avec ses
 installateurs (voir `packaging/README.md`).
 
+## 0.50
+
+- **Première version du dépôt public** : Auto-montage est maintenant publié sur
+  <https://github.com/RobinKD/Auto-montage> sous licence GNU GPL version 3, avec les
+  installateurs Windows, macOS et Linux joints à chaque version. Les fonctionnalités sont celles
+  de la 0.43.
+- Les installations antérieures à la 0.40 ne peuvent pas se mettre à jour depuis la page
+  **Mises à jour** : il faut réinstaller avec les installateurs (montages et réglages gardés).
+
 ## 0.43
 
 - **Les vidéos gardent leur format (16:9, 4:3…)** : avant, un rush filmé en paysage ou en 4:3

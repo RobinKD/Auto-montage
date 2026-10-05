@@ -104,7 +104,7 @@ dl = (f"Pas d'installateurs pour cette version. Pour une première installation 
 body = "## Nouveautés\n\n" + "\n\n".join(parts) + "\n\n## Télécharger\n\n" + dl + "\n"
 open(f"{tmp}/notes.md", "w").write(body)
 json.dump({"tag_name": f"v{v}", "target_commitish": sha, "name": f"Auto-montage {v}",
-           "body": body, "prerelease": key(v)[0] == 0}, open(f"{tmp}/release.json", "w"), ensure_ascii=False)
+           "body": body, "prerelease": True}, open(f"{tmp}/release.json", "w"), ensure_ascii=False)
 PY
 
 if $DRY; then
