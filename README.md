@@ -122,9 +122,9 @@ page ──choix (sélection, corrections, effets, découpes)──> use_selecti
   lancé à la main par GitHub Actions (`.github/workflows/tests.yml`, onglet Actions) avec
   Docker et Podman, ou sur sa machine (`tests/e2e.sh`). Les machines Windows et macOS de GitHub ne font pas tourner de
   conteneurs Linux : on y vérifie les installateurs et les lanceurs (`installateurs.yml`).
-- `packaging/` : installateurs (AppImage, .exe, .dmg) construits par GitHub Actions, lancé à
-  la main (`.github/workflows/installateurs.yml`) ; versions publiées sans installateurs par
-  `packaging/publish-release.sh` ; voir [`packaging/README.md`](packaging/README.md).
+- `packaging/` : installateurs (AppImage, .exe, .dmg) construits et publiés par GitHub Actions
+  quand un tag de version `v*` est poussé (`.github/workflows/installateurs.yml`) ; voir
+  [`packaging/README.md`](packaging/README.md).
 - Non versionnés : rushes (`montage/public/rushes/`), fichiers de travail (`montage/work/`),
   rendus (`montage/out/`) et la police Oliver (usage personnel, téléchargée par
   `scripts/fetch_fonts.sh`).

@@ -44,12 +44,14 @@ détail est dans `montage/README.md` ; les consignes de montage viennent de l'ut
 Après une nouvelle fonctionnalité importante pour l'utilisateur (nouvelle page, nouveau
 bouton, nouvel effet, correction d'un blocage), dans le même push : passer `VERSION` au
 numéro suivant (0.2 → 0.3) et ajouter en tête de `CHANGELOG.md` une section `## 0.3` qui dit
-ce qui change, en mots d'utilisateur. Après le push, `packaging/publish-release.sh` publie la
-version (tag et notes, sans installateurs : la page « Mises à jour » n'a besoin que du tag ;
-`--essai` montre les notes ; sans gh ni jeton, `packaging/notes-version.sh` donne les notes à
-coller sur github.com). GitHub Actions n'est plus lancé automatiquement (minutes du dépôt
-privé épuisées) : `tests.yml` et `installateurs.yml` seulement à la main, sur demande de
-l'utilisateur. Pas de nouveau numéro pour une retouche mineure ou
+ce qui change, en mots d'utilisateur. La version est publiée en poussant le tag `v<numéro>` sur
+le commit de main qui porte ce numéro (`git tag v0.44 && git push origin v0.44`, par
+l'utilisateur) : `installateurs.yml` (GitHub Actions, dépôt public) construit et vérifie les trois
+installateurs, puis publie la version avec eux et les notes de `packaging/notes-version.sh
+--installateurs`. Sans Actions, `packaging/publish-release.sh` publie la version sans
+installateurs (la page « Mises à jour » n'a besoin que du tag ; `--essai` montre les notes) ;
+un tag poussé ensuite y ajoute les installateurs. `tests.yml` reste lancé à la main, sur demande
+de l'utilisateur. Pas de nouveau numéro pour une retouche mineure ou
 interne : les changements attendent la prochaine version.
 
 ## À savoir

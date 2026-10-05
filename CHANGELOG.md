@@ -1,8 +1,8 @@
 # Nouveautés
 
 Chaque version publiée reprend sa section dans ses notes (onglet Releases). Une nouvelle
-section avec un nouveau numéro dans `VERSION` suffit à publier la version (voir
-`packaging/README.md`).
+section, le numéro dans `VERSION` et le tag `v<numéro>` poussé publient la version avec ses
+installateurs (voir `packaging/README.md`).
 
 ## 0.43
 

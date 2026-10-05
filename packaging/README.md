@@ -24,8 +24,21 @@ lanceurs de `docker/` (Docker ou Podman, voir `docker/README.md`).
 
 ## Publier une version
 
-Sans GitHub Actions (dépôt privé, minutes gratuites épuisées) : passer `VERSION` au numéro
-suivant (ex. `0.2` → `0.3`), ajouter en tête de `CHANGELOG.md` la section `## 0.3`, pousser, puis :
+Passer `VERSION` au numéro suivant (ex. `0.2` → `0.3`), ajouter en tête de `CHANGELOG.md` la
+section `## 0.3`, pousser sur main, puis pousser le tag de la version :
+
+    git tag v0.3 && git push origin v0.3
+
+GitHub Actions (`.github/workflows/installateurs.yml`) construit et vérifie alors les trois
+installateurs, puis publie la version `v0.3` avec eux (pré-version tant que le numéro commence
+par 0). Notes : les sections de `CHANGELOG.md` depuis la dernière version publiée
+(`notes-version.sh --installateurs`), puis `release-notes.md`. Le tag doit être posé sur un
+commit dont `VERSION` porte ce numéro, sinon rien n'est publié. Un numéro déjà publié avec ses
+installateurs n'est jamais refait ; une version publiée sans installateurs (voir ci-dessous) les
+reçoit. Lancé à la main sur une branche (onglet Actions > Installateurs > Run workflow) : construction
+et vérification seulement (onglet Actions > Artifacts).
+
+Sans GitHub Actions, la version peut être publiée sans installateurs :
 
     packaging/publish-release.sh           # --essai : affiche les notes sans rien publier
 
@@ -38,12 +51,6 @@ mettent à jour par la page « Mises à jour », qui n'a besoin que du tag.
 Sans `gh` ni jeton : `packaging/notes-version.sh` affiche les notes de la version (et les
 écrit dans `dist/notes-v<numéro>.md`), d'après les tags déjà publiés que git récupère ; on les colle
 dans « Draft a new release » sur github.com (tag `v<numéro>` sur `main`, pré-version).
-
-Installateurs : `.github/workflows/installateurs.yml`, lancé à la main (onglet Actions >
-Installateurs > Run workflow). Sur une branche : construction et vérification des trois
-installateurs (onglet Actions > Artifacts). Sur un tag `v*` pas encore publié : publication de
-la version avec ses installateurs et les notes (`CHANGELOG.md` puis `release-notes.md`). Un
-numéro déjà publié n'est jamais refait.
 
 Sans GitHub Actions ni Mac : `macos/build-dmg-linux.sh <payload> <sortie>` construit le .dmg
 sur Linux (application qui lance `main.applescript` par osascript, ISO compressée par l'outil
