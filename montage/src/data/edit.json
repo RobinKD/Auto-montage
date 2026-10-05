@@ -1,0 +1,575 @@
+{
+ "fps": 30,
+ "durationInFrames": 544,
+ "clips": [
+  {
+   "seg": 0,
+   "trimBefore": 14,
+   "durationInFrames": 15,
+   "from": 0,
+   "text": "Salut !",
+   "trimBeforeHd": 6
+  },
+  {
+   "seg": 1,
+   "trimBefore": 39,
+   "durationInFrames": 109,
+   "from": 15,
+   "text": "Aujourd'hui, trois astuces pour faire des économies sans te priver.",
+   "trimBeforeHd": 31
+  },
+  {
+   "seg": 3,
+   "trimBefore": 337,
+   "durationInFrames": 32,
+   "from": 124,
+   "text": "Première astuce :",
+   "trimBeforeHd": 152
+  },
+  {
+   "seg": 4,
+   "trimBefore": 375,
+   "durationInFrames": 77,
+   "from": 156,
+   "text": "Fais toujours une liste avant d'aller faire tes courses.",
+   "trimBeforeHd": 190
+  },
+  {
+   "seg": 5,
+   "trimBefore": 500,
+   "durationInFrames": 73,
+   "from": 233,
+   "text": "Deuxième astuce, compare le prix au kilo,",
+   "trimBeforeHd": 279
+  },
+  {
+   "seg": 6,
+   "trimBefore": 578,
+   "durationInFrames": 38,
+   "from": 306,
+   "text": "pas le prix de la boîte.",
+   "trimBeforeHd": 357
+  },
+  {
+   "seg": 7,
+   "trimBefore": 655,
+   "durationInFrames": 118,
+   "from": 344,
+   "text": "Et troisième astuce, attends 24 heures avant un achat coup de cœur.",
+   "trimBeforeHd": 407
+  },
+  {
+   "seg": 8,
+   "trimBefore": 813,
+   "durationInFrames": 82,
+   "from": 462,
+   "text": "Voilà, abonne-toi pour la suite, à bientôt.",
+   "trimBeforeHd": 537
+  }
+ ],
+ "hdRanges": [
+  [
+   8,
+   154
+  ],
+  [
+   331,
+   458
+  ],
+  [
+   494,
+   622
+  ],
+  [
+   649,
+   779
+  ],
+  [
+   807,
+   901
+  ]
+ ],
+ "sfxDefaults": {},
+ "overlayDefaults": {
+  "fixes": {},
+  "cashWord": {},
+  "chips": {},
+  "intro": "",
+  "introAt": 0.2,
+  "introType": 1.6,
+  "vfx": {}
+ },
+ "typed": [
+  {
+   "text": "3 astuces\npour économiser",
+   "start": 0.55,
+   "typeDuration": 1.2,
+   "end": 3.15
+  }
+ ],
+ "captions": [
+  {
+   "top": "Salut",
+   "bottom": "!",
+   "words": [
+    "Salut",
+    "!"
+   ],
+   "times": [
+    0.083,
+    0.353
+   ],
+   "start": 0.083,
+   "end": 0.52
+  },
+  {
+   "top": "Aujourd'hui,",
+   "bottom": "trois astuces pour",
+   "words": [
+    "Aujourd'hui,",
+    "trois",
+    "astuces",
+    "pour"
+   ],
+   "times": [
+    0.52,
+    1.38,
+    1.43,
+    1.85
+   ],
+   "start": 0.52,
+   "end": 2.09
+  },
+  {
+   "top": "faire des économies sans",
+   "bottom": "te priver.",
+   "words": [
+    "faire",
+    "des",
+    "économies sans",
+    "te priver."
+   ],
+   "times": [
+    2.09,
+    2.39,
+    2.57,
+    3.28
+   ],
+   "start": 2.09,
+   "end": 4.133
+  },
+  {
+   "top": "Première astuce",
+   "bottom": ": Fais toujours",
+   "words": [
+    "Première",
+    "astuce",
+    ":",
+    "Fais",
+    "toujours"
+   ],
+   "times": [
+    4.133,
+    4.42,
+    4.56,
+    5.2,
+    5.28
+   ],
+   "start": 4.133,
+   "end": 5.7
+  },
+  {
+   "top": "une liste avant",
+   "bottom": "d'aller faire tes",
+   "words": [
+    "une",
+    "liste",
+    "avant",
+    "d'aller",
+    "faire",
+    "tes"
+   ],
+   "times": [
+    5.7,
+    5.86,
+    6.13,
+    6.42,
+    6.79,
+    7.07
+   ],
+   "start": 5.7,
+   "end": 7.28
+  },
+  {
+   "top": "",
+   "bottom": "courses.",
+   "words": [
+    "courses."
+   ],
+   "times": [
+    7.28
+   ],
+   "start": 7.28,
+   "end": 7.767
+  },
+  {
+   "top": "Deuxième astuce,",
+   "bottom": "compare le prix",
+   "words": [
+    "Deuxième",
+    "astuce,",
+    "compare le",
+    "prix"
+   ],
+   "times": [
+    7.767,
+    8.2,
+    8.92,
+    9.32
+   ],
+   "start": 7.767,
+   "end": 9.61
+  },
+  {
+   "top": "au kilo, pas",
+   "bottom": "le prix de",
+   "words": [
+    "au",
+    "kilo,",
+    "pas",
+    "le",
+    "prix",
+    "de"
+   ],
+   "times": [
+    9.61,
+    9.75,
+    10.223,
+    10.253,
+    10.393,
+    10.673
+   ],
+   "start": 9.61,
+   "end": 10.813
+  },
+  {
+   "top": "la",
+   "bottom": "boîte.",
+   "words": [
+    "la",
+    "boîte."
+   ],
+   "times": [
+    10.813,
+    10.953
+   ],
+   "start": 10.813,
+   "end": 11.467
+  },
+  {
+   "top": "Et troisième",
+   "bottom": "astuce,",
+   "words": [
+    "Et",
+    "troisième",
+    "astuce,"
+   ],
+   "times": [
+    11.467,
+    11.483,
+    12.043
+   ],
+   "start": 11.467,
+   "end": 12.813
+  },
+  {
+   "top": "attends 24 heures",
+   "bottom": "avant un achat",
+   "words": [
+    "attends",
+    "24",
+    "heures",
+    "avant",
+    "un",
+    "achat"
+   ],
+   "times": [
+    12.813,
+    12.973,
+    13.443,
+    13.673,
+    13.983,
+    14.103
+   ],
+   "start": 12.813,
+   "end": 14.463
+  },
+  {
+   "top": "coup de",
+   "bottom": "cœur.",
+   "words": [
+    "coup",
+    "de",
+    "cœur."
+   ],
+   "times": [
+    14.463,
+    14.703,
+    14.773
+   ],
+   "start": 14.463,
+   "end": 15.43
+  },
+  {
+   "top": "Voilà, abonne-toi",
+   "bottom": "pour la suite,",
+   "words": [
+    "Voilà,",
+    "abonne-toi",
+    "pour",
+    "la",
+    "suite,"
+   ],
+   "times": [
+    15.43,
+    15.75,
+    16.4,
+    16.63,
+    16.76
+   ],
+   "start": 15.43,
+   "end": 17.2
+  },
+  {
+   "top": "à",
+   "bottom": "bientôt.",
+   "words": [
+    "à",
+    "bientôt."
+   ],
+   "times": [
+    17.2,
+    17.51
+   ],
+   "start": 17.2,
+   "end": 18.133
+  }
+ ],
+ "captionStyle": {
+  "family": "AM Sous-titres",
+  "label": "Oliver",
+  "files": [
+   {
+    "url": "fonts/choisie/400.ttf",
+    "weight": "400"
+   }
+  ],
+  "weight": 700,
+  "size": 70,
+  "uppercase": true,
+  "color": "#ffffff",
+  "shadow": 90,
+  "blur": 10,
+  "dx": 0,
+  "dy": 1
+ },
+ "zooms": [
+  {
+   "start": 0.0,
+   "end": 1.85,
+   "type": "in"
+  },
+  {
+   "start": 1.85,
+   "end": 3.28,
+   "type": "punch"
+  },
+  {
+   "start": 3.28,
+   "end": 5.2,
+   "type": "in"
+  },
+  {
+   "start": 5.2,
+   "end": 7.07,
+   "type": "punch"
+  },
+  {
+   "start": 7.07,
+   "end": 8.92,
+   "type": "in"
+  },
+  {
+   "start": 8.92,
+   "end": 10.673,
+   "type": "punch"
+  },
+  {
+   "start": 10.673,
+   "end": 12.813,
+   "type": "in"
+  },
+  {
+   "start": 12.813,
+   "end": 14.703,
+   "type": "punch"
+  },
+  {
+   "start": 14.703,
+   "end": 16.4,
+   "type": "in"
+  },
+  {
+   "start": 16.4,
+   "end": 18.133333333333333,
+   "type": "punch"
+  }
+ ],
+ "zoomFx": [
+  {
+   "type": "punch",
+   "start": 9.75,
+   "anim": 1.0,
+   "end": 10.75,
+   "force": 0.3
+  }
+ ],
+ "shakes": [
+  {
+   "start": 14.773,
+   "end": 15.273,
+   "force": 0.6
+  }
+ ],
+ "flashes": [
+  {
+   "start": 14.723,
+   "end": 14.973
+  }
+ ],
+ "highlights": [
+  {
+   "words": "kilo",
+   "color": "#ffd84d",
+   "start": 7.767,
+   "end": 10.2
+  },
+  {
+   "words": "coup cœur",
+   "color": "#ff6b6b",
+   "start": 11.467,
+   "end": 15.4
+  }
+ ],
+ "habillage": {
+  "autoZoom": 1.0,
+  "pop": true,
+  "karaoke": true,
+  "karaokeColor": "#ffd84d"
+ },
+ "funny": [],
+ "chips": [
+  {
+   "text": "1. Faire une liste",
+   "start": 4.17,
+   "end": 6.57
+  },
+  {
+   "text": "2. Le prix au kilo",
+   "start": 7.81,
+   "end": 10.01
+  },
+  {
+   "text": "3. Attendre 24 h",
+   "start": 11.503,
+   "end": 13.703
+  }
+ ],
+ "sfx": [
+  {
+   "src": "sfx/key-1.wav",
+   "start": 0.55,
+   "volume": 0.45
+  },
+  {
+   "src": "sfx/key-2.wav",
+   "start": 0.65,
+   "volume": 0.45
+  },
+  {
+   "src": "sfx/key-3.wav",
+   "start": 0.75,
+   "volume": 0.45
+  },
+  {
+   "src": "sfx/key-4.wav",
+   "start": 0.85,
+   "volume": 0.45
+  },
+  {
+   "src": "sfx/key-1.wav",
+   "start": 0.95,
+   "volume": 0.45
+  },
+  {
+   "src": "sfx/key-2.wav",
+   "start": 1.05,
+   "volume": 0.45
+  },
+  {
+   "src": "sfx/key-3.wav",
+   "start": 1.15,
+   "volume": 0.45
+  },
+  {
+   "src": "sfx/key-4.wav",
+   "start": 1.25,
+   "volume": 0.45
+  },
+  {
+   "src": "sfx/key-1.wav",
+   "start": 1.35,
+   "volume": 0.45
+  },
+  {
+   "src": "sfx/key-2.wav",
+   "start": 1.45,
+   "volume": 0.45
+  },
+  {
+   "src": "sfx/key-3.wav",
+   "start": 1.55,
+   "volume": 0.45
+  },
+  {
+   "src": "sfx/key-4.wav",
+   "start": 1.65,
+   "volume": 0.45
+  },
+  {
+   "src": "sfx/ding.wav",
+   "start": 4.17,
+   "volume": 0.5
+  },
+  {
+   "src": "sfx/bop.wav",
+   "start": 7.81,
+   "volume": 0.7
+  },
+  {
+   "src": "sfx/whoosh.wav",
+   "start": 9.5,
+   "volume": 0.6
+  },
+  {
+   "src": "sfx/bop.wav",
+   "start": 11.503,
+   "volume": 0.7
+  },
+  {
+   "src": "sfx/boum.wav",
+   "start": 14.723,
+   "volume": 0.75
+  }
+ ]
+}

@@ -1,0 +1,28 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=Auto-montage
+GenericName=Montage vidéo
+Comment=Version de travail, moments, corrections et effets (interface locale)
+Exec="@DIR@/docker/open.sh"
+Icon=@DIR@/docker/icon.svg
+Terminal=true
+Categories=AudioVideo;Video;
+Keywords=montage;video;hyperframes;
+Actions=downloads;claude;shell;stop;
+
+[Desktop Action downloads]
+Name=Téléchargements (720p, 1080p, 4K)
+Exec="@DIR@/docker/open.sh" downloads/
+
+[Desktop Action claude]
+Name=Claude Code
+Exec="@DIR@/docker/claude.sh"
+
+[Desktop Action shell]
+Name=Terminal du conteneur
+Exec="@DIR@/docker/shell.sh"
+
+[Desktop Action stop]
+Name=Arrêter Auto-montage
+Exec="@DIR@/docker/stop.sh"

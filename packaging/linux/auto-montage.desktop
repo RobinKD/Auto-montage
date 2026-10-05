@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Auto-montage
+GenericName=Montage vidéo
+Comment=Version de travail, moments, corrections et effets
+Exec=AppRun open
+Icon=auto-montage
+Terminal=false
+Categories=AudioVideo;Video;

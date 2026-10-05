@@ -1,0 +1,927 @@
+<title>Rushes et montages</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@700;900&family=Source+Sans+3:wght@400;600&family=JetBrains+Mono:wght@500&display=swap">
+<style>
+  /* Layout : une colonne, deux étapes numérotées (choisir la vidéo, préparer), puis le suivi
+     de la préparation. Mêmes couleurs et polices que la page des moments. */
+  :root {
+    --bg: #f5f3ef;
+    --surface: #fffdf9;
+    --fg: #1f1d1a;
+    --muted: #6f695f;
+    --line: #e4ded4;
+    --accent: #2d6a5a;
+    --accent-soft: #dcebe5;
+    --warn: #9a5b12;
+    --warn-soft: #f6e7d2;
+    --display: "Poppins", "Helvetica Neue", Arial, sans-serif;
+    --body: "Source Sans 3", "Helvetica Neue", Arial, sans-serif;
+    --mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #151412; --surface: #1d1b18; --fg: #f1ece4; --muted: #a39a8d; --line: #2f2b26;
+      --accent: #7cc2ad; --accent-soft: #1f3530; --warn: #e3a95b; --warn-soft: #3a2a15; color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #151412; --surface: #1d1b18; --fg: #f1ece4; --muted: #a39a8d; --line: #2f2b26;
+    --accent: #7cc2ad; --accent-soft: #1f3530; --warn: #e3a95b; --warn-soft: #3a2a15; color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  body { background: var(--bg); color: var(--fg); font-family: var(--body); font-size: 16px; line-height: 1.45; padding: 0 16px; }
+  main { max-width: 720px; margin: 0 auto; padding-block: 24px 48px; display: flex; flex-direction: column; gap: 16px; }
+  header { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 8px 16px; }
+  h1 { font-family: var(--display); font-weight: 900; font-size: 26px; line-height: 1.1; margin: 0; text-wrap: balance; }
+  h2 { font-family: var(--display); font-weight: 700; font-size: 17px; margin: 0; display: flex; gap: 10px; align-items: baseline; }
+  h2 span { font-family: var(--mono); font-size: 13px; color: var(--muted); font-weight: 500; }
+  a { color: var(--accent); }
+  .sub { color: var(--muted); font-size: 14px; margin: 4px 0 0; max-width: 65ch; }
+  section { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 16px; display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+  section.off { opacity: 0.55; }
+  .row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+  button, select {
+    font: inherit; font-size: 15px; color: var(--fg); background: var(--bg);
+    border: 1px solid var(--line); border-radius: 8px; padding: 8px 14px; cursor: pointer;
+  }
+  select { max-width: 100%; min-width: 0; }
+  button.primary { background: var(--accent); color: var(--bg); border-color: var(--accent); font-weight: 600; }
+  button:disabled, select:disabled { opacity: 0.55; cursor: default; }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .file { font-weight: 600; overflow-wrap: anywhere; }
+  .facts { font-family: var(--mono); font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+  progress { width: 100%; height: 10px; accent-color: var(--accent); }
+  .note { font-size: 14px; color: var(--muted); }
+  .warn { font-size: 14px; color: var(--warn); background: var(--warn-soft); border-radius: 8px; padding: 8px 10px; }
+  .status { font-size: 14px; min-height: 1.4em; }
+  .status.err { color: var(--warn); }
+  .status.ok { color: var(--accent); }
+  .parts { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 6px; counter-reset: part; }
+  .parts li { display: flex; align-items: center; gap: 8px; counter-increment: part; }
+  .parts li::before { content: counter(part); font-family: var(--mono); font-size: 12px; color: var(--muted); width: 1.4em; flex: none; }
+  .parts .file { flex: 1; min-width: 0; }
+  .parts button { padding: 4px 10px; font-size: 14px; }
+  .sub3 { font-family: var(--display); font-weight: 700; font-size: 15px; margin: 8px 0 0; }
+  textarea { font: inherit; font-size: 15px; color: var(--fg); background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; width: 100%; resize: vertical; }
+  .style-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; font-size: 14px; }
+  .style-list li { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+  .style-list img { width: 160px; border-radius: 6px; border: 1px solid var(--line); }
+  .analyse { display: flex; flex-direction: column; gap: 10px; border: 1px solid var(--line); border-radius: 10px; padding: 12px; background: var(--bg); }
+  .analyse h4 { font-family: var(--display); font-size: 15px; margin: 0; }
+  .analyse p { margin: 0; font-size: 15px; }
+  .analyse .el { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px 10px; padding: 8px 0; border-top: 1px solid var(--line); }
+  .analyse .el .cat { font-family: var(--mono); font-size: 11px; color: var(--muted); text-transform: uppercase; }
+  .analyse .el .how { grid-column: 1 / -1; font-size: 14px; color: var(--muted); }
+  .analyse .badge { font-size: 12px; font-weight: 600; border-radius: 999px; padding: 1px 9px; white-space: nowrap; align-self: start; }
+  .analyse .badge.oui { color: var(--accent); background: var(--accent-soft); }
+  .analyse .badge.partiel { color: var(--warn); background: var(--warn-soft); }
+  .analyse .badge.non { color: var(--muted); background: var(--line); }
+  .analyse ul { margin: 0; padding-left: 20px; font-size: 15px; }
+  .analyse .sheets { display: flex; flex-wrap: wrap; gap: 8px; }
+  .analyse .sheets img { width: 220px; max-width: 100%; border-radius: 6px; border: 1px solid var(--line); }
+  .analyse .swatch { display: inline-block; width: 14px; height: 14px; border-radius: 3px; border: 1px solid var(--line); vertical-align: -2px; }
+  .claude-zone { display: flex; flex-direction: column; gap: 8px; border: 1px solid var(--line); border-radius: 10px; padding: 12px; }
+  .fx-layout { display: grid; grid-template-columns: minmax(0, 1fr) 170px; gap: 14px; align-items: start; }
+  @media (max-width: 560px) { .fx-layout { grid-template-columns: minmax(0, 1fr); } .fx-demo-wrap { max-width: 200px; } }
+  .fx-demo-wrap { display: flex; flex-direction: column; gap: 6px; position: sticky; top: 64px; }
+  .fx-demo { position: relative; aspect-ratio: 9 / 16; border-radius: 10px; overflow: hidden; background: #2b2722; container-type: inline-size; }
+  .fx-img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; background: #b9ad9c; transform-origin: 50% 36%; }
+  .fx-cap { position: absolute; left: 0; right: 0; top: 60%; text-align: center; font-family: var(--display); font-weight: 900; font-size: 8cqw; line-height: 1.05; color: #f4e2c2; text-transform: uppercase; text-shadow: 0 0 3px rgba(0,0,0,.9), 0 1px 8px rgba(0,0,0,.7); padding: 0 4cqw; }
+  .fx-chip { position: absolute; top: 9%; left: 50%; transform: translateX(-50%); background: #fff; color: #1d1d1b; font-family: var(--display); font-weight: 900; font-size: 7cqw; padding: 2cqw 4cqw; border-radius: 999px; white-space: nowrap; }
+  .fx-typed { position: absolute; inset: 30% 0 auto; text-align: center; color: #fff; font-family: var(--display); font-weight: 900; font-size: 11cqw; line-height: 1.05; white-space: pre-line; text-shadow: 0 0 3px rgba(0,0,0,.9), 0 1px 8px rgba(0,0,0,.7); }
+  .fx-voices { display: flex; flex-direction: column; gap: 4px; }
+  .fx-voices button { text-align: left; font-size: 13px; padding: 3px 8px; }
+  .fx-voices button[aria-pressed="true"] { background: var(--accent-soft, #dcebe5); border-color: var(--accent, #2d6a5a); }
+  .fx-flash { position: absolute; inset: 0; background: #fff; opacity: 0; pointer-events: none; }
+  .fx-play { padding: 0 7px; font-size: 12px; line-height: 1.6; border-radius: 6px; }
+  .fx-groups { display: flex; flex-direction: column; gap: 8px; }
+  .fx-groups fieldset { border: 1px solid var(--line); border-radius: 8px; padding: 6px 12px 10px; margin: 0; display: flex; flex-wrap: wrap; gap: 6px 16px; }
+  .fx-groups legend { font-size: 13px; color: var(--muted); padding: 0 4px; }
+  .fx-groups label { display: inline-flex; align-items: center; gap: 6px; font-size: 15px; }
+  .style-list .kind { font-family: var(--mono); font-size: 11px; color: var(--muted); text-transform: uppercase; }
+  .projects { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+  .projects li { display: grid; grid-template-columns: 40px minmax(0, 1fr) auto; gap: 4px 12px; align-items: center; }
+  .projects img, .projects .noimg { width: 40px; height: 71px; object-fit: cover; border-radius: 6px; background: var(--line); grid-row: span 2; }
+  .projects .name { font-weight: 600; overflow-wrap: anywhere; }
+  .projects .acts { display: flex; gap: 6px; grid-row: span 2; }
+  .projects .warn2 { color: var(--warn); }
+  .btnlink { display: inline-block; font-size: 15px; font-weight: 600; text-decoration: none; color: var(--bg); background: var(--accent); border-radius: 8px; padding: 8px 14px; }
+  .progress { display: flex; flex-direction: column; gap: 6px; }
+  .progress .row { justify-content: space-between; font-size: 14px; }
+  .steps { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+  .steps li { display: flex; gap: 10px; align-items: baseline; font-size: 15px; }
+  .steps li::before { content: "○"; color: var(--muted); width: 1em; flex: none; }
+  .steps li.now::before { content: "●"; color: var(--accent); }
+  .steps li.done::before { content: "✓"; color: var(--accent); }
+  .steps li.done { color: var(--muted); }
+  pre {
+    margin: 0; max-height: 14rem; overflow: auto; background: var(--bg); border: 1px solid var(--line);
+    border-radius: 8px; padding: 8px 10px; font-family: var(--mono); font-size: 12px; line-height: 1.5;
+    white-space: pre-wrap; overflow-wrap: anywhere; color: var(--muted);
+  }
+  @media (prefers-reduced-motion: no-preference) { section { transition: opacity 150ms; } }
+</style>
+
+<main>
+  <header>
+    <div>
+      <h1>Rushes et montages</h1>
+      <p class="sub">Reprenez un montage commencé, ou choisissez une nouvelle vidéo et lancez sa préparation : transcription, découpe en moments et première version de travail.</p>
+    </div>
+  </header>
+
+  <p class="warn" id="no-claude" hidden></p>
+  <p class="note" id="update-note" hidden></p>
+
+  <section id="projects" aria-labelledby="h-projects">
+    <h2 id="h-projects">Montages</h2>
+    <p class="note">Chaque rush préparé garde son montage (moments, choix, versions de travail, rendus). Préparer un autre rush met le montage en cours de côté ; « Rouvrir » le reprend tel quel, sans rien recalculer.</p>
+    <ul class="projects" id="project-list"></ul>
+    <p class="status" id="projects-status" role="status"></p>
+  </section>
+
+  <section id="step-file" aria-labelledby="h-file">
+    <h2 id="h-file"><span>1</span>Choisir la ou les vidéos</h2>
+    <ol class="parts" id="parts" hidden aria-label="Vidéos du rush, dans l'ordre"></ol>
+    <p class="note" id="parts-note" hidden></p>
+    <div class="row">
+      <button type="button" class="primary" id="pick">Choisir un fichier…</button>
+      <input type="file" id="file" accept="video/*,.mov,.mp4,.m4v,.mkv,.webm,.avi,.mts" multiple hidden>
+      <span class="note" id="or-list" hidden>ou un rush déjà envoyé :</span>
+      <select id="existing" hidden aria-label="Rush déjà envoyé"></select>
+    </div>
+    <p class="note" id="multi-hint">Plusieurs vidéos pour un même rush (caméra coupée en cours de tournage…) : ajoutez-les dans l'ordre, elles seront assemblées en une seule.</p>
+    <div id="upload" hidden>
+      <div class="row"><span class="file" id="up-name"></span><span class="facts" id="up-facts"></span></div>
+      <progress id="up-bar" max="1" value="0"></progress>
+    </div>
+    <p class="status" id="file-status" role="status"></p>
+  </section>
+
+  <section id="step-instructions" aria-labelledby="h-instructions">
+    <h2 id="h-instructions"><span>2</span>Consignes et style <small class="note">(facultatif, avec Claude)</small></h2>
+    <p class="note">Décrivez le montage voulu (moments à garder, intro, effets, sous-titres…) dans la zone de texte, ou choisissez un fichier texte. Claude l'applique pendant la préparation ; sans consignes, le premier montage garde tous les moments sauf les premières prises.</p>
+    <div class="claude-zone" data-needs-claude>
+    <h3 class="sub3" style="margin: 0;">Consignes et vidéos d'exemple</h3>
+    <label for="instructions-text" class="note">Consignes de montage</label>
+    <textarea id="instructions-text" rows="6" placeholder="Par exemple : garde seulement les 3 conseils, coupe les hésitations, intro « Mes 3 astuces pour épargner », bruit de caisse quand je parle d'argent…"></textarea>
+    <div class="row">
+      <button type="button" id="save-instructions" disabled>Enregistrer les consignes</button>
+      <button type="button" id="pick-instructions">Choisir un fichier…</button>
+      <input type="file" id="instructions-file" accept=".md,.txt,.markdown,text/plain,text/markdown" hidden>
+      <span class="file" id="instructions-name"></span>
+      <button type="button" id="remove-instructions" hidden>Effacer</button>
+    </div>
+    <p class="note" style="margin: 4px 0 0;"><b>Vidéos d'exemple</b> : « Analyser » mesure d'abord le rythme (coupes, durée des plans) et repère les bruitages probables, extrait des images datées (régulières et après chaque coupe), puis Claude les regarde et liste ce qu'il a repéré (sous-titres, textes, zooms, effets, sons) et ce qu'Auto-montage peut en reproduire. L'analyse sert ensuite à la préparation. <b>L'analyse et la reproduction du style nécessitent Claude Code</b> (sans lui, les vidéos d'exemple sont gardées mais pas utilisées).</p>
+    <div class="row">
+      <button type="button" id="pick-examples">Ajouter des vidéos d'exemple…</button>
+      <input type="file" id="examples-file" accept="video/*,.mov,.mp4,.m4v,.mkv,.webm" multiple hidden>
+      <button type="button" class="primary" id="analyse-style" disabled title="Nécessite Claude Code (connecté sur la page « Connexion à Claude »)">Analyser les vidéos d'exemple</button>
+      <span class="note" id="analyse-estimate"></span>
+    </div>
+    <div class="progress" id="an-progress" hidden>
+      <div class="row"><span id="an-label">Analyse</span><span class="facts" id="an-facts"></span></div>
+      <progress id="an-bar" max="1" value="0"></progress>
+    </div>
+    <label class="row note" id="apply-row" hidden><input type="checkbox" id="apply-instructions" checked> Appliquer les consignes et le style avec Claude pendant la préparation</label>
+    </div>
+    <p class="status" id="an-status" role="status"></p>
+    <div class="analyse" id="analyse" hidden></div>
+    <h3 class="sub3">Vos sons et vidéos d'exemple</h3>
+    <p class="note"><b>Effets sonores</b> : ils rejoignent votre bibliothèque de sons (pour tous les montages) et apparaissent dans les effets de chaque moment, à placer vous-même ; Claude peut aussi les placer.</p>
+    <div class="row">
+      <button type="button" id="pick-sounds">Ajouter des effets sonores…</button>
+      <input type="file" id="sounds-file" accept="audio/*,.wav,.mp3,.m4a,.aac,.ogg,.opus,.flac,.aif,.aiff" multiple hidden>
+    </div>
+    <ul class="style-list" id="style-list"></ul>
+    <p class="status" id="style-status" role="status"></p>
+    <h3 class="sub3">Effets proposés sur la page des moments</h3>
+    <p class="note">Cochez ceux à proposer pour chaque moment ; les autres n'encombrent plus la page (un effet déjà placé sur un moment reste visible). Réglage commun à tous les montages, modifiable à tout moment.</p>
+    <p class="note">Les sons et effets visuels listés ici sont ceux fournis par défaut avec Auto-montage. Pour un montage plus personnel, ajoutez vos propres sons (« Ajouter des effets sonores… ») et faites analyser des vidéos d'exemple par Claude (« Analyser les vidéos d'exemple ») pour retrouver leurs effets.</p>
+    <div class="fx-layout">
+      <div class="fx-groups" id="fx-groups"></div>
+      <div class="fx-demo-wrap" aria-live="polite">
+        <div class="fx-demo" id="fx-demo" aria-hidden="true" hidden>
+          <video class="fx-img" id="fx-img" poster="/tutoriel/effets/exemple.jpg" muted playsinline preload="auto"><source src="/tutoriel/effets/exemple.webm" type="video/webm"><source src="/tutoriel/effets/exemple.mp4" type="video/mp4"></video>
+          <div class="fx-chip" id="fx-chip" hidden>Votre titre</div>
+          <div class="fx-typed" id="fx-typed" hidden></div>
+          <div class="fx-cap" id="fx-cap"></div>
+          <div class="fx-flash" id="fx-flash"></div>
+        </div>
+        <p class="note" id="fx-desc">Cliquez sur ▶ à côté d'un effet pour l'écouter ou le voir.</p>
+        <div class="fx-voices" id="fx-voices" hidden></div>
+      </div>
+    </div>
+    <p class="status" id="fx-status" role="status"></p>
+    <p class="warn" id="claude-missing" hidden>Claude Code n'est pas encore connecté : les consignes et les vidéos d'exemple ne seront pas appliquées (les effets sonores restent utilisables à la main sur la page des moments). <a href="/claude/">Se connecter à Claude</a> (une fois), puis revenez ici ; tout reste enregistré en attendant.</p>
+    <p class="status" id="instructions-status" role="status"></p>
+  </section>
+
+  <section id="step-prepare" class="off" aria-labelledby="h-prepare">
+    <h2 id="h-prepare"><span>3</span>Préparer</h2>
+    <p class="note">Compter environ la durée du rush pour la transcription, puis 3 à 5 minutes pour la première version de travail. La page peut rester ouverte ou être fermée : la préparation continue.</p>
+    <p class="warn" id="replace" hidden></p>
+    <div class="row">
+      <button type="button" class="primary" id="reopen" hidden>Rouvrir ce montage</button>
+      <button type="button" class="primary" id="prepare" disabled>Préparer ce rush</button>
+      <span class="file" id="chosen"></span>
+    </div>
+    <ol class="steps" id="steps" hidden>
+      <li data-step="préparation du rush">Versions de travail, transcription, visage, montage</li>
+      <li data-step="consignes de montage (Claude)">Consignes de montage appliquées par Claude</li>
+      <li data-step="montage selon les consignes">Montage selon les consignes</li>
+      <li data-step="rendu de la version de travail">Rendu de la version de travail (1080p)</li>
+      <li data-step="page des moments">Page des moments</li>
+    </ol>
+    <div class="progress" id="progress" hidden>
+      <div class="row"><span id="o-label">Préparation</span><span class="facts" id="o-facts"></span></div>
+      <progress id="o-bar" max="1" value="0"></progress>
+      <div class="row"><button type="button" id="cancel">Annuler</button><span class="note">Arrête la tâche ; ce qui était déjà prêt est gardé.</span></div>
+    </div>
+    <p class="status" id="job-status" role="status"></p>
+    <pre id="log" hidden></pre>
+  </section>
+</main>
+
+<script>
+  const $ = (id) => document.getElementById(id);
+  // Temps restant estimé par le serveur (durée du rush, vitesse mesurée de la machine).
+  const remaining = (s) => {
+    if (typeof s !== "number" || !isFinite(s)) return "";
+    return s < 60 ? " · moins d'une minute" : ` · encore ~${Math.round(s / 60)} min`;
+  };
+  function showProgress(job) {
+    const running = job.state === "running";
+    $("progress").hidden = !running;
+    if (running) $("step-prepare").classList.remove("off");  // préparation suivie même sans rush choisi
+    if (!running) return;
+    const p = job.progress;
+    // Une seule barre (ensemble de la tâche) ; l'opération en cours est nommée à côté.
+    const what = { prepare: "Préparation", regen: "Génération", final: "Création 4K", update: "Mise à jour" }[job.kind] || "Tâche";
+    $("o-label").textContent = p ? `${what} · ${p.label.toLowerCase()}` : `${what} · ${job.step}`;
+    $("o-bar").value = job.overall || 0;
+    $("o-facts").textContent = `${Math.floor((job.overall || 0) * 100)} %${remaining(job.remaining)}`;
+  }
+  const mb = (n) => (n >= 1073741824 ? `${(n / 1073741824).toFixed(1)} Go` : `${Math.round(n / 1048576)} Mo`);
+  let info = null;      // réponse de /api/rushes
+  let chosen = null;    // nom du rush choisi (celui du rush assemblé s'il y a plusieurs vidéos)
+  let parts = [];       // vidéos du rush, dans l'ordre
+  let polling = null;
+
+  function setStatus(id, text, kind = "") { const el = $(id); el.textContent = text; el.className = `status ${kind}`; }
+
+  function choose(name) {
+    chosen = name;
+    $("chosen").textContent = name || "";
+    $("step-prepare").classList.toggle("off", !name);
+    const busy = info && info.job.state === "running";
+    $("prepare").disabled = !name || busy;
+    const replace = name && info && info.current && info.current !== name && info.prepared;
+    $("replace").hidden = !replace;
+    if (replace) {
+      $("replace").textContent = `Le montage en cours (${info.current}) sera mis de côté : vous pourrez le rouvrir tel quel depuis « Montages enregistrés ».`;
+    }
+    // Rush déjà préparé : le rouvrir (ou ouvrir celui en cours) plutôt que tout refaire.
+    const saved = name && projects && projects.saved.find((p) => p.rush === name);
+    const isCurrent = name && info && info.current === name && info.prepared;
+    $("reopen").hidden = !saved && !isCurrent;
+    $("reopen").textContent = isCurrent ? "Ouvrir ce montage" : "Rouvrir ce montage";
+    $("reopen").disabled = busy;
+    $("reopen").onclick = () => (isCurrent ? (location.href = "/") : act("open", saved, $("reopen")));
+    $("prepare").textContent = saved || isCurrent ? "Tout refaire depuis le début" : "Préparer ce rush";
+    $("prepare").classList.toggle("primary", !(saved || isCurrent));
+    if (saved || isCurrent) {
+      $("replace").hidden = false;
+      $("replace").textContent = `${name} a déjà un montage : « ${isCurrent ? "Ouvrir" : "Rouvrir"} ce montage » le reprend tel quel, sans rien recalculer. « Tout refaire depuis le début » relance la transcription et le découpage${saved && info.current && info.prepared ? `, et met le montage en cours (${info.current}) de côté` : ""}.`;
+    }
+  }
+
+  // Montages enregistrés (work/projets) : rouvrir ou supprimer.
+  let projects = null;
+  const when = (iso) => new Date(iso).toLocaleString("fr-FR", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
+  async function showProjects() {
+    projects = await fetch("/api/projects").then((r) => r.json()).catch(() => null);
+    const list = $("project-list");
+    list.replaceChildren();
+    if (!projects) return;
+    const busy = info && info.job.state === "running";
+    if (projects.current && projects.currentPrepared) {  // montage en cours
+      const li = document.createElement("li");
+      const img = projects.currentThumb ? Object.assign(document.createElement("img"), { src: projects.currentThumb, alt: "" })
+        : Object.assign(document.createElement("span"), { className: "noimg" });
+      const name = Object.assign(document.createElement("span"), { className: "name", textContent: projects.current });
+      const acts = Object.assign(document.createElement("span"), { className: "acts" });
+      const open = Object.assign(document.createElement("a"), { href: "/", textContent: "Ouvrir", className: "btnlink" });
+      acts.append(open);
+      const facts = Object.assign(document.createElement("span"), { className: "facts", textContent: "en cours · page des moments" });
+      li.append(img, name, acts, facts);
+      list.append(li);
+    }
+    if (!projects.saved.length) {
+      const li = document.createElement("li");
+      li.className = "note";
+      li.style.display = "block";
+      li.textContent = projects.current && projects.currentPrepared
+        ? "Aucun autre montage enregistré pour l'instant : préparer un autre rush mettra celui-ci de côté, et il apparaîtra ici."
+        : "Aucun montage enregistré pour l'instant.";
+      list.append(li);
+    }
+    for (const p of projects.saved) {
+      const li = document.createElement("li");
+      const img = p.thumb ? Object.assign(document.createElement("img"), { src: p.thumb, alt: "" }) : Object.assign(document.createElement("span"), { className: "noimg" });
+      const name = document.createElement("span");
+      name.className = "name";
+      name.textContent = p.rush;
+      const acts = document.createElement("span");
+      acts.className = "acts";
+      const open = document.createElement("button");
+      open.type = "button"; open.className = "primary"; open.textContent = "Rouvrir";
+      open.disabled = busy;
+      open.addEventListener("click", () => act("open", p, open));
+      const del = document.createElement("button");
+      del.type = "button"; del.textContent = "Supprimer";
+      del.disabled = busy;
+      del.addEventListener("click", () => act("delete", p, del));
+      acts.append(open, del);
+      const facts = document.createElement("span");
+      facts.className = "facts";
+      facts.textContent = [p.duration ? `montage ${Math.floor(p.duration / 60)}:${String(Math.round(p.duration % 60)).padStart(2, "0")}` : (p.hasPage ? "" : "préparation inachevée"),
+        p.has4k ? "4K créée" : "", `${mb(p.size || 0)}`, `mis de côté le ${when(p.savedAt)}`].filter(Boolean).join(" · ");
+      li.append(img, name, acts, facts);
+      if (!p.rushPresent) {
+        const w = document.createElement("span");
+        w.className = "facts warn2";
+        w.style.gridColumn = "2 / -1";
+        w.textContent = "Vidéo d'origine absente : le montage se rouvre, mais la 4K ne pourra pas être refaite.";
+        li.append(w);
+      }
+      list.append(li);
+    }
+  }
+  async function act(action, p, btn) {
+    const msg = action === "open"
+      ? (projects.current && projects.currentPrepared ? `Rouvrir le montage de ${p.rush} ? Le montage en cours (${projects.current}) sera mis de côté et pourra être rouvert à son tour.` : null)
+      : `Supprimer le montage enregistré de ${p.rush} (${mb(p.size || 0)}) ? Ses choix, versions de travail et rendus seront effacés ; la vidéo d'origine reste dans les rushes.`;
+    if (msg && !confirm(msg)) return;
+    btn.disabled = true;
+    setStatus("projects-status", action === "open" ? `Ouverture de ${p.rush}…` : "Suppression…");
+    const r = await fetch(`/api/projects/${action}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: p.id }) });
+    const data = await r.json().catch(() => ({}));
+    if (!r.ok || !data.ok) { setStatus("projects-status", data.error || `erreur ${r.status}`, "err"); btn.disabled = false; return; }
+    if (action === "open") { setStatus("projects-status", `${data.message} : ouverture de la page des moments…`, "ok"); location.href = "/"; return; }
+    setStatus("projects-status", data.message, "ok");
+    await refresh();
+  }
+
+  async function refresh() {
+    info = await (await fetch("/api/rushes")).json();
+    await showProjects();
+    const sel = $("existing");
+    const keep = sel.value;
+    sel.replaceChildren(new Option("—", ""), ...info.rushes.map((r) => new Option(`${r.name} (${mb(r.size)})${r.name === info.current ? " · en cours" : ""}`, r.name)));
+    sel.value = info.rushes.some((r) => r.name === keep) ? keep : "";
+    sel.hidden = $("or-list").hidden = !info.rushes.length;
+    showInstructions();
+    showClaudeNotice();
+    showJob(info.job);
+    if (info.job.state === "running" && !polling) poll();
+    choose(chosen);
+  }
+
+  // Consignes de montage : enregistrées dans work/instructions.md (zone de texte ou fichier),
+  // appliquées par Claude avec les éléments de style.
+  let savedText = null;  // texte enregistré, pour savoir si la zone a été modifiée
+  async function loadInstructions() {
+    const data = await fetch("/api/instructions").then((r) => r.json()).catch(() => null);
+    if (!data) return;
+    savedText = data.text;
+    if ($("instructions-text").value === "" || document.activeElement !== $("instructions-text")) $("instructions-text").value = data.text;
+    $("save-instructions").disabled = true;
+  }
+  function showInstructions() {
+    const ins = info && info.instructions;
+    $("instructions-name").textContent = ins ? `${ins.name} (${Math.max(1, Math.round(ins.size / 1024))} ko)` : "";
+    $("remove-instructions").hidden = !ins;
+    const st = info && info.style;
+    const any = ins || (st && (st.sons.length || st.videos.length));
+    $("apply-row").hidden = !any || !info.claude;
+    $("claude-missing").hidden = !any || info.claude;
+    showStyle();
+  }
+  $("instructions-text").addEventListener("input", () => { $("save-instructions").disabled = $("instructions-text").value === (savedText || ""); });
+  async function putInstructions(body, name) {
+    const res = await fetch("/api/instructions", { method: "PUT", headers: { "x-file-name": encodeURIComponent(name) }, body });
+    const out = await res.json().catch(() => ({}));
+    if (!res.ok) { setStatus("instructions-status", out.error || `Envoi refusé (erreur ${res.status}).`, "err"); return false; }
+    setStatus("instructions-status", "Consignes enregistrées.", "ok");
+    await refresh();
+    await loadInstructions();
+    return true;
+  }
+  async function saveTyped() {
+    const text = $("instructions-text").value.trim();
+    if (!text) { $("remove-instructions").click(); return; }
+    await putInstructions(new Blob([text + "\n"], { type: "text/markdown" }), "consignes saisies.md");
+  }
+  $("save-instructions").addEventListener("click", saveTyped);
+  $("pick-instructions").addEventListener("click", () => $("instructions-file").click());
+  $("instructions-file").addEventListener("change", async () => {
+    const f = $("instructions-file").files[0];
+    if (!f) return;
+    $("instructions-text").value = "";
+    await putInstructions(f, f.name);
+    $("instructions-file").value = "";
+  });
+  $("remove-instructions").addEventListener("click", async () => {
+    await fetch("/api/instructions", { method: "DELETE" });
+    $("instructions-text").value = "";
+    setStatus("instructions-status", "Consignes effacées.");
+    await refresh();
+    await loadInstructions();
+  });
+
+  // Éléments de style : effets sonores (bibliothèque commune) et vidéos d'exemple.
+  function showStyle() {
+    const st = info && info.style;
+    const list = $("style-list");
+    list.replaceChildren();
+    if (!st) return;
+    // Sons ajoutés ou retirés : la liste des effets proposés suit.
+    const sig = st.sons.map((x) => x.id).join(",");
+    if (sig !== showStyle.sig) { showStyle.sig = sig; loadEffects(); }
+    const vsig = st.videos.map((v) => v.name).join("/");  // vidéos d'exemple changées : analyse à jour ?
+    if (vsig !== showStyle.vsig) { showStyle.vsig = vsig; loadAnalyse(); }
+    const row = (kind, label, size, extra, onRemove) => {
+      const li = document.createElement("li");
+      const k = Object.assign(document.createElement("span"), { className: "kind", textContent: kind });
+      const n = Object.assign(document.createElement("span"), { className: "file", textContent: label });
+      const f = Object.assign(document.createElement("span"), { className: "facts", textContent: size < 1048576 ? `${Math.max(1, Math.round(size / 1024))} ko` : mb(size) });
+      const rm = Object.assign(document.createElement("button"), { type: "button", textContent: "Retirer" });
+      rm.addEventListener("click", onRemove);
+      li.append(k, n, f, rm, ...extra);
+      list.append(li);
+    };
+    for (const s of st.sons) {
+      const play = Object.assign(document.createElement("audio"), { controls: true, preload: "none", src: `/sfx/perso/${s.id.slice(6)}.wav` });
+      play.style.height = "28px";
+      row("Son", s.label, s.size, [play], () => removeStyle("sons", s.id));
+    }
+    for (const v of st.videos) {
+      const stem = v.name.replace(/\.[^.]+$/, "");
+      const extra = v.sheet ? [Object.assign(document.createElement("img"), { src: `/style/${encodeURIComponent(stem)}.planche.jpg`, alt: `Images de ${v.name}` })]
+        : [Object.assign(document.createElement("span"), { className: "note", textContent: "images en cours d'extraction…" })];
+      row("Exemple", v.name, v.size, extra, () => removeStyle("videos", v.name));
+      if (!v.sheet) setTimeout(refresh, 4000);
+    }
+  }
+  async function removeStyle(kind, name) {
+    await fetch(`/api/style/${kind}/${encodeURIComponent(name)}`, { method: "DELETE" });
+    await refresh();
+  }
+  async function sendStyle(kind, files) {
+    let n = 0;
+    for (const f of files) {
+      n++;
+      setStatus("style-status", `Envoi de ${f.name} (${n}/${files.length})…`);
+      const res = await fetch(`/api/style/${kind}/${encodeURIComponent(f.name)}`, { method: "PUT", body: f }).catch(() => null);
+      const out = res ? await res.json().catch(() => ({})) : {};
+      if (!res || !res.ok) { setStatus("style-status", `${f.name} : ${out.error || "envoi impossible"}`, "err"); await refresh(); return; }
+    }
+    setStatus("style-status", files.length > 1 ? `${files.length} fichiers ajoutés.` : `${files[0].name} ajouté.`, "ok");
+    await refresh();
+  }
+  // Effets proposés sur la page des moments (work/effets_page.json : ceux qui sont écartés).
+  const FX_GROUPS = { son: "Sons", voix: "Voix", visuel: "Effets visuels", perso: "Vos sons" };
+  let fxList = [];
+  async function loadEffects() {
+    const data = await fetch("/api/effects").then((r) => r.json()).catch(() => null);
+    if (!data) return;
+    fxList = data.effects;
+    const box = $("fx-groups");
+    box.replaceChildren();
+    for (const [kind, title] of Object.entries(FX_GROUPS)) {
+      const items = fxList.filter((e) => e.kind === kind);
+      if (!items.length) continue;
+      const fs = document.createElement("fieldset");
+      fs.append(Object.assign(document.createElement("legend"), { textContent: title }));
+      for (const e of items) {
+        const lab = document.createElement("label");
+        const cb = Object.assign(document.createElement("input"), { type: "checkbox", checked: e.shown });
+        cb.addEventListener("change", async () => {
+          e.shown = cb.checked;
+          const hidden = fxList.filter((x) => !x.shown).map((x) => x.id);
+          // Écarté : proposer de le décocher aussi des moments du montage en cours (fait par la
+          // page des moments, qui tient les choix de chaque moment, à sa prochaine ouverture).
+          let purge = (data.purge || []).filter((x) => x !== e.id);
+          if (!cb.checked && info && info.prepared
+              && confirm(`Décocher aussi « ${e.label} » de tous les moments du montage en cours où il est placé ? (Fait à la prochaine ouverture de la page des moments.)`)) purge = [...purge, e.id];
+          data.purge = purge;
+          const r = await fetch("/api/effects", { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify({ hidden, purge }) }).catch(() => null);
+          setStatus("fx-status", r && r.ok ? `${fxList.length - hidden.length} effet${fxList.length - hidden.length > 1 ? "s" : ""} proposé${fxList.length - hidden.length > 1 ? "s" : ""} sur la page des moments.` : "Le choix n'a pas pu être enregistré.", r && r.ok ? "ok" : "err");
+        });
+        lab.append(cb, document.createTextNode(e.label));
+        const play = Object.assign(document.createElement("button"), { type: "button", className: "fx-play", textContent: "▶" });
+        const hear = e.audio || e.id === "voix";
+        play.setAttribute("aria-label", `${hear ? "Écouter" : "Voir"} : ${e.label}`);
+        play.title = e.id === "voix" ? "Écouter : voix normale puis modifiée" : e.audio ? "Écouter" : "Voir l'effet";
+        play.addEventListener("click", () => demoEffect(e));
+        const item = document.createElement("span");
+        item.style.cssText = "display: inline-flex; align-items: center; gap: 4px;";
+        item.append(lab, play);
+        fs.append(item);
+      }
+      box.append(fs);
+    }
+  }
+  loadEffects();
+
+  // Aperçu des effets : écoute des sons, animation des effets visuels sur une image du montage
+  // en cours (ou un visage stylisé), comme dans la vidéo.
+  const FX_DESC = {
+    cash: "Caisse enregistreuse, pour un mot qui parle d'argent.", bop: "Petit « bop » d'apparition (celui des pastilles).",
+    clavier: "Frappes de clavier, enchaînées.", voix: "11 voix au choix pour un passage (moment drôle ou gêné), réglables par moment sur la page des moments. Chaque exemple fait entendre la même phrase avec la voix normale, puis modifiée :",
+    whoosh: "Passage rapide, pour une transition ou un zoom.", pop: "Bulle qui éclate, pour une apparition.",
+    ding: "Petite cloche : bonne idée, conseil.", boum: "Impact grave pour un moment fort (va bien avec la secousse).",
+    montee: "Tension qui monte avant une révélation.", glitch: "Coupure numérique.", photo: "Déclencheur d'appareil photo.",
+    faux: "Buzzer de mauvaise réponse.", juste: "Carillon de bonne réponse.",
+    gainvoix: "Un curseur de volume de la voix sur chaque moment de la page des moments (en plus du volume de tout le montage, panneau « Son de la voix »).",
+    typed: "Texte tapé au clavier en grand, au milieu de l'image (comme l'intro).", chip: "Pastille blanche avec un titre, en haut (avec son « bop »).",
+    zoomin: "Zoom avant progressif sur le visage ; le cadre reste serré jusqu'à la fin du moment.",
+    zoomsec: "Cadre serré d'un coup, pendant la durée choisie.", dezoom: "On part serré et on revient au cadre large.",
+    shake: "L'image tremble puis se calme, pour souligner un mot fort.", flash: "Éclair blanc, pour marquer un changement de partie.",
+    highlight: "Un mot du sous-titre plus gros et en couleur, sur tout le moment.",
+  };
+  let demoRun = 0;
+  // Voix modifiées (moments_lib.VOICES), exemples dans local/tutoriel/voix/<id>.mp3.
+  const VOICES = [
+    { id: "tremblement", label: "Tremblement", desc: "la voix tremble, avec un peu de robot" },
+    { id: "robot", label: "Robot", desc: "bourdonnement électronique et résonance métallique" },
+    { id: "ecureuil", label: "Écureuil", desc: "voix très aiguë, façon dessin animé" },
+    { id: "lutin", label: "Lutin", desc: "voix plus aiguë, légèrement doublée" },
+    { id: "geant", label: "Géant", desc: "voix grave, avec un peu d'écho" },
+    { id: "megaphone", label: "Mégaphone", desc: "voix serrée et saturée, comme dans un porte-voix" },
+    { id: "telephone", label: "Téléphone", desc: "voix étroite, légèrement numérique" },
+    { id: "salle", label: "Grande salle", desc: "écho de pièce vide" },
+    { id: "batterie", label: "Batterie faible", desc: "la voix ralentit et descend, comme une cassette qui s'épuise" },
+    { id: "radio", label: "Vieille radio", desc: "voix étroite, avec du souffle" },
+    { id: "choeur", label: "Chœur", desc: "la voix doublée, comme plusieurs personnes" },
+  ];
+  let voiceAudio = null;
+  function stopVoice() {
+    if (voiceAudio) voiceAudio.pause();
+    for (const b of $("fx-voices").children) b.setAttribute("aria-pressed", "false");
+  }
+  function playVoice(id, button) {
+    stopVoice();
+    voiceAudio = new Audio(`/tutoriel/voix/${id}.mp3`);
+    voiceAudio.volume = 0.9;
+    voiceAudio.play().catch(() => {});
+    button.setAttribute("aria-pressed", "true");
+    voiceAudio.addEventListener("ended", () => button.setAttribute("aria-pressed", "false"));
+  }
+  function demoEffect(e) {
+    $("fx-desc").textContent = `${e.label} : ${FX_DESC[e.id] || (e.kind === "perso" ? "votre son personnel." : "")}`;
+    // Voix modifiée : un exemple par voix (tests/make_voice_demo.py), le premier joué tout de suite.
+    const list = $("fx-voices");
+    list.hidden = e.id !== "voix";
+    $("fx-demo").hidden = true;  // montrée par les effets visuels plus bas
+    $("fx-img").pause();
+    if (e.id === "voix") {
+      demoRun++;
+      if (!list.children.length) {
+        for (const v of VOICES) {
+          const b = Object.assign(document.createElement("button"), { type: "button", textContent: `▶ ${v.label}`, title: v.desc });
+          b.setAttribute("aria-pressed", "false");
+          b.addEventListener("click", () => playVoice(v.id, b));
+          list.append(b);
+        }
+      }
+      playVoice(VOICES[0].id, list.firstElementChild);
+      return;
+    }
+    stopVoice();
+    if (e.audio) {  // sons : lecture (le clavier enchaîne ses frappes)
+      e.audio.forEach((url, i) => setTimeout(() => { const a = new Audio(url); a.volume = 0.8; a.play().catch(() => {}); }, i * 90));
+      return;
+    }
+    const run = ++demoRun, img = $("fx-img"), cap = $("fx-cap"), flash = $("fx-flash"), chip = $("fx-chip"), typed = $("fx-typed");
+    // Vidéo libre de droits (local/tutoriel/effets/LICENCE.txt), montrée seulement pour les
+    // effets visuels : une phrase de 2,9 s, de la durée de l'exemple, lue depuis le début.
+    $("fx-demo").hidden = false;
+    img.currentTime = 0; img.play().catch(() => {});
+    cap.innerHTML = e.id === "highlight" ? 'Voici un <span style="color: #ffd84d; font-size: 1.2em;">exemple</span>' : "Voici un exemple";
+    cap.hidden = e.id === "typed";
+    chip.hidden = true; typed.hidden = e.id !== "typed"; flash.style.opacity = "0";
+    const ease = (x) => { x = Math.min(1, Math.max(0, x)); return x < 0.5 ? 2 * x * x : 1 - Math.pow(-2 * x + 2, 2) / 2; };
+    const t0 = performance.now();
+    const frame = () => {
+      if (run !== demoRun) return;
+      const t = (performance.now() - t0) / 1000;
+      let scale = 1, dx = 0, dy = 0;
+      if (e.id === "zoomin") scale = 1 + 0.25 * ease((t - 0.3) / 0.8);
+      if (e.id === "zoomsec") scale = t >= 0.4 && t < 1.6 ? 1.25 : 1;
+      if (e.id === "dezoom") scale = 1 + 0.3 * (1 - ease((t - 0.4) / 0.8));
+      if (e.id === "shake" && t >= 0.3 && t < 0.8) {
+        const damp = 1 - (t - 0.3) / 0.5;
+        dx = 6 * damp * (Math.sin(t * 71) + 0.5 * Math.sin(t * 37)); dy = 6 * damp * (Math.cos(t * 59) + 0.5 * Math.sin(t * 43));
+      }
+      img.style.transform = `translate(${dx}px, ${dy}px) scale(${scale})`;
+      if (e.id === "flash") flash.style.opacity = t >= 0.3 && t < 0.55 ? String(0.95 * (1 - (t - 0.3) / 0.25)) : "0";
+      if (e.id === "chip") {
+        chip.hidden = t < 0.3;
+        const p = Math.min(1, (t - 0.3) / 0.2);
+        chip.style.transform = `translateX(-50%) scale(${t < 0.3 ? 0 : p < 1 ? 0.6 + 0.5 * p : 1})`;
+      }
+      if (e.id === "typed") {
+        const text = "3 choses\nà savoir";
+        typed.textContent = text.slice(0, Math.floor(Math.max(0, t - 0.2) / 1.2 * text.length)) + (Math.floor(t * 3) % 2 ? "|" : "");
+      }
+      if (t < 2.9) requestAnimationFrame(frame);
+      else { img.style.transform = ""; chip.hidden = true; }
+    };
+    requestAnimationFrame(frame);
+  }
+
+  $("pick-sounds").addEventListener("click", () => $("sounds-file").click());
+  $("pick-examples").addEventListener("click", () => $("examples-file").click());
+  $("sounds-file").addEventListener("change", async () => { await sendStyle("sons", [...$("sounds-file").files]); $("sounds-file").value = ""; });
+  $("examples-file").addEventListener("change", async () => { await sendStyle("videos", [...$("examples-file").files]); $("examples-file").value = ""; });
+
+  // Avertissement : ce qui ne marche pas sans Claude Code connecté.
+  function showClaudeNotice() {
+    const el = $("no-claude");
+    el.hidden = !info || info.claude;
+    el.textContent = "Claude Code n'est pas connecté. Sans lui, ne fonctionnent pas : l'application des consignes et des éléments de style pendant la préparation, et la page « Discuter avec Claude ». Tout le reste fonctionne : préparation, choix des moments, effets (y compris vos sons), découpe, génération, 4K et téléchargements.";
+    el.insertAdjacentHTML("beforeend", ' <a href="/claude/">Se connecter à Claude</a> (une fois, avec votre compte claude.ai).');
+  }
+
+  $("pick").addEventListener("click", () => $("file").click());
+  $("existing").addEventListener("change", (e) => { if (e.target.value) addPart(e.target.value); e.target.value = ""; });
+
+  // Plusieurs vidéos : assemblées dans l'ordre par la préparation (scripts/join_rushes.py),
+  // sous le nom « <première> (assemblage de N).mov » (même règle que joined_name).
+  const joinedName = (names) => `${names[0].replace(/\.[^.]*$/, "").slice(0, 150)} (assemblage de ${names.length}).mov`;
+  function addPart(name) { parts.push(name); showParts(); }
+  function showParts() {
+    const list = $("parts");
+    list.replaceChildren();
+    list.hidden = !parts.length;
+    const sizes = Object.fromEntries((info ? info.rushes : []).map((r) => [r.name, r.size]));
+    parts.forEach((name, i) => {
+      const li = document.createElement("li");
+      const label = Object.assign(document.createElement("span"), { className: "file", textContent: name });
+      const facts = Object.assign(document.createElement("span"), { className: "facts", textContent: sizes[name] ? mb(sizes[name]) : "" });
+      const move = (d, text, aria) => {
+        const b = Object.assign(document.createElement("button"), { type: "button", textContent: text, disabled: i + d < 0 || i + d >= parts.length });
+        b.setAttribute("aria-label", `${aria} : ${name}`);
+        b.onclick = () => { [parts[i], parts[i + d]] = [parts[i + d], parts[i]]; showParts(); };
+        return b;
+      };
+      const del = Object.assign(document.createElement("button"), { type: "button", textContent: "✕" });
+      del.setAttribute("aria-label", `Retirer ${name}`);
+      del.onclick = () => { parts.splice(i, 1); showParts(); };
+      li.append(label, facts, ...(parts.length > 1 ? [move(-1, "↑", "Monter"), move(1, "↓", "Descendre")] : []), del);
+      list.append(li);
+    });
+    $("parts-note").hidden = parts.length < 2;
+    $("multi-hint").hidden = parts.length > 1;
+    $("parts-note").textContent = parts.length > 1
+      ? `Ces ${parts.length} vidéos seront assemblées dans cet ordre en un seul rush, ${joinedName(parts)} : sans réencodage si elles ont les mêmes réglages (quelques secondes), sinon réencodées aux réglages de la première (plus long). Il faut de la place pour une copie de plus.`
+      : "";
+    $("pick").textContent = parts.length ? "Ajouter une autre vidéo…" : "Choisir un fichier…";
+    $("pick").classList.toggle("primary", !parts.length);
+    $("or-list").textContent = parts.length ? "ou ajouter un rush déjà envoyé :" : "ou un rush déjà envoyé :";
+    choose(parts.length > 1 ? joinedName(parts) : parts[0] || null);
+  }
+
+  $("file").addEventListener("change", async () => {
+    const files = [...$("file").files];
+    $("file").value = "";
+    for (const f of files) {  // l'une après l'autre, ajoutées dans l'ordre choisi
+      const name = await upload(f);
+      if (!name) break;
+      addPart(name);
+    }
+  });
+
+  function upload(f) {
+    if (info && f.size + 2147483648 > info.free) {
+      setStatus("file-status", `Pas assez de place sur le disque : il faut ${mb(f.size + 2147483648)}, il reste ${mb(info.free)}.`, "err");
+      return Promise.resolve(null);
+    }
+    return new Promise((resolve) => {
+      $("upload").hidden = false;
+      $("up-name").textContent = f.name;
+      $("up-facts").textContent = mb(f.size);
+      $("up-bar").value = 0;
+      $("pick").disabled = $("existing").disabled = true;
+      setStatus("file-status", "Envoi de la vidéo dans le dossier des rushes…");
+      // XMLHttpRequest : seul moyen de suivre l'avancement d'un envoi.
+      const xhr = new XMLHttpRequest();
+      xhr.open("PUT", `/api/rushes/${encodeURIComponent(f.name)}`);
+      xhr.upload.onprogress = (e) => { if (e.lengthComputable) { $("up-bar").value = e.loaded / e.total; $("up-facts").textContent = `${mb(e.loaded)} / ${mb(e.total)}`; } };
+      xhr.onload = async () => {
+        $("pick").disabled = $("existing").disabled = false;
+        let res = {};
+        try { res = JSON.parse(xhr.responseText); } catch (e) { /* réponse vide */ }
+        if (xhr.status >= 200 && xhr.status < 300) {
+          setStatus("file-status", `${res.name} est dans le dossier des rushes.`, "ok");
+          await refresh();
+          resolve(res.name);
+        } else {
+          setStatus("file-status", res.error || `L'envoi a échoué (erreur ${xhr.status}).`, "err");
+          resolve(null);
+        }
+      };
+      xhr.onerror = () => {
+        $("pick").disabled = $("existing").disabled = false;
+        setStatus("file-status", "L'envoi a été interrompu : vérifiez qu'Auto-montage tourne toujours, puis réessayez.", "err");
+        resolve(null);
+      };
+      xhr.send(f);
+    });
+  }
+
+  $("prepare").addEventListener("click", async () => {
+    $("prepare").disabled = true;
+    // Consignes tapées mais pas encore enregistrées : enregistrées avant de préparer.
+    if (!$("save-instructions").disabled && $("instructions-text").value.trim()) await saveTyped();
+    const st = info && info.style;
+    const withClaude = !!(info && info.claude && $("apply-instructions").checked
+      && (info.instructions || (st && (st.sons.length || st.videos.length))));
+    const res = await fetch("/api/prepare", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ rushes: parts,
+      instructions: withClaude }) });
+    if (!res.ok) {
+      const e = await res.json().catch(() => ({}));
+      setStatus("job-status", e.error || `La préparation n'a pas pu démarrer (erreur ${res.status}).`, "err");
+      $("prepare").disabled = false;
+      return;
+    }
+    poll();
+  });
+
+  const JOB_NAMES = { prepare: "La préparation", regen: "La génération de la version de travail", final: "La création de la 4K", update: "La mise à jour d'Auto-montage", style: "L'analyse des vidéos d'exemple" };
+  function showJob(job) {
+    if (job && job.kind === "style") { showAnalyseJob(job); if (job.state !== "running") return; }
+    $("an-progress").hidden = !(job && job.kind === "style" && job.state === "running");
+    if (job && job.kind !== "prepare" && job.state === "running") {  // génération ou 4K lancée ailleurs
+      showProgress(job);
+      $("step-prepare").classList.remove("off");
+      setStatus("job-status", `${JOB_NAMES[job.kind] || "Une tâche"} est en cours${job.kind === "style" ? "" : " (page des moments)"} : attendez sa fin, ou annulez-la, avant de préparer un rush.`);
+      return;
+    }
+    if (!job || job.kind !== "prepare" || job.state === "idle") return;
+    $("steps").hidden = false;
+    $("log").hidden = !job.log.length;
+    $("log").textContent = job.log.join("\n");
+    $("log").scrollTop = $("log").scrollHeight;
+    // Étapes de cette préparation seulement (celles de Claude quand il y a des consignes).
+    [...$("steps").children].forEach((li) => { li.hidden = Array.isArray(job.steps) && !job.steps.includes(li.dataset.step); });
+    const names = [...$("steps").children].map((li) => li.dataset.step);
+    const at = job.state === "done" ? names.length : names.indexOf(job.step);
+    [...$("steps").children].forEach((li, i) => { li.className = i < at ? "done" : i === at && job.state === "running" ? "now" : ""; });
+    showProgress(job);
+    if (job.state === "running") {
+      const since = Math.max(0, Math.round((Date.now() - new Date(job.startedAt)) / 60000));
+      setStatus("job-status", `Préparation de ${job.arg} en cours (${since} min)…`);
+    } else if (job.state === "done") {
+      setStatus("job-status", `${job.arg} est prêt.`, "ok");
+    } else if (job.state === "error") {
+      setStatus("job-status", `La préparation a échoué à l'étape « ${job.step} » : ${job.error}. Le détail est sur la page « Journal » (lien en haut).`, "err");
+    } else if (job.state === "cancelled") {
+      setStatus("job-status", `Préparation de ${job.arg} annulée à l'étape « ${job.step} ». Vous pouvez la relancer quand vous voulez ; les montages enregistrés ne sont pas touchés.`, "err");
+    }
+  }
+  $("cancel").addEventListener("click", async () => {
+    if (!confirm("Annuler la tâche en cours ? Elle s'arrête tout de suite ; il faudra la relancer depuis le début.")) return;
+    $("cancel").disabled = true;
+    await fetch("/api/job/cancel", { method: "POST" }).catch(() => {});
+    setTimeout(() => { $("cancel").disabled = false; }, 2000);
+    poll();
+  });
+
+  // --- Analyse des vidéos d'exemple ------------------------------------------------
+  const minutes = (s) => (s < 90 ? "1 à 2 min" : `environ ${Math.round(s / 60)} min`);
+  let lastAnalyseState = null;
+  function showAnalyseJob(job) {
+    const running = job.state === "running";
+    $("an-progress").hidden = !running;
+    if (running) {
+      const p = job.progress;
+      $("an-label").textContent = p ? p.label : job.step === "analyse par Claude" ? "Claude regarde les images et les mesures" : job.step;
+      $("an-bar").value = job.overall || 0;
+      $("an-facts").textContent = `${Math.floor((job.overall || 0) * 100)} %${remaining(job.remaining)}`;
+      $("analyse-style").disabled = true;
+      setStatus("an-status", "Analyse des vidéos d'exemple en cours…");
+    } else if (lastAnalyseState === "running" || job.state !== lastAnalyseState) {
+      if (job.state === "done") setStatus("an-status", "Analyse terminée.", "ok");
+      else if (job.state === "error") setStatus("an-status", `L'analyse a échoué à l'étape « ${job.step} » : ${job.error}. Détail sur la page « Journal ».`, "err");
+      else if (job.state === "cancelled") setStatus("an-status", "Analyse annulée.", "err");
+      if (lastAnalyseState === "running") loadAnalyse();
+    }
+    lastAnalyseState = job.state;
+  }
+  async function loadAnalyse() {
+    const a = await fetch("/api/style/analyse").then((r) => r.json()).catch(() => null);
+    if (!a) return;
+    const busy = info && info.job.state === "running";
+    $("analyse-style").disabled = !a.videos.length || busy;
+    $("analyse-style").textContent = a.result ? "Relancer l'analyse" : "Analyser les vidéos d'exemple";
+    $("analyse-estimate").textContent = a.videos.length
+      ? `${a.videos.length} vidéo${a.videos.length > 1 ? "s" : ""} (${Math.round(a.seconds)} s) : ${minutes(a.estimate)} · nécessite Claude Code`
+      : "Ajoutez d'abord une vidéo d'exemple.";
+    const box = $("analyse");
+    box.replaceChildren();
+    box.hidden = !a.result && !a.facts;
+    if (box.hidden) return;
+    const el = (tag, text, cls) => Object.assign(document.createElement(tag), { textContent: text || "", className: cls || "" });
+    const r = a.result || {};
+    box.append(el("h4", `Analyse du style${a.at ? ` · ${new Date(a.at).toLocaleString("fr-FR", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}` : ""}`));
+    if (a.stale) box.append(el("p", "Les vidéos d'exemple ont changé depuis cette analyse : relancez-la pour en tenir compte.", "warn"));
+    if (r.resume) box.append(el("p", r.resume));
+    // Mesures (sans Claude) : rythme et bruitages probables.
+    for (const v of (a.facts && a.facts.videos) || []) {
+      const sons = v.soundOnsets.length ? ` ; ${v.soundOnsets.length} bruitage${v.soundOnsets.length > 1 ? "s" : ""} probable${v.soundOnsets.length > 1 ? "s" : ""} (${v.soundOnsets.slice(0, 8).map((t) => `${t} s`).join(", ")}${v.soundOnsets.length > 8 ? "…" : ""})` : "";
+      box.append(el("p", `${v.video} : ${v.duration} s, ${v.shots} plan${v.shots > 1 ? "s" : ""} (un toutes les ${v.averageShot} s)${sons}.`, "note"));
+    }
+    if (r.rythme) box.append(el("p", `Rythme : ${r.rythme}`));
+    const LBL = { oui: ["oui", "Reproductible"], "en partie": ["partiel", "En partie"], non: ["non", "Pas reproductible"] };
+    if (Array.isArray(r.elements) && r.elements.length) {
+      box.append(el("h4", "Ce qui a été repéré"));
+      for (const e of r.elements) {
+        const row = el("div", "", "el");
+        const left = document.createElement("div");
+        left.append(el("div", e.categorie, "cat"), el("div", e.observe), el("div", e.ou, "note"));
+        const [cls, txt] = LBL[e.reproductible] || ["non", e.reproductible || "?"];
+        row.append(left, el("span", txt, `badge ${cls}`), el("div", e.comment, "how"));
+        box.append(row);
+      }
+    }
+    if (r.sousTitres && typeof r.sousTitres === "object") {
+      const st = r.sousTitres;
+      const p = el("p", `Sous-titres proposés : police ${st.font}, ${st.size} px, graisse ${st.weight}${st.uppercase ? ", majuscules" : ""}, couleur `);
+      const sw = el("span", "", "swatch"); sw.style.background = st.color; p.append(sw, ` ${st.color}, ombre ${st.shadow ?? 50} %. `);
+      const btn = el("button", "Appliquer ce style aux sous-titres");
+      btn.type = "button";
+      btn.addEventListener("click", async () => {
+        const res = await fetch("/api/caption-style", { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify(st) }).catch(() => null);
+        setStatus("an-status", res && res.ok ? "Style des sous-titres appliqué (visible sur la page des moments, et dans la vidéo à la prochaine génération)." : "Le style n'a pas pu être appliqué.", res && res.ok ? "ok" : "err");
+      });
+      box.append(p, btn);
+    }
+    if (Array.isArray(r.aFaire) && r.aFaire.length) {
+      box.append(el("h4", "Pour s'en approcher"));
+      const ul = document.createElement("ul");
+      for (const t of r.aFaire) ul.append(el("li", t));
+      box.append(ul);
+    }
+    const sheets = ((a.facts && a.facts.videos) || []).flatMap((v) => v.sheets);
+    if (sheets.length) {
+      const d = document.createElement("details");
+      d.append(el("summary", `Images analysées (${sheets.length} planche${sheets.length > 1 ? "s" : ""})`));
+      const wrap = el("div", "", "sheets");
+      for (const sh of sheets) {
+        const url = `/style-analyse/${sh.replace(/^style\/analyse\//, "").split("/").map(encodeURIComponent).join("/")}`;
+        const a2 = Object.assign(document.createElement("a"), { href: url, target: "_blank", rel: "noopener" });
+        a2.append(Object.assign(document.createElement("img"), { src: url, alt: sh }));
+        wrap.append(a2);
+      }
+      d.append(wrap);
+      box.append(d);
+    }
+  }
+  $("analyse-style").addEventListener("click", async () => {
+    $("analyse-style").disabled = true;
+    const res = await fetch("/api/style/analyse", { method: "POST" }).catch(() => null);
+    if (!res || !res.ok) {
+      const e = res ? await res.json().catch(() => ({})) : {};
+      setStatus("an-status", e.error || "L'analyse n'a pas pu démarrer.", "err");
+      $("analyse-style").disabled = false;
+      return;
+    }
+    lastAnalyseState = "running";
+    poll();
+  });
+
+  async function poll() {
+    clearTimeout(polling);
+    const job = await (await fetch("/api/job")).json().catch(() => null);
+    if (!job) { polling = setTimeout(poll, 3000); return; }
+    showJob(job);
+    if (job.state === "running") { $("prepare").disabled = true; polling = setTimeout(poll, 2000); return; }
+    polling = null;
+    if (job.kind === "prepare" && job.state === "done") { setStatus("job-status", "Rush prêt : ouverture de la page des moments…", "ok"); setTimeout(() => { location.href = "/"; }, 1200); }
+    else await refresh();
+  }
+
+  if (window.AUTO_MONTAGE_VERSION) document.querySelector(".sub").textContent += ` Auto-montage ${window.AUTO_MONTAGE_VERSION}.`;
+  // Nouvelle version disponible : bandeau vers la page « Mises à jour ».
+  fetch("/api/status").then((r) => r.json()).then((st) => {
+    if (!st.update || !st.update.newer) return;
+    $("update-note").hidden = false;
+    $("update-note").innerHTML = `Nouvelle version d'Auto-montage disponible : <b></b>. <a href="/updates/">Voir et mettre à jour</a> (vos montages sont gardés).`;
+    $("update-note").querySelector("b").textContent = st.update.latest;
+  }).catch(() => {});
+  loadInstructions();
+  refresh().catch(() => setStatus("file-status", "Auto-montage ne répond pas : relancez-le depuis son raccourci.", "err"));
+</script>

@@ -1,0 +1,21 @@
+node_modules
+.DS_Store
+.env
+
+# Rendus
+out
+
+# Rushes sources (trop lourds pour git)
+public/rushes
+work
+whisper.cpp
+# Voix montée, régénérée par scripts/build_edit.py
+public/audio
+# Police Oliver : usage personnel uniquement, non redistribuable (scripts/fetch_fonts.sh)
+public/fonts/Oliver*
+__pycache__/
+# Sons personnels de l’utilisateur (page « Rushes et montages »)
+public/sfx/perso
+# Police des sous-titres choisie (copie, peut être une police personnelle) et polices ajoutées
+public/fonts/choisie
+public/fonts/perso

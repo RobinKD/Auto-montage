@@ -1,0 +1,15 @@
+Captures rush-video.jpg, rush-preparation.jpg, consignes.jpg, moments.jpg, effets.jpg, style.jpg,
+son.jpg, telecharger.jpg et petites vidéos demo-*.mp4, demo-*.webm du tutoriel :
+tirées de « Wikimania 2023 - Plenary - 18 August - Lightning Talk - Wikipedia et travail des
+concepts-clés », intervention de Bachounda (Wikimedia Algeria), Wikimedia Commons
+(https://commons.wikimedia.org/wiki/File:Wikimania_2023_-_Plenary_-_18_August_-_Lightning_Talk_-_Wikipedia_et_travail_des_concepts-cl%C3%A9s.webm),
+sous licence Creative Commons Attribution - Partage dans les mêmes conditions 4.0
+(CC BY-SA 4.0, https://creativecommons.org/licenses/by-sa/4.0/deed.fr).
+
+Modifications : passage de 103,5 s à 351 s de l'intervention, monté par Auto-montage en une
+vidéo d'une minute (moments retirés, sous-titres corrigés, zooms, mots mis en valeur, intro
+tapée). Les captures montrent ce montage dans l'interface d'Auto-montage. Ces extraits et
+captures sont diffusés sous la même licence, CC BY-SA 4.0.
+
+Les autres fichiers ont leurs propres sources : effets/ (effets/LICENCE.txt), voix/
+(tests/make_voice_demo.py), analyse.jpg, chat.jpg et claude.jpg (interface d'Auto-montage).

@@ -1,0 +1,4 @@
+# Le contexte de construction n'a besoin que de ces fichiers : le dépôt est monté au démarrage.
+*
+!docker/
+!montage/scripts/requirements.txt

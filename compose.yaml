@@ -1,0 +1,42 @@
+# Auto-montage en local : docker compose up -d, puis http://localhost:8080/
+# (ou le raccourci : docker/install-desktop.sh, install-macos.sh, install-windows.ps1).
+# Détails : docker/README.md.
+services:
+  app:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    image: auto-montage:latest
+    container_name: auto-montage
+    ports:
+      - "127.0.0.1:${AM_PORT:-8080}:8080"
+    volumes:
+      # « :z » : autorise l'accès au dépôt sous SELinux (Fedora, RHEL…), sans effet ailleurs.
+      - .:/app:z
+      # Hors du dépôt : plus rapide sous macOS et Windows (le dépôt y est un partage lent).
+      - node-modules:/app/montage/node_modules
+      - whisper:/opt/whisper  # WHISPER_DIR=/opt/whisper/whisper.cpp (image)
+      - claude-home:/home/app
+    environment:
+      # Le conteneur démarre en root puis passe à cet utilisateur (celui de la machine sous
+      # Linux, fourni par les lanceurs) : les fichiers créés dans le dépôt lui appartiennent.
+      # Vides : le propriétaire du dépôt (voir docker/entrypoint.sh).
+      - AM_UID=${AM_UID:-}
+      - AM_GID=${AM_GID:-}
+      # Facultatif : clé d'API à la place de la connexion « claude » (compte claude.ai).
+      - ANTHROPIC_API_KEY
+    init: true
+    stdin_open: true
+    tty: true
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8080/api/regen"]
+      interval: 15s
+      timeout: 5s
+      start_period: 30m
+      retries: 3
+
+volumes:
+  node-modules:
+  whisper:
+  claude-home:

@@ -1,0 +1,258 @@
+# Installateurs Auto-montage : AppImage (Linux), .exe (Windows), .dmg (macOS).
+# Lancé à la main seulement (onglet Actions > Installateurs > Run workflow) : sans minutes
+# GitHub Actions pour un dépôt privé, les versions sont publiées sans installateurs par
+# packaging/publish-release.sh. Lancé sur une branche, il construit et vérifie les trois
+# installateurs (fichiers dans l'onglet Actions, rubrique « Artifacts ») ; lancé sur un tag v*
+# pas encore publié, il publie cette version avec ses installateurs. Notes : la section de
+# CHANGELOG.md pour ce numéro, puis packaging/release-notes.md. Une version déjà publiée n'est
+# jamais refaite.
+name: Installateurs
+
+on:
+  workflow_dispatch:
+
+# Lecture seule par défaut ; seule la publication écrit (création de la version).
+permissions:
+  contents: read
+
+jobs:
+  projet:
+    name: Copie du projet
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      publish: ${{ steps.version.outputs.publish }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # pour voir si VERSION a changé dans ce push
+      - id: version
+        name: Version
+        env:
+          MESSAGE: ${{ github.event.head_commit.message }}
+          BEFORE: ${{ github.event.before }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          PUBLISH=false
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            V="${GITHUB_REF_NAME#v}"; PUBLISH=true
+          elif [[ "$MESSAGE" == *"[publier]"* ]]; then
+            V="$(cat VERSION)"; PUBLISH=true
+          elif [[ "$GITHUB_EVENT_NAME" == push ]] && { [[ "$BEFORE" =~ ^0+$ ]] || ! git cat-file -e "$BEFORE" 2>/dev/null \
+                 || ! git diff --quiet "$BEFORE" "$GITHUB_SHA" -- VERSION; }; then
+            V="$(cat VERSION)"; PUBLISH=true  # VERSION a changé : nouvelle version
+          else
+            V="$(cat VERSION)-dev.${GITHUB_SHA::7}"
+          fi
+          # Publication depuis main, dev ou un tag seulement (pas depuis une autre branche).
+          if [[ "$PUBLISH" == true ]] && ! [[ "$GITHUB_REF" =~ ^refs/(heads/(main|dev)|tags/v) ]]; then
+            echo "::notice::Branche $GITHUB_REF_NAME : construction seulement, pas de publication."
+            PUBLISH=false
+          fi
+          # Numéro attendu (le tag ou VERSION) : chiffres et points, rien d'autre.
+          if ! [[ "$V" =~ ^[0-9]+(\.[0-9]+)*(-dev\.[0-9a-f]{7})?$ ]]; then
+            echo "::error::Numéro de version invalide : $V"; exit 1
+          fi
+          # Jamais deux fois le même numéro (ex. la même version poussée sur une autre branche).
+          if [[ "$PUBLISH" == true ]] && gh release view "v$V" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "::notice::La version v$V est déjà publiée : construction seulement."
+            PUBLISH=false
+          fi
+          echo "version=$V" >> "$GITHUB_OUTPUT"
+          echo "publish=$PUBLISH" >> "$GITHUB_OUTPUT"
+          echo "Version : $V (publication : $PUBLISH)"
+      - name: Copie du projet
+        env:
+          V: ${{ steps.version.outputs.version }}
+        run: |
+          packaging/make-payload.sh build/payload "$V"
+          tar -czf payload.tgz -C build payload
+      - uses: actions/upload-artifact@v4
+        with:
+          name: payload
+          path: payload.tgz
+
+  linux:
+    name: Linux (AppImage)
+    needs: projet
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: payload
+      - name: Construction
+        run: |
+          mkdir -p build && tar -xzf payload.tgz -C build
+          packaging/linux/build-appimage.sh build/payload dist
+      - name: Vérification (installation dans un dossier temporaire)
+        env:
+          V: ${{ needs.projet.outputs.version }}
+        run: |
+          APP="$(ls dist/*.AppImage)"
+          export AUTO_MONTAGE_HOME="$RUNNER_TEMP/am" XDG_DATA_HOME="$RUNNER_TEMP/share"
+          APPIMAGE_EXTRACT_AND_RUN=1 "$APP" install
+          test -x "$AUTO_MONTAGE_HOME/docker/open.sh"
+          test -f "$AUTO_MONTAGE_HOME/compose.yaml"
+          test "$(cat "$AUTO_MONTAGE_HOME/.auto-montage-version")" = "$V"
+          grep -q "Exec=" "$XDG_DATA_HOME/applications/auto-montage.desktop"
+          bash -n "$AUTO_MONTAGE_HOME/docker/lib.sh"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux
+          path: dist/*.AppImage
+
+  windows:
+    name: Windows (.exe)
+    needs: projet
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: payload
+      - name: Copie du projet
+        shell: bash
+        run: mkdir -p build && tar -xzf payload.tgz -C build
+      - name: Syntaxe des scripts PowerShell (Windows PowerShell 5.1)
+        shell: powershell
+        run: |
+          $bad = 0
+          foreach ($f in Get-ChildItem build\payload\docker\windows\*.ps1) {
+            $errors = $null
+            [System.Management.Automation.Language.Parser]::ParseFile($f.FullName, [ref]$null, [ref]$errors) | Out-Null
+            if ($errors) { $bad++; Write-Host "$($f.Name) : $($errors[0].Message)" }
+          }
+          if ($bad) { exit 1 }
+      - name: Construction (Inno Setup)
+        shell: pwsh
+        env:
+          V: ${{ needs.projet.outputs.version }}
+        run: |
+          $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          if (-not (Test-Path $iscc)) { choco install innosetup -y --no-progress | Out-Null }
+          & $iscc "/DAppVersion=$env:V" "/DPayload=$PWD\build\payload" "/DOutDir=$PWD\dist" packaging\windows\auto-montage.iss
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+      - name: Vérification (installation silencieuse)
+        shell: pwsh
+        run: |
+          $exe = (Get-ChildItem dist\*.exe).FullName
+          $dir = Join-Path $env:RUNNER_TEMP 'am'
+          Start-Process $exe -ArgumentList '/VERYSILENT', '/SUPPRESSMSGBOXES', "/DIR=$dir" -Wait
+          if (-not (Test-Path "$dir\docker\windows\open.ps1")) { throw 'Fichiers non installés' }
+          if (-not (Test-Path "$dir\compose.yaml")) { throw 'compose.yaml manquant' }
+          $lnk = Join-Path ([Environment]::GetFolderPath('Desktop')) 'Auto-montage.lnk'
+          if (-not (Test-Path $lnk)) { throw 'Raccourci du bureau manquant' }
+          $target = (New-Object -ComObject WScript.Shell).CreateShortcut($lnk).Arguments
+          Write-Host "Raccourci : $target"
+          if ((Get-Content "$dir\docker\entrypoint.sh" -Raw) -match "`r") { throw 'entrypoint.sh en CRLF' }
+      - name: Vérification du lanceur (sans conteneurs Linux sur cette machine)
+        shell: pwsh
+        env:
+          CI: "true"
+        run: |
+          # Les machines Windows de GitHub n'ont que des conteneurs Windows (ou pas de Docker) :
+          # le lanceur doit l'expliquer et s'arrêter, sans rester bloqué.
+          $dir = Join-Path $env:RUNNER_TEMP 'am'
+          $out = powershell -NoProfile -ExecutionPolicy Bypass -File "$dir\docker\windows\open.ps1" 2>&1 | Out-String
+          $code = $LASTEXITCODE
+          Write-Host $out
+          if ($code -ne 1) { throw "code de sortie $code au lieu de 1" }
+          if ($out -notmatch 'conteneurs Windows|Docker ne répond pas') { throw 'message attendu absent' }
+          exit 0  # le code 1 attendu du lanceur ne doit pas faire échouer l'étape
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows
+          path: dist/*.exe
+
+  macos:
+    name: macOS (.dmg)
+    needs: projet
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: payload
+      - name: Construction
+        run: |
+          mkdir -p build && tar -xzf payload.tgz -C build
+          packaging/macos/build-dmg.sh build/payload dist
+      - name: Vérification (montage du .dmg, première installation)
+        env:
+          V: ${{ needs.projet.outputs.version }}
+        run: |
+          DMG="$(ls dist/*.dmg)"
+          hdiutil attach "$DMG" -mountpoint /tmp/am-dmg -nobrowse
+          APP=/tmp/am-dmg/Auto-montage.app
+          codesign --verify --deep "$APP"
+          test -f "$APP/Contents/Resources/applet.icns"
+          test -f "/tmp/am-dmg/LISEZ-MOI - première ouverture.txt"
+          # La commande donnée aux utilisateurs pour lever le blocage de Gatekeeper fonctionne.
+          cp -R "$APP" "$RUNNER_TEMP/Auto-montage.app"
+          xattr -w com.apple.quarantine "0081;00000000;Safari;" "$RUNNER_TEMP/Auto-montage.app"
+          xattr -dr com.apple.quarantine "$RUNNER_TEMP/Auto-montage.app"
+          if xattr -p com.apple.quarantine "$RUNNER_TEMP/Auto-montage.app" 2>/dev/null; then
+            echo "L'attribut de quarantaine est toujours là"; exit 1
+          fi
+          export AUTO_MONTAGE_HOME="$RUNNER_TEMP/am"
+          bash "$APP/Contents/Resources/first-run.sh" "$APP/Contents/Resources/payload"
+          test -x "$AUTO_MONTAGE_HOME/docker/open.sh"
+          test "$(cat "$AUTO_MONTAGE_HOME/.auto-montage-version")" = "$V"
+          bash -n "$AUTO_MONTAGE_HOME/docker/lib.sh"
+          # Sans Docker Desktop (cas des machines de GitHub) : explication et arrêt, sans blocage.
+          set +e
+          OUT="$(PATH=/usr/bin:/bin:/usr/sbin:/sbin "$AUTO_MONTAGE_HOME/docker/open.sh" < /dev/null 2>&1)"
+          CODE=$?
+          set -e
+          echo "$OUT"
+          test "$CODE" = 1
+          echo "$OUT" | grep -q "Docker Desktop n'est pas installé"
+          hdiutil detach /tmp/am-dmg
+      - uses: actions/upload-artifact@v4
+        with:
+          name: macos
+          path: dist/*.dmg
+
+  publication:
+    name: Publication
+    if: needs.projet.outputs.publish == 'true'
+    needs: [projet, linux, windows, macos]
+    runs-on: ubuntu-latest
+    # Une publication à la fois (ex. push sur dev puis fusion dans main du même numéro) : la
+    # seconde trouve la version déjà publiée et s'arrête sans erreur.
+    permissions:
+      contents: write
+    concurrency:
+      group: publication-installateurs
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          pattern: "{linux,windows,macos}"
+          merge-multiple: true
+      - name: Version GitHub
+        env:
+          GH_TOKEN: ${{ github.token }}
+          V: ${{ needs.projet.outputs.version }}
+        run: |
+          ls -la dist
+          if gh release view "v$V" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "::notice::Auto-montage $V est déjà publiée (autre branche ou relance) : rien à faire."
+            exit 0
+          fi
+          # Notes : la section « ## V » de CHANGELOG.md, puis l'installation.
+          {
+            if grep -q "^## $V\$" CHANGELOG.md; then
+              echo "## Nouveautés"; echo
+              awk -v v="## $V" '$0 == v {on=1; next} /^## / {on=0} on' CHANGELOG.md
+              echo
+            fi
+            cat packaging/release-notes.md
+          } > notes.md
+          gh release create "v$V" dist/* --target "$GITHUB_SHA" \
+            --title "Auto-montage $V" \
+            --notes-file notes.md \
+            --prerelease

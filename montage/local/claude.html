@@ -1,0 +1,178 @@
+<title>Connexion à Claude</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@700;900&family=Source+Sans+3:wght@400;600&family=JetBrains+Mono:wght@500&display=swap">
+<style>
+  /* Layout : une colonne ; l'état de la connexion, puis les étapes de connexion (ouvrir la
+     page d'autorisation, coller le code). Mêmes couleurs et polices que les autres pages. */
+  :root {
+    --bg: #f5f3ef;
+    --surface: #fffdf9;
+    --fg: #1f1d1a;
+    --muted: #6f695f;
+    --line: #e4ded4;
+    --accent: #2d6a5a;
+    --accent-soft: #dcebe5;
+    --warn: #9a5b12;
+    --warn-soft: #f6e7d2;
+    --display: "Poppins", "Helvetica Neue", Arial, sans-serif;
+    --body: "Source Sans 3", "Helvetica Neue", Arial, sans-serif;
+    --mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #151412; --surface: #1d1b18; --fg: #f1ece4; --muted: #a39a8d; --line: #2f2b26;
+      --accent: #7cc2ad; --accent-soft: #1f3530; --warn: #e3a95b; --warn-soft: #3a2a15; color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #151412; --surface: #1d1b18; --fg: #f1ece4; --muted: #a39a8d; --line: #2f2b26;
+    --accent: #7cc2ad; --accent-soft: #1f3530; --warn: #e3a95b; --warn-soft: #3a2a15; color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  body { background: var(--bg); color: var(--fg); font-family: var(--body); font-size: 16px; line-height: 1.45; padding: 0 16px; }
+  main { max-width: 720px; margin: 0 auto; padding-block: 24px 48px; display: flex; flex-direction: column; gap: 16px; }
+  header { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 8px 16px; }
+  h1 { font-family: var(--display); font-weight: 900; font-size: 26px; line-height: 1.1; margin: 0; }
+  a { color: var(--accent); }
+  .sub { color: var(--muted); font-size: 14px; margin: 4px 0 0; max-width: 70ch; }
+  section { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 16px; display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+  .row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+  .btn { display: inline-block; font-size: 15px; font-weight: 600; text-decoration: none; color: var(--bg); background: var(--accent); border-radius: 8px; padding: 8px 14px; }
+  .note { font-size: 14px; color: var(--muted); }
+  ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+  li button {
+    width: 100%; display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 12px; align-items: center; text-align: left;
+    font: inherit; font-size: 15px; color: var(--fg); background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 8px 12px; cursor: pointer;
+  }
+  li button[aria-current="true"] { border-color: var(--accent); background: var(--accent-soft); }
+  .when { font-family: var(--mono); font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .chip { font-size: 12px; font-weight: 600; border-radius: 999px; padding: 1px 9px; white-space: nowrap; }
+  .chip.réussi { color: var(--accent); background: var(--accent-soft); }
+  .chip.échec, .chip.interrompu { color: var(--warn); background: var(--warn-soft); }
+  .chip.annulé, .chip.serveur { color: var(--muted); background: var(--line); }
+  .chip.running { color: var(--bg); background: var(--accent); }
+  pre {
+    margin: 0; max-height: 70vh; overflow: auto; background: var(--bg); border: 1px solid var(--line); border-radius: 8px;
+    padding: 10px 12px; font-family: var(--mono); font-size: 12px; line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere;
+  }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+</style>
+<style>
+  ol.steps { margin: 0; padding-left: 22px; display: flex; flex-direction: column; gap: 12px; }
+  ol.steps li { padding-left: 4px; }
+  ol.steps li button { width: auto; display: inline-block; text-align: center; }
+  button { font: inherit; font-size: 15px; font-weight: 600; color: var(--fg); background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 8px 14px; cursor: pointer; }
+  button.primary { color: var(--bg); background: var(--accent); border-color: var(--accent); }
+  button:disabled { opacity: 0.55; cursor: default; }
+  input[type=text] { font: inherit; font-family: var(--mono); font-size: 14px; color: var(--fg); background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; flex: 1 1 260px; min-width: 0; }
+  .ok { color: var(--accent); font-weight: 600; }
+  .err { color: var(--warn); }
+  .account { white-space: pre-wrap; font-family: var(--mono); font-size: 12px; color: var(--muted); margin: 0; }
+  .off { opacity: 0.5; }
+</style>
+
+<main>
+  <header>
+    <div>
+      <h1>Connexion à Claude</h1>
+      <p class="sub">Claude Code sert à appliquer les consignes et le style pendant la préparation, et à la page « Discuter avec Claude ». La connexion se fait une fois ; elle est gardée ensuite.</p>
+    </div>
+  </header>
+
+  <section aria-labelledby="h-state">
+    <h2 id="h-state" class="note" style="margin: 0;">État</h2>
+    <p id="state" role="status">Vérification…</p>
+    <p class="account" id="account" hidden></p>
+    <div class="row"><button type="button" id="logout" hidden>Se déconnecter</button></div>
+  </section>
+
+  <section id="connect" aria-labelledby="h-connect" hidden>
+    <h2 id="h-connect" class="note" style="margin: 0;">Se connecter avec votre compte Claude</h2>
+    <ol class="steps">
+      <li id="s1">
+        <div class="row"><button type="button" class="primary" id="start">Ouvrir la page d'autorisation</button></div>
+        <p class="note">Elle s'ouvre dans un nouvel onglet de ce navigateur, sur <b>claude.com</b>. Même si vous êtes déjà connecté à claude.ai, ce site peut vous demander de vous connecter une fois (pour le navigateur, claude.com et claude.ai sont deux sites différents) : utilisez le même compte et la même méthode (Google, e-mail…). Cliquez ensuite sur <b>Autoriser</b>. Un abonnement Claude (Pro ou Max) est nécessaire.</p>
+        <p class="note">Une fenêtre du navigateur à propos de la « synthèse vocale » peut apparaître sur cette page de claude.com : elle ne vient pas d'Auto-montage et n'empêche pas la connexion, vous pouvez la fermer.</p>
+        <p class="note" id="link-row" hidden>L'onglet ne s'est pas ouvert ? <a id="link" target="_blank" rel="noopener">Ouvrir la page d'autorisation</a></p>
+      </li>
+      <li id="s2" class="off">
+        <p style="margin: 0 0 6px;">Après l'autorisation, la page affiche un <b>code</b> : copiez-le et collez-le ici.</p>
+        <div class="row">
+          <input type="text" id="code" placeholder="Code d'autorisation" autocomplete="off" spellcheck="false" disabled>
+          <button type="button" class="primary" id="send" disabled>Valider</button>
+        </div>
+      </li>
+    </ol>
+    <p id="msg" role="status"></p>
+    <p class="note">Auto-montage ne peut pas lire les cookies de votre navigateur (aucun site ne le peut, pour votre sécurité) : c'est pour cela que l'autorisation passe par cette page, ouverte dans votre navigateur. Autre possibilité : le lanceur « Claude Code » (terminal), ou une clé d'API (variable <code>ANTHROPIC_API_KEY</code> avant de lancer Auto-montage).</p>
+    <p class="note"><a href="#" id="console">Utiliser plutôt un compte Anthropic Console (facturation à l'usage de l'API)</a></p>
+  </section>
+</main>
+
+<script>
+  const $ = (id) => document.getElementById(id);
+  let console_ = false;
+  function msg(text, kind = "") { $("msg").textContent = text; $("msg").className = kind; }
+
+  async function refresh() {
+    const st = await fetch("/api/claude", { cache: "no-store" }).then((r) => r.json()).catch(() => null);
+    if (!st) { $("state").textContent = "Le serveur Auto-montage ne répond pas."; return; }
+    if (!st.installed) { $("state").textContent = "Claude Code n'est pas installé dans ce conteneur."; return; }
+    $("state").textContent = st.connected ? "Claude Code est connecté." : "Claude Code n'est pas connecté.";
+    $("state").className = st.connected ? "ok" : "err";
+    $("account").hidden = !st.account;
+    $("account").textContent = st.account;
+    $("logout").hidden = !st.connected || st.apiKey;
+    $("connect").hidden = st.connected;
+  }
+
+  async function post(url, body) {
+    const r = await fetch(url, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body || {}) });
+    return { ok: r.ok, data: await r.json().catch(() => ({})) };
+  }
+
+  $("start").addEventListener("click", async () => {
+    // Onglet ouvert tout de suite (sinon le navigateur le bloque), adresse donnée ensuite.
+    const tab = window.open("about:blank", "_blank");
+    $("start").disabled = true;
+    msg("Préparation de la connexion…");
+    const { ok, data } = await post("/api/claude/login", { console: console_ });
+    $("start").disabled = false;
+    if (!ok) { if (tab) tab.close(); msg(data.error || "La connexion n'a pas pu démarrer.", "err"); return; }
+    if (tab) tab.location = data.url;
+    $("link").href = data.url;
+    $("link-row").hidden = false;
+    $("s2").classList.remove("off");
+    $("code").disabled = $("send").disabled = false;
+    $("code").focus();
+    msg("Autorisez Auto-montage dans l'onglet ouvert, puis collez le code ci-dessus.");
+  });
+
+  $("send").addEventListener("click", async () => {
+    const code = $("code").value.trim();
+    if (!code) { $("code").focus(); return; }
+    $("send").disabled = true;
+    msg("Vérification du code…");
+    const { ok, data } = await post("/api/claude/code", { code });
+    $("send").disabled = false;
+    if (!ok) { msg(data.error || "La connexion n'a pas abouti.", "err"); return; }
+    msg("Connecté. Vous pouvez revenir aux autres pages.", "ok");
+    $("code").value = "";
+    refresh();
+  });
+  $("code").addEventListener("keydown", (e) => { if (e.key === "Enter") $("send").click(); });
+
+  $("logout").addEventListener("click", async () => {
+    if (!confirm("Déconnecter Claude Code de ce compte ?")) return;
+    await post("/api/claude/logout");
+    refresh();
+  });
+  $("console").addEventListener("click", (e) => {
+    e.preventDefault();
+    console_ = !console_;
+    $("console").textContent = console_ ? "Revenir au compte Claude (abonnement)" : "Utiliser plutôt un compte Anthropic Console (facturation à l'usage de l'API)";
+    $("h-connect").textContent = console_ ? "Se connecter avec un compte Anthropic Console" : "Se connecter avec votre compte Claude";
+  });
+
+  refresh();
+</script>

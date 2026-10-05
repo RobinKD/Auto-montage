@@ -1,0 +1,241 @@
+<title>Téléchargements __RUSH__</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@700;900&family=Source+Sans+3:wght@400;600&family=JetBrains+Mono:wght@500&display=swap">
+<style>
+  /* Layout : une colonne, une ligne par qualité (de la plus légère à la 4K), mêmes couleurs
+     et polices que la page des moments. */
+  :root {
+    --bg: #f5f3ef;
+    --surface: #fffdf9;
+    --fg: #1f1d1a;
+    --muted: #6f695f;
+    --line: #e4ded4;
+    --accent: #2d6a5a;
+    --accent-soft: #dcebe5;
+    --warn: #9a5b12;
+    --warn-soft: #f6e7d2;
+    --display: "Poppins", "Helvetica Neue", Arial, sans-serif;
+    --body: "Source Sans 3", "Helvetica Neue", Arial, sans-serif;
+    --mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #151412; --surface: #1d1b18; --fg: #f1ece4; --muted: #a39a8d; --line: #2f2b26;
+      --accent: #7cc2ad; --accent-soft: #1f3530; --warn: #e3a95b; --warn-soft: #3a2a15; color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #151412; --surface: #1d1b18; --fg: #f1ece4; --muted: #a39a8d; --line: #2f2b26;
+    --accent: #7cc2ad; --accent-soft: #1f3530; --warn: #e3a95b; --warn-soft: #3a2a15; color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  body { background: var(--bg); color: var(--fg); font-family: var(--body); font-size: 16px; line-height: 1.45; padding: 0 16px; }
+  main { max-width: 720px; margin: 0 auto; padding-block: 24px 48px; display: flex; flex-direction: column; gap: 16px; }
+  h1 { font-family: var(--display); font-weight: 900; font-size: 26px; line-height: 1.1; margin: 0; text-wrap: balance; }
+  .sub { color: var(--muted); font-size: 14px; margin: 4px 0 0; max-width: 65ch; }
+  .sub a { color: var(--accent); }
+  ol { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+  li {
+    display: grid; grid-template-columns: 5.5rem minmax(0, 1fr) auto; align-items: center; gap: 6px 16px;
+    background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px;
+  }
+  .q { font-family: var(--display); font-weight: 900; font-size: 22px; line-height: 1; }
+  .q small { display: block; font-family: var(--mono); font-weight: 500; font-size: 11px; color: var(--muted); margin-top: 6px; }
+  .info { min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+  .facts { font-family: var(--mono); font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .note { font-size: 14px; }
+  .flag { justify-self: start; font-size: 12px; font-weight: 600; border-radius: 999px; padding: 1px 9px; }
+  .flag.old { color: var(--warn); background: var(--warn-soft); }
+  .flag.info2 { color: var(--accent); background: var(--accent-soft); }
+  .flags { display: flex; flex-wrap: wrap; gap: 6px; }
+  button {
+    font: inherit; font-size: 14px; font-weight: 600; cursor: pointer; white-space: nowrap;
+    color: var(--bg); background: var(--accent); border: 1px solid var(--accent); border-radius: 8px; padding: 8px 14px;
+  }
+  button:disabled { opacity: 0.6; cursor: default; }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .progress { grid-column: 2 / -1; font-size: 13px; color: var(--muted); min-height: 0; }
+  .progress.err { color: var(--warn); }
+  .make { grid-column: 2 / -1; display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: var(--muted); }
+  .make .hint { color: var(--warn); }
+  .make progress { width: 100%; height: 8px; accent-color: var(--accent); }
+  .empty { display: block; color: var(--muted); text-align: center; padding: 24px; }
+  @media (max-width: 520px) {
+    li { grid-template-columns: minmax(0, 1fr) auto; }
+    .info { grid-column: 1 / -1; grid-row: 2; }
+    .progress { grid-column: 1 / -1; }
+  }
+</style>
+
+<main>
+  <header>
+    <h1>Téléchargements</h1>
+    <p class="sub" id="sub"></p>
+  </header>
+  <ol id="list"></ol>
+</main>
+
+<script>
+  const DATA = /*__DATA__*/null;
+  const $ = (id) => document.getElementById(id);
+  const mb = (n) => `${(n / 1048576).toFixed(n < 10485760 ? 1 : 0)} Mo`;
+  const when = (iso) => {
+    const d = new Date(iso);
+    return `${d.toLocaleDateString("fr-FR", { day: "numeric", month: "short" })} à ${d.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}`;
+  };
+
+  const sub = $("sub");
+  sub.textContent = `Rush ${DATA.rush}. Chaque version se télécharge en un seul fichier MP4 ; les plus lourdes sont rassemblées depuis plusieurs morceaux au moment du téléchargement. `;
+  if (DATA.momentsPage) {
+    const a = document.createElement("a");
+    a.href = DATA.momentsPage; a.target = "_blank"; a.rel = "noopener"; a.textContent = "Page des moments";
+    sub.append(a);
+  }
+
+  let downloads = null;
+  const list = $("list");
+  if (!DATA.versions.length) {
+    const li = document.createElement("li");
+    li.className = "empty";
+    li.textContent = "Aucune version rendue pour l'instant : elles apparaîtront après la génération de la version de travail.";
+    list.append(li);
+  }
+  const buttons = [];
+  for (const v of DATA.versions) {
+    const li = document.createElement("li");
+    const q = document.createElement("div");
+    q.className = "q";
+    q.textContent = v.label;
+    const res = document.createElement("small");
+    res.textContent = v.res;
+    q.append(res);
+    const info = document.createElement("div");
+    info.className = "info";
+    const facts = document.createElement("span");
+    facts.className = "facts";
+    facts.textContent = `${v.duration.toFixed(1)} s · ${mb(v.size)} · rendu le ${when(v.renderedAt)}`
+      + (v.parts.length > 1 ? ` · ${v.parts.length} morceaux` : "");
+    const note = document.createElement("span");
+    note.className = "note";
+    note.textContent = v.note;
+    info.append(facts, note);
+    const flags = document.createElement("div");
+    flags.className = "flags";
+    if (v.stale) {
+      const f = document.createElement("span");
+      f.className = "flag old";
+      f.textContent = "Montage précédent : plus ancien que la version de travail actuelle";
+      flags.append(f);
+    }
+    if (v.reencoded) {
+      const f = document.createElement("span");
+      f.className = "flag info2";
+      f.textContent = `Compressée pour tenir sur la page (rendu d'origine : ${v.reencoded} Mo)`;
+      flags.append(f);
+    }
+    if (flags.childElementCount) info.append(flags);
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.id = `dl-${v.id}`;
+    btn.textContent = "Télécharger";
+    btn.disabled = true;
+    const progress = document.createElement("div");
+    progress.className = "progress";
+    progress.setAttribute("role", "status");
+    btn.addEventListener("click", () => download(v, btn, progress));
+    buttons.push(btn);
+    li.append(q, info, btn, progress);
+    list.append(li);
+  }
+
+  // Interface locale : création de la 4K à la demande (source 4K + rendu final, long).
+  const minutes = (s) => (s < 90 ? "1 à 2 min" : `environ ${Math.round(s / 60)} min`);
+  const v4k = DATA.versions.find((v) => v.id === "4k");
+  if (window.AUTO_MONTAGE_LOCAL && DATA.final && DATA.final.available && (!v4k || v4k.stale)) {
+    let li = v4k ? $("dl-4k").closest("li") : null;
+    if (!li) {
+      li = document.createElement("li");
+      li.innerHTML = `<div class="q">4K<small>${DATA.final.res || "2160x3840"}</small></div><div class="info"><span class="note">Rendu final, pour la publication : pas encore créée.</span></div>`;
+      list.querySelector(".empty")?.remove();
+      list.append(li);
+    }
+    const make = document.createElement("button");
+    make.type = "button";
+    make.textContent = DATA.final.running ? "Création en cours…" : v4k ? "Recréer la 4K" : "Créer la version 4K";
+    make.disabled = !!DATA.final.running;
+    const box = document.createElement("div");
+    box.className = "make";
+    box.innerHTML = `<span class="hint">La création de la 4K prend du temps (${minutes(DATA.final.estimate || 0)} sur cet ordinateur). La page peut rester ouverte ou être fermée : la création continue.</span>`;
+    const label = document.createElement("span");
+    const bar = document.createElement("progress");
+    bar.max = 1; bar.hidden = true;
+    make.style.alignSelf = "flex-start";
+    const stop = document.createElement("button");
+    stop.type = "button"; stop.textContent = "Annuler"; stop.hidden = true;
+    stop.style.alignSelf = "flex-start";
+    stop.addEventListener("click", async () => {
+      if (!confirm("Annuler la création de la 4K ? Il faudra la relancer depuis le début.")) return;
+      await fetch("/api/job/cancel", { method: "POST" }).catch(() => {});
+    });
+    box.append(make, label, bar, stop);
+    li.append(box);
+    const follow = async () => {
+      make.disabled = true; make.textContent = "Création en cours…"; bar.hidden = false; stop.hidden = false;
+      for (;;) {
+        const job = await fetch("/api/job").then((r) => r.json()).catch(() => null);
+        if (job && job.kind === "final") {
+          bar.value = job.overall || 0;
+          const left = typeof job.remaining === "number" ? ` · encore ~${Math.max(1, Math.round(job.remaining / 60))} min` : "";
+          label.textContent = job.state === "running" ? `${job.progress ? job.progress.label : job.step}… ${Math.floor((job.overall || 0) * 100)} %${left}` : "";
+          if (job.state === "done") { location.reload(); return; }
+          if (job.state === "cancelled") { label.textContent = "Création annulée."; make.disabled = false; make.textContent = v4k ? "Recréer la 4K" : "Créer la version 4K"; bar.hidden = true; stop.hidden = true; return; }
+          if (job.state === "error") { label.textContent = `Échec à l'étape « ${job.step} » : ${job.error}`; make.disabled = false; make.textContent = "Réessayer"; bar.hidden = true; stop.hidden = true; return; }
+        }
+        await new Promise((r) => setTimeout(r, 2000));
+      }
+    };
+    make.addEventListener("click", async () => {
+      if (!confirm(`Créer la version 4K ? Cela prend du temps (${minutes(DATA.final.estimate || 0)} sur cet ordinateur).`)) return;
+      const r = await fetch("/api/final", { method: "POST" });
+      if (!r.ok) { label.textContent = (await r.json().catch(() => ({}))).error || `erreur ${r.status}`; return; }
+      follow();
+    });
+    if (DATA.final.running) follow();
+  }
+
+  async function download(v, btn, progress) {
+    btn.disabled = true;
+    progress.className = "progress";
+    try {
+      const chunks = [];
+      for (let k = 0; k < v.parts.length; k++) {
+        progress.textContent = v.parts.length > 1 ? `Assemblage : morceau ${k + 1} sur ${v.parts.length}…` : "Préparation…";
+        const res = await fetch(v.parts[k]);
+        if (!res.ok) throw new Error(`morceau ${k + 1} introuvable (${res.status})`);
+        chunks.push(await res.blob());
+      }
+      const blob = new Blob(chunks, { type: "video/mp4" });
+      if (blob.size !== v.size) throw new Error(`taille reçue ${mb(blob.size)} au lieu de ${mb(v.size)}`);
+      progress.textContent = "Confirmez l'enregistrement dans la fenêtre de claude.ai…";
+      await downloads.save({ filename: v.filename, data: blob });
+      progress.textContent = `Enregistré : ${v.filename}`;
+    } catch (e) {
+      const code = e && e.code;
+      progress.className = code === "declined" ? "progress" : "progress err";
+      progress.textContent = code === "declined" ? "Téléchargement annulé."
+        : code === "rate_limited" ? "Une demande d'enregistrement est déjà ouverte : répondez-y, puis réessayez."
+        : code ? "L'enregistrement n'est pas disponible dans cette vue de claude.ai."
+        : `Le fichier n'a pas pu être rassemblé (${e.message}). Rechargez la page puis réessayez ; si cela persiste, demandez à Claude de republier cette version.`;
+    } finally {
+      btn.disabled = false;
+    }
+  }
+
+  (async () => {
+    downloads = await window.claude?.use?.("downloads") ?? null;
+    if (downloads) buttons.forEach((b) => { b.disabled = false; });
+    else document.querySelectorAll(".progress").forEach((p) => {
+      p.textContent = "Ouvrez cette page dans claude.ai, connecté, pour télécharger.";
+    });
+  })();
+</script>

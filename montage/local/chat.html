@@ -1,0 +1,232 @@
+<title>Claude</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@700;900&family=Source+Sans+3:wght@400;600&family=JetBrains+Mono:wght@500&display=swap">
+<style>
+  /* Layout : une colonne ; la conversation défile, la zone de saisie reste en bas de l'écran.
+     Mêmes couleurs et polices que les pages des moments et « Rushes et montages ». */
+  :root {
+    --bg: #f5f3ef;
+    --surface: #fffdf9;
+    --fg: #1f1d1a;
+    --muted: #6f695f;
+    --line: #e4ded4;
+    --accent: #2d6a5a;
+    --accent-soft: #dcebe5;
+    --warn: #9a5b12;
+    --warn-soft: #f6e7d2;
+    --display: "Poppins", "Helvetica Neue", Arial, sans-serif;
+    --body: "Source Sans 3", "Helvetica Neue", Arial, sans-serif;
+    --mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #151412; --surface: #1d1b18; --fg: #f1ece4; --muted: #a39a8d; --line: #2f2b26;
+      --accent: #7cc2ad; --accent-soft: #1f3530; --warn: #e3a95b; --warn-soft: #3a2a15; color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #151412; --surface: #1d1b18; --fg: #f1ece4; --muted: #a39a8d; --line: #2f2b26;
+    --accent: #7cc2ad; --accent-soft: #1f3530; --warn: #e3a95b; --warn-soft: #3a2a15; color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  body { background: var(--bg); color: var(--fg); font-family: var(--body); font-size: 16px; line-height: 1.5; padding: 0 16px; }
+  main { max-width: 760px; margin: 0 auto; min-height: calc(100dvh - 54px); display: flex; flex-direction: column; gap: 16px; padding-top: 24px; }
+  header { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 8px 16px; }
+  h1 { font-family: var(--display); font-weight: 900; font-size: 26px; line-height: 1.1; margin: 0; }
+  a { color: var(--accent); }
+  .sub { color: var(--muted); font-size: 14px; margin: 4px 0 0; max-width: 65ch; }
+  .warn { font-size: 14px; color: var(--warn); background: var(--warn-soft); border-radius: 8px; padding: 8px 10px; margin: 0; }
+  #log { flex: 1; display: flex; flex-direction: column; gap: 14px; }
+  .empty { color: var(--muted); font-size: 15px; }
+  .empty ul { margin: 6px 0 0; padding-left: 20px; }
+  .msg { max-width: 100%; min-width: 0; }
+  .msg.user { align-self: flex-end; background: var(--accent-soft); border-radius: 12px 12px 4px 12px; padding: 8px 12px; max-width: 85%; white-space: pre-wrap; overflow-wrap: anywhere; }
+  .msg.assistant { display: flex; flex-direction: column; gap: 8px; }
+  .text { overflow-wrap: anywhere; }
+  .text p { margin: 0 0 8px; }
+  .text p:last-child { margin-bottom: 0; }
+  .text ul, .text ol { margin: 0 0 8px; padding-left: 22px; }
+  .text code { font-family: var(--mono); font-size: 13px; background: var(--surface); border: 1px solid var(--line); border-radius: 4px; padding: 0 4px; }
+  .text pre { margin: 0 0 8px; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; overflow-x: auto; }
+  .text pre code { border: 0; padding: 0; background: none; }
+  .tool { font-family: var(--mono); font-size: 12px; color: var(--muted); display: flex; gap: 8px; min-width: 0; }
+  .tool b { font-weight: 500; color: var(--accent); flex: none; }
+  .tool span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+  .err { font-size: 14px; color: var(--warn); white-space: pre-wrap; overflow-wrap: anywhere; }
+  .wait { font-size: 14px; color: var(--muted); }
+  @media (prefers-reduced-motion: no-preference) { .wait { animation: pulse 1.6s ease-in-out infinite; } }
+  @keyframes pulse { 50% { opacity: 0.45; } }
+  form { position: sticky; bottom: 0; background: var(--bg); padding: 10px 0 16px; display: flex; flex-direction: column; gap: 8px; border-top: 1px solid var(--line); }
+  textarea {
+    font: inherit; color: var(--fg); background: var(--surface); border: 1px solid var(--line); border-radius: 10px;
+    padding: 10px 12px; resize: vertical; min-height: 3.2em; max-height: 40vh; width: 100%;
+  }
+  .row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+  .row .note { margin-left: auto; }
+  .note { font-size: 13px; color: var(--muted); }
+  button { font: inherit; font-size: 15px; color: var(--fg); background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 8px 14px; cursor: pointer; }
+  button.primary { background: var(--accent); color: var(--bg); border-color: var(--accent); font-weight: 600; }
+  button:disabled, textarea:disabled { opacity: 0.55; cursor: default; }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+</style>
+
+<main>
+  <header>
+    <div>
+      <h1>Claude</h1>
+      <p class="sub">Demandez à Claude Code de changer le montage : moments à garder, sous-titres, intro, effets… Il peut lire le projet, modifier les choix de montage et générer la version de travail.</p>
+    </div>
+  </header>
+  <p class="warn" id="not-ready" hidden></p>
+
+  <div id="log" aria-live="polite"></div>
+
+  <form id="form" data-needs-claude>
+    <label for="input" class="note">Votre message (Entrée pour envoyer, Maj+Entrée pour aller à la ligne)</label>
+    <textarea id="input" rows="3" placeholder="Par exemple : retire le moment où je parle du budget, et mets « Mes 3 astuces » en intro"></textarea>
+    <div class="row">
+      <button type="submit" class="primary" id="send">Envoyer</button>
+      <button type="button" id="stop" hidden>Arrêter</button>
+      <button type="button" id="new">Nouvelle conversation</button>
+      <span class="note">Pour tout le reste (installer, autres commandes) : lanceur « Claude Code ».</span>
+    </div>
+    <p class="err" id="status" role="status"></p>
+  </form>
+</main>
+
+<script>
+  const $ = (id) => document.getElementById(id);
+  let state = { running: false, messages: [] };
+  let timer = null;
+
+  const esc = (s) => s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  // Markdown simple : blocs de code, listes, paragraphes, `code`, **gras**, liens.
+  // Une seule lecture du texte d'origine : chaque morceau est échappé à part, et les liens ne
+  // prennent que des adresses http(s) ou locales sans guillemets (un texte piégé dans la réponse
+  // de Claude ne peut pas ajouter d'attribut ni de script).
+  const INLINE = /`([^`]+)`|\*\*([^*]+)\*\*|\[([^\]]+)\]\((https?:\/\/[^)\s"'<>]+|\/[^)\s"'<>]*)\)|(https?:\/\/[^\s"'<>()]+)/g;
+  const link = (href, text) => `<a href="${esc(href)}" target="_blank" rel="noopener">${esc(text)}</a>`;
+  function inline(s) {
+    let out = "", last = 0;
+    for (const m of s.matchAll(INLINE)) {
+      out += esc(s.slice(last, m.index));
+      if (m[1] !== undefined) out += `<code>${esc(m[1])}</code>`;
+      else if (m[2] !== undefined) out += `<strong>${esc(m[2])}</strong>`;
+      else if (m[3] !== undefined) out += link(m[4], m[3]);
+      else out += link(m[5], m[5]);
+      last = m.index + m[0].length;
+    }
+    return out + esc(s.slice(last));
+  }
+  function markdown(src) {
+    const out = [];
+    const blocks = src.split(/\n```[^\n]*\n([\s\S]*?)\n```/);
+    blocks.forEach((block, i) => {
+      if (i % 2) { out.push(`<pre><code>${esc(block)}</code></pre>`); return; }
+      for (const para of block.replace(/^```[^\n]*\n/, "").split(/\n{2,}/)) {
+        const lines = para.split("\n").filter((l) => l.trim());
+        if (!lines.length) continue;
+        if (lines.every((l) => /^\s*([-*]|\d+[.)])\s/.test(l))) {
+          const tag = /^\s*\d/.test(lines[0]) ? "ol" : "ul";
+          out.push(`<${tag}>${lines.map((l) => `<li>${inline(l.replace(/^\s*([-*]|\d+[.)])\s+/, ""))}</li>`).join("")}</${tag}>`);
+        } else {
+          out.push(`<p>${lines.map((l) => inline(l.replace(/^#+\s*/, ""))).join("<br>")}</p>`);
+        }
+      }
+    });
+    return out.join("");
+  }
+
+  const TOOL_NAMES = { Read: "lit", Glob: "cherche", Grep: "cherche", Edit: "modifie", Write: "écrit", Bash: "lance" };
+
+  function render() {
+    const log = $("log");
+    const atBottom = window.innerHeight + window.scrollY >= document.body.scrollHeight - 80;
+    log.textContent = "";
+    if (!state.messages.length) {
+      log.innerHTML = `<div class="empty">Quelques idées :<ul>
+        <li>Quels moments as-tu retirés, et pourquoi ?</li>
+        <li>Corrige le sous-titre « … » en « … ».</li>
+        <li>Ajoute le bruit de caisse quand je dis « argent », puis génère la version de travail.</li></ul></div>`;
+    }
+    for (const m of state.messages) {
+      const el = document.createElement("div");
+      el.className = `msg ${m.role}`;
+      if (m.role === "user") {
+        el.textContent = m.text;
+      } else {
+        for (const p of m.parts || []) {
+          const part = document.createElement("div");
+          if (p.kind === "text") { part.className = "text"; part.innerHTML = markdown(p.text); }
+          else if (p.kind === "tool") {
+            part.className = "tool";
+            part.innerHTML = `<b>${esc(TOOL_NAMES[p.name] || p.name)}</b><span title="${esc(p.detail || "")}">${esc(p.detail || "")}</span>`;
+          } else { part.className = "err"; part.textContent = p.text; }
+          el.append(part);
+        }
+        if (!m.done) {
+          const w = document.createElement("div");
+          w.className = "wait";
+          w.textContent = "Claude travaille…";
+          el.append(w);
+        }
+      }
+      log.append(el);
+    }
+    $("send").disabled = state.running || !state.ready;
+    $("stop").hidden = !state.running;
+    $("new").disabled = state.running || !state.messages.length;
+    if (atBottom) window.scrollTo(0, document.body.scrollHeight);
+  }
+
+  async function refresh() {
+    clearTimeout(timer);
+    try {
+      const r = await fetch("/api/chat", { cache: "no-store" });
+      const data = await r.json();
+      state = { ...data, ready: data.installed && data.claude };
+      const warn = !data.installed ? "Claude Code n'est pas installé dans ce conteneur."
+        : !data.claude ? "Claude Code n'est pas encore connecté : la discussion ne fonctionne pas sans lui." : "";
+      $("not-ready").textContent = warn;
+      if (warn && data.installed) $("not-ready").insertAdjacentHTML("beforeend", ' <a href="/claude/">Se connecter à Claude</a> (une fois, avec votre compte claude.ai).');
+      $("not-ready").hidden = !warn;
+      render();
+    } catch {
+      $("status").textContent = "Le serveur Auto-montage ne répond pas.";
+    }
+    timer = setTimeout(refresh, state.running ? 1000 : 5000);
+  }
+
+  async function post(url, body) {
+    const r = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body || {}) });
+    const data = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(data.error || `erreur ${r.status}`);
+    return data;
+  }
+
+  $("form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const message = $("input").value.trim();
+    if (!message || state.running) return;
+    $("status").textContent = "";
+    $("send").disabled = true;
+    try {
+      await post("/api/chat", { message });
+      $("input").value = "";
+      window.scrollTo(0, document.body.scrollHeight);
+    } catch (err) {
+      $("status").textContent = err.message;
+    }
+    refresh();
+  });
+  $("input").addEventListener("keydown", (e) => {
+    if (e.key === "Enter" && !e.shiftKey && !e.isComposing) { e.preventDefault(); $("form").requestSubmit(); }
+  });
+  $("stop").addEventListener("click", async () => { await post("/api/chat/stop").catch(() => {}); refresh(); });
+  $("new").addEventListener("click", async () => {
+    if (!confirm("Effacer cette conversation et en commencer une nouvelle ?")) return;
+    try { await post("/api/chat/new"); } catch (err) { $("status").textContent = err.message; }
+    refresh();
+  });
+  refresh();
+</script>

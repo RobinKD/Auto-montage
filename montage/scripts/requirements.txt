@@ -1,0 +1,7 @@
+# Versions majeures fixées : OpenCV 5 n'a plus le détecteur de visage Haar (CascadeClassifier)
+# utilisé par detect_face.py.
+imageio-ffmpeg>=0.5,<1
+numpy>=1.24,<3
+opencv-python-headless>=4.8,<5
+# Mesure du texte (coupure des sous-titres au rendu : render_lib.py)
+Pillow>=9,<13

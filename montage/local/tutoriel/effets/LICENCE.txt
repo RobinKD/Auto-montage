@@ -1,0 +1,6 @@
+exemple.mp4 : vidéo de Pixabay « Femme qui parle, écran vert »
+(https://pixabay.com/fr/videos/femme-qui-parle-%C3%A9cran-vert-ia-129827/), sous la licence de
+contenu Pixabay (https://pixabay.com/service/license-summary/), choisie par l'utilisatrice.
+Fond vert remplacé par un fond clair et flou, vidéo coupée à ses 2,9 premières secondes (une
+phrase), recadrée en 9:16 (360x640, sans son) pour l'aperçu des effets visuels de la page « Rushes et montages » (local/rush.html).
+exemple.jpg : première image de exemple.mp4 (affichée pendant le chargement).

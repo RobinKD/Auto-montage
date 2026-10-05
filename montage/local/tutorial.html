@@ -1,0 +1,389 @@
+<title>Tutoriel</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@700;900&family=Source+Sans+3:wght@400;600&family=JetBrains+Mono:wght@500&display=swap">
+<style>
+  /* Layout : une colonne ; trois onglets : sans / avec Claude Code (suites d'étapes numérotées :
+     texte à gauche, capture ou petite vidéo à droite, en dessous sur téléphone) et
+     « Fonctionnalités en détail » (sommaire, puis une fiche par sujet, sons et voix à écouter).
+     Captures et vidéos : local/tutoriel/, tirées d'une intervention filmée sous licence CC BY-SA
+     (Wikimania 2023, Wikimedia Commons : crédit en bas de page et dans local/tutoriel/LICENCE.txt). */
+  :root {
+    --bg: #f5f3ef; --surface: #fffdf9; --fg: #1f1d1a; --muted: #6f695f; --line: #e4ded4;
+    --accent: #2d6a5a; --accent-soft: #dcebe5; --warn: #9a5b12; --warn-soft: #f6e7d2;
+    --display: "Poppins", "Helvetica Neue", Arial, sans-serif;
+    --body: "Source Sans 3", "Helvetica Neue", Arial, sans-serif;
+    --mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #151412; --surface: #1d1b18; --fg: #f1ece4; --muted: #a39a8d; --line: #2f2b26;
+      --accent: #7cc2ad; --accent-soft: #1f3530; --warn: #e3a95b; --warn-soft: #3a2a15; color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #151412; --surface: #1d1b18; --fg: #f1ece4; --muted: #a39a8d; --line: #2f2b26;
+    --accent: #7cc2ad; --accent-soft: #1f3530; --warn: #e3a95b; --warn-soft: #3a2a15; color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  body { background: var(--bg); color: var(--fg); font-family: var(--body); font-size: 16px; line-height: 1.5; padding: 0 16px; }
+  main { max-width: 980px; margin: 0 auto; padding-block: 24px 64px; display: flex; flex-direction: column; gap: 18px; }
+  h1 { font-family: var(--display); font-weight: 900; font-size: 28px; line-height: 1.1; margin: 0; }
+  h2 { font-family: var(--display); font-weight: 700; font-size: 19px; margin: 0; display: flex; gap: 10px; align-items: baseline; }
+  h2 .n { font-family: var(--mono); font-size: 13px; color: var(--muted); font-weight: 500; }
+  a { color: var(--accent); }
+  .sub { color: var(--muted); font-size: 15px; margin: 6px 0 0; max-width: 75ch; }
+  .welcome { background: var(--accent-soft); border-radius: 12px; padding: 14px 16px; display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: center; justify-content: space-between; }
+  .welcome p { margin: 0; max-width: 70ch; }
+  .btn { display: inline-block; font: inherit; font-size: 15px; font-weight: 600; text-decoration: none; color: var(--bg); background: var(--accent); border: 0; border-radius: 8px; padding: 9px 16px; cursor: pointer; }
+  .tabs { display: flex; gap: 6px; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+  .tab { font: inherit; font-size: 16px; font-weight: 600; color: var(--muted); background: none; border: 0; border-bottom: 3px solid transparent; padding: 10px 14px; cursor: pointer; }
+  .tab[aria-selected="true"] { color: var(--fg); border-bottom-color: var(--accent); }
+  .tab .badge { font-size: 12px; font-weight: 600; border-radius: 999px; padding: 1px 8px; margin-left: 6px; background: var(--accent-soft); color: var(--accent); }
+  .panel { display: flex; flex-direction: column; gap: 14px; }
+  .intro { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; }
+  .intro p { margin: 0; }
+  .step { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 16px; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; align-items: start; }
+  .step.vertical { grid-template-columns: minmax(0, 1fr) 240px; }
+  .step .text { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+  .step p { margin: 0; }
+  .step ul { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 4px; }
+  .step .where { font-size: 14px; color: var(--muted); }
+  .media { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+  .media img, .media video { width: 100%; height: auto; border-radius: 10px; border: 1px solid var(--line); background: var(--bg); display: block; }
+  .media figcaption { font-size: 13px; color: var(--muted); }
+  .media figure { margin: 0; display: flex; flex-direction: column; gap: 4px; }
+  code { font-family: var(--mono); font-size: 13px; background: var(--bg); border: 1px solid var(--line); border-radius: 4px; padding: 0 4px; }
+  .credit { margin-top: 32px; padding-top: 12px; border-top: 1px solid var(--line); font-size: 13px; color: var(--muted); }
+  .credit a { color: var(--accent); }
+  .quote { border-left: 3px solid var(--accent); padding: 4px 10px; color: var(--fg); background: var(--bg); border-radius: 0 6px 6px 0; font-size: 15px; }
+  @media (max-width: 720px) { .step, .step.vertical { grid-template-columns: minmax(0, 1fr); } .step.vertical .media { max-width: 280px; } }
+  .toc { display: flex; flex-wrap: wrap; gap: 6px 8px; }
+  .toc a { font-size: 14px; text-decoration: none; border: 1px solid var(--line); background: var(--surface); border-radius: 999px; padding: 3px 12px; }
+  .toc a:hover { border-color: var(--accent); }
+  .detail { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 16px; display: flex; flex-direction: column; gap: 10px; scroll-margin-top: 12px; }
+  .detail p { margin: 0; max-width: 80ch; }
+  .detail ul { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 5px; max-width: 85ch; }
+  .detail h3 { font-family: var(--display); font-weight: 700; font-size: 15px; margin: 6px 0 0; }
+  .catalog { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 8px; }
+  .catalog .item { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 2px 10px; align-items: start; border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px; background: var(--bg); }
+  .catalog .item b { font-weight: 600; }
+  .catalog .item span { grid-column: 2; font-size: 14px; color: var(--muted); }
+  .catalog .item.noplay { grid-template-columns: minmax(0, 1fr); }
+  .catalog .item.noplay span { grid-column: 1; }
+  .play { grid-row: span 2; width: 32px; height: 32px; border-radius: 50%; border: 1px solid var(--accent); background: var(--accent-soft); color: var(--accent); font-size: 13px; cursor: pointer; }
+  .play[aria-pressed="true"] { background: var(--accent); color: var(--bg); }
+  kbd { font-family: var(--mono); font-size: 12px; border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 4px; padding: 0 5px; background: var(--bg); }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+</style>
+
+<main>
+  <div class="welcome" id="welcome" hidden>
+    <p><b>Bienvenue dans Auto-montage !</b> Voici en quelques minutes comment l'utiliser. Vous retrouverez ce tutoriel à tout moment dans le menu (en haut à droite).</p>
+    <a class="btn" href="/rush/">Commencer un montage</a>
+  </div>
+  <header>
+    <h1>Tutoriel</h1>
+    <p class="sub">Auto-montage transforme une vidéo face caméra (un « rush ») en vidéo courte montée : il retire les blancs et les ratés, ajoute les sous-titres, les zooms et les effets, et vous laisse tout ajuster avant de créer la vidéo finale. Les images et les vidéos ci-dessous viennent d'une vraie intervention filmée, montée avec Auto-montage (crédit en bas de page).</p>
+  </header>
+
+  <div class="tabs" role="tablist" aria-label="Fonctionnalités">
+    <button type="button" class="tab" role="tab" id="tab-base" aria-controls="panel-base" aria-selected="true">Sans Claude Code</button>
+    <button type="button" class="tab" role="tab" id="tab-claude" aria-controls="panel-claude" aria-selected="false" tabindex="-1">Avec Claude Code<span class="badge">en plus</span></button>
+    <button type="button" class="tab" role="tab" id="tab-details" aria-controls="panel-details" aria-selected="false" tabindex="-1">Fonctionnalités en détail</button>
+  </div>
+  <section class="panel" id="panel-base" role="tabpanel" aria-labelledby="tab-base"></section>
+  <section class="panel" id="panel-claude" role="tabpanel" aria-labelledby="tab-claude" hidden></section>
+  <section class="panel" id="panel-details" role="tabpanel" aria-labelledby="tab-details" hidden></section>
+  <footer class="credit">
+    <p>Vidéo des captures et des exemples : intervention de Bachounda (Wikimedia Algeria), « Wikipedia et travail des concepts-clés », Wikimania 2023, séance plénière du 18 août (lightning talk), <a href="https://commons.wikimedia.org/wiki/File:Wikimania_2023_-_Plenary_-_18_August_-_Lightning_Talk_-_Wikipedia_et_travail_des_concepts-cl%C3%A9s.webm" target="_blank" rel="noopener">Wikimedia Commons</a>, sous licence <a href="https://creativecommons.org/licenses/by-sa/4.0/deed.fr" target="_blank" rel="noopener">CC BY-SA 4.0</a>. Passage de 4 minutes monté en 1 minute par Auto-montage (moments retirés, sous-titres, zooms, intro) ; ces extraits et captures sont diffusés sous la même licence.</p>
+  </footer>
+</main>
+
+<script>
+  const $ = (id) => document.getElementById(id);
+  // Étapes : titre, où, texte (HTML simple), médias (capture « img » ou petite vidéo « video »),
+  // « vertical » pour une vidéo au format portrait (colonne plus étroite).
+  const BASE = [
+    { title: "Préparer un rush", where: "Menu > Rushes et montages",
+      html: `<p>Choisissez la vidéo filmée (ou plusieurs, si la caméra s'est coupée : elles sont assemblées dans l'ordre), puis <b>Préparer ce rush</b>.</p>
+        <p>Auto-montage crée des versions de travail, écrit ce qui est dit (transcription), repère le visage, découpe la vidéo en <b>moments</b> (une phrase chacun) et fait une première version de travail. Comptez à peu près la durée du rush ; la barre montre l'avancement et le temps restant, et « Annuler » arrête tout.</p>`,
+      media: [{ img: "rush-video.jpg", caption: "Choisir une ou plusieurs vidéos" }, { img: "rush-preparation.jpg", caption: "La préparation en cours" }] },
+    { title: "Choisir les moments", where: "Menu > Page des moments",
+      html: `<p>Chaque moment est une phrase. Les moments cochés forment la vidéo ; Auto-montage décoche déjà les <b>premières prises</b> (une phrase redite juste après) et les ratés.</p>
+        <ul><li>Cliquez sur un moment pour le voir, habillé comme dans la vidéo.</li>
+        <li><b>Découpe</b> : le curseur coupe un moment au mot près ; chaque partie se coche à part.</li>
+        <li><b>Corriger</b> : corrige le texte des sous-titres.</li>
+        <li>Les plans <b>sans parole</b> peuvent être ajoutés, avec leur début et leur fin.</li></ul>`,
+      media: [{ img: "moments.jpg", caption: "La page des moments : lecteur à gauche, moments à droite" }] },
+    { title: "Ajouter des effets", where: "Page des moments, sur chaque moment",
+      html: `<p>Cochez des <b>sons</b> (caisse, pop, whoosh, ding, boum…) et des <b>effets visuels</b> (zoom avant, zoom sec, dézoom, secousse, flash, mot mis en valeur, texte tapé, pastille) ; réglez leur départ (bouton « Ici » pendant la lecture), leur durée, leur force et leur volume.</p>
+        <p>« Effets proposés sur les moments » choisit ceux qui apparaissent dans la liste ; « Ajouter des sons… » y ajoute les vôtres. Sur « Rushes et montages », le bouton ▶ fait écouter ou voir chaque effet.</p>`,
+      media: [{ video: "demo-effets.mp4", caption: "Zoom sec sur « gratuitement », puis « makrout » mis en valeur" }, { img: "effets.jpg", caption: "Le zoom sec d'un moment et son calage" }] },
+    { title: "Régler les sous-titres et l'habillage", where: "Page des moments > Style des sous-titres, Zooms et animations",
+      html: `<p>Les sous-titres tiennent sur deux lignes équilibrées. Choisissez la <b>police</b> (ou ajoutez la vôtre), la taille, la graisse, la couleur, les majuscules et l'<b>ombre</b> (intensité, flou, direction).</p>
+        <p>Dans « Zooms et animations » : intensité des zooms automatiques sur le visage, sous-titres qui apparaissent avec un rebond, <b>mot prononcé en couleur</b>.</p>`,
+      media: [{ video: "demo-sous-titres.mp4", caption: "Mot prononcé en couleur" }, { img: "style.jpg", caption: "Style des sous-titres" }] },
+    { title: "Soigner le son", where: "Page des moments > Son de la voix",
+      html: `<p>Volume de la voix (pour tout le montage, et sur chaque moment), réduction du bruit de fond, retrait des clics de bouche, coupure des graves, voix plus claire.</p>
+        <p>« Rechercher les bruits parasites » mesure le bruit de fond et liste les bruits brefs : écoutez-les, et cochez « Atténuer » pour ceux qui gênent.</p>`,
+      media: [{ img: "son.jpg", caption: "Le panneau « Son de la voix »" }] },
+    { title: "Générer, regarder, télécharger", where: "Page des moments > Générer la version de travail ; menu > Téléchargements",
+      html: `<p><b>Générer la version de travail</b> monte la vidéo avec vos choix (barre d'avancement, annulable). Regardez-la en <b>plein écran</b> (barre de lecture en bas), puis <b>Télécharger</b> : 720p pour partager vite, 1080p, ou la <b>4K</b> finale (plus longue à créer).</p>
+        <p>Les <b>variantes</b> gardent plusieurs sélections du même rush (une courte, une longue…).</p>`,
+      media: [{ video: "demo-montage.mp4", caption: "Le début du montage : intro tapée, puis sous-titres" }, { img: "telecharger.jpg", caption: "Téléchargements" }] },
+    { title: "Retrouver ses montages, et en cas de souci", where: "Rushes et montages > Montages ; menu > Journal, Mises à jour",
+      html: `<ul><li>Préparer un autre rush met le montage en cours de côté : <b>Rouvrir</b> le reprend tel quel, sans rien recalculer.</li>
+        <li>Le <b>Journal</b> garde le détail de chaque tâche ; « Télécharger le rapport » le regroupe pour demander de l'aide.</li>
+        <li><b>Mises à jour</b> installe les nouvelles versions en un clic (vos montages sont gardés).</li></ul>` },
+  ];
+  const CLAUDE = [
+    { title: "Se connecter une fois", where: "Menu > Connexion à Claude",
+      html: `<p>Claude Code utilise votre compte claude.ai. « Se connecter » ouvre la page d'autorisation ; collez le code affiché, et c'est fait. Tant qu'il n'est pas connecté, les parties marquées <b>« Nécessite Claude Code »</b> sont grisées.</p>`,
+      media: [{ img: "claude.jpg", caption: "Connexion à Claude" }] },
+    { title: "Donner des consignes de montage", where: "Rushes et montages > Consignes et vidéos d'exemple",
+      html: `<p>Écrivez ce que vous voulez avant de préparer le rush ; Claude choisit les moments, coupe au mot près, corrige les sous-titres, écrit l'intro, place les effets et règle les zooms et animations. Vous gardez la main sur la page des moments.</p>
+        <p>Les consignes qui ont donné les vidéos de ce tutoriel, à partir d'une intervention de 4 minutes :</p>
+        <p class="quote">Fais un short d'environ 1 minute à partir de cette intervention. Retire les « Hello », « C'est bon, one minute » et les remerciements de la fin. Garde l'idée principale : on a trop d'informations, l'intro sur la connaissance + un exemple concret (le makrout) suffit, et la connaissance passe maintenant par les petits écrans. Intro tapée : « Et si une photo suffisait ? ». Corrige les potentielles erreurs dans les sous-titres. Mets « makrout » et « obsolètes » en valeur, un zoom sec sur « gratuitement ». Zooms automatiques légers de temps en temps, mot prononcé en jaune. Termine sur « Réfléchissez avec moi ». Pas d'effets sonores.</p>`,
+      media: [{ img: "consignes.jpg", caption: "Consignes, puis « Préparer »" }] },
+    { title: "Apprendre un style à partir de vidéos d'exemple", where: "Rushes et montages > Analyser les vidéos d'exemple",
+      html: `<p>Ajoutez des vidéos dont vous aimez le montage, puis <b>Analyser</b> (durée prévue affichée) : Auto-montage mesure le rythme et repère les bruitages, extrait des images datées ; Claude les regarde et liste ce qu'il a repéré, avec ce qu'Auto-montage peut reproduire (et un style de sous-titres à appliquer en un clic). La préparation suivante s'en sert.</p>
+        <p>Pour aller plus loin que les effets fournis, ajoutez aussi vos propres sons.</p>`,
+      media: [{ img: "analyse.jpg", caption: "Le résultat d'une analyse" }] },
+    { title: "Discuter avec Claude", where: "Menu > Discuter avec Claude",
+      html: `<p>Demandez des changements en français, Claude modifie les choix de montage et génère la version de travail :</p>
+        <p class="quote">Retire la phrase sur les smartwatches, et mets « Wikipédia » en valeur en vert.</p>
+        <p class="quote">Quels moments as-tu retirés, et pourquoi ?</p>`,
+      media: [{ img: "chat.jpg", caption: "Discuter avec Claude" }] },
+  ];
+
+  // Onglet « Fonctionnalités en détail » : une fiche par sujet (titre, où, texte HTML simple),
+  // avec éventuellement un catalogue à écouter : sons fournis (/sfx-defaut/, comme sur
+  // « Rushes et montages ») et voix modifiées (local/tutoriel/voix/<id>.mp3).
+  const SOUNDS = [
+    ["Caisse", "cash.wav", "Caisse enregistreuse, pour un mot qui parle d'argent."],
+    ["Bop", "bop.wav", "Petit « bop » d'apparition (celui des pastilles)."],
+    ["Clavier", "key-1.wav", "Frappes de clavier enchaînées (celles du texte tapé)."],
+    ["Whoosh", "whoosh.wav", "Passage rapide, pour une transition ou un zoom."],
+    ["Pop", "pop.wav", "Bulle qui éclate, pour une apparition."],
+    ["Ding", "ding.wav", "Petite cloche : bonne idée, conseil."],
+    ["Boum", "boum.wav", "Impact grave pour un moment fort (va bien avec la secousse)."],
+    ["Montée", "montee.wav", "Tension qui monte avant une révélation."],
+    ["Glitch", "glitch.wav", "Coupure numérique."],
+    ["Déclencheur photo", "photo.wav", "Appareil photo, pour une image ou un « clic »."],
+    ["Faux (buzzer)", "faux.wav", "Buzzer de mauvaise réponse."],
+    ["Juste (carillon)", "juste.wav", "Carillon de bonne réponse."],
+  ].map(([label, file, desc]) => ({ label, desc, src: `/sfx-defaut/${file}` }));
+  const VISUALS = [
+    ["Zoom avant", "Zoom progressif sur le visage ; le cadre reste serré jusqu'à la fin du moment. Réglages : calage, force (25 % = image agrandie d'un quart)."],
+    ["Zoom sec", "Cadre serré d'un coup, pendant la durée choisie, puis retour au cadre normal."],
+    ["Dézoom", "On part serré et on revient au cadre large."],
+    ["Secousse", "L'image tremble puis se calme, pour souligner un mot fort. La force règle l'amplitude."],
+    ["Flash blanc", "Éclair blanc bref, pour marquer un changement de partie."],
+    ["Mot mis en valeur", "Un ou plusieurs mots du sous-titre plus gros et dans la couleur choisie, sur tout le moment."],
+    ["Texte tapé", "Texte écrit lettre par lettre en grand, au milieu de l'image (comme l'intro), avec ou sans son de clavier ; « frappe » règle la vitesse. Pas de sous-titre pendant qu'il est affiché."],
+    ["Pastille", "Pastille blanche avec un titre, en haut de l'image, avec ou sans son « bop » : pratique pour numéroter des étapes."],
+  ].map(([label, desc]) => ({ label, desc }));
+  const VOICES = [
+    ["tremblement", "Tremblement", "La voix tremble, avec un peu de robot (moment gêné ou drôle)."],
+    ["robot", "Robot", "Bourdonnement électronique et résonance métallique."],
+    ["ecureuil", "Écureuil", "Voix très aiguë, façon dessin animé."],
+    ["lutin", "Lutin", "Voix plus aiguë, légèrement doublée."],
+    ["geant", "Géant", "Voix grave, avec un peu d'écho."],
+    ["megaphone", "Mégaphone", "Voix serrée et saturée, comme dans un porte-voix."],
+    ["telephone", "Téléphone", "Voix étroite, légèrement numérique."],
+    ["salle", "Grande salle", "Écho de pièce vide."],
+    ["batterie", "Batterie faible", "La voix ralentit et descend, comme une cassette qui s'épuise."],
+    ["radio", "Vieille radio", "Voix étroite, avec du souffle."],
+    ["choeur", "Chœur", "La voix doublée, comme plusieurs personnes."],
+  ].map(([id, label, desc]) => ({ label, desc, src: `/tutoriel/voix/${id}.mp3` }));
+
+  const DETAILS = [
+    { id: "moments", title: "La liste des moments", where: "Page des moments",
+      html: `<p>Un moment correspond à une phrase. Sa case <b>cochée</b> le met dans la vidéo ; la durée gardée et le nombre de moments s'affichent en haut.</p>
+        <ul><li><b>Tous</b>, <b>Gardés</b>, <b>Retirés</b>, <b>Sans parole</b> filtrent la liste.</li>
+        <li>Un moment écarté d'office dit pourquoi : « Suggéré : retirer (doublon 1re prise) », « raté », « aparté »… Vous pouvez le recocher.</li>
+        <li><b>Revenir aux suggestions</b> annule vos choix de cases et revient à la sélection proposée.</li>
+        <li>« Dans la version de travail » marque les moments présents dans la dernière vidéo générée ; pendant sa lecture, le moment en cours est surligné.</li>
+        <li><b>Variante</b> : <b>Nouvelle variante</b> garde une autre sélection du même rush (une courte, une longue…). On passe de l'une à l'autre par la liste, et « Générer » monte celle qui est affichée.</li></ul>` },
+    { id: "decoupe", title: "Couper au mot près", where: "Page des moments, ligne « Découpe » de chaque moment",
+      html: `<p>Faites glisser le curseur de la ligne <b>Découpe</b> : l'image s'affiche dans le lecteur et le mot prononcé à cet instant est écrit à côté (« après “courses” », « avant la parole »). Les boutons ‹ et › avancent ou reculent d'une image (1/30 s), et près du curseur chaque image est accessible à la souris.</p>
+        <ul><li><b>Couper ici</b> pose une coupe : le moment est partagé en parties, chacune avec sa case. Décochez une partie pour la retirer (une hésitation, un mot de trop). Survolez une partie pour voir ses mots.</li>
+        <li><b>✂ 2,35 ×</b> retire la coupe correspondante.</li>
+        <li><b>Scinder ici</b> fait deux vrais moments à partir du mot le plus proche du curseur : chacun a ensuite son texte, ses effets et sa case. <b>Recoller ↑</b> défait la scission.</li>
+        <li><b>Fusionner ↓</b> réunit un moment et le suivant en un seul, pause comprise (l'extrait reste continu). <b>Séparer</b> défait la fusion, et chaque moment retrouve ses réglages.</li>
+        <li>Une scission ou une fusion reporte les effets déjà placés (décalés au bon instant) et garde vos cases.</li></ul>` },
+    { id: "sansparole", title: "Plans sans parole", where: "Page des moments, filtre « Sans parole »",
+      html: `<p>Les passages où personne ne parle (un geste, un objet montré) sont aussi listés. Cochez-en un pour l'ajouter, puis choisissez la partie gardée : <b>Garder de … à … s</b>, ou placez le curseur de la ligne <b>Bornes</b> et cliquez <b>Début ici</b> et <b>Fin ici</b>. La partie gardée apparaît en couleur sur le curseur.</p>` },
+    { id: "texte", title: "Corriger les sous-titres", where: "Page des moments, bouton « Corriger »",
+      html: `<ul><li><b>Corriger</b> ouvre le texte du moment : <kbd>Entrée</kbd> enregistre, <kbd>Maj</kbd>+<kbd>Entrée</kbd> va à la ligne, <kbd>Échap</kbd> annule. Les mots corrigés s'affichent au rythme de la parole.</li>
+        <li><b>Supprimer les sous-titres</b> enlève le texte de ce moment seulement (la voix et l'image restent) ; le moment est alors marqué « Sans sous-titres ».</li>
+        <li><b>Texte d'origine</b> revient à la transcription.</li>
+        <li>Les sous-titres affichent jusqu'à 6 mots, sur deux lignes de même largeur.</li></ul>` },
+    { id: "calage", title: "Placer et régler un effet", where: "Page des moments, réglages sous chaque effet coché",
+      html: `<p>Chaque effet coché a une <b>bande de calage</b> sur la durée du moment :</p>
+        <ul><li>faites glisser la bande pour la déplacer, et ses poignées pour régler le début et la fin ; la vidéo montre l'instant visé pendant le geste ;</li>
+        <li>au clavier, sur une poignée : <kbd>←</kbd> <kbd>→</kbd> d'une image, avec <kbd>Maj</kbd> de 10 images ;</li>
+        <li><b>Ici</b> place le départ à l'instant de lecture (le moment doit être ouvert dans le lecteur).</li></ul>
+        <h3>Sons</h3>
+        <p>La bande dure un son. Allongez-la et le son se <b>répète</b> (repères sur la bande) ; <b>pause</b> ajoute un silence entre deux répétitions. <b>volume</b> règle ce son sur ce moment (100 % = volume d'origine).</p>
+        <h3>Effets visuels et voix</h3>
+        <p>La bande donne le début et la durée ; <b>force</b> règle l'ampleur (zooms, secousse, voix modifiée). Le texte tapé, la pastille et le mot mis en valeur ont leur champ de texte (et une couleur pour le mot).</p>
+        <p>Tout se voit et s'entend tout de suite dans l'aperçu du moment, et dans la vidéo à la prochaine « Générer la version de travail ».</p>` },
+    { id: "sons", title: "Sons fournis", where: "Page des moments, « Effets : » de chaque moment",
+      html: `<p>Ils sont créés par Auto-montage (aucun son téléchargé). Cliquez sur ▶ pour écouter.</p>`, catalog: SOUNDS },
+    { id: "visuels", title: "Effets visuels", where: "Page des moments, « Effets visuels : » de chaque moment",
+      html: `<p>Ils sont dessinés image par image dans la vidéo. Pour les voir en mouvement, utilisez le bouton ▶ de chaque effet sur la page « Rushes et montages ».</p>`, catalog: VISUALS },
+    { id: "voix", title: "Voix modifiées", where: "Page des moments, effet « Voix » de chaque moment",
+      html: `<p>Pour un passage drôle ou gêné : cochez « Voix », choisissez la voix dans la liste, calez le passage et réglez la force (jusqu'à 200 %). Chaque exemple fait entendre la même phrase avec la voix normale, puis modifiée.</p>`, catalog: VOICES },
+    { id: "proposes", title: "Choisir les effets proposés, ajouter les vôtres", where: "Rushes et montages > Effets proposés ; page des moments > Effets proposés sur les moments",
+      html: `<ul><li>Au départ, <b>aucun effet fourni n'est proposé</b> : cochez ceux que vous voulez voir dans la liste de chaque moment. Un effet déjà placé sur un moment reste visible même s'il est décoché.</li>
+        <li><b>Volume de tous les effets sonores</b> s'ajoute au volume de chaque son.</li>
+        <li><b>Ajouter des sons…</b> importe vos propres bruitages (WAV, MP3, M4A…) : ils servent à tous vos montages.</li>
+        <li><b>Volume de la voix par moment</b>, une fois proposé, ajoute un curseur « Voix » sur chaque moment.</li></ul>` },
+    { id: "habillage", title: "Sous-titres, zooms et animations", where: "Page des moments > Style des sous-titres ; Zooms et animations",
+      html: `<h3>Style des sous-titres</h3>
+        <ul><li><b>Police</b> (celles fournies, ou la vôtre avec <b>Ajouter une police…</b> : TTF, OTF, WOFF), <b>graisse</b>, <b>taille</b>, <b>majuscules</b>, <b>couleur</b>.</li>
+        <li><b>Ombre</b> : intensité, flou et direction (autour du texte, ou décalée vers un côté).</li>
+        <li>L'exemple se met à jour en direct ; <b>Style d'origine</b> revient au style de départ.</li></ul>
+        <h3>Zooms et animations (tout le montage)</h3>
+        <ul><li><b>Zooms automatiques sur le visage</b> : aucun, légers, normaux ou marqués. Auto-montage suit le visage repéré à la préparation.</li>
+        <li><b>Rebond</b> : chaque sous-titre apparaît avec un petit rebond.</li>
+        <li><b>Mot prononcé en couleur</b> (façon karaoké), dans la couleur choisie.</li></ul>` },
+    { id: "son", title: "Son de la voix", where: "Page des moments > Son de la voix",
+      html: `<ul><li><b>Volume de la voix</b> de tout le montage (jusqu'à 200 %), qui s'ajoute au curseur « Voix » de chaque moment.</li>
+        <li><b>Réduction du bruit de fond</b> (souffle, ventilation, pièce) : aucune, légère, moyenne ou forte.</li>
+        <li><b>Retirer les clics et claquements de bouche</b>, <b>couper les graves parasites</b> (ronflement, chocs sourds), <b>voix plus claire et plus régulière</b>.</li>
+        <li><b>Rechercher les bruits parasites</b> mesure le bruit de fond (et conseille une réduction : « Appliquer le conseil ») et liste les bruits brefs avec leur instant. Écoutez-les, et cochez <b>Atténuer</b> pour les baisser de 15 dB.</li>
+        <li>Un limiteur évite que le son sature.</li></ul>` },
+    { id: "lecture", title: "Lecture, génération et téléchargement", where: "Page des moments ; menu > Téléchargements",
+      html: `<ul><li>Onglets du lecteur : <b>Version de travail</b> (la dernière vidéo générée) et <b>Moment</b> (l'aperçu habillé du moment choisi). Les boutons <b>−</b> et <b>+</b> reculent et avancent d'une image.</li>
+        <li><b>Plein écran</b> : <kbd>Espace</kbd> ou un clic pour lecture et pause, barre de lecture en bas, <kbd>Échap</kbd> pour sortir.</li>
+        <li><b>Générer la version de travail</b> monte la vidéo avec vos choix. Deux barres montrent l'étape en cours et l'ensemble, avec le temps restant. <b>Annuler</b> garde la version précédente.</li>
+        <li><b>Télécharger</b> : 720p (léger, pour partager), 1080p, ou <b>création de la 4K</b> finale, plus longue à créer.</li></ul>` },
+    { id: "montages", title: "Montages, journal et mises à jour", where: "Rushes et montages > Montages ; menu > Journal, Mises à jour",
+      html: `<ul><li>Préparer un nouveau rush range le montage en cours, avec ses variantes, ses réglages et ses vidéos. <b>Rouvrir ce montage</b> le reprend tel quel, sans rien recalculer.</li>
+        <li>Une longue tâche (préparation, génération, 4K) s'annule à tout moment ; les fichiers à moitié écrits sont effacés.</li>
+        <li>Le <b>Journal</b> garde le détail des 40 dernières tâches ; <b>Télécharger le rapport</b> les regroupe pour demander de l'aide.</li>
+        <li><b>Mises à jour</b> installe une nouvelle version en un clic, en gardant vos montages, vos sons et vos polices.</li></ul>` },
+  ];
+
+  let playing = null;  // bouton ▶ du son en cours
+  function renderDetails() {
+    const box = $("panel-details");
+    const intro = Object.assign(document.createElement("div"), { className: "intro" });
+    intro.innerHTML = "<p>Le détail de chaque réglage : découpe, effets fournis (à écouter ici), sous-titres, son et lecture. Tout fonctionne sans Claude Code.</p>";
+    const toc = Object.assign(document.createElement("nav"), { className: "toc" });
+    toc.setAttribute("aria-label", "Sommaire");
+    box.append(intro, toc);
+    for (const d of DETAILS) {
+      toc.append(Object.assign(document.createElement("a"), { href: `#${d.id}`, textContent: d.title }));
+      const art = Object.assign(document.createElement("article"), { className: "detail", id: d.id });
+      art.innerHTML = `<h2></h2><p class="where"></p>${d.html}`;
+      art.querySelector("h2").textContent = d.title;
+      art.querySelector(".where").textContent = d.where;
+      if (d.catalog) {
+        const grid = Object.assign(document.createElement("div"), { className: "catalog" });
+        for (const it of d.catalog) {
+          const item = Object.assign(document.createElement("div"), { className: "item" + (it.src ? "" : " noplay") });
+          if (it.src) {
+            const b = Object.assign(document.createElement("button"), { type: "button", className: "play", textContent: "▶" });
+            b.setAttribute("aria-label", `Écouter : ${it.label}`);
+            b.setAttribute("aria-pressed", "false");
+            b.addEventListener("click", () => listen(b, it.src));
+            item.append(b);
+          }
+          item.append(Object.assign(document.createElement("b"), { textContent: it.label }), Object.assign(document.createElement("span"), { textContent: it.desc }));
+          grid.append(item);
+        }
+        art.append(grid);
+      }
+      box.append(art);
+    }
+  }
+  function listen(btn, src) {
+    const again = playing && playing.btn === btn;
+    if (playing) { playing.audio.pause(); playing.btn.setAttribute("aria-pressed", "false"); playing.btn.textContent = "▶"; playing = null; }
+    if (again) return;
+    const audio = new Audio(src);
+    playing = { btn, audio };
+    btn.setAttribute("aria-pressed", "true"); btn.textContent = "■";
+    audio.addEventListener("ended", () => { if (playing && playing.audio === audio) { btn.setAttribute("aria-pressed", "false"); btn.textContent = "▶"; playing = null; } });
+    audio.play().catch(() => { btn.setAttribute("aria-pressed", "false"); btn.textContent = "▶"; playing = null; });
+  }
+
+  function render(panel, steps, intro) {
+    const box = $(panel);
+    if (intro) {
+      const d = Object.assign(document.createElement("div"), { className: "intro" });
+      d.innerHTML = intro;
+      box.append(d);
+    }
+    steps.forEach((s, i) => {
+      const art = document.createElement("article");
+      art.className = "step" + ((s.media || []).some((m) => m.vertical) ? " vertical" : "");
+      const text = Object.assign(document.createElement("div"), { className: "text" });
+      text.innerHTML = `<h2><span class="n">${i + 1}</span></h2><p class="where"></p>${s.html}`;
+      text.querySelector("h2").append(s.title);
+      text.querySelector(".where").textContent = s.where;
+      art.append(text);
+      if (s.media && s.media.length) {
+        const media = Object.assign(document.createElement("div"), { className: "media" });
+        for (const m of s.media) {
+          const fig = document.createElement("figure");
+          let el;
+          if (m.video) {  // WebM (VP9) d'abord, MP4 (H.264) sinon : lisible dans tous les navigateurs
+            el = Object.assign(document.createElement("video"), { muted: true, loop: true, autoplay: true, playsInline: true, controls: true, preload: "metadata" });
+            for (const [ext, type] of [["webm", "video/webm"], ["mp4", "video/mp4"]]) {
+              el.append(Object.assign(document.createElement("source"), { src: `/tutoriel/${m.video.replace(/\.mp4$/, `.${ext}`)}`, type }));
+            }
+            el.lastChild.addEventListener("error", () => fig.remove());  // aucune version lisible
+          } else {
+            el = Object.assign(document.createElement("img"), { src: `/tutoriel/${m.img}`, alt: m.caption, loading: "lazy" });
+            el.addEventListener("error", () => fig.remove());  // image absente : rien d'affiché
+          }
+          let shown = el;
+          if (m.img) {  // capture : ouverte en grand au clic
+            shown = Object.assign(document.createElement("a"), { href: `/tutoriel/${m.img}`, target: "_blank", rel: "noopener", title: "Voir en grand" });
+            shown.append(el);
+          }
+          fig.append(shown, Object.assign(document.createElement("figcaption"), { textContent: m.caption }));
+          media.append(fig);
+        }
+        art.append(media);
+      }
+      box.append(art);
+    });
+  }
+  render("panel-base", BASE, "<p>Tout ce qui suit fonctionne <b>sans Claude Code</b> : préparation, choix des moments, effets, sous-titres, son, génération et téléchargement.</p>");
+  renderDetails();
+  render("panel-claude", CLAUDE, "<p>Avec <b>Claude Code</b> connecté, Auto-montage applique vos consignes, apprend un style à partir de vidéos d'exemple et répond à vos demandes de modification. Tout le reste de l'onglet « Sans Claude Code » reste disponible.</p>");
+
+  // Onglets (flèches gauche / droite au clavier).
+  const tabs = [$("tab-base"), $("tab-claude"), $("tab-details")];
+  function select(tab) {
+    for (const t of tabs) {
+      const on = t === tab;
+      t.setAttribute("aria-selected", String(on));
+      t.tabIndex = on ? 0 : -1;
+      $(t.getAttribute("aria-controls")).hidden = !on;
+      for (const v of $(t.getAttribute("aria-controls")).querySelectorAll("video")) if (!on) v.pause(); else v.play().catch(() => {});
+      if (!on && playing && t === $("tab-details")) playing.btn.click();  // son arrêté en quittant l'onglet
+    }
+  }
+  tabs.forEach((t, i) => {
+    t.addEventListener("click", () => select(t));
+    t.addEventListener("keydown", (e) => {
+      if (e.key === "ArrowRight" || e.key === "ArrowLeft") { const n = tabs[(i + (e.key === "ArrowRight" ? 1 : tabs.length - 1)) % tabs.length]; select(n); n.focus(); }
+    });
+  });
+  if (location.hash === "#claude") select($("tab-claude"));
+  else if (location.hash === "#details" || DETAILS.some((d) => `#${d.id}` === location.hash)) {
+    select($("tab-details"));
+    const target = document.querySelector(location.hash);
+    if (target && location.hash !== "#details") target.scrollIntoView();
+  }
+
+  // Premier lancement : message d'accueil, et le tutoriel est noté comme vu.
+  if (new URLSearchParams(location.search).has("bienvenue")) $("welcome").hidden = false;
+  fetch("/api/tutorial/seen", { method: "POST" }).catch(() => {});
+</script>

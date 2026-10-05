@@ -1,0 +1,110 @@
+#!/bin/bash
+# AppImage Auto-montage. Au premier lancement (ou après une mise à jour), copie le projet dans
+# ~/Auto-montage (rushes, rendus et sélections déjà présents restent), ajoute « Auto-montage »
+# au menu des applications, puis ouvre l'interface dans le navigateur.
+# Usage : Auto-montage.AppImage [open|downloads|claude|shell|rushes|stop|install]
+set -euo pipefail
+HERE="$(dirname "$(readlink -f "$0")")"
+DEST="${AUTO_MONTAGE_HOME:-$HOME/Auto-montage}"
+VERSION="$(cat "$HERE/payload/VERSION")"
+ACTION="${1:-open}"
+SELF="${APPIMAGE:-$HERE/AppRun}"
+
+notify() {  # message en fenêtre si possible
+  if command -v zenity >/dev/null 2>&1; then zenity --info --title=Auto-montage --text="$1" 2>/dev/null || true
+  elif command -v kdialog >/dev/null 2>&1; then kdialog --title Auto-montage --msgbox "$1" 2>/dev/null || true
+  elif command -v notify-send >/dev/null 2>&1; then notify-send Auto-montage "$1" || true
+  fi
+  echo "$1"
+}
+
+# Vrai si la version $1 est plus récente que $2 (0.10 > 0.9) : une version plus récente déjà
+# installée (mise à jour depuis l'interface, page « Mises à jour ») n'est jamais remplacée.
+version_gt() {
+  awk -v a="$1" -v b="$2" 'BEGIN { n = split(a, x, "."); m = split(b, y, "."); if (m > n) n = m
+    for (i = 1; i <= n; i++) { if (x[i] + 0 > y[i] + 0) exit 0; if (x[i] + 0 < y[i] + 0) exit 1 } exit 1 }'
+}
+
+install_project() {
+  local installed=""
+  [ -f "$DEST/.auto-montage-version" ] && installed="$(cat "$DEST/.auto-montage-version")"
+  if [ -z "$installed" ] || version_gt "$VERSION" "$installed"; then
+    mkdir -p "$DEST"
+    cp -a "$HERE/payload/." "$DEST/"
+    chmod +x "$DEST"/docker/*.sh "$DEST"/montage/scripts/*.sh
+    mkdir -p "$DEST/montage/public/rushes"
+    echo "$VERSION" > "$DEST/.auto-montage-version"
+    echo "Auto-montage $VERSION installé dans $DEST"
+  fi
+  # Entrée du menu (refaite à chaque lancement : suit l'AppImage si elle a été déplacée).
+  local apps="${XDG_DATA_HOME:-$HOME/.local/share}/applications"
+  local icons="${XDG_DATA_HOME:-$HOME/.local/share}/icons/hicolor/512x512/apps"
+  mkdir -p "$apps" "$icons"
+  cp "$HERE/auto-montage.png" "$icons/auto-montage.png"
+  cat > "$apps/auto-montage.desktop" <<DESKTOP
+[Desktop Entry]
+Type=Application
+Name=Auto-montage
+GenericName=Montage vidéo
+Comment=Version de travail, moments, corrections et effets
+Exec="$SELF" open
+Icon=auto-montage
+Terminal=false
+Categories=AudioVideo;Video;
+Actions=downloads;rushes;claude;shell;stop;
+
+[Desktop Action downloads]
+Name=Téléchargements (720p, 1080p, 4K)
+Exec="$SELF" downloads
+
+[Desktop Action rushes]
+Name=Dossier des rushes
+Exec="$SELF" rushes
+
+[Desktop Action claude]
+Name=Claude Code
+Exec="$SELF" claude
+
+[Desktop Action shell]
+Name=Terminal du conteneur
+Exec="$SELF" shell
+
+[Desktop Action stop]
+Name=Arrêter Auto-montage
+Exec="$SELF" stop
+DESKTOP
+  update-desktop-database "$apps" >/dev/null 2>&1 || true
+}
+
+# Lance une commande dans une fenêtre de terminal (avancement de l'installation, Claude Code).
+in_terminal() {
+  if [ -t 0 ] && [ -t 1 ]; then exec "$@"; fi
+  local t
+  for t in x-terminal-emulator gnome-terminal kgx ptyxis konsole xfce4-terminal mate-terminal \
+           tilix lxterminal alacritty kitty foot wezterm xterm; do
+    command -v "$t" >/dev/null 2>&1 || continue
+    case "$t" in
+      gnome-terminal|kgx|ptyxis) exec "$t" -- "$@" ;;
+      xfce4-terminal|mate-terminal) exec "$t" -x "$@" ;;
+      wezterm) exec "$t" start -- "$@" ;;
+      kitty|foot) exec "$t" "$@" ;;
+      *) exec "$t" -e "$@" ;;
+    esac
+  done
+  # Pas de terminal graphique : lancement en arrière-plan, journal dans ~/Auto-montage.
+  notify "Auto-montage démarre (la première fois : 10 à 20 min). Le navigateur s'ouvrira tout seul ; journal : $DEST/auto-montage.log"
+  "$@" > "$DEST/auto-montage.log" 2>&1 < /dev/null &
+  exit 0
+}
+
+install_project
+case "$ACTION" in
+  install) ;;
+  open) in_terminal "$DEST/docker/open.sh" ;;
+  downloads) in_terminal "$DEST/docker/open.sh" downloads/ ;;
+  claude) in_terminal "$DEST/docker/claude.sh" ;;
+  shell) in_terminal "$DEST/docker/shell.sh" ;;
+  rushes) exec "$DEST/docker/rushes.sh" ;;
+  stop) exec "$DEST/docker/stop.sh" ;;
+  *) echo "Action inconnue : $ACTION (open, downloads, claude, shell, rushes, stop, install)" >&2; exit 2 ;;
+esac

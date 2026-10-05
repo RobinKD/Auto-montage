@@ -1,0 +1,291 @@
+<title>Mises à jour</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@700;900&family=Source+Sans+3:wght@400;600&family=JetBrains+Mono:wght@500&display=swap">
+<style>
+  /* Layout : une colonne ; version installée et dernière version publiée (nouveautés, bouton),
+     puis le jeton GitHub (dépôt privé). Mêmes couleurs et polices que les autres pages. */
+  :root {
+    --bg: #f5f3ef;
+    --surface: #fffdf9;
+    --fg: #1f1d1a;
+    --muted: #6f695f;
+    --line: #e4ded4;
+    --accent: #2d6a5a;
+    --accent-soft: #dcebe5;
+    --warn: #9a5b12;
+    --warn-soft: #f6e7d2;
+    --display: "Poppins", "Helvetica Neue", Arial, sans-serif;
+    --body: "Source Sans 3", "Helvetica Neue", Arial, sans-serif;
+    --mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #151412; --surface: #1d1b18; --fg: #f1ece4; --muted: #a39a8d; --line: #2f2b26;
+      --accent: #7cc2ad; --accent-soft: #1f3530; --warn: #e3a95b; --warn-soft: #3a2a15; color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #151412; --surface: #1d1b18; --fg: #f1ece4; --muted: #a39a8d; --line: #2f2b26;
+    --accent: #7cc2ad; --accent-soft: #1f3530; --warn: #e3a95b; --warn-soft: #3a2a15; color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  body { background: var(--bg); color: var(--fg); font-family: var(--body); font-size: 16px; line-height: 1.45; padding: 0 16px; }
+  main { max-width: 720px; margin: 0 auto; padding-block: 24px 48px; display: flex; flex-direction: column; gap: 16px; }
+  header { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 8px 16px; }
+  h1 { font-family: var(--display); font-weight: 900; font-size: 26px; line-height: 1.1; margin: 0; }
+  a { color: var(--accent); }
+  .sub { color: var(--muted); font-size: 14px; margin: 4px 0 0; max-width: 70ch; }
+  section { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 16px; display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+  .row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+  .btn { display: inline-block; font-size: 15px; font-weight: 600; text-decoration: none; color: var(--bg); background: var(--accent); border-radius: 8px; padding: 8px 14px; }
+  .note { font-size: 14px; color: var(--muted); }
+  ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+  li button {
+    width: 100%; display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 12px; align-items: center; text-align: left;
+    font: inherit; font-size: 15px; color: var(--fg); background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 8px 12px; cursor: pointer;
+  }
+  li button[aria-current="true"] { border-color: var(--accent); background: var(--accent-soft); }
+  .when { font-family: var(--mono); font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .chip { font-size: 12px; font-weight: 600; border-radius: 999px; padding: 1px 9px; white-space: nowrap; }
+  .chip.réussi { color: var(--accent); background: var(--accent-soft); }
+  .chip.échec, .chip.interrompu { color: var(--warn); background: var(--warn-soft); }
+  .chip.annulé, .chip.serveur { color: var(--muted); background: var(--line); }
+  .chip.running { color: var(--bg); background: var(--accent); }
+  pre {
+    margin: 0; max-height: 70vh; overflow: auto; background: var(--bg); border: 1px solid var(--line); border-radius: 8px;
+    padding: 10px 12px; font-family: var(--mono); font-size: 12px; line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere;
+  }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+</style>
+<style>
+  ol.steps { margin: 0; padding-left: 22px; display: flex; flex-direction: column; gap: 12px; }
+  ol.steps li { padding-left: 4px; }
+  ol.steps li button { width: auto; display: inline-block; text-align: center; }
+  button { font: inherit; font-size: 15px; font-weight: 600; color: var(--fg); background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 8px 14px; cursor: pointer; }
+  button.primary { color: var(--bg); background: var(--accent); border-color: var(--accent); }
+  button:disabled { opacity: 0.55; cursor: default; }
+  input[type=text] { font: inherit; font-family: var(--mono); font-size: 14px; color: var(--fg); background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; flex: 1 1 260px; min-width: 0; }
+  .ok { color: var(--accent); font-weight: 600; }
+  .err { color: var(--warn); }
+  .account { white-space: pre-wrap; font-family: var(--mono); font-size: 12px; color: var(--muted); margin: 0; }
+  .off { opacity: 0.5; }
+</style>
+
+<style>
+  .notes { font-size: 15px; line-height: 1.5; background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 4px 14px 10px; margin: 0; max-height: 50vh; overflow: auto; }
+  .notes h4 { font-family: var(--display, sans-serif); font-size: 15px; margin: 12px 0 4px; }
+  .notes ul { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 6px; list-style: disc; }
+  .notes li { display: list-item; }
+  .notes p { margin: 6px 0; }
+  .notes code { font-family: var(--mono, monospace); font-size: 13px; }
+  progress { width: 100%; height: 10px; accent-color: var(--accent); }
+  details summary { cursor: pointer; font-weight: 600; font-size: 14px; }
+  ol.how { margin: 6px 0 0; padding-left: 22px; font-size: 14px; display: flex; flex-direction: column; gap: 4px; }
+</style>
+
+<main>
+  <header>
+    <div>
+      <h1>Mises à jour</h1>
+      <p class="sub">Auto-montage vérifie tout seul s'il existe une nouvelle version (au démarrage, puis toutes les 6 heures). La mise à jour remplace seulement le programme : vos montages, rushes, rendus, sons, consignes et réglages sont gardés. Pas besoin de réinstaller, ni de réautoriser l'application sur Mac.</p>
+    </div>
+  </header>
+
+  <section aria-labelledby="h-version">
+    <h2 id="h-version" class="note" style="margin: 0;">Version</h2>
+    <p id="state" role="status">Vérification…</p>
+    <div class="notes" id="notes" hidden></div>
+    <div class="row">
+      <button type="button" class="primary" id="apply" hidden>Mettre à jour maintenant</button>
+      <button type="button" id="check">Vérifier maintenant</button>
+      <button type="button" class="primary" id="restart" hidden>Redémarrer Auto-montage</button>
+    </div>
+    <div id="progress-box" hidden>
+      <p class="note" id="p-label" style="margin: 0 0 4px;"></p>
+      <progress id="p-bar" max="1" value="0"></progress>
+    </div>
+    <p id="msg" role="status"></p>
+  </section>
+
+  <section aria-labelledby="h-token">
+    <h2 id="h-token" class="note" style="margin: 0;">Accès au dépôt privé</h2>
+    <p class="note" style="margin: 0;">Tant que le dépôt GitHub d'Auto-montage est privé, GitHub ne donne les nouvelles versions qu'avec un <b>jeton d'accès</b>, à créer une fois. Il ne permet que de lire ce dépôt, et reste sur cet ordinateur (fichier <code>montage/work/github_token</code>).</p>
+    <p id="token-state" class="note" style="margin: 0;"></p>
+    <details id="how">
+      <summary>Créer le jeton (2 minutes)</summary>
+      <ol class="how">
+        <li>Sur GitHub, connecté au compte <b>propriétaire</b> du dépôt (RobinKD) : un compte simplement invité sur le dépôt ne peut pas le choisir dans ce type de jeton. <a href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noopener">Settings &gt; Developer settings &gt; Fine-grained tokens &gt; Generate new token</a>.</li>
+        <li>Nom : « Auto-montage mises à jour » ; expiration : celle que vous voulez (1 an par exemple).</li>
+        <li><b>Resource owner</b> : RobinKD. <b>Repository access</b> : « Only select repositories » &gt; <b>Auto-montage</b>.</li>
+        <li><b>Permissions</b> &gt; Repository permissions &gt; <b>Contents : Read-only</b> (rien d'autre ; « Metadata : Read-only » s'ajoute tout seul). GitHub n'a pas de permission « Releases » à part : les versions publiées dépendent de « Contents ».</li>
+        <li>« Generate token », copiez-le (il commence par <code>github_pat_</code>) et collez-le ci-dessous.</li>
+      </ol>
+    </details>
+    <div class="row">
+      <input type="text" id="token" placeholder="github_pat_…" autocomplete="off" spellcheck="false">
+      <button type="button" class="primary" id="save-token">Enregistrer le jeton</button>
+      <button type="button" id="forget-token" hidden>Oublier le jeton</button>
+    </div>
+    <p id="token-msg" role="status"></p>
+  </section>
+</main>
+
+<script>
+  const $ = (id) => document.getElementById(id);
+  function say(id, text, kind = "") { $(id).textContent = text; $(id).className = kind; }
+
+  // Notes de version (Markdown du CHANGELOG) : les lignes coupées à 95 caractères dans le
+  // fichier sont recollées ; titres « ## », listes « - », gras « ** » et code « ` ».
+  function renderNotes(box, md) {
+    box.replaceChildren();
+    const inline = (text) => {
+      const span = document.createElement("span");
+      for (const part of text.split(/(\*\*[^*]+\*\*|`[^`]+`)/)) {
+        if (/^\*\*.+\*\*$/.test(part)) span.append(Object.assign(document.createElement("b"), { textContent: part.slice(2, -2) }));
+        else if (/^`.+`$/.test(part)) span.append(Object.assign(document.createElement("code"), { textContent: part.slice(1, -1) }));
+        else span.append(part);
+      }
+      return span;
+    };
+    let list = null, item = null, para = null;
+    const flush = () => {
+      if (item) { const li = document.createElement("li"); li.append(inline(item)); list.append(li); item = null; }
+      if (para) { const p = document.createElement("p"); p.append(inline(para)); box.append(p); para = null; }
+    };
+    for (const raw of md.split("\n")) {
+      const line = raw.trim();
+      if (!line) { flush(); list = null; continue; }
+      if (line.startsWith("#")) { flush(); list = null; box.append(Object.assign(document.createElement("h4"), { textContent: line.replace(/^#+\s*/, "") })); continue; }
+      if (/^[-*] /.test(line)) {
+        flush();
+        if (!list) { list = document.createElement("ul"); box.append(list); }
+        item = line.slice(2);
+        continue;
+      }
+      if (item !== null) item += ` ${line}`;
+      else para = para ? `${para} ${line}` : line;
+    }
+    flush();
+  }
+
+  function show(st) {
+    const r = st.result || {};
+    $("notes").hidden = true;
+    $("apply").hidden = true;
+    // Fichiers déjà changés sur le disque (ex. git pull dans le dossier d'installation) : le
+    // serveur tourne encore avec l'ancienne version ; il suffit de redémarrer.
+    const running = st.version || r.current, onDisk = st.onDisk;
+    $("restart").hidden = !(onDisk && running && onDisk !== running);
+    if (!$("restart").hidden) {
+      say("state", `Les fichiers d'Auto-montage sont en version ${onDisk}, mais il tourne encore en version ${running} : redémarrez-le pour utiliser la nouvelle version.`, "err");
+    } else if (r.error) {
+      say("state", `Version installée : ${st.version || r.current}. ${r.error}`, "err");
+    } else if (r.newer) {
+      say("state", `Nouvelle version disponible : ${r.latest} (installée : ${r.current}).`, "ok");
+      renderNotes($("notes"), r.notes || "");
+      $("notes").hidden = !r.notes;
+      $("apply").hidden = false;
+    } else if (r.latest) {
+      say("state", `Vous avez la dernière version (${r.current}).`, "ok");
+    }
+    const has = st.token || (r && r.token);
+    $("token-state").textContent = has ? "Un jeton est enregistré." : "Aucun jeton enregistré.";
+    $("forget-token").hidden = !has;
+    if (r.error && !has) $("how").open = true;
+  }
+
+  async function load() {
+    const st = await fetch("/api/update", { cache: "no-store" }).then((r) => r.json()).catch(() => null);
+    if (!st) { say("state", "Le serveur Auto-montage ne répond pas.", "err"); return; }
+    show(st);
+    const job = await fetch("/api/job").then((r) => r.json()).catch(() => null);
+    if (job && job.kind === "update" && job.state === "running") follow();
+  }
+
+  async function post(url, body) {
+    const r = await fetch(url, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body || {}) });
+    return { ok: r.ok, data: await r.json().catch(() => ({})) };
+  }
+
+  $("check").addEventListener("click", async () => {
+    say("state", "Vérification…");
+    const { data } = await post("/api/update/check");
+    show({ result: data, token: data.token, version: data.version || data.current, onDisk: data.onDisk });
+  });
+
+  $("restart").addEventListener("click", async () => {
+    $("restart").disabled = true;
+    const { ok, data } = await post("/api/restart");
+    if (!ok) { say("msg", data.error || "Le redémarrage n'a pas pu démarrer.", "err"); $("restart").disabled = false; return; }
+    say("state", "Redémarrage d'Auto-montage…");
+    const before = (await fetch("/api/version").then((r) => r.json()).catch(() => ({}))).version;
+    const t0 = Date.now();
+    for (;;) {
+      await new Promise((r) => setTimeout(r, 3000));
+      const v = await fetch("/api/version", { cache: "no-store" }).then((r) => r.json()).catch(() => null);
+      if (v && v.version && v.version !== before) { say("state", `Auto-montage ${v.version} a redémarré. Rechargement…`, "ok"); setTimeout(() => location.reload(), 1500); return; }
+      if (Date.now() - t0 > 120000) { say("state", "Auto-montage n'a pas redémarré tout seul : relancez-le depuis son raccourci.", "err"); return; }
+    }
+  });
+
+  $("apply").addEventListener("click", async () => {
+    if (!confirm("Installer la nouvelle version ? Auto-montage redémarre ensuite (environ une minute) ; vos montages et réglages sont gardés.")) return;
+    $("apply").disabled = true;
+    const { ok, data } = await post("/api/update/apply");
+    if (!ok) {
+      say("msg", data.error || "La mise à jour n'a pas pu démarrer.", "err");
+      say("state", data.error || "La mise à jour n'a pas pu démarrer.", "err");
+      $("apply").disabled = false;
+      if (data.restart) { $("apply").hidden = true; $("restart").hidden = false; }
+      return;
+    }
+    follow();
+  });
+
+  async function follow() {
+    $("apply").disabled = true;
+    $("progress-box").hidden = false;
+    const before = (await fetch("/api/version").then((r) => r.json()).catch(() => ({}))).version;
+    for (;;) {
+      await new Promise((r) => setTimeout(r, 1500));
+      const job = await fetch("/api/job").then((r) => r.json()).catch(() => null);
+      if (!job) break;  // serveur arrêté : redémarrage en cours
+      if (job.state === "running") {
+        const p = job.progress;
+        $("p-label").textContent = p ? `${p.label}…` : "Mise à jour…";
+        $("p-bar").value = p && p.total ? p.done / p.total : 0;
+        continue;
+      }
+      if (job.state === "error") { say("msg", `La mise à jour a échoué : ${job.error} (détail : page « Journal »). Rien n'a été cassé : la version actuelle reste en place.`, "err"); $("apply").disabled = false; $("progress-box").hidden = true; return; }
+      if (job.state === "done") break;
+    }
+    $("p-label").textContent = "Redémarrage d'Auto-montage…";
+    $("p-bar").removeAttribute("value");
+    const t0 = Date.now();
+    for (;;) {  // attend le serveur redémarré, avec la nouvelle version
+      await new Promise((r) => setTimeout(r, 3000));
+      const v = await fetch("/api/version", { cache: "no-store" }).then((r) => r.json()).catch(() => null);
+      if (v && v.version && v.version !== before) { say("msg", `Auto-montage ${v.version} est installé. Rechargement…`, "ok"); setTimeout(() => location.reload(), 1500); return; }
+      if (Date.now() - t0 > 180000) { say("msg", "La nouvelle version est installée, mais Auto-montage n'a pas redémarré tout seul : relancez-le depuis son raccourci.", "err"); return; }
+    }
+  }
+
+  $("save-token").addEventListener("click", async () => {
+    const token = $("token").value.trim();
+    if (!token) { $("token").focus(); return; }
+    say("token-msg", "Vérification du jeton…");
+    const { ok, data } = await post("/api/update/token", { token });
+    if (!ok) { say("token-msg", data.error || "Jeton refusé.", "err"); return; }
+    $("token").value = "";
+    say("token-msg", data.error ? `Jeton enregistré, mais : ${data.error}` : "Jeton enregistré : GitHub répond.", data.error ? "err" : "ok");
+    show({ result: data, token: true, version: data.current });
+  });
+  $("forget-token").addEventListener("click", async () => {
+    if (!confirm("Oublier le jeton GitHub ?")) return;
+    const { data } = await post("/api/update/token", { token: "" });
+    say("token-msg", "Jeton oublié.");
+    show({ result: data, token: false, version: data.current });
+  });
+
+  load();
+</script>

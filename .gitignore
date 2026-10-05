@@ -1,0 +1,4 @@
+# Fichiers produits pour une version : notes (packaging/notes-version.sh), installateurs
+# (dist/, build/ : .github/workflows/installateurs.yml).
+/dist/
+/build/

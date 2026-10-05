@@ -1,0 +1,45 @@
+# Test de bout en bout d'Auto-montage dans son conteneur (Docker et Podman, sur Linux) : un
+# rush de synthèse est envoyé par l'interface locale, préparé (transcription, montage, rendu,
+# page des moments), puis une version de travail est générée (tests/e2e.sh).
+# Lancé à la main seulement (onglet Actions > Tests > Run workflow) : les minutes gratuites de
+# GitHub Actions d'un dépôt privé ne suffisent pas à le lancer à chaque modification. Avant une
+# version, on peut aussi lancer tests/e2e.sh sur sa machine.
+# Windows et macOS : les machines de GitHub ne font pas tourner de conteneurs Linux ; leurs
+# installateurs et lanceurs sont vérifiés par installateurs.yml.
+name: Tests
+
+on:
+  workflow_dispatch:
+
+# Lecture seule : le test n'écrit rien sur GitHub.
+permissions:
+  contents: read
+
+jobs:
+  bout-en-bout:
+    name: Bout en bout (${{ matrix.moteur }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        moteur: [docker, podman]
+    env:
+      AM_ENGINE: ${{ matrix.moteur }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Outils du test
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y -q espeak-ng ffmpeg
+          if [ "$AM_ENGINE" = podman ]; then pip3 install --user podman-compose; fi
+      - name: Rush de synthèse
+        run: tests/make_sample_rush.sh "$RUNNER_TEMP/essai.mov"
+      - name: Démarrage d'Auto-montage (image, installation de Whisper…)
+        timeout-minutes: 45
+        run: docker/open.sh < /dev/null
+      - name: Rush, préparation, génération (tests/e2e.sh)
+        run: tests/e2e.sh http://localhost:8080 "$RUNNER_TEMP/essai.mov"
+      - name: Journal du conteneur
+        if: failure()
+        run: $AM_ENGINE logs --tail 200 auto-montage || true

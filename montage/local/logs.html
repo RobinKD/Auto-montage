@@ -1,0 +1,150 @@
+<title>Journal</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@700;900&family=Source+Sans+3:wght@400;600&family=JetBrains+Mono:wght@500&display=swap">
+<style>
+  /* Layout : une colonne ; la liste des journaux (tâches récentes, démarrage), puis le journal
+     choisi. Mêmes couleurs et polices que les autres pages. */
+  :root {
+    --bg: #f5f3ef;
+    --surface: #fffdf9;
+    --fg: #1f1d1a;
+    --muted: #6f695f;
+    --line: #e4ded4;
+    --accent: #2d6a5a;
+    --accent-soft: #dcebe5;
+    --warn: #9a5b12;
+    --warn-soft: #f6e7d2;
+    --display: "Poppins", "Helvetica Neue", Arial, sans-serif;
+    --body: "Source Sans 3", "Helvetica Neue", Arial, sans-serif;
+    --mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #151412; --surface: #1d1b18; --fg: #f1ece4; --muted: #a39a8d; --line: #2f2b26;
+      --accent: #7cc2ad; --accent-soft: #1f3530; --warn: #e3a95b; --warn-soft: #3a2a15; color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #151412; --surface: #1d1b18; --fg: #f1ece4; --muted: #a39a8d; --line: #2f2b26;
+    --accent: #7cc2ad; --accent-soft: #1f3530; --warn: #e3a95b; --warn-soft: #3a2a15; color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  body { background: var(--bg); color: var(--fg); font-family: var(--body); font-size: 16px; line-height: 1.45; padding: 0 16px; }
+  main { max-width: 900px; margin: 0 auto; padding-block: 24px 48px; display: flex; flex-direction: column; gap: 16px; }
+  header { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 8px 16px; }
+  h1 { font-family: var(--display); font-weight: 900; font-size: 26px; line-height: 1.1; margin: 0; }
+  a { color: var(--accent); }
+  .sub { color: var(--muted); font-size: 14px; margin: 4px 0 0; max-width: 70ch; }
+  section { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 16px; display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+  .row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+  .btn { display: inline-block; font-size: 15px; font-weight: 600; text-decoration: none; color: var(--bg); background: var(--accent); border-radius: 8px; padding: 8px 14px; }
+  .note { font-size: 14px; color: var(--muted); }
+  ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+  li button {
+    width: 100%; display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 12px; align-items: center; text-align: left;
+    font: inherit; font-size: 15px; color: var(--fg); background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 8px 12px; cursor: pointer;
+  }
+  li button[aria-current="true"] { border-color: var(--accent); background: var(--accent-soft); }
+  .when { font-family: var(--mono); font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .chip { font-size: 12px; font-weight: 600; border-radius: 999px; padding: 1px 9px; white-space: nowrap; }
+  .chip.réussi { color: var(--accent); background: var(--accent-soft); }
+  .chip.échec, .chip.interrompu { color: var(--warn); background: var(--warn-soft); }
+  .chip.annulé, .chip.serveur { color: var(--muted); background: var(--line); }
+  .chip.running { color: var(--bg); background: var(--accent); }
+  pre {
+    margin: 0; max-height: 70vh; overflow: auto; background: var(--bg); border: 1px solid var(--line); border-radius: 8px;
+    padding: 10px 12px; font-family: var(--mono); font-size: 12px; line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere;
+  }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+</style>
+
+<main>
+  <header>
+    <div>
+      <h1>Journal</h1>
+      <p class="sub">Le détail de ce qu'Auto-montage a fait : chaque préparation, génération et création 4K, et le démarrage. En cas de problème, ouvrez la tâche qui a échoué (les dernières lignes expliquent souvent pourquoi), ou téléchargez le rapport pour le joindre à une demande d'aide.</p>
+    </div>
+  </header>
+
+  <section aria-labelledby="h-report">
+    <h2 id="h-report" class="note" style="margin: 0;">Rapport</h2>
+    <div class="row">
+      <a class="btn" href="/api/logs/rapport" download>Télécharger le rapport</a>
+      <span class="note">Un fichier texte : version, système, état de Claude Code, les 3 dernières tâches en entier et la fin du journal de démarrage. Il ne contient ni vidéo ni texte de vos rushes, hormis les noms de fichiers et les sous-titres affichés pendant le montage.</span>
+    </div>
+  </section>
+
+  <section aria-labelledby="h-list">
+    <h2 id="h-list" class="note" style="margin: 0;">Tâches récentes</h2>
+    <ul id="list"></ul>
+    <p class="note" id="empty" hidden>Aucune tâche pour l'instant : les journaux apparaissent ici dès la première préparation.</p>
+  </section>
+
+  <section id="viewer" aria-labelledby="h-view" hidden>
+    <div class="row" style="justify-content: space-between;">
+      <h2 id="h-view" class="note" style="margin: 0;"></h2>
+      <a id="raw" target="_blank" rel="noopener">Ouvrir à part</a>
+    </div>
+    <pre id="content"></pre>
+  </section>
+</main>
+
+<script>
+  const $ = (id) => document.getElementById(id);
+  const STATES = { "réussi": "réussi", "échec": "échec", "annulé": "annulé", interrompu: "interrompu (serveur arrêté)", running: "en cours", serveur: "serveur" };
+  let current = null;
+  let timer = null;
+  const when = (iso) => new Date(iso).toLocaleString("fr-FR", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", second: "2-digit" });
+
+  async function refresh() {
+    clearTimeout(timer);
+    const data = await fetch("/api/logs", { cache: "no-store" }).then((r) => r.json()).catch(() => null);
+    if (!data) return;
+    const list = $("list");
+    list.replaceChildren();
+    $("empty").hidden = data.logs.some((l) => l.kind !== "demarrage");
+    for (const l of data.logs) {
+      const li = document.createElement("li");
+      const b = document.createElement("button");
+      b.type = "button";
+      b.setAttribute("aria-current", String(l.name === current));
+      b.innerHTML = `<span></span><span class="when"></span><span class="chip"></span>`;
+      b.children[0].textContent = l.label;
+      b.children[1].textContent = `${when(l.modified)} · ${l.size < 1024 ? `${l.size} o` : `${Math.round(l.size / 1024)} ko`}`;
+      b.children[2].textContent = STATES[l.state] || l.state;
+      b.children[2].classList.add(l.state);
+      b.addEventListener("click", () => show(l));
+      li.append(b);
+      list.append(li);
+    }
+    if (!current) {  // par défaut : la dernière tâche (ou le démarrage)
+      const first = data.logs.find((l) => l.kind !== "demarrage") || data.logs[0];
+      if (first) return show(first);
+    } else {
+      const l = data.logs.find((x) => x.name === current);
+      if (l) await load(l);
+    }
+    if (data.job.state === "running") timer = setTimeout(refresh, 3000);
+  }
+
+  async function load(l) {
+    const text = await fetch(`/logs/${encodeURIComponent(l.name)}`, { cache: "no-store" }).then((r) => r.text()).catch(() => "");
+    const pre = $("content");
+    const atEnd = pre.scrollTop + pre.clientHeight >= pre.scrollHeight - 20;
+    pre.textContent = text || "(vide)";
+    if (atEnd) pre.scrollTop = pre.scrollHeight;
+    $("h-view").textContent = `${l.label} — ${when(l.modified)}`;
+    $("raw").href = `/logs/${encodeURIComponent(l.name)}`;
+    $("viewer").hidden = false;
+  }
+
+  async function show(l) {
+    current = l.name;
+    document.querySelectorAll("#list button").forEach((b) => b.setAttribute("aria-current", String(b.children[0].textContent === l.label && b.children[1].textContent.startsWith(when(l.modified)))));
+    await load(l);
+    $("content").scrollTop = $("content").scrollHeight;  // la fin explique souvent l'erreur
+    await refresh();
+  }
+
+  refresh();
+</script>

@@ -1,0 +1,51 @@
+AUTO-MONTAGE SUR MAC : INSTALLATION ET PREMIÈRE OUVERTURE
+==========================================================
+
+1. Glissez « Auto-montage » sur le dossier « Applications » (dans cette fenêtre).
+
+2. Ouvrez Auto-montage (dossier Applications).
+
+   macOS affiche alors un message du type :
+   « Apple n'a pas pu vérifier que "Auto-montage" ne contient pas de logiciel malveillant »
+   ou « macOS ne peut pas vérifier le développeur ».
+
+   C'est normal : l'application n'est pas enregistrée auprès d'Apple (cela demande un
+   abonnement développeur payant). Cliquez sur « Terminé » (ou « OK »), puis utilisez UNE des
+   deux méthodes ci-dessous. Il n'y a à le faire qu'une fois par version.
+
+
+MÉTHODE A : PAR LES RÉGLAGES (sans taper de commande)
+-----------------------------------------------------
+   a. Ouvrez « Réglages Système » (menu Pomme) > « Confidentialité et sécurité ».
+   b. Descendez jusqu'à la partie « Sécurité » : une ligne indique que « Auto-montage » a été
+      bloqué. Cliquez sur « Ouvrir quand même », puis confirmez avec votre mot de passe
+      (ou Touch ID).
+      Le bouton n'apparaît que dans l'heure qui suit la tentative d'ouverture : si vous ne le
+      voyez pas, rouvrez Auto-montage, puis revenez dans les réglages.
+   c. Rouvrez Auto-montage et cliquez sur « Ouvrir quand même » dans le dernier message.
+
+   Sur macOS 14 (Sonoma) et avant, plus simple : clic droit (ou Ctrl + clic) sur
+   Auto-montage dans Applications > « Ouvrir » > « Ouvrir ».
+
+
+MÉTHODE B : PAR LE TERMINAL (si la méthode A ne marche pas)
+-----------------------------------------------------------
+   a. Ouvrez l'application « Terminal » (Applications > Utilitaires, ou Cmd + Espace puis
+      tapez « Terminal »).
+   b. Copiez-collez cette ligne, puis appuyez sur Entrée :
+
+        xattr -dr com.apple.quarantine /Applications/Auto-montage.app
+
+      (Elle retire seulement l'étiquette « téléchargé d'Internet » de l'application ; si le
+      Mac demande un mot de passe, ajoutez « sudo » au début de la ligne.)
+   c. Ouvrez Auto-montage normalement.
+
+
+ENSUITE
+-------
+   - Installez Docker Desktop si l'application le demande
+     (https://www.docker.com/products/docker-desktop/), lancez-le une fois, puis rouvrez
+     Auto-montage.
+   - Acceptez que l'application contrôle le Terminal : il affiche l'avancement de
+     l'installation (10 à 20 minutes la première fois).
+   - Le navigateur s'ouvre ensuite sur l'interface (http://localhost:8080/).
