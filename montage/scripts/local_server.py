@@ -365,7 +365,7 @@ PLAN = {"préparation du rush": ["Version de travail (MP4)", "Transcription", "P
         "mesures des vidéos d'exemple": ["Analyse des vidéos d'exemple"]}
 RATES = {  # clé : (échelle, secondes par seconde d'échelle)
     "Version de travail (MP4)": ("rush", 0.3),
-    "Transcription": ("rush", 1.5), "Position du visage": ("rush", 0.1),
+    "Transcription": ("rush", 0.3), "Position du visage": ("rush", 0.1),
     # Plusieurs vidéos pour un rush : mises bout à bout (copie) ou réencodées (réglages différents).
     "Assemblage des vidéos": ("rush", 0.03), "Assemblage des vidéos (réencodage)": ("rush", 1.2),
     "Rendu de la vidéo": ("montage", 3.7), "Découpage des moments": ("rush", 0.5),

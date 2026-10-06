@@ -4,6 +4,15 @@ Chaque version publiée reprend sa section dans ses notes (onglet Releases). Une
 section, le numéro dans `VERSION` et le tag `v<numéro>` poussé publient la version avec ses
 installateurs (voir `packaging/README.md`).
 
+## 0.53
+
+- **Préparation beaucoup plus rapide** : la transcription, l'étape la plus longue, est environ
+  5 fois plus rapide (un rush de 6 min transcrit en 7 min 30 au lieu de 37 min, mesuré sur
+  4 cœurs). Les phrases sont maintenant transcrites ensemble par morceaux d'une demi-minute au
+  lieu d'une par une, ce qui donne aussi un texte plus juste (noms propres, ponctuation) et moins
+  de phrases inventées dans les silences. Les hésitations isolées (« euh… ») restent transcrites,
+  pour repérer les ratés.
+
 ## 0.52
 
 - **Journal plus clair quand une tâche s'arrête** (page **Journal**) : pendant les étapes
