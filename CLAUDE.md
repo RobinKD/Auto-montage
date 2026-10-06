@@ -186,6 +186,14 @@ interne : les changements attendent la prochaine version.
   sur le disque sans mise à jour (git pull dans le dossier d'installation) : la page le dit et
   propose « Redémarrer » (`/api/restart`, `disk_version()`). Les installateurs
   ne recopient leur projet que s'il est plus récent (`version_gt`).
+- Libérer de la place (section en bas de /rush/) : `scripts/place.py` (inventaire : montages
+  enregistrés, rushes de `public/rushes`, `rush_2160.webm`, vidéos de `work/rendu_hyperframes/assets`,
+  `work/sauvegardes`, restes `.envoi-*` et `*.part.*` ; taille réellement libérée, liens physiques
+  exclus), `/api/place` et `/api/place/delete` (refusé pendant une tâche). Au démarrage du serveur,
+  les restes sont effacés ; `project.py save` efface les vidéos du dernier rendu. Docker : `LABEL
+  auto-montage` (Dockerfile), ancienne image effacée par les lanceurs après `up --build` ; menu
+  « Nettoyer Docker » (`docker/clean.sh`, `docker/windows/clean.ps1` : images sans nom, cache de
+  construction, jamais les volumes).
 - Journal (/logs/) : chaque tâche écrit `work/logs/<date>_<tâche>.log` (40 gardés, fin
   « # RÉSULTAT : … ») ; démarrage et serveur dans `work/logs/demarrage.log` (entrypoint) ;
   erreurs de la discussion dans `work/logs/discussion.log` ; `/api/logs/rapport` les regroupe.

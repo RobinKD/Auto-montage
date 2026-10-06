@@ -23,6 +23,7 @@ $items = @(
     @('Dossier des rushes', 'rushes.ps1', '', 'Dossier où déposer les rushes'),
     @('Claude Code', 'claude.ps1', '', 'Claude Code dans le conteneur'),
     @('Terminal du conteneur', 'shell.ps1', '', 'Terminal dans le conteneur (dossier montage)'),
+    @('Nettoyer Docker', 'clean.ps1', '', 'Libère la place prise par les anciennes images de Docker'),
     @('Arrêter Auto-montage', 'stop.ps1', '', 'Arrête le conteneur')
 )
 foreach ($i in $items) {

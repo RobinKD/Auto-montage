@@ -86,4 +86,6 @@ am_up() {
     am_pause "Le démarrage a échoué (voir les messages ci-dessus)."
     exit 1
   fi
+  # Ancienne version de l'image, sans nom depuis la reconstruction : plusieurs Go à chaque mise à jour.
+  "$AM_ENGINE" image prune -f --filter label=auto-montage >/dev/null 2>&1 || true
 }

@@ -105,6 +105,16 @@
   .projects .name { font-weight: 600; overflow-wrap: anywhere; }
   .projects .acts { display: flex; gap: 6px; grid-row: span 2; }
   .projects .warn2 { color: var(--warn); }
+  .space { display: flex; flex-direction: column; gap: 10px; }
+  .space fieldset { border: 1px solid var(--line); border-radius: 8px; padding: 6px 12px 10px; margin: 0; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+  .space legend { font-size: 13px; color: var(--muted); padding: 0 4px; }
+  .space legend button { font-size: 12px; padding: 1px 8px; margin-left: 6px; }
+  .space label { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 0 10px; align-items: baseline; cursor: pointer; }
+  .space label input { align-self: center; width: 18px; height: 18px; accent-color: var(--accent); }
+  .space .file { font-weight: 600; }
+  .space .size { font-family: var(--mono); font-size: 13px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .space .more { grid-column: 2 / -1; font-size: 13px; color: var(--muted); overflow-wrap: anywhere; }
+  .space .more.keep { color: var(--warn); }
   .btnlink { display: inline-block; font-size: 15px; font-weight: 600; text-decoration: none; color: var(--bg); background: var(--accent); border-radius: 8px; padding: 8px 14px; }
   .progress { display: flex; flex-direction: column; gap: 6px; }
   .progress .row { justify-content: space-between; font-size: 14px; }
@@ -243,6 +253,18 @@
     <p class="status" id="job-status" role="status"></p>
     <pre id="log" hidden></pre>
   </section>
+
+  <section id="space-section" aria-labelledby="h-space">
+    <h2 id="h-space">Libérer de la place</h2>
+    <p class="note" id="space-free"></p>
+    <div class="space" id="space-list"></div>
+    <div class="row">
+      <button type="button" class="primary" id="space-delete" disabled>Supprimer la sélection</button>
+      <span class="facts" id="space-total"></span>
+    </div>
+    <p class="status" id="space-status" role="status"></p>
+    <p class="note">La place prise par Docker lui-même (anciennes versions d'Auto-montage) se libère avec « Nettoyer Docker », dans le menu de l'application Auto-montage.</p>
+  </section>
 </main>
 
 <script>
@@ -375,9 +397,81 @@
     await refresh();
   }
 
+  // Libérer de la place (scripts/place.py) : montages enregistrés, vidéos envoyées, copies, restes.
+  const SPACE_GROUPS = { montages: "Montages enregistrés", videos: "Vidéos gardées par Auto-montage", autres: "Autres fichiers" };
+  let space = null;
+  async function showSpace() {
+    space = await fetch("/api/place").then((r) => r.json()).catch(() => null);
+    const list = $("space-list");
+    const keep = new Set(spacePicked().map((i) => i.id));  // cases cochées gardées d'un rafraîchissement à l'autre
+    list.replaceChildren();
+    if (!space) return;
+    $("space-free").textContent = `Place libre sur le disque : ${mb(space.free)}. Cochez ce qui peut partir : rien n'est supprimé avant « Supprimer la sélection ».`;
+    if (!space.items.length) {
+      list.append(Object.assign(document.createElement("p"), { className: "note", textContent: "Rien à supprimer : Auto-montage ne garde ni montage enregistré ni vidéo envoyée." }));
+    }
+    for (const [group, title] of Object.entries(SPACE_GROUPS)) {
+      const items = space.items.filter((i) => i.group === group);
+      if (!items.length) continue;
+      const fs = document.createElement("fieldset");
+      const lg = document.createElement("legend");
+      lg.textContent = title;
+      const all = Object.assign(document.createElement("button"), { type: "button", textContent: "tout cocher" });
+      all.addEventListener("click", () => {
+        const boxes = [...fs.querySelectorAll("input")];
+        const on = !boxes.every((b) => b.checked);
+        boxes.forEach((b) => { b.checked = on; });
+        spaceTotal();
+      });
+      lg.append(all);
+      fs.append(lg);
+      for (const it of items) {
+        const lab = document.createElement("label");
+        const box = Object.assign(document.createElement("input"), { type: "checkbox", value: it.id, checked: keep.has(it.id) });
+        box.addEventListener("change", spaceTotal);
+        const name = Object.assign(document.createElement("span"), { className: "file", textContent: it.label });
+        const size = Object.assign(document.createElement("span"), { className: "size", textContent: mb(it.size) });
+        const more = Object.assign(document.createElement("span"), { className: `more${it.keep ? " keep" : ""}`,
+          textContent: [it.detail, it.note].filter(Boolean).join(" · ") });
+        lab.append(box, name, size, more);
+        fs.append(lab);
+      }
+      list.append(fs);
+    }
+    spaceTotal();
+  }
+  function spacePicked() {
+    const ids = [...$("space-list").querySelectorAll("input:checked")].map((b) => b.value);
+    return space ? space.items.filter((i) => ids.includes(i.id)) : [];
+  }
+  function spaceTotal() {
+    const picked = spacePicked();
+    const busy = info && info.job.state === "running";
+    $("space-delete").disabled = !picked.length || busy;
+    $("space-total").textContent = busy ? "pendant une tâche : attendez qu'elle finisse"
+      : picked.length ? `${picked.length} élément(s) · ${mb(picked.reduce((n, i) => n + i.size, 0))} libérés` : "";
+  }
+  $("space-delete").addEventListener("click", async () => {
+    const picked = spacePicked();
+    if (!picked.length) return;
+    const warn = picked.filter((i) => i.keep).map((i) => `\n• ${i.label} : ${i.note}`).join("");
+    if (!confirm(`Supprimer définitivement ${picked.length} élément(s) (${mb(picked.reduce((n, i) => n + i.size, 0))}) ?${warn}`)) return;
+    $("space-delete").disabled = true;
+    setStatus("space-status", "Suppression…");
+    const r = await fetch("/api/place/delete", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ids: picked.map((i) => i.id) }) });
+    const data = await r.json().catch(() => ({}));
+    if (!r.ok || !data.ok) setStatus("space-status", data.error || `erreur ${r.status}`, "err");
+    else setStatus("space-status", `${data.deleted.length} élément(s) supprimé(s), ${mb(data.freed)} libérés.`, "ok");
+    $("space-list").querySelectorAll("input").forEach((b) => { b.checked = false; });
+    parts = parts.filter((n) => !picked.some((i) => i.id === `rush:${n}`));  // vidéos choisies plus haut et supprimées
+    showParts();
+    await refresh();
+  });
+
   async function refresh() {
     info = await (await fetch("/api/rushes")).json();
     await showProjects();
+    await showSpace();
     const sel = $("existing");
     const keep = sel.value;
     sel.replaceChildren(new Option("—", ""), ...info.rushes.map((r) => new Option(`${r.name} (${mb(r.size)})${r.name === info.current ? " · en cours" : ""}`, r.name)));
@@ -719,7 +813,7 @@
 
   function upload(f) {
     if (info && f.size + 2147483648 > info.free) {
-      setStatus("file-status", `Pas assez de place sur le disque : il faut ${mb(f.size + 2147483648)}, il reste ${mb(info.free)}.`, "err");
+      setStatus("file-status", `Pas assez de place sur le disque : il faut ${mb(f.size + 2147483648)}, il reste ${mb(info.free)}. Libérez-en avec « Libérer de la place », en bas de la page, ou ailleurs sur le disque.`, "err");
       return Promise.resolve(null);
     }
     return new Promise((resolve) => {

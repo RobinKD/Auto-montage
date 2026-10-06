@@ -31,9 +31,9 @@ cd Auto-montage
 
 | Système | Installer le raccourci | Lanceurs |
 | --- | --- | --- |
-| Linux | `./docker/install-desktop.sh` | « Auto-montage » dans le menu et sur le bureau ; clic droit : Téléchargements, Claude Code, Terminal du conteneur, Arrêter |
-| macOS | `./docker/install-macos.sh` | application « Auto-montage » (`~/Applications`, alias sur le bureau) avec un menu : moments, téléchargements, Claude Code, terminal du conteneur, arrêt |
-| Windows | double-clic sur `docker\install-windows.bat` | « Auto-montage » sur le bureau ; menu Démarrer > Auto-montage : Téléchargements, Claude Code, Terminal du conteneur, Arrêter |
+| Linux | `./docker/install-desktop.sh` | « Auto-montage » dans le menu et sur le bureau ; clic droit : Téléchargements, Claude Code, Terminal du conteneur, Nettoyer Docker, Arrêter |
+| macOS | `./docker/install-macos.sh` | application « Auto-montage » (`~/Applications`, alias sur le bureau) avec un menu : moments, téléchargements, Claude Code, terminal du conteneur, nettoyage de Docker, arrêt |
+| Windows | double-clic sur `docker\install-windows.bat` | « Auto-montage » sur le bureau ; menu Démarrer > Auto-montage : Téléchargements, Claude Code, Terminal du conteneur, Nettoyer Docker, Arrêter |
 
 Les lanceurs démarrent Docker Desktop s'il ne tourne pas (macOS, Windows), puis le conteneur,
 et ouvrent le navigateur sur <http://localhost:8080/>. Le premier lancement construit l'image
@@ -49,7 +49,14 @@ Sans raccourci :
 | Téléchargements | `docker/open.sh downloads/` | `docker\windows\open.ps1 downloads/` |
 | Claude Code | `docker/claude.sh` | `docker\windows\claude.ps1` |
 | Terminal du conteneur | `docker/shell.sh` | `docker\windows\shell.ps1` |
+| Nettoyer Docker | `docker/clean.sh` | `docker\windows\clean.ps1` |
 | Arrêter | `docker/stop.sh` | `docker\windows\stop.ps1` |
+
+« Nettoyer Docker » supprime les anciennes versions de l'image (une par mise à jour), les images
+sans nom et le cache de construction ; il garde l'image en service et les volumes (connexion à
+Claude, Whisper, paquets Node). Les lanceurs effacent déjà d'eux-mêmes l'ancienne image
+d'Auto-montage après chaque reconstruction (`LABEL auto-montage` du Dockerfile). La place des
+rushes et des montages se libère sur la page « Rushes et montages » (« Libérer de la place »).
 
 Notes par système :
 

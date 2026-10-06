@@ -19,7 +19,7 @@ on run
 		return
 	end try
 
-	set choix to choose from list {"Moments et version de travail", "Téléchargements (720p, 1080p, 4K)", "Dossier des rushes", "Claude Code", "Terminal du conteneur", "Arrêter Auto-montage"} with title "Auto-montage" with prompt "Que voulez-vous ouvrir ?" default items {"Moments et version de travail"} OK button name "Ouvrir" cancel button name "Annuler"
+	set choix to choose from list {"Moments et version de travail", "Téléchargements (720p, 1080p, 4K)", "Dossier des rushes", "Claude Code", "Terminal du conteneur", "Nettoyer Docker (place disque)", "Arrêter Auto-montage"} with title "Auto-montage" with prompt "Que voulez-vous ouvrir ?" default items {"Moments et version de travail"} OK button name "Ouvrir" cancel button name "Annuler"
 	if choix is false then return
 	set c to item 1 of choix
 	set docker to quoted form of (dest & "/docker")
@@ -34,6 +34,8 @@ on run
 		set cmd to docker & "/claude.sh"
 	else if c starts with "Terminal" then
 		set cmd to docker & "/shell.sh"
+	else if c starts with "Nettoyer" then
+		set cmd to docker & "/clean.sh"
 	else
 		set cmd to docker & "/stop.sh"
 	end if

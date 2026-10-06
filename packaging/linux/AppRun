@@ -51,7 +51,7 @@ Exec="$SELF" open
 Icon=auto-montage
 Terminal=false
 Categories=AudioVideo;Video;
-Actions=downloads;rushes;claude;shell;stop;
+Actions=downloads;rushes;claude;shell;clean;stop;
 
 [Desktop Action downloads]
 Name=Téléchargements (720p, 1080p, 4K)
@@ -68,6 +68,10 @@ Exec="$SELF" claude
 [Desktop Action shell]
 Name=Terminal du conteneur
 Exec="$SELF" shell
+
+[Desktop Action clean]
+Name=Nettoyer Docker (place disque)
+Exec="$SELF" clean
 
 [Desktop Action stop]
 Name=Arrêter Auto-montage
@@ -105,6 +109,7 @@ case "$ACTION" in
   claude) in_terminal "$DEST/docker/claude.sh" ;;
   shell) in_terminal "$DEST/docker/shell.sh" ;;
   rushes) exec "$DEST/docker/rushes.sh" ;;
+  clean) in_terminal "$DEST/docker/clean.sh" ;;
   stop) exec "$DEST/docker/stop.sh" ;;
-  *) echo "Action inconnue : $ACTION (open, downloads, claude, shell, rushes, stop, install)" >&2; exit 2 ;;
+  *) echo "Action inconnue : $ACTION (open, downloads, claude, shell, rushes, clean, stop, install)" >&2; exit 2 ;;
 esac

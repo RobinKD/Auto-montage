@@ -5,6 +5,9 @@
 FROM docker.io/library/node:22-bookworm-slim AS node
 
 FROM docker.io/library/ubuntu:22.04
+# Repère des images d'Auto-montage : les anciennes versions (sans nom après une reconstruction)
+# sont effacées par les lanceurs (docker/lib.sh am_up, windows/open.ps1).
+LABEL auto-montage=1
 ENV DEBIAN_FRONTEND=noninteractive
 
 # Python, outils de compilation (whisper.cpp), et bibliothèques du Chrome de rendu de HyperFrames.

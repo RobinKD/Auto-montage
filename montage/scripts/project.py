@@ -114,6 +114,12 @@ def save():
             move(os.path.join(WORK, entry), os.path.join(dest, "work", entry))
     for rel in MOVED:
         move(os.path.join(ROOT, rel), os.path.join(dest, rel))
+    # Vidéos du dernier rendu (liens ou copies de rush_1080/rush_2160) : elles garderaient sur le
+    # disque les vidéos de ce montage, même supprimé ; refaites au prochain rendu.
+    assets = os.path.join(WORK, "rendu_hyperframes", "assets")
+    for entry in os.listdir(assets) if os.path.isdir(assets) else []:
+        if entry.lower().endswith((".mp4", ".webm", ".mov")):
+            os.remove(os.path.join(assets, entry))
     for rel in COPIED:
         if os.path.exists(os.path.join(ROOT, rel)):
             os.makedirs(os.path.dirname(os.path.join(dest, rel)), exist_ok=True)
