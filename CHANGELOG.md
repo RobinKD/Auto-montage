@@ -4,6 +4,16 @@ Chaque version publiée reprend sa section dans ses notes (onglet Releases). Une
 section, le numéro dans `VERSION` et le tag `v<numéro>` poussé publient la version avec ses
 installateurs (voir `packaging/README.md`).
 
+## 0.52
+
+- **Journal plus clair quand une tâche s'arrête** (page **Journal**) : pendant les étapes
+  longues, la place libre sur le disque et la mémoire disponible sont notées toutes les
+  30 secondes. Si ffmpeg s'arrête, le journal dit pourquoi (par exemple « tué de force, le plus
+  souvent par manque de mémoire ») et montre ses derniers messages. Une tâche coupée par l'arrêt
+  d'Auto-montage, de Docker ou de l'ordinateur est marquée « interrompu » au redémarrage, avec
+  l'heure de sa dernière écriture. Si le journal ne peut plus être écrit (disque plein), la page
+  le signale.
+
 ## 0.51
 
 - **Réinitialiser Auto-montage** (page **Mises à jour**) : si Claude Code, lancé dans le dossier
