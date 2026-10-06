@@ -36,6 +36,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from join_rushes import joined_name  # noqa: E402
 from progress import exit_reason, resources  # noqa: E402
 import decoupage  # noqa: E402
+import place  # noqa: E402
 import fonts_lib  # noqa: E402
 from moments_lib import SOUNDS as DEFAULT_SOUNDS, DEFAULTS_VERSION, LANGUAGES, VISUALS, VOICES, edit_size, hf_preview_files, hidden_effects, language, res_label, sound_catalog, wav_len  # noqa: E402
 
@@ -867,16 +868,43 @@ def report_text():
     return "\n".join(lines) + "\n"
 
 
-def remove_partial_files():
+def remove_partial_files(uploads=False):
     """Fichiers en cours d'écriture (*.part.*, renommés seulement une fois complets) d'une tâche
-    annulée : les versions précédentes restent intactes."""
+    annulée : les versions précédentes restent intactes. Avec uploads (démarrage du serveur, rien
+    ne tourne) : aussi les envois coupés (.envoi-*) et les fichiers d'une tâche arrêtée en route."""
     for folder in (OUT, RUSHES):
         for name in os.listdir(folder) if os.path.isdir(folder) else []:
-            if ".part." in name:
+            if ".part." in name or (uploads and name.startswith(".envoi-")):
                 try:
                     os.remove(os.path.join(folder, name))
                 except OSError:
                     pass
+
+
+def dir_size(path):
+    total = 0
+    for folder, _, names in os.walk(path):
+        for name in names:
+            try:
+                total += os.lstat(os.path.join(folder, name)).st_size
+            except OSError:
+                pass
+    return total
+
+
+def no_space(need, folder):
+    """Message « pas assez de place » : place libre, place nécessaire et ce qui en prend le plus
+    dans Auto-montage (à supprimer pour en libérer)."""
+    free = shutil.disk_usage(folder).free
+    gb = lambda n: f"{n / 2**30:.1f} Go"  # noqa: E731
+    parts = [(dir_size(RUSHES), "vidéos envoyées (montage/public/rushes)"),
+             (dir_size(os.path.join(WORK, "projets")), "montages enregistrés (page Rushes et montages, « Supprimer »)"),
+             (dir_size(OUT), "rendus (montage/out)"),
+             (dir_size(os.path.join(WORK, "sauvegardes")), "sauvegardes (montage/work/sauvegardes)")]
+    used = ", ".join(f"{label} {gb(n)}" for n, label in sorted(parts, reverse=True) if n >= 2**28)
+    return (f"Pas assez de place sur le disque : il faut {gb(need)} libres, il en reste {gb(free)}."
+            + (f" Dans Auto-montage : {used}." if used else "")
+            + " Pour en libérer : « Libérer de la place », en bas de la page « Rushes et montages ».")
 
 
 def cancel_job():
@@ -1484,6 +1512,8 @@ class Handler(BaseHTTPRequestHandler):
             return self.send_file(os.path.join(folder, names[len(names) // 3]) if names else None)
         if path == "/api/downloads":
             return self.send_json(downloads_data())
+        if path == "/api/place":
+            return self.send_json(place.inventory())
         if path == "/api/rushes":
             return self.send_json(rush_list())
         if path in ("/local/shim.js", "/local/menu.js"):
@@ -1527,18 +1557,22 @@ class Handler(BaseHTTPRequestHandler):
             return self.send_json({"error": "Taille du fichier inconnue."}, 411)
         os.makedirs(RUSHES, exist_ok=True)
         if shutil.disk_usage(RUSHES).free < size + (2 << 30):
-            return self.send_json({"error": "Pas assez de place sur le disque (il faut la taille du rush + 2 Go)."}, 507)
+            return self.send_json({"error": no_space(size + (2 << 30), RUSHES)}, 507)
         tmp = os.path.join(RUSHES, f".envoi-{name}")
         left = size
-        with open(tmp, "wb") as f:
-            while left > 0:
-                chunk = self.rfile.read(min(4 << 20, left))
-                if not chunk:
-                    break
-                f.write(chunk)
-                left -= len(chunk)
+        try:
+            with open(tmp, "wb") as f:
+                while left > 0:
+                    chunk = self.rfile.read(min(4 << 20, left))
+                    if not chunk:
+                        break
+                    f.write(chunk)
+                    left -= len(chunk)
+        except OSError:  # page fermée pendant l'envoi, disque plein : pas de reste caché de plusieurs Go
+            left = left or 1
         if left:
-            os.remove(tmp)
+            if os.path.exists(tmp):
+                os.remove(tmp)
             return self.send_json({"error": "Envoi interrompu."}, 400)
         os.replace(tmp, os.path.join(RUSHES, name))
         return self.send_json({"ok": True, "name": name})
@@ -1553,18 +1587,22 @@ class Handler(BaseHTTPRequestHandler):
             return f"Fichier trop lourd (au plus {max_size >> 20} Mo)."
         os.makedirs(os.path.dirname(dest), exist_ok=True)
         if shutil.disk_usage(os.path.dirname(dest)).free < size + (1 << 30):
-            return "Pas assez de place sur le disque."
+            return no_space(size + (1 << 30), os.path.dirname(dest))
         tmp = os.path.join(os.path.dirname(dest), f".envoi-{os.path.basename(dest)}")
         left = size
-        with open(tmp, "wb") as f:
-            while left > 0:
-                chunk = self.rfile.read(min(4 << 20, left))
-                if not chunk:
-                    break
-                f.write(chunk)
-                left -= len(chunk)
+        try:
+            with open(tmp, "wb") as f:
+                while left > 0:
+                    chunk = self.rfile.read(min(4 << 20, left))
+                    if not chunk:
+                        break
+                    f.write(chunk)
+                    left -= len(chunk)
+        except OSError:
+            left = left or 1
         if left:
-            os.remove(tmp)
+            if os.path.exists(tmp):
+                os.remove(tmp)
             return "Envoi interrompu."
         os.replace(tmp, dest)
         return None
@@ -1704,7 +1742,7 @@ class Handler(BaseHTTPRequestHandler):
     def do_POST(self):
         route = urlparse(self.path).path
         if route not in ("/api/regen", "/api/prepare", "/api/final", "/api/chat", "/api/chat/stop", "/api/chat/new",
-                         "/api/projects/open", "/api/projects/delete", "/api/projects/save", "/api/job/cancel",
+                         "/api/projects/open", "/api/projects/delete", "/api/projects/save", "/api/job/cancel", "/api/place/delete",
                          "/api/claude/login", "/api/claude/code", "/api/claude/logout",
                          "/api/update/check", "/api/update/apply", "/api/update/reset", "/api/restart", "/api/style/analyse", "/api/son/analyse", "/api/tutorial/seen",
                          "/api/moments/merge", "/api/moments/split", "/api/moments/unmerge", "/api/moments/unsplit"):
@@ -1766,6 +1804,19 @@ class Handler(BaseHTTPRequestHandler):
                     return self.send_json({"error": "Une tâche est en cours : attendez qu'elle finisse."}, 409)
                 ok, msg = run_project(action, *([pid] if action != "save" else []))
             return self.send_json({"ok": ok, "message": msg[0]} if ok else {"error": msg[0]}, 200 if ok else 400)
+        if route == "/api/place/delete":
+            ids = body.get("ids")
+            if not isinstance(ids, list) or not ids or not all(isinstance(i, str) for i in ids):
+                return self.send_json({"error": "Rien de choisi."}, 400)
+            with job_lock:  # une tâche en cours écrit dans ces dossiers (et ses fichiers .part.*)
+                if job["state"] == "running":
+                    return self.send_json({"error": "Une tâche est en cours : attendez qu'elle finisse."}, 409)
+                before = shutil.disk_usage(ROOT).free
+                try:
+                    done = place.delete(ids)
+                except OSError as e:
+                    return self.send_json({"error": f"Suppression incomplète : {e}"}, 500)
+            return self.send_json({"ok": True, "deleted": done, "freed": max(0, shutil.disk_usage(ROOT).free - before)})
         if route == "/api/final":
             if not final_info()["available"]:
                 return self.send_json({"error": "Pas encore de version de travail : générez-la d'abord."}, 400)
@@ -1835,8 +1886,7 @@ class Handler(BaseHTTPRequestHandler):
             if len(parts) > 1:
                 need = sum(os.path.getsize(os.path.join(RUSHES, n)) for n in parts) + (2 << 30)
                 if shutil.disk_usage(RUSHES).free < need:
-                    return self.send_json({"error": f"Pas assez de place sur le disque pour assembler les vidéos "
-                                                    f"(il faut {need >> 30} Go libres)."}, 507)
+                    return self.send_json({"error": no_space(need, RUSHES)}, 507)
             langue = body.get("langue") or "fr"
             if langue not in LANGUAGES:
                 return self.send_json({"error": "Langue inconnue."}, 400)
@@ -1879,6 +1929,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
     chat_load()
     close_interrupted_logs()
+    remove_partial_files(uploads=True)
     threading.Thread(target=update_loop, daemon=True).start()
     for m in chat["messages"]:  # réponse coupée par un arrêt du serveur
         if m.get("role") == "assistant" and not m.get("done"):

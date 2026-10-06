@@ -4,6 +4,19 @@ Chaque version publiée reprend sa section dans ses notes (onglet Releases). Une
 section, le numéro dans `VERSION` et le tag `v<numéro>` poussé publient la version avec ses
 installateurs (voir `packaging/README.md`).
 
+## 0.55
+
+- **Libérer de la place** : nouvelle section en bas de la page **Rushes et montages**. Elle liste
+  avec leur taille les montages enregistrés, les vidéos envoyées (copies gardées par
+  Auto-montage), la source 4K et les copies laissées par le dernier rendu, les sauvegardes et
+  les envois coupés. On coche ce qui peut partir, puis « Supprimer la sélection ». Les vidéos
+  encore utiles à un montage sont signalées avant suppression.
+- Un envoi coupé (page fermée, Docker arrêté) ne laisse plus de fichier caché de plusieurs Go,
+  et les copies de vidéos du dernier rendu ne gardent plus sur le disque les vidéos d'un
+  montage mis de côté.
+- Le message « Pas assez de place sur le disque » dit maintenant combien il faut, combien il
+  reste et ce qui prend le plus de place.
+
 ## 0.54
 
 - **Vidéos en anglais** : sur la page **Rushes et montages**, l'étape « Préparer » propose
