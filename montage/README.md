@@ -128,7 +128,7 @@ réencodées aux réglages de la première), puis la préparation continue sur c
 | --- | --- | --- |
 | Version de travail 1080×1920 (MP4) | `prepare.sh` | `public/rushes/` |
 | Source 4K des images gardées (rendu final) | `make_hd.py` via `render.sh final` | `public/rushes/rush_2160.webm` |
-| Segments de parole (VAD Silero) et transcription mot à mot par segment (Whisper large-v3-turbo) | `setup_whisper.sh`, `transcribe_segments.py` | `work/segments.json` |
+| Segments de parole (VAD Silero) et transcription mot à mot par segment (Whisper large-v3-turbo, segments transcrits ensemble par morceaux de 28 s) | `setup_whisper.sh`, `transcribe_segments.py` | `work/segments.json` |
 | Position du visage | `detect_face.py` | `src/data/face.json` |
 | Bruitages provisoires | `make_sfx.py` | `public/sfx/` |
 | Dérush, sous-titres, zooms, effets, piste voix | `build_edit.py` | `src/data/edit.json`, `public/audio/voice.wav` |
