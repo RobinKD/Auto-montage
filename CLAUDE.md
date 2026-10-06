@@ -8,7 +8,9 @@ détail est dans `montage/README.md` ; les consignes de montage viennent de l'ut
 
 1. Récupérer le rush (fichier ou lien de téléchargement fourni) dans `montage/public/rushes/`.
 2. `./scripts/prepare.sh <fichier>` depuis `montage/` (plusieurs vidéos pour un rush :
-   `prepare.sh <vidéo 1> <vidéo 2> …`, assemblées dans l'ordre par `scripts/join_rushes.py`).
+   `prepare.sh <vidéo 1> <vidéo 2> …`, assemblées dans l'ordre par `scripts/join_rushes.py` ;
+   rush en anglais : `prepare.sh --langue en <fichier>`, français par défaut, choix gardé dans
+   `work/langue.txt`). Toutes les pistes son de la vidéo sont mélangées (`moments_lib.audio_map`).
 3. Lire `work/segments.json`, écrire `work/suggestions.json` (garder / retirer avec raison :
    doublon 1re prise, raté, aparté), puis `python3 scripts/make_moments.py`. Consignes de
    montage : celles du chat, ou `work/instructions.md` (choisi sur la page « Rushes et montages »).

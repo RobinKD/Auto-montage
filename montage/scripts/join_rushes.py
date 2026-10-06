@@ -19,6 +19,7 @@ import tempfile
 
 sys.path.insert(0, os.path.dirname(__file__))
 import progress  # noqa: E402
+from moments_lib import audio_streams  # noqa: E402
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 RUSHES = os.path.join(ROOT, "public", "rushes")
@@ -58,8 +59,10 @@ def probe(path):
     info.update(vcodec=fields[0].split()[0], pix=fields[1] if len(fields) > 1 else "",
                 width=int(size[1]) if size else 0, height=int(size[2]) if size else 0,
                 fps=float(fps[1]) if fps else 30.0, rotation=round(float(rot[1])) % 360 if rot else 0)
+    # Pistes son lisibles (plusieurs : un micro par personne), mélangées par prepare.sh.
+    info["tracks"] = [i for i, _ in audio_streams(path)]
     audio = re.search(r"Stream #\d+:\d+.*?: Audio: (.*)", out)
-    if audio:
+    if audio and info["tracks"]:
         a = flat(audio[1])
         info.update(acodec=a[0].split()[0], rate=a[1] if len(a) > 1 else "", layout=a[2] if len(a) > 2 else "")
     else:
@@ -68,7 +71,7 @@ def probe(path):
 
 
 def same_settings(infos):
-    keys = ("vcodec", "pix", "width", "height", "fps", "rotation", "acodec", "rate", "layout")
+    keys = ("vcodec", "pix", "width", "height", "fps", "rotation", "acodec", "rate", "layout", "tracks")
     return all(info["acodec"] for info in infos) and all(
         tuple(i[k] for k in keys) == tuple(infos[0][k] for k in keys) for i in infos[1:])
 
@@ -105,7 +108,7 @@ def join(names):
         try:
             code = progress.ffmpeg("Assemblage des vidéos", [
                 ffmpeg, "-v", "error", "-y", "-f", "concat", "-safe", "0", "-i", listing,
-                "-map", "0:v:0", "-map", "0:a:0", "-c", "copy", "-movflags", "+faststart", part], total=total)
+                "-map", "0:v:0", *[a for i in infos[0]["tracks"] for a in ("-map", f"0:a:{i}")], "-c", "copy", "-movflags", "+faststart", part], total=total)
         finally:
             os.remove(listing)
     else:
@@ -118,7 +121,7 @@ def join(names):
               f"{fps:g} images/s (plus long)", flush=True)
         for p, i in zip(paths, infos):
             print(f"  {os.path.basename(p)} : {i['width']}x{i['height']}, {i['fps']:g} images/s, {i['vcodec']}, "
-                  f"son {i['acodec'] or 'absent'}", flush=True)
+                  f"son {i['acodec'] or 'absent'}" + (f" ({len(i['tracks'])} pistes)" if len(i["tracks"]) > 1 else ""), flush=True)
         cmd = [ffmpeg, "-v", "error", "-y"]
         for p in paths:
             cmd += ["-i", p]
@@ -130,10 +133,16 @@ def join(names):
         for k, i in enumerate(infos):
             graph.append(f"[{k}:v:0]scale={w}:{h}:force_original_aspect_ratio=decrease,"
                          f"pad={w}:{h}:(ow-iw)/2:(oh-ih)/2,setsar=1,fps={fps:g},format=yuv420p[v{k}]")
-            src = f"{k}:a:0" if i["acodec"] else f"{silent}:a:0"
+            fmt = "aresample=48000,aformat=sample_fmts=fltp:channel_layouts=stereo"
             if not i["acodec"]:
+                graph.append(f"[{silent}:a:0]{fmt}[a{k}]")
                 silent += 1
-            graph.append(f"[{src}]aresample=48000,aformat=sample_fmts=fltp:channel_layouts=stereo[a{k}]")
+            elif len(i["tracks"]) == 1:
+                graph.append(f"[{k}:a:{i['tracks'][0]}]{fmt}[a{k}]")
+            else:  # plusieurs pistes son : mélangées, comme prepare.sh (moments_lib.audio_map)
+                graph.append("".join(f"[{k}:a:{t}]{fmt}[a{k}_{t}];" for t in i["tracks"])
+                             + "".join(f"[a{k}_{t}]" for t in i["tracks"])
+                             + f"amix=inputs={len(i['tracks'])}:duration=longest:normalize=0,alimiter=limit=0.97:level=0[a{k}]")
         graph.append("".join(f"[v{k}][a{k}]" for k in range(n)) + f"concat=n={n}:v=1:a=1[v][a]")
         cmd += ["-filter_complex", ";".join(graph), "-map", "[v]", "-map", "[a]",
                 "-c:v", "libx264", "-preset", "veryfast", "-crf", "16", "-pix_fmt", "yuv420p",

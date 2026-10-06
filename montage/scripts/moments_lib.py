@@ -78,6 +78,48 @@ def display_size(path):
     return w, h
 
 
+# Langue parlée dans le rush (transcription Whisper) : français sauf choix contraire sur la page
+# « Rushes et montages » ou « prepare.sh --langue en ». Fixée plutôt que détectée : la détection
+# ralentirait chaque morceau transcrit. work/langue.txt : choix pour la prochaine préparation
+# (commun à tous les rushes) ; work/langue_rush.txt : langue du rush en cours (rangée avec lui).
+LANGUAGES = {"fr": "Français", "en": "Anglais"}
+
+
+def language(work_dir, name="langue.txt"):
+    try:
+        code = open(os.path.join(work_dir, name)).read().strip()
+    except OSError:
+        return "fr"
+    return code if code in LANGUAGES else "fr"
+
+
+def audio_streams(path):
+    """Pistes son lisibles d'une vidéo : (indice parmi les pistes son, description), lues dans la
+    sortie de « ffmpeg -i ». Une piste que ffmpeg ne sait pas décoder (son spatial « apac » des
+    iPhone récents : « Audio: none ») est écartée."""
+    import subprocess
+    import imageio_ffmpeg
+    out = subprocess.run([imageio_ffmpeg.get_ffmpeg_exe(), "-hide_banner", "-i", path], capture_output=True, text=True).stderr
+    found = re.findall(r"Stream #\d+:\d+.*?: Audio: (.*)", out)
+    return [(i, desc) for i, desc in enumerate(found) if not desc.startswith("none")]
+
+
+def audio_map(path, label="son"):
+    """Arguments ffmpeg (après « -i <path> », entrée 0) qui donnent le son du rush : la piste son
+    seule, ou toutes ses pistes mélangées (un micro par personne enregistré sur des pistes
+    séparées : enregistreur, micros sans fil, caméra à deux entrées). Sortie : [<label>].
+    None si la vidéo n'a pas de son."""
+    streams = audio_streams(path)
+    if not streams:
+        return None
+    if len(streams) == 1:
+        return ["-filter_complex", f"[0:a:{streams[0][0]}]anull[{label}]", "-map", f"[{label}]"]
+    # Pistes additionnées (chacune garde son niveau), limiteur contre la saturation.
+    inputs = "".join(f"[0:a:{i}]" for i, _ in streams)
+    return ["-filter_complex", f"{inputs}amix=inputs={len(streams)}:duration=longest:normalize=0,"
+                               f"alimiter=limit=0.97:level=0[{label}]", "-map", f"[{label}]"]
+
+
 def edit_size(edit):
     """(largeur, hauteur) de la composition d'après edit.json (portrait sans indication)."""
     return int((edit or {}).get("width") or 1080), int((edit or {}).get("height") or 1920)

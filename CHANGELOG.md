@@ -4,6 +4,17 @@ Chaque version publiée reprend sa section dans ses notes (onglet Releases). Une
 section, le numéro dans `VERSION` et le tag `v<numéro>` poussé publient la version avec ses
 installateurs (voir `packaging/README.md`).
 
+## 0.54
+
+- **Vidéos en anglais** : sur la page **Rushes et montages**, l'étape « Préparer » propose
+  maintenant la langue parlée dans la vidéo (français par défaut, ou anglais). La transcription et
+  les consignes appliquées par Claude suivent ce choix, qui est gardé pour les rushes suivants.
+- **Plusieurs micros** : quand une vidéo a plusieurs pistes son (un micro par personne,
+  enregistreur à part…), toutes les pistes sont maintenant gardées et mélangées. Avant, seule la
+  première était prise : une personne enregistrée sur la deuxième piste disparaissait de la
+  transcription et du montage.
+- Une vidéo sans son est refusée tout de suite avec un message clair, au lieu d'une erreur.
+
 ## 0.53
 
 - **Préparation beaucoup plus rapide** : la transcription, l'étape la plus longue, est environ

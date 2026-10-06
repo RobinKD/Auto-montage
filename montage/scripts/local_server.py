@@ -37,7 +37,7 @@ from join_rushes import joined_name  # noqa: E402
 from progress import exit_reason, resources  # noqa: E402
 import decoupage  # noqa: E402
 import fonts_lib  # noqa: E402
-from moments_lib import SOUNDS as DEFAULT_SOUNDS, DEFAULTS_VERSION, VISUALS, VOICES, edit_size, hf_preview_files, hidden_effects, res_label, sound_catalog, wav_len  # noqa: E402
+from moments_lib import SOUNDS as DEFAULT_SOUNDS, DEFAULTS_VERSION, LANGUAGES, VISUALS, VOICES, edit_size, hf_preview_files, hidden_effects, language, res_label, sound_catalog, wav_len  # noqa: E402
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 WORK = os.path.join(ROOT, "work")
@@ -1150,7 +1150,10 @@ def rush_list():
                               "modified": datetime.datetime.fromtimestamp(os.path.getmtime(path)).isoformat()})
     return {"rushes": items, "current": current or None, "prepared": os.path.exists(os.path.join(MOMENTS, "index.html")),
             "free": shutil.disk_usage(ROOT).free, "job": job_status(),
-            "instructions": instructions_info(), "claude": claude_connected(), "style": style_info()}
+            "instructions": instructions_info(), "claude": claude_connected(), "style": style_info(),
+            # Langue parlée (transcription) : choix de la prochaine préparation, langue du rush en cours.
+            "langue": language(WORK), "langueRush": language(WORK, "langue_rush.txt") if current else None,
+            "langues": LANGUAGES}
 
 
 def safe_rush_name(name):
@@ -1834,6 +1837,9 @@ class Handler(BaseHTTPRequestHandler):
                 if shutil.disk_usage(RUSHES).free < need:
                     return self.send_json({"error": f"Pas assez de place sur le disque pour assembler les vidéos "
                                                     f"(il faut {need >> 30} Go libres)."}, 507)
+            langue = body.get("langue") or "fr"
+            if langue not in LANGUAGES:
+                return self.send_json({"error": "Langue inconnue."}, 400)
             steps = PREPARE_STEPS
             if body.get("instructions"):
                 if not instructions_info() and not style_info()["videos"] and not style_info()["sons"]:
@@ -1841,6 +1847,9 @@ class Handler(BaseHTTPRequestHandler):
                 if not claude_connected():
                     return self.send_json({"error": "Claude Code n'est pas connecté : ouvrez-le une fois (lanceur « Claude Code »)."}, 400)
                 steps = PREPARE_WITH_INSTRUCTIONS
+            if job["state"] != "running":  # langue de la transcription, lue par prepare.sh
+                os.makedirs(WORK, exist_ok=True)
+                open(os.path.join(WORK, "langue.txt"), "w", encoding="utf-8").write(langue + "\n")
             if not start_job("prepare", steps, name, parts):
                 return self.send_json({"error": "Une tâche est déjà en cours : attendez qu'elle finisse."}, 409)
             return self.send_json({"ok": True}, 202)
