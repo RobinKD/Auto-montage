@@ -50,8 +50,9 @@ l'utilisateur) : `installateurs.yml` (GitHub Actions, dépôt public) construit 
 installateurs, puis publie la version avec eux et les notes de `packaging/notes-version.sh
 --installateurs`. Sans Actions, `packaging/publish-release.sh` publie la version sans
 installateurs (la page « Mises à jour » n'a besoin que du tag ; `--essai` montre les notes) ;
-un tag poussé ensuite y ajoute les installateurs. `tests.yml` reste lancé à la main, sur demande
-de l'utilisateur. Pas de nouveau numéro pour une retouche mineure ou
+un tag poussé ensuite y ajoute les installateurs. Les tests (`tests.yml`) se lancent quand une
+modification du projet arrive sur main, et chaque lundi . Les installateurs ne sont construits que
+pour publier une version (tag `v*`). Rien ne se lance sur dev. Pas de nouveau numéro pour une retouche mineure ou
 interne : les changements attendent la prochaine version.
 
 ## À savoir
@@ -185,7 +186,7 @@ interne : les changements attendent la prochaine version.
   « # RÉSULTAT : … ») ; démarrage et serveur dans `work/logs/demarrage.log` (entrypoint) ;
   erreurs de la discussion dans `work/logs/discussion.log` ; `/api/logs/rapport` les regroupe.
 - Tests : `tests/e2e.sh` (rush de synthèse de `tests/make_sample_rush.sh`) dans le workflow
-  `tests.yml` (lancé à la main). L'interface
+  `tests.yml` (quand le projet change sur main, chaque lundi, ou à la main). L'interface
   <http://localhost:8080/> sert `work/moments/` telle quelle (relancer `make_moments.py`
   suffit), les choix sont dans `work/local_db/` (même forme que l'export ArtifactData :
   `python3 scripts/use_selection.py work/local_db <variante>`) et son bouton « Générer »

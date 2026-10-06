@@ -1,14 +1,25 @@
 # Test de bout en bout d'Auto-montage dans son conteneur (Docker et Podman, sur Linux) : un
 # rush de synthèse est envoyé par l'interface locale, préparé (transcription, montage, rendu,
 # page des moments), puis une version de travail est générée (tests/e2e.sh).
-# Lancé à la main seulement (onglet Actions > Tests > Run workflow) : les minutes gratuites de
-# GitHub Actions d'un dépôt privé ne suffisent pas à le lancer à chaque modification. Avant une
-# version, on peut aussi lancer tests/e2e.sh sur sa machine.
+# - quand une modification du projet arrive sur main (push ou fusion de dev) ;
+# - chaque lundi (sur main), pour repérer une dépendance qui casse (ex. OpenCV 5) avant les utilisateurs ;
+# - à la main (onglet Actions > Tests > Run workflow). On peut aussi lancer tests/e2e.sh sur
+#   sa machine.
 # Windows et macOS : les machines de GitHub ne font pas tourner de conteneurs Linux ; leurs
 # installateurs et lanceurs sont vérifiés par installateurs.yml.
 name: Tests
 
 on:
+  push:
+    branches: [main]
+    paths:
+      - "montage/**"
+      - "docker/**"
+      - "compose.yaml"
+      - "tests/**"
+      - ".github/workflows/tests.yml"
+  schedule:
+    - cron: "17 5 * * 1"
   workflow_dispatch:
 
 # Lecture seule : le test n'écrit rien sur GitHub.

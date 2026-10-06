@@ -119,7 +119,7 @@ page ──choix (sélection, corrections, effets, découpes)──> use_selecti
 - `CLAUDE.md` : déroulé suivi par Claude pour un nouveau rush.
 - `docker/` : image, lanceurs et raccourcis ; détails dans [`docker/README.md`](docker/README.md).
 - `tests/` : test de bout en bout (rush de synthèse, préparation et génération par l'interface),
-  lancé à la main par GitHub Actions (`.github/workflows/tests.yml`, onglet Actions) avec
+  lancé par GitHub Actions à chaque modification sur main (`.github/workflows/tests.yml`) avec
   Docker et Podman, ou sur sa machine (`tests/e2e.sh`). Les machines Windows et macOS de GitHub ne font pas tourner de
   conteneurs Linux : on y vérifie les installateurs et les lanceurs (`installateurs.yml`).
 - `packaging/` : installateurs (AppImage, .exe, .dmg) construits et publiés par GitHub Actions

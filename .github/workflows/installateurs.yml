@@ -5,8 +5,9 @@
 # depuis la dernière version publiée (packaging/notes-version.sh), puis
 # packaging/release-notes.md. Une version déjà publiée sans installateurs (ex. par
 # packaging/publish-release.sh) les reçoit ; une version qui en a déjà n'est jamais refaite.
-# Lancé à la main (onglet Actions > Installateurs > Run workflow) sur une branche : construction
-# et vérification seulement (fichiers dans l'onglet Actions, rubrique « Artifacts »).
+# Lancé à la main sur une branche (onglet Actions > Installateurs > Run workflow) : construction
+# et vérification seulement, pour essayer une modification de l'empaquetage (fichiers dans l'onglet
+# Actions, rubrique « Artifacts »).
 name: Installateurs
 
 on:

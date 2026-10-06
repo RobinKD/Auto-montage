@@ -34,8 +34,9 @@ installateurs, puis publie la version `v0.3` avec eux (toujours en pré-version)
 (`notes-version.sh --installateurs`), puis `release-notes.md`. Le tag doit être posé sur un
 commit dont `VERSION` porte ce numéro, sinon rien n'est publié. Un numéro déjà publié avec ses
 installateurs n'est jamais refait ; une version publiée sans installateurs (voir ci-dessous) les
-reçoit. Lancé à la main sur une branche (onglet Actions > Installateurs > Run workflow) : construction
-et vérification seulement (onglet Actions > Artifacts).
+reçoit. Les installateurs ne sont construits que pour une version. Pour essayer une modification de
+l'empaquetage : lancement à la main sur une branche (onglet Actions > Installateurs > Run workflow) : construction et vérification seulement
+(onglet Actions > Artifacts).
 
 Sans GitHub Actions, la version peut être publiée sans installateurs :
 
