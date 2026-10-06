@@ -14,6 +14,10 @@ installateurs (voir `packaging/README.md`).
 - Un envoi coupé (page fermée, Docker arrêté) ne laisse plus de fichier caché de plusieurs Go,
   et les copies de vidéos du dernier rendu ne gardent plus sur le disque les vidéos d'un
   montage mis de côté.
+- **Nettoyer Docker** : nouveau choix dans le menu de l'application (Mac, Windows, Linux). Il
+  supprime les anciennes versions d'Auto-montage gardées par Docker (une par mise à jour, plusieurs
+  Go chacune) et son cache, sans toucher à la connexion à Claude, à Whisper ni aux montages. Les
+  lanceurs effacent aussi d'eux-mêmes l'ancienne version après chaque mise à jour.
 - Le message « Pas assez de place sur le disque » dit maintenant combien il faut, combien il
   reste et ce qui prend le plus de place.
 

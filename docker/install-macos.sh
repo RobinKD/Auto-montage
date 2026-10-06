@@ -12,7 +12,7 @@ mkdir -p "$HOME/Applications"
 SCRIPT="$(mktemp -t auto-montage).applescript"
 cat > "$SCRIPT" <<APPLESCRIPT
 set repo to "$DIR"
-set choix to choose from list {"Moments et version de travail", "Téléchargements (720p, 1080p, 4K)", "Claude Code", "Terminal du conteneur", "Arrêter Auto-montage"} with title "Auto-montage" with prompt "Que voulez-vous ouvrir ?" default items {"Moments et version de travail"} OK button name "Ouvrir" cancel button name "Annuler"
+set choix to choose from list {"Moments et version de travail", "Téléchargements (720p, 1080p, 4K)", "Claude Code", "Terminal du conteneur", "Nettoyer Docker (place disque)", "Arrêter Auto-montage"} with title "Auto-montage" with prompt "Que voulez-vous ouvrir ?" default items {"Moments et version de travail"} OK button name "Ouvrir" cancel button name "Annuler"
 if choix is false then return
 set c to item 1 of choix
 if c starts with "Moments" then
@@ -23,6 +23,8 @@ else if c is "Claude Code" then
 	set cmd to quoted form of (repo & "/docker/claude.sh")
 else if c starts with "Terminal" then
 	set cmd to quoted form of (repo & "/docker/shell.sh")
+else if c starts with "Nettoyer" then
+	set cmd to quoted form of (repo & "/docker/clean.sh")
 else
 	set cmd to quoted form of (repo & "/docker/stop.sh")
 end if

@@ -5,6 +5,8 @@ param([string]$Page = '')
 Wait-Docker
 docker compose up -d --build
 if ($LASTEXITCODE -ne 0) { Write-Host 'Le démarrage a échoué (voir les messages ci-dessus).'; Wait-Close; exit 1 }
+# Ancienne version de l'image, sans nom depuis la reconstruction : plusieurs Go à chaque mise à jour.
+docker image prune -f --filter label=auto-montage *> $null
 # Serveur lancé avant une mise à jour (autre version que les fichiers) : redémarré.
 $installed = if (Test-Path (Join-Path $Root 'VERSION')) { (Get-Content (Join-Path $Root 'VERSION') -Raw).Trim() } else { 'dev' }
 $running = try { (Invoke-RestMethod -TimeoutSec 3 "http://localhost:$Port/api/version").version } catch { $null }

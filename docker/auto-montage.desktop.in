@@ -9,7 +9,7 @@ Icon=@DIR@/docker/icon.svg
 Terminal=true
 Categories=AudioVideo;Video;
 Keywords=montage;video;hyperframes;
-Actions=downloads;claude;shell;stop;
+Actions=downloads;claude;shell;clean;stop;
 
 [Desktop Action downloads]
 Name=Téléchargements (720p, 1080p, 4K)
@@ -22,6 +22,10 @@ Exec="@DIR@/docker/claude.sh"
 [Desktop Action shell]
 Name=Terminal du conteneur
 Exec="@DIR@/docker/shell.sh"
+
+[Desktop Action clean]
+Name=Nettoyer Docker (place disque)
+Exec="@DIR@/docker/clean.sh"
 
 [Desktop Action stop]
 Name=Arrêter Auto-montage
