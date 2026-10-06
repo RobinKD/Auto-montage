@@ -96,9 +96,12 @@ interne : les changements attendent la prochaine version.
   `local_server.py` à toutes ses pages (liste `PAGES`) ; pas de liens de navigation dans les pages.
   Il marque aussi les parties qui ont besoin de Claude Code (attribut `data-needs-claude`) :
   pastille « Nécessite Claude Code », grisées et `inert` sans connexion (`/api/status`).
-- Sous-titres : jusqu'à 6 mots sur 2 lignes de même taille, coupées là où les largeurs
-  mesurées sont les plus proches (`render_lib.caption_layout` et page des moments). Style (police, graisse,
-  taille, majuscules, couleur) : `work/caption_style.json` (`scripts/fonts_lib.py` : polices
+- Sous-titres : jusqu'à 6 mots sur 2 lignes par défaut, coupées là où les largeurs mesurées (multipliées
+  par la taille de chaque ligne) sont les plus proches (`render_lib.caption_layout` et `captionLayout` de la
+  page des moments) ; nombre de lignes au plus (`lines`, 1 à 3, mots par sous-titre :
+  `fonts_lib.CAPTION_LIMITS`) et taille de chaque ligne en % de la première (`lineSizes`), réglés sur la
+  page des moments et sur /rush/ ; sous-titre remonté s'il dépasse 40 px du bas. Style (police, graisse,
+  taille, majuscules, couleur, lignes) : `work/caption_style.json` (`scripts/fonts_lib.py` : polices
   d'Auto-montage, de la machine de rendu via fontconfig, et `public/fonts/perso/`), copié par
   `build_edit.py` dans edit.json (`captionStyle`, police dans `public/fonts/choisie/`).
   Effets proposés sur la page des moments : `work/effets_page.json` (`hidden`, et `volume` de

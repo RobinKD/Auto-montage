@@ -25,6 +25,7 @@ import imageio_ffmpeg
 
 from moments_lib import (SOUNDS, VOICES, hf_preview_files, edit_size, frame_layout, res_label, effective_gaps, load_segments, rush_duration, sound_catalog, suggested_keep,
                          wav_len)
+import fonts_lib
 from progress import report
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
@@ -200,13 +201,16 @@ trigger = open(trigger_path).read().strip() if os.path.exists(trigger_path) else
 downloads_path = os.path.join(WORK, "downloads_url.txt")
 downloads_page = open(downloads_path).read().strip() if os.path.exists(downloads_path) else None
 
+# Nombre de lignes des sous-titres et taille de chacune (page publiée : sans le style de l'interface locale).
+caption_lines = fonts_lib.read_style()
 hf_preview_files(OUT)  # aperçu des voix faites par HyperFrames (hf/)
 page = open(os.path.join(ROOT, "selection", "page.html")).read()
 data = {"rush": os.path.basename(rush), "width": WIDTH, "height": HEIGHT, "layout": frame_layout(WIDTH, HEIGHT), "moments": moments, "working": working,
         "sfxCatalog": sfx_catalog, "regenTrigger": trigger, "downloadsPage": downloads_page,
         "intro": {"text": overlay.get("intro"), "at": overlay.get("introAt", 0.2),
                   "type": overlay.get("introType", 1.6)} if overlay.get("intro") else None,
-        "captionFont": font, "voices": [{"id": i, "label": label, "desc": desc} for i, label, desc in VOICES]}
+        "captionFont": font, "captionLines": {k: caption_lines[k] for k in ("lines", "lineSizes")},
+        "voices": [{"id": i, "label": label, "desc": desc} for i, label, desc in VOICES]}
 # Nom du rush échappé, données sans « < » (une transcription contenant « </script> » ne
 # referme pas le script de la page).
 page = page.replace("__RUSH__", html.escape(os.path.splitext(os.path.basename(rush))[0]))

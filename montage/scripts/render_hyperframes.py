@@ -91,13 +91,13 @@ def build(m, k=1):
             name = "sfx/" + os.path.relpath(path, os.path.join(ROOT, "public")).replace("/", "_")
             audios.append(f'<audio id="sfx{i}" src="{link(path, name)}" data-start="{r6(start)}" data-duration="{r6(dur)}" '
                           f'data-track-index="{20 + i % 8}" data-volume="{vol}"></audio>')
-    # Sous-titres : mots, couleurs des mots mis en valeur, coupure et réduction.
+    # Sous-titres : mots, couleurs des mots mis en valeur, lignes (et leur taille) et réduction.
     caps = []
     for c in e.get("captions") or []:
         words = m.caption_words(c)
         colors = m.caption_colors(c, words)
-        split, scale = m.caption_layout(words, [x is not None for x in colors])
-        caps.append({"start": c["start"], "end": c["end"], "words": words, "colors": colors, "split": split,
+        lines, scale = m.caption_layout(words, [x is not None for x in colors])
+        caps.append({"start": c["start"], "end": c["end"], "words": words, "colors": colors, "lines": lines,
                      "scale": scale, "times": c.get("times") or []})
     cs = m.cap
     font_ext = os.path.splitext(m.font_file)[1]
@@ -299,13 +299,15 @@ function draw(frame) {
     let cur = -1;
     if (H.karaoke) cap.times.forEach((x, i) => { if (t >= x) cur = i; });
     const pop = H.pop ? spring(frame - Math.round(cap.start * FPS), 10, 0.5, 0.75, 1) : 1;
-    const lines = cap.split ? [[0, cap.split], [cap.split, cap.words.length]] : [[0, cap.words.length]];
-    const html = lines.map(([a, b]) => `<div style='${capStyle}font-size:${C.size * cap.scale}px'>` + cap.words.slice(a, b).map((w, j) => {
+    const html = cap.lines.map(([a, b, k]) => `<div style='${capStyle}font-size:${C.size * k * cap.scale}px'>` + cap.words.slice(a, b).map((w, j) => {
       const i = a + j, c = i === cur ? H.karaokeColor : cap.colors[i];
       return `<span style="${c ? `color:${c};` : ""}${cap.colors[i] ? `font-size:${HL}em;` : ""}">${j ? " " : ""}${esc(w)}</span>`;
     }).join("") + "</div>").join("");
     put("caps", `<div style="transform:scale(${pop})">${html}</div>`);
-  } else put("caps", "");
+    // Lignes nombreuses ou grandes : sous-titre remonté pour finir à 40 px au moins du bas de l'image.
+    const over = el("caps").offsetTop + el("caps").firstElementChild.offsetHeight - (%H% - 40);
+    el("caps").style.translate = over > 0 ? `0 ${-over}px` : "";
+  } else { put("caps", ""); el("caps").style.translate = ""; }
 
   // Flash blanc.
   const fl = D.flashes.find((x) => inRange(t, x));

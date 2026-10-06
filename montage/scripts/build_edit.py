@@ -385,12 +385,14 @@ def word_time(seg_id, i, key="start"):
 
 
 # --- Sous-titres ----------------------------------------------------------------
-# Jusqu'à 6 mots (26 lettres), sur 2 lignes de même taille et de largeurs aussi proches que
-# possible : la coupure entre les lignes est choisie au rendu, en mesurant le texte dans la
-# police choisie (render_lib.caption_layout) ; « top » / « bottom » en sont une estimation au nombre de
+# Jusqu'à 6 mots (26 lettres) sur 2 lignes (3 mots sur 1 ligne, 9 sur 3 : nombre de lignes choisi
+# dans le style, fonts_lib.CAPTION_LIMITS), de largeurs aussi proches que possible compte tenu de la
+# taille de chaque ligne : les coupures sont choisies au rendu, en mesurant le texte dans la police
+# choisie (render_lib.caption_layout) ; « top » / « bottom » en sont une estimation au nombre de
 # lettres. Masqués à l'écran pendant un texte tapé (l'intro). Même règle dans la page des
 # moments (captionGroups).
 cap_words = [w for w in word_events if w["text"]]
+cap_max_words, cap_max_chars = fonts_lib.caption_limits(fonts_lib.read_style())
 captions = []
 group = []
 
@@ -434,7 +436,7 @@ for w in cap_words:
         flush()
     group.append(w)
     chars = sum(len(g["text"]) for g in group)
-    if ends_sentence or len(group) >= 6 or chars > 26 or (ends_clause and len(group) >= 3):
+    if ends_sentence or len(group) >= cap_max_words or chars > cap_max_chars or (ends_clause and len(group) >= 3):
         flush()
 flush()
 # Chaque sous-titre reste jusqu'au suivant (pas de trou à l'écran).
