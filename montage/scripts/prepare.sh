@@ -119,10 +119,11 @@ fi
 python3 scripts/transcribe_segments.py
 
 echo "Étape 3/4 : position du visage"
-# 3. Position du visage (Haar cascade d'OpenCV).
+# 3. Visages et cadrage (YuNet d'OpenCV, sinon Haar) : src/data/face.json.
 mkdir -p work/models
 [ -f work/models/haarcascade_frontalface_default.xml ] || curl -sSL -o work/models/haarcascade_frontalface_default.xml \
   https://raw.githubusercontent.com/opencv/opencv/4.x/data/haarcascades/haarcascade_frontalface_default.xml
+bash scripts/fetch_face_model.sh || echo "Modèle YuNet indisponible : détection d'un seul visage (Haar)."
 python3 scripts/detect_face.py
 
 echo "Étape 4/4 : bruitages et montage"

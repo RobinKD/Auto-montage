@@ -29,5 +29,6 @@ bash scripts/fetch_fonts.sh
 mkdir -p work/models
 [ -f work/models/haarcascade_frontalface_default.xml ] || curl -sSL -o work/models/haarcascade_frontalface_default.xml \
   https://raw.githubusercontent.com/opencv/opencv/4.x/data/haarcascades/haarcascade_frontalface_default.xml
+bash scripts/fetch_face_model.sh || true
 
 echo "Environnement Auto-montage prêt."

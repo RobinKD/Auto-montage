@@ -185,6 +185,7 @@ PAGE_SFX = {}
 # Sans choix sur la page : intro tapée sur le 1er moment gardé, pastilles CHIPS.
 PAGE_VFX = {}
 PAGE_GAINS = {}  # volume de la voix par moment (page des moments)
+PAGE_FOCUS = {}  # cadrage sur une personne par moment (page des moments, detect_face.py)
 
 selection_path = os.path.join(WORK, "selection.json")
 if os.path.exists(selection_path):
@@ -201,6 +202,7 @@ if os.path.exists(selection_path):
             if v and not is_gap(int(k))}
     SFX_LEGACY = {int(k) for k in selection.get("sfx_legacy", [])}
     PAGE_GAINS = {int(k): float(v) for k, v in selection.get("gains", {}).items()}
+    PAGE_FOCUS = {int(k): int(v) for k, v in (selection.get("focus") or {}).items()}
     chosen = sorted(PARTS)
     page_trims = {int(k): v for k, v in selection.get("trims", {}).items()}
     KEEP = []
@@ -772,6 +774,12 @@ for f in funny:
 write_wav(os.path.join(ROOT, "public", "audio", "voice.wav"), track)
 os.remove(clean_path)
 
+# --- Cadrage choisi par moment -------------------------------------------------------------
+# Moment cadré sur une personne (page des moments) : fenêtres en temps du montage, sur tous ses
+# plans ; le rendu y centre l'image sur cette personne (render_hyperframes.py, focusAt).
+focus = [{"start": round(c["from"] / FPS, 3), "end": round(clip_end(c), 3), "person": PAGE_FOCUS[c["seg"]]}
+         for c in clips if c["seg"] in PAGE_FOCUS]
+
 # --- Habillage de tout le montage ------------------------------------------------------
 try:
     _h = json.load(open(os.path.join(WORK, "habillage.json")))
@@ -808,6 +816,7 @@ edit = {
     # zooms automatiques, sous-titres qui rebondissent, mot prononcé en couleur.
     "habillage": HABILLAGE,
     "funny": funny,
+    "focus": focus,
     # Nettoyage fait au rendu par HyperFrames (selection/hf_audio.js) : graves parasites, clarté.
     "son": {"highpass": bool(SOUND.get("highpass")), "clarity": bool(SOUND.get("clarity"))},
     "chips": chips,

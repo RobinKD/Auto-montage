@@ -4,6 +4,22 @@ Chaque version publiée reprend sa section dans ses notes (onglet Releases). Une
 section, le numéro dans `VERSION` et le tag `v<numéro>` poussé publient la version avec ses
 installateurs (voir `packaging/README.md`).
 
+## 0.61
+
+- **Plusieurs personnes à l'image** : les zooms gardent maintenant tout le monde dans l'image.
+  Quand deux personnes sont filmées ensemble (interview, scène, écran partagé), le zoom se centre
+  sur elles deux et s'arrête avant de couper l'une d'elles ; avec une seule personne, les zooms
+  restent comme avant. Les personnes au fond ou dans le public ne comptent pas.
+- **Visages mieux trouvés**, même petits ou quand la caméra bouge. La page des moments montre
+  le même cadrage que la vidéo finale, qui suit les visages pendant tout le moment.
+- **Cadrage par moment** : sur la page des moments, un moment où l'on voit plusieurs personnes
+  propose « Cadrage : Tout le monde » ou la photo de chacune. En choisissant une personne, l'image
+  se resserre sur elle (plan rapproché), dans l'aperçu comme dans la vidéo. Une même personne est
+  reconnue d'un plan de caméra à l'autre.
+- **Écran partagé et incrustation** : quand chaque personne est dans son propre cadre (visio à
+  côté de la scène, image dans l'image), le plan rapproché sur une personne remplit l'écran avec
+  son cadre, sans montrer la séparation ni l'autre image.
+
 ## 0.60
 
 - **La préparation en pause n'est plus perdue à la mise à jour** : mettre à jour (ou réinitialiser)

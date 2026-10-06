@@ -182,8 +182,8 @@ def split(mid, t):
             d[key] = shifted(d[key], 0, keep=lambda x: x < t_cut)
         d["text"], d["cuts"] = None, None
         write_doc(m["id"], d)
-        if not at_boundary and moved:
-            write_doc(second, {"rush": d.get("rush"), **moved})
+        if not at_boundary and (moved or d.get("focus")):  # cadrage : gardé sur les deux parties
+            write_doc(second, {"rush": d.get("rush"), **moved, **({"focus": d["focus"]} if d.get("focus") else {})})
     update_keep(lambda keep: keep + [second] if kept_in(keep, m["id"]) and second not in keep else keep)
     return f"Moment scindé avant « {words[w]['w']} »."
 

@@ -15,7 +15,7 @@ détail est dans `montage/README.md` ; les consignes de montage viennent de l'ut
    doublon 1re prise, raté, aparté), puis `python3 scripts/make_moments.py`. Consignes de
    montage : celles du chat, ou `work/instructions.md` (choisi sur la page « Rushes et montages »).
 4. Publier `work/moments/index.html` comme page claude.ai avec `capabilities: {db: {}}` et
-   les fichiers `clips/*.mp4`, `thumbs/*.jpg`, `hf/*.js` et `montage.mp4`, et donner le lien à
+   les fichiers `clips/*.mp4`, `thumbs/*.jpg`, `visages/*.jpg`, `hf/*.js` et `montage.mp4`, et donner le lien à
    l'utilisateur.
    Republier au même lien (même chemin de fichier) après chaque nouvel aperçu, avec
    `capabilities: {db: {}, downloads: true, mcp: {servers: [{server: "Claude Code Remote", tools: ["update_trigger"]}]}}`.
@@ -61,6 +61,17 @@ interne : les changements attendent la prochaine version.
 
 - Les rushes, fichiers de travail (`work/`) et rendus (`out/`) ne sont pas versionnés.
 - La police Oliver n'est pas versionnée (licence usage personnel) : `scripts/fetch_fonts.sh`.
+- Visages (`scripts/detect_face.py`, YuNet de `scripts/fetch_face_model.sh`, Haar en secours) :
+  tous les visages toutes les 0,5 s, reliés en pistes ; cadrage « tout le monde dans l'image » :
+  visages d'au moins 30 % du plus grand, zooms centrés sur leur zone (`x`, `y` de face.json) et
+  plafonnés à `s` (zoom maximal qui les garde dans l'image) au rendu (`faceAt`) comme dans
+  l'aperçu de la page (`faceInClip`, `faceTrack` de make_moments.py). Personnes reconnues d'un
+  plan à l'autre (SFace, `faces: [[personne, x, y, w, h]]`, vignettes `work/visages/p<n>.jpg`) ;
+  « Cadrage » par moment sur la page (`focus` du document du moment → `selection.json` →
+  `edit.json` `focus`) : plan rapproché sur cette personne (`focusFrame` du rendu, `faceInClip`).
+  Écran partagé ou incrustation : cadre de chaque personne (`x0, y0, x1, y1` ajoutés au visage,
+  `detect_face.panels` : rectangle de bords fixes sans autre visage), dont le plan rapproché ne sort
+  pas (zoom d'au moins sa taille, ×4 au plus, `centeredOrigin` borné au cadre).
 - L'effet visuel « visage gêné » est fait à la main par l'utilisateur ; seule la voix
   tremble automatiquement.
 - Domaines réseau nécessaires : `montage/env/allowed-domains.txt`.
