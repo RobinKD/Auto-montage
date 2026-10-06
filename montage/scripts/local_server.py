@@ -51,6 +51,7 @@ SHIM = '<script src="/local/shim.js"></script>\n<script src="/local/menu.js"></s
 # comparent à celle des fichiers pour redémarrer le serveur après une mise à jour.
 _version_file = os.path.join(ROOT, "..", "VERSION")
 VERSION = open(_version_file).read().strip() if os.path.exists(_version_file) else "dev"
+STARTED = time.time()  # démarrage du serveur : la page voit qu'il a redémarré (même version)
 
 
 def disk_version():
@@ -405,8 +406,9 @@ def claude_connected(fresh=False):
 # Vérifiées au démarrage puis toutes les 6 h (scripts/update.py check) ; « Mettre à jour »
 # remplace les fichiers du programme (tâche « update »), puis le serveur s'arrête : le
 # conteneur redémarre tout seul (restart: unless-stopped) avec la nouvelle version.
+# « Réinitialiser » (tâche « reset ») retélécharge la version installée et remet les fichiers
+# du programme modifiés ou effacés, puis redémarre de la même façon.
 update_state = {"checkedAt": 0.0, "result": None}
-TOKEN_FILE = os.path.join(WORK, "github_token")
 
 
 def update_check():
@@ -736,7 +738,7 @@ def run_job(steps, arg, args):
         learn_timings()
         job.update(state="done", step="terminé", progress=None, finishedAt=datetime.datetime.now().isoformat())
         write(f"\n# RÉSULTAT : réussi ({round(time.time() - job['startedTs'])} s)")
-        if job["kind"] == "update":  # nouvelle version installée : redémarrage du conteneur
+        if job["kind"] in ("update", "reset"):  # programme remplacé : redémarrage du conteneur
             job["step"] = "redémarrage"
             threading.Timer(3, lambda: os._exit(0)).start()
     except JobCancelled:
@@ -763,7 +765,7 @@ class JobCancelled(Exception):
 # (docker/entrypoint.sh). La page « Journal » les affiche et en fait un rapport à envoyer.
 LOGS = os.path.join(WORK, "logs")
 KIND_NAMES = {"prepare": "Préparation", "regen": "Génération", "final": "Création 4K", "update": "Mise à jour",
-              "style": "Analyse du style"}
+              "reset": "Réinitialisation", "style": "Analyse du style"}
 
 
 def open_job_log(kind, arg, steps):
@@ -1364,7 +1366,7 @@ class Handler(BaseHTTPRequestHandler):
         if path in ("/rush", "/rush/"):
             return self.send_html(SKELETON + open(os.path.join(ROOT, "local", "rush.html"), encoding="utf-8").read())
         if path == "/api/version":
-            return self.send_json({"version": VERSION})
+            return self.send_json({"version": VERSION, "started": STARTED})
         if path == "/api/instructions":
             return self.send_json({"text": open(INSTRUCTIONS, encoding="utf-8", errors="replace").read()
                                    if os.path.exists(INSTRUCTIONS) else "", "info": instructions_info()})
@@ -1373,8 +1375,7 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/api/update":
             if not update_state["result"]:
                 update_check()
-            return self.send_json(update_state | {"version": VERSION, "onDisk": disk_version(), "token": os.path.exists(TOKEN_FILE)
-                                                  or bool(os.environ.get("AM_GITHUB_TOKEN"))})
+            return self.send_json(update_state | {"version": VERSION, "onDisk": disk_version()})
         if path in ("/claude", "/claude/"):
             return self.send_html(SKELETON + open(os.path.join(ROOT, "local", "claude.html"), encoding="utf-8").read())
         if path == "/api/claude":
@@ -1673,7 +1674,7 @@ class Handler(BaseHTTPRequestHandler):
         if route not in ("/api/regen", "/api/prepare", "/api/final", "/api/chat", "/api/chat/stop", "/api/chat/new",
                          "/api/projects/open", "/api/projects/delete", "/api/projects/save", "/api/job/cancel",
                          "/api/claude/login", "/api/claude/code", "/api/claude/logout",
-                         "/api/update/check", "/api/update/apply", "/api/update/token", "/api/restart", "/api/style/analyse", "/api/son/analyse", "/api/tutorial/seen",
+                         "/api/update/check", "/api/update/apply", "/api/update/reset", "/api/restart", "/api/style/analyse", "/api/son/analyse", "/api/tutorial/seen",
                          "/api/moments/merge", "/api/moments/split", "/api/moments/unmerge", "/api/moments/unsplit"):
             return self.send_error(404)
         try:
@@ -1697,19 +1698,13 @@ class Handler(BaseHTTPRequestHandler):
             if not start_job("update", [("mise à jour", ["python3", "scripts/update.py", "apply", r["tag"]])], r["tag"]):
                 return self.send_json({"error": "Une tâche est en cours : attendez qu'elle finisse."}, 409)
             return self.send_json({"ok": True, "tag": r["tag"]}, 202)
-        if route == "/api/update/token":
-            tok = str(body.get("token") or "").strip()
-            if not tok:
-                if os.path.exists(TOKEN_FILE):
-                    os.remove(TOKEN_FILE)
-                return self.send_json(update_check())
-            if not re.fullmatch(r"(github_pat_|ghp_)[A-Za-z0-9_]{20,250}", tok):
-                return self.send_json({"error": "Ce n'est pas un jeton GitHub (il commence par « github_pat_ » ou « ghp_ »)."}, 400)
-            os.makedirs(WORK, exist_ok=True)
-            fd = os.open(TOKEN_FILE, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
-            os.write(fd, tok.encode())
-            os.close(fd)
-            return self.send_json(update_check())
+        if route == "/api/update/reset":
+            if body.get("confirm") is not True:  # la page demande toujours une confirmation avant
+                return self.send_json({"error": "Réinitialisation non confirmée."}, 400)
+            tag = f"v{VERSION}"  # version qui tourne (VERSION sur le disque a pu être modifié)
+            if not start_job("reset", [("réinitialisation", ["python3", "scripts/update.py", "reset", tag])], tag):
+                return self.send_json({"error": "Une tâche est en cours : attendez qu'elle finisse."}, 409)
+            return self.send_json({"ok": True, "tag": tag}, 202)
         if route == "/api/claude/login":
             if not shutil.which("claude"):
                 return self.send_json({"error": "Claude Code n'est pas installé dans ce conteneur."}, 400)

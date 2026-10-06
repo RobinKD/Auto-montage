@@ -176,9 +176,11 @@ interne : les changements attendent la prochaine version.
 - Connexion à Claude (/claude/) : `claude auth login` dans un pseudo-terminal (adresse
   d'autorisation renvoyée à la page, code collé transmis) ; état par `claude auth status`.
 - Mises à jour (/updates/) : `scripts/update.py` (check : versions publiées via l'API GitHub,
-  jeton dans `work/github_token` tant que le dépôt est privé ; apply : archive du tag copiée
-  sur l'installation, données de l'utilisateur gardées, fichiers retirés d'après
-  `.auto-montage-files`), puis le serveur s'arrête et le conteneur redémarre. Fichiers changés
+  sans jeton, dépôt public ; apply : archive du tag copiée sur l'installation, données de
+  l'utilisateur gardées (`KEEP`), fichiers retirés d'après `.auto-montage-files` ; reset, bouton
+  « Réinitialiser Auto-montage » après confirmation : archive de la version installée, sinon la
+  dernière publiée, fichiers du programme modifiés ou effacés remis, copie des remplacés dans
+  `work/sauvegardes/reinitialisation-<date>/`), puis le serveur s'arrête et le conteneur redémarre. Fichiers changés
   sur le disque sans mise à jour (git pull dans le dossier d'installation) : la page le dit et
   propose « Redémarrer » (`/api/restart`, `disk_version()`). Les installateurs
   ne recopient leur projet que s'il est plus récent (`version_gt`).

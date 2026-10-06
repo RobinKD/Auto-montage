@@ -60,8 +60,8 @@ plus récent), ou lancer `./Auto-montage-*.AppImage --appimage-extract-and-run`.
 
 Depuis la version 0.20 : page **Mises à jour** de l'interface (<http://localhost:8080/updates/>,
 bandeau quand une version est disponible) : un clic installe la nouvelle version et Auto-montage
-redémarre ; rien n'est à réinstaller (ni à réautoriser sur Mac). Tant que le dépôt est privé,
-un jeton GitHub en lecture seule est demandé une fois (pas à pas sur la page).
+redémarre ; rien n'est à réinstaller (ni à réautoriser sur Mac). Si le programme a été modifié
+et ne marche plus, « Réinitialiser Auto-montage » sur la même page le retélécharge (0.51).
 On peut aussi installer la nouvelle version par-dessus : les rushes, rendus et sélections sont
 conservés.
 

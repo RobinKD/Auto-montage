@@ -3,7 +3,7 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@700;900&family=Source+Sans+3:wght@400;600&family=JetBrains+Mono:wght@500&display=swap">
 <style>
   /* Layout : une colonne ; version installée et dernière version publiée (nouveautés, bouton),
-     puis le jeton GitHub (dépôt privé). Mêmes couleurs et polices que les autres pages. */
+     puis la réinitialisation du programme. Mêmes couleurs et polices que les autres pages. */
   :root {
     --bg: #f5f3ef;
     --surface: #fffdf9;
@@ -63,6 +63,7 @@
   ol.steps li button { width: auto; display: inline-block; text-align: center; }
   button { font: inherit; font-size: 15px; font-weight: 600; color: var(--fg); background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 8px 14px; cursor: pointer; }
   button.primary { color: var(--bg); background: var(--accent); border-color: var(--accent); }
+  button.danger { color: var(--warn); border-color: var(--warn); }
   button:disabled { opacity: 0.55; cursor: default; }
   input[type=text] { font: inherit; font-family: var(--mono); font-size: 14px; color: var(--fg); background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; flex: 1 1 260px; min-width: 0; }
   .ok { color: var(--accent); font-weight: 600; }
@@ -107,26 +108,18 @@
     <p id="msg" role="status"></p>
   </section>
 
-  <section aria-labelledby="h-token">
-    <h2 id="h-token" class="note" style="margin: 0;">Accès au dépôt privé</h2>
-    <p class="note" style="margin: 0;">Tant que le dépôt GitHub d'Auto-montage est privé, GitHub ne donne les nouvelles versions qu'avec un <b>jeton d'accès</b>, à créer une fois. Il ne permet que de lire ce dépôt, et reste sur cet ordinateur (fichier <code>montage/work/github_token</code>).</p>
-    <p id="token-state" class="note" style="margin: 0;"></p>
-    <details id="how">
-      <summary>Créer le jeton (2 minutes)</summary>
-      <ol class="how">
-        <li>Sur GitHub, connecté au compte <b>propriétaire</b> du dépôt (RobinKD) : un compte simplement invité sur le dépôt ne peut pas le choisir dans ce type de jeton. <a href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noopener">Settings &gt; Developer settings &gt; Fine-grained tokens &gt; Generate new token</a>.</li>
-        <li>Nom : « Auto-montage mises à jour » ; expiration : celle que vous voulez (1 an par exemple).</li>
-        <li><b>Resource owner</b> : RobinKD. <b>Repository access</b> : « Only select repositories » &gt; <b>Auto-montage</b>.</li>
-        <li><b>Permissions</b> &gt; Repository permissions &gt; <b>Contents : Read-only</b> (rien d'autre ; « Metadata : Read-only » s'ajoute tout seul). GitHub n'a pas de permission « Releases » à part : les versions publiées dépendent de « Contents ».</li>
-        <li>« Generate token », copiez-le (il commence par <code>github_pat_</code>) et collez-le ci-dessous.</li>
-      </ol>
-    </details>
+  <section aria-labelledby="h-reset">
+    <h2 id="h-reset" class="note" style="margin: 0;">Réinitialiser le programme</h2>
+    <p class="note" style="margin: 0;">Si Claude Code, lancé dans le dossier d'Auto-montage, a modifié le programme et que quelque chose ne marche plus : la réinitialisation retélécharge depuis GitHub les fichiers de la version installée (<span id="reset-version">…</span>) et remet comme à l'origine ceux qui ont été modifiés ou effacés, puis Auto-montage redémarre.</p>
+    <p class="note" style="margin: 0;">Vos montages, rushes, rendus, sons, polices, consignes et réglages ne sont pas touchés. Une copie de chaque fichier remplacé est gardée dans <code>montage/work/sauvegardes/</code>.</p>
     <div class="row">
-      <input type="text" id="token" placeholder="github_pat_…" autocomplete="off" spellcheck="false">
-      <button type="button" class="primary" id="save-token">Enregistrer le jeton</button>
-      <button type="button" id="forget-token" hidden>Oublier le jeton</button>
+      <button type="button" class="danger" id="reset">Réinitialiser Auto-montage</button>
     </div>
-    <p id="token-msg" role="status"></p>
+    <div id="reset-progress" hidden>
+      <p class="note" id="r-label" style="margin: 0 0 4px;"></p>
+      <progress id="r-bar" max="1" value="0"></progress>
+    </div>
+    <p id="reset-msg" role="status"></p>
   </section>
 </main>
 
@@ -188,10 +181,7 @@
     } else if (r.latest) {
       say("state", `Vous avez la dernière version (${r.current}).`, "ok");
     }
-    const has = st.token || (r && r.token);
-    $("token-state").textContent = has ? "Un jeton est enregistré." : "Aucun jeton enregistré.";
-    $("forget-token").hidden = !has;
-    if (r.error && !has) $("how").open = true;
+    $("reset-version").textContent = st.version || r.current || "?";
   }
 
   async function load() {
@@ -200,6 +190,7 @@
     show(st);
     const job = await fetch("/api/job").then((r) => r.json()).catch(() => null);
     if (job && job.kind === "update" && job.state === "running") follow();
+    if (job && job.kind === "reset" && job.state === "running") follow("reset");
   }
 
   async function post(url, body) {
@@ -210,7 +201,7 @@
   $("check").addEventListener("click", async () => {
     say("state", "Vérification…");
     const { data } = await post("/api/update/check");
-    show({ result: data, token: data.token, version: data.version || data.current, onDisk: data.onDisk });
+    show({ result: data, version: data.version || data.current, onDisk: data.onDisk });
   });
 
   $("restart").addEventListener("click", async () => {
@@ -242,50 +233,58 @@
     follow();
   });
 
-  async function follow() {
+  $("reset").addEventListener("click", async () => {
+    const v = $("reset-version").textContent;
+    if (!confirm(`Réinitialiser Auto-montage ${v} ?\n\nLes fichiers du programme modifiés ou effacés sont remis comme dans la version publiée sur GitHub (une copie des fichiers remplacés est gardée dans montage/work/sauvegardes/). Vos montages, rushes, rendus et réglages ne sont pas touchés.\n\nAuto-montage redémarre ensuite (environ une minute).`)) return;
+    $("reset").disabled = true;
+    const { ok, data } = await post("/api/update/reset", { confirm: true });
+    if (!ok) { say("reset-msg", data.error || "La réinitialisation n'a pas pu démarrer.", "err"); $("reset").disabled = false; return; }
+    follow("reset");
+  });
+
+  // Suit la tâche « update » (mise à jour) ou « reset » (réinitialisation) jusqu'au
+  // redémarrage du serveur.
+  async function follow(kind = "update") {
+    const reset = kind === "reset";
+    const ids = reset ? { btn: "reset", box: "reset-progress", label: "r-label", bar: "r-bar", msg: "reset-msg" }
+                      : { btn: "apply", box: "progress-box", label: "p-label", bar: "p-bar", msg: "msg" };
     $("apply").disabled = true;
-    $("progress-box").hidden = false;
-    const before = (await fetch("/api/version").then((r) => r.json()).catch(() => ({}))).version;
+    $("reset").disabled = true;
+    $(ids.box).hidden = false;
+    const start = await fetch("/api/version").then((r) => r.json()).catch(() => ({}));
+    const before = start.version;
     for (;;) {
       await new Promise((r) => setTimeout(r, 1500));
       const job = await fetch("/api/job").then((r) => r.json()).catch(() => null);
       if (!job) break;  // serveur arrêté : redémarrage en cours
       if (job.state === "running") {
         const p = job.progress;
-        $("p-label").textContent = p ? `${p.label}…` : "Mise à jour…";
-        $("p-bar").value = p && p.total ? p.done / p.total : 0;
+        $(ids.label).textContent = p ? `${p.label}…` : (reset ? "Réinitialisation…" : "Mise à jour…");
+        $(ids.bar).value = p && p.total ? p.done / p.total : 0;
         continue;
       }
-      if (job.state === "error") { say("msg", `La mise à jour a échoué : ${job.error} (détail : page « Journal »). Rien n'a été cassé : la version actuelle reste en place.`, "err"); $("apply").disabled = false; $("progress-box").hidden = true; return; }
+      if (job.state === "error") {
+        say(ids.msg, `${reset ? "La réinitialisation" : "La mise à jour"} a échoué : ${job.error} (détail : page « Journal »). Les fichiers d'Auto-montage n'ont pas été changés.`, "err");
+        $("apply").disabled = false; $("reset").disabled = false; $(ids.box).hidden = true;
+        return;
+      }
       if (job.state === "done") break;
     }
-    $("p-label").textContent = "Redémarrage d'Auto-montage…";
-    $("p-bar").removeAttribute("value");
+    $(ids.label).textContent = "Redémarrage d'Auto-montage…";
+    $(ids.bar).removeAttribute("value");
     const t0 = Date.now();
-    for (;;) {  // attend le serveur redémarré, avec la nouvelle version
+    for (;;) {  // attend le serveur redémarré (nouvelle version, ou même version après réinitialisation)
       await new Promise((r) => setTimeout(r, 3000));
       const v = await fetch("/api/version", { cache: "no-store" }).then((r) => r.json()).catch(() => null);
-      if (v && v.version && v.version !== before) { say("msg", `Auto-montage ${v.version} est installé. Rechargement…`, "ok"); setTimeout(() => location.reload(), 1500); return; }
-      if (Date.now() - t0 > 180000) { say("msg", "La nouvelle version est installée, mais Auto-montage n'a pas redémarré tout seul : relancez-le depuis son raccourci.", "err"); return; }
+      if (v && v.version && (v.version !== before || (reset && v.started && v.started !== start.started))) {
+        say(ids.msg, reset ? `Auto-montage ${v.version} est réinitialisé (détail des fichiers remis : page « Journal »). Rechargement…`
+                           : `Auto-montage ${v.version} est installé. Rechargement…`, "ok");
+        setTimeout(() => location.reload(), 1500);
+        return;
+      }
+      if (Date.now() - t0 > 180000) { say(ids.msg, `${reset ? "La réinitialisation est faite" : "La nouvelle version est installée"}, mais Auto-montage n'a pas redémarré tout seul : relancez-le depuis son raccourci.`, "err"); return; }
     }
   }
-
-  $("save-token").addEventListener("click", async () => {
-    const token = $("token").value.trim();
-    if (!token) { $("token").focus(); return; }
-    say("token-msg", "Vérification du jeton…");
-    const { ok, data } = await post("/api/update/token", { token });
-    if (!ok) { say("token-msg", data.error || "Jeton refusé.", "err"); return; }
-    $("token").value = "";
-    say("token-msg", data.error ? `Jeton enregistré, mais : ${data.error}` : "Jeton enregistré : GitHub répond.", data.error ? "err" : "ok");
-    show({ result: data, token: true, version: data.current });
-  });
-  $("forget-token").addEventListener("click", async () => {
-    if (!confirm("Oublier le jeton GitHub ?")) return;
-    const { data } = await post("/api/update/token", { token: "" });
-    say("token-msg", "Jeton oublié.");
-    show({ result: data, token: false, version: data.current });
-  });
 
   load();
 </script>

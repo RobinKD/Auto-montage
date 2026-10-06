@@ -4,6 +4,16 @@ Chaque version publiée reprend sa section dans ses notes (onglet Releases). Une
 section, le numéro dans `VERSION` et le tag `v<numéro>` poussé publient la version avec ses
 installateurs (voir `packaging/README.md`).
 
+## 0.51
+
+- **Réinitialiser Auto-montage** (page **Mises à jour**) : si Claude Code, lancé dans le dossier
+  d'Auto-montage, a modifié le programme et que quelque chose ne marche plus, un bouton
+  retélécharge depuis GitHub les fichiers de la version installée et remet comme à l'origine
+  ceux qui ont été modifiés ou effacés, puis Auto-montage redémarre. Une confirmation est
+  demandée avant ; vos montages, rushes, rendus, sons, consignes et réglages ne sont pas
+  touchés, et une copie des fichiers remplacés est gardée dans `montage/work/sauvegardes/`.
+- Le dépôt étant public, la page **Mises à jour** ne demande plus de jeton GitHub.
+
 ## 0.50
 
 - **Première version du dépôt public** : Auto-montage est maintenant publié sur

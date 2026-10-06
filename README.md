@@ -43,9 +43,11 @@ disque (image 2 Go, Whisper 1,7 Go, paquets Node 0,5 Go), plus la place des rush
 Le projet est installé dans `~/Auto-montage` (Linux, macOS) ou `Documents\Auto-montage`
 (Windows). Les rushes vont dans `montage/public/rushes/` (action « Dossier des rushes »).
 Mises à jour : depuis la 0.20, la page « Mises à jour » de l'interface les détecte et les
-installe en un clic (montages et réglages gardés, rien à réautoriser sur Mac) ; tant que le
-dépôt est privé, elle demande une fois un jeton GitHub en lecture seule. On peut aussi
-installer une nouvelle version par-dessus : rushes, rendus et sélections sont gardés.
+installe en un clic (montages et réglages gardés, rien à réautoriser sur Mac). Depuis la 0.51,
+elle peut aussi réinitialiser le programme : si Claude Code lancé dans le dossier a modifié des
+fichiers et cassé quelque chose, « Réinitialiser Auto-montage » les retélécharge depuis GitHub
+(données de l'utilisateur gardées). On peut aussi installer une nouvelle version par-dessus :
+rushes, rendus et sélections sont gardés.
 
 Les actions (clic droit sur le raccourci sous Linux, menu de l'application sous macOS, menu
 Démarrer > Auto-montage sous Windows) : moments et version de travail, téléchargements,
