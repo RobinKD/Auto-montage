@@ -7,8 +7,8 @@ JavaScript ; la page des moments les imite en direct.
 Unités : pixels CSS de l'image de la composition, 1080 x 1920 (portrait) ou 1920 x 1080 (rush en
 paysage) ; le rendu 4K multiplie par 2.
 """
+import itertools
 import json
-import math
 import os
 import re
 import subprocess
@@ -117,17 +117,25 @@ class Montage:
         return out
 
     def caption_layout(self, words, big):
-        """(mot de coupure, réduction) : 2 lignes de largeurs les plus proches (measureLayout)."""
+        """(lignes [(début, fin, taille relative)], réduction) : au plus « lines » lignes, coupées là où
+        leurs largeurs (multipliées par la taille de chaque ligne) sont les plus proches ; réduites
+        ensemble si la plus large dépasse. Même règle dans la page des moments (captionLayout)."""
         one = self.measure()
         space = one(" ")
         widths = [one(w) * (HIGHLIGHT_SCALE if big[i] else 1) for i, w in enumerate(words)]
 
         def width(a, b):
             return sum(widths[a:b]) + space * max(0, b - a - 1)
-        split, widest, best = 0, width(0, len(words)), math.inf
-        for k in range(1, len(words)):
-            a, b = width(0, k), width(k, len(words))
-            if abs(a - b) < best:
-                best, split, widest = abs(a - b), k, max(a, b)
-        return split, min(1.0, (self.width - CAPTION_MARGIN) / max(1.0, widest))
+        n = max(1, min(int(self.cap.get("lines") or 2), len(words)))
+        sizes = [s / 100 for s in (self.cap.get("lineSizes") or [100, 100, 100])][:n]
+        sizes += [1.0] * (n - len(sizes))
+        best, lines = None, [(0, len(words), sizes[0])]
+        for cuts in itertools.combinations(range(1, len(words)), n - 1):
+            bounds = [0, *cuts, len(words)]
+            w = [width(a, b) * sizes[i] for i, (a, b) in enumerate(zip(bounds, bounds[1:]))]
+            key = (round(max(w) - min(w), 3), max(w))
+            if best is None or key < best:
+                best, lines = key, [(a, b, sizes[i]) for i, (a, b) in enumerate(zip(bounds, bounds[1:]))]
+        widest = max(width(a, b) * s for a, b, s in lines)
+        return lines, min(1.0, (self.width - CAPTION_MARGIN) / max(1.0, widest))
 

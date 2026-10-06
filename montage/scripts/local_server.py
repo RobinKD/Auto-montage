@@ -110,7 +110,8 @@ def caption_style_info():
                        "faces": {str(w): f"/api/fonts/{fonts_lib.file_id(p)}" for w, p in sorted(f["faces"].items())}}
                       for f in fonts],
             "sizeRange": fonts_lib.SIZE_RANGE, "shadowRange": fonts_lib.SHADOW_RANGE, "blurRange": fonts_lib.BLUR_RANGE,
-            "offsetMax": fonts_lib.OFFSET_MAX, "default": fonts_lib.DEFAULT}
+            "offsetMax": fonts_lib.OFFSET_MAX, "linesRange": fonts_lib.LINES_RANGE,
+            "lineSizeRange": fonts_lib.LINE_SIZE_RANGE, "default": fonts_lib.DEFAULT}
 
 
 def caption_style_for_page():
@@ -123,7 +124,8 @@ def caption_style_for_page():
     return {"family": "AM Sous-titres", "label": family["family"],
             "files": [{"url": f"/api/fonts/{fonts_lib.file_id(p)}", "weight": str(w)} for w, p in faces],
             "weight": style["weight"], "size": style["size"], "uppercase": style["uppercase"], "color": style["color"],
-            "shadow": style["shadow"], "blur": style["blur"], "ox": style["ox"], "oy": style["oy"]}
+            "shadow": style["shadow"], "blur": style["blur"], "ox": style["ox"], "oy": style["oy"],
+            "lines": style["lines"], "lineSizes": style["lineSizes"]}
 
 
 def style_videos():

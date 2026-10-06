@@ -4,6 +4,15 @@ Chaque version publiée reprend sa section dans ses notes (onglet Releases). Une
 section, le numéro dans `VERSION` et le tag `v<numéro>` poussé publient la version avec ses
 installateurs (voir `packaging/README.md`).
 
+## 0.56
+
+- **Lignes des sous-titres** : dans « Style des sous-titres » de la page des moments, et sur la page
+  **Rushes et montages**, choisissez le nombre de lignes de chaque sous-titre (1, 2 ou 3) et la
+  taille de chaque ligne par rapport à la première (de 50 à 200 %), par exemple une deuxième ligne
+  plus grosse pour faire ressortir la fin de la phrase. Le texte est coupé pour que les lignes
+  gardent des largeurs proches, et le nombre de mots par sous-titre suit le nombre de lignes
+  (3 sur une ligne, 6 sur deux, 9 sur trois). Un sous-titre trop haut pour l'image est remonté.
+
 ## 0.55
 
 - **Libérer de la place** : nouvelle section en bas de la page **Rushes et montages**. Elle liste

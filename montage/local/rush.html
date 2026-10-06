@@ -63,6 +63,15 @@
   .parts button { padding: 4px 10px; font-size: 14px; }
   .sub3 { font-family: var(--display); font-weight: 700; font-size: 15px; margin: 8px 0 0; }
   textarea { font: inherit; font-size: 15px; color: var(--fg); background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; width: 100%; resize: vertical; }
+  .cap-lines { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px 16px; align-items: center; }
+  @media (max-width: 560px) { .cap-lines { grid-template-columns: minmax(0, 1fr); } }
+  .cap-lines-form { display: flex; flex-direction: column; gap: 10px; }
+  .cap-lines-form label { display: flex; flex-direction: column; gap: 4px; font-size: 14px; color: var(--muted); }
+  .cap-lines-form label[hidden] { display: none; }
+  .cap-lines-sample { background: linear-gradient(135deg, #8f8478, #c9bba8); border-radius: 10px; padding: 14px 10px; min-height: 110px;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; overflow: hidden; container-type: inline-size; }
+  .cap-lines-sample div { font-family: var(--cl-family, var(--display)), cursive; font-weight: var(--cl-weight, 700); color: var(--cl-color, #f4e2c2);
+    text-transform: var(--cl-case, uppercase); line-height: 1.05; white-space: nowrap; text-shadow: 0 0 3px rgba(0,0,0,.9), 0 1px 8px rgba(0,0,0,.7); }
   .style-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; font-size: 14px; }
   .style-list li { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
   .style-list img { width: 160px; border-radius: 6px; border: 1px solid var(--line); }
@@ -205,6 +214,17 @@
     </div>
     <ul class="style-list" id="style-list"></ul>
     <p class="status" id="style-status" role="status"></p>
+    <h3 class="sub3">Lignes des sous-titres</h3>
+    <p class="note">Nombre de lignes de chaque sous-titre et taille des lignes entre elles (par exemple une deuxième ligne plus grosse pour faire ressortir la fin de la phrase). Réglage commun à tous les montages, aussi dans « Style des sous-titres » de la page des moments ; appliqué à la prochaine « Générer la version de travail ».</p>
+    <div class="cap-lines">
+      <div class="cap-lines-form">
+        <label>Lignes au plus<select id="cl-lines"><option value="1">1 ligne (3 mots au plus)</option><option value="2">2 lignes (6 mots au plus)</option><option value="3">3 lignes (9 mots au plus)</option></select></label>
+        <label id="cl-line2-row"><span>Ligne 2 : <b id="cl-line2-val"></b> de la ligne 1</span><input type="range" id="cl-line2" min="50" max="200" step="5"></label>
+        <label id="cl-line3-row"><span>Ligne 3 : <b id="cl-line3-val"></b> de la ligne 1</span><input type="range" id="cl-line3" min="50" max="200" step="5"></label>
+      </div>
+      <div class="cap-lines-sample" id="cl-sample" aria-label="Exemple de sous-titre"></div>
+    </div>
+    <p class="status" id="cl-status" role="status"></p>
     <h3 class="sub3">Effets proposés sur la page des moments</h3>
     <p class="note">Cochez ceux à proposer pour chaque moment ; les autres n'encombrent plus la page (un effet déjà placé sur un moment reste visible). Réglage commun à tous les montages, modifiable à tout moment.</p>
     <p class="note">Les sons et effets visuels listés ici sont ceux fournis par défaut avec Auto-montage. Pour un montage plus personnel, ajoutez vos propres sons (« Ajouter des effets sonores… ») et faites analyser des vidéos d'exemple par Claude (« Analyser les vidéos d'exemple ») pour retrouver leurs effets.</p>
@@ -642,6 +662,70 @@
   }
   loadEffects();
 
+  // Lignes des sous-titres (work/caption_style.json : « lines » et « lineSizes », le reste du style
+  // se règle sur la page des moments). Exemple coupé comme le rendu (render_lib.caption_layout).
+  {
+    let capStyle = null, sampleFamily = '"AM Lignes"';
+    const SAMPLES = { 1: ["Vos", "sous-titres", "ici"], 2: ["Voici", "vos", "sous-titres", "sur", "deux", "lignes"],
+                      3: ["Voici", "vos", "sous-titres", "répartis", "sur", "trois", "lignes", "bien", "équilibrées"] };
+    const ctx = document.createElement("canvas").getContext("2d");
+    function* cutsOf(n, k, from = 1) {
+      if (k === 0) { yield []; return; }
+      for (let c = from; c <= n - k; c++) for (const rest of cutsOf(n, k - 1, c + 1)) yield [c, ...rest];
+    }
+    function drawSample() {
+      const lines = Number($("cl-lines").value), sizes = [1, $("cl-line2").value / 100, $("cl-line3").value / 100].slice(0, lines);
+      $("cl-line2-row").hidden = lines < 2; $("cl-line3-row").hidden = lines < 3;
+      $("cl-line2-val").textContent = `${$("cl-line2").value} %`; $("cl-line3-val").textContent = `${$("cl-line3").value} %`;
+      const st = (capStyle && capStyle.style) || {};
+      const box = $("cl-sample"), fam = `${sampleFamily}, ${getComputedStyle(document.body).getPropertyValue("--display") || "sans-serif"}`;
+      const words = SAMPLES[lines], size = st.size || 64;
+      ctx.font = `${st.weight || 700} ${size}px ${fam}`;
+      const one = (w) => ctx.measureText(st.uppercase === false ? w : w.toUpperCase()).width, space = one(" ");
+      const width = (a, b) => words.slice(a, b).reduce((x, w) => x + one(w), 0) + space * Math.max(0, b - a - 1);
+      let best = null, out = [];
+      for (const cuts of cutsOf(words.length, lines - 1)) {
+        const b = [0, ...cuts, words.length], w = sizes.map((k, i) => width(b[i], b[i + 1]) * k);
+        const key = [Math.max(...w) - Math.min(...w), Math.max(...w)];
+        if (!best || key[0] < best[0] - 1e-3 || (Math.abs(key[0] - best[0]) <= 1e-3 && key[1] < best[1])) { best = key; out = sizes.map((k, i) => [b[i], b[i + 1], k]); }
+      }
+      // Largeur de l'exemple = image de 1080 px de large (marges comprises, comme le rendu).
+      const scale = Math.min(1, 940 / Math.max(1, best[1]));
+      box.replaceChildren(...out.map(([a, b, k]) => Object.assign(document.createElement("div"),
+        { textContent: words.slice(a, b).join(" "), style: `font-size: ${(size * k * scale * 100) / 1080}cqw` })));
+    }
+    let saveT = null;
+    function changed() {
+      drawSample();
+      clearTimeout(saveT);
+      saveT = setTimeout(async () => {
+        const body = { lines: Number($("cl-lines").value), lineSizes: [100, Number($("cl-line2").value), Number($("cl-line3").value)] };
+        const r = await fetch("/api/caption-style", { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify(body) }).catch(() => null);
+        setStatus("cl-status", r && r.ok ? "Enregistré : visible sur la page des moments, et dans la vidéo à la prochaine génération." : "Le réglage n'a pas pu être enregistré.", r && r.ok ? "ok" : "err");
+      }, 400);
+    }
+    $("cl-lines").addEventListener("change", changed);
+    for (const id of ["cl-line2", "cl-line3"]) $(id).addEventListener("input", changed);
+    (async () => {
+      capStyle = await fetch("/api/caption-style").then((r) => r.json()).catch(() => null);
+      const st = (capStyle && capStyle.style) || { lines: 2, lineSizes: [100, 100, 100] };
+      $("cl-lines").value = String(st.lines ?? 2);
+      $("cl-line2").value = (st.lineSizes || [])[1] ?? 100; $("cl-line3").value = (st.lineSizes || [])[2] ?? 100;
+      // Police, graisse, couleur et majuscules du style choisi, pour l'exemple.
+      const fam = capStyle && capStyle.fonts.find((f) => f.id === st.font);
+      const box = $("cl-sample");
+      if (fam) {
+        const ws = Object.keys(fam.faces).map(Number);
+        const w = ws.reduce((b, x) => (Math.abs(x - st.weight) < Math.abs(b - st.weight) ? x : b), ws[0]);
+        try { const face = await new FontFace("AM Lignes", `url(${fam.faces[w]})`, { weight: String(w) }).load(); document.fonts.add(face); box.style.setProperty("--cl-family", '"AM Lignes"'); } catch {}
+      }
+      if (st.weight) box.style.setProperty("--cl-weight", String(st.weight));
+      if (st.color) box.style.setProperty("--cl-color", st.color);
+      box.style.setProperty("--cl-case", st.uppercase === false ? "none" : "uppercase");
+      drawSample();
+    })();
+  }
+
   // Aperçu des effets : écoute des sons, animation des effets visuels sur une image du montage
   // en cours (ou un visage stylisé), comme dans la vidéo.
   const FX_DESC = {
@@ -966,7 +1050,8 @@
     }
     if (r.sousTitres && typeof r.sousTitres === "object") {
       const st = r.sousTitres;
-      const p = el("p", `Sous-titres proposés : police ${st.font}, ${st.size} px, graisse ${st.weight}${st.uppercase ? ", majuscules" : ""}, couleur `);
+      const lines = st.lines ? `, ${st.lines} ligne${st.lines > 1 ? "s" : ""}${st.lines > 1 && st.lineSizes ? ` (tailles ${st.lineSizes.slice(0, st.lines).join(" / ")} %)` : ""}` : "";
+      const p = el("p", `Sous-titres proposés : police ${st.font}, ${st.size} px, graisse ${st.weight}${st.uppercase ? ", majuscules" : ""}${lines}, couleur `);
       const sw = el("span", "", "swatch"); sw.style.background = st.color; p.append(sw, ` ${st.color}, ombre ${st.shadow ?? 50} %. `);
       const btn = el("button", "Appliquer ce style aux sous-titres");
       btn.type = "button";

@@ -120,7 +120,7 @@
         <p>« Effets proposés sur les moments » choisit ceux qui apparaissent dans la liste ; « Ajouter des sons… » y ajoute les vôtres. Sur « Rushes et montages », le bouton ▶ fait écouter ou voir chaque effet.</p>`,
       media: [{ video: "demo-effets.mp4", caption: "Zoom sec sur « gratuitement », puis « makrout » mis en valeur" }, { img: "effets.jpg", caption: "Le zoom sec d'un moment et son calage" }] },
     { title: "Régler les sous-titres et l'habillage", where: "Page des moments > Style des sous-titres, Zooms et animations",
-      html: `<p>Les sous-titres tiennent sur deux lignes équilibrées. Choisissez la <b>police</b> (ou ajoutez la vôtre), la taille, la graisse, la couleur, les majuscules et l'<b>ombre</b> (intensité, flou, direction).</p>
+      html: `<p>Les sous-titres tiennent sur deux lignes équilibrées (ou une, ou trois, de tailles différentes si vous voulez). Choisissez la <b>police</b> (ou ajoutez la vôtre), la taille, la graisse, la couleur, les majuscules et l'<b>ombre</b> (intensité, flou, direction).</p>
         <p>Dans « Zooms et animations » : intensité des zooms automatiques sur le visage, sous-titres qui apparaissent avec un rebond, <b>mot prononcé en couleur</b>.</p>`,
       media: [{ video: "demo-sous-titres.mp4", caption: "Mot prononcé en couleur" }, { img: "style.jpg", caption: "Style des sous-titres" }] },
     { title: "Soigner le son", where: "Page des moments > Son de la voix",
@@ -218,7 +218,7 @@
       html: `<ul><li><b>Corriger</b> ouvre le texte du moment : <kbd>Entrée</kbd> enregistre, <kbd>Maj</kbd>+<kbd>Entrée</kbd> va à la ligne, <kbd>Échap</kbd> annule. Les mots corrigés s'affichent au rythme de la parole.</li>
         <li><b>Supprimer les sous-titres</b> enlève le texte de ce moment seulement (la voix et l'image restent) ; le moment est alors marqué « Sans sous-titres ».</li>
         <li><b>Texte d'origine</b> revient à la transcription.</li>
-        <li>Les sous-titres affichent jusqu'à 6 mots, sur deux lignes de même largeur.</li></ul>` },
+        <li>Les sous-titres affichent jusqu'à 6 mots, sur deux lignes de même largeur (3 mots sur une ligne, 9 sur trois : réglage « Lignes au plus » du style des sous-titres).</li></ul>` },
     { id: "calage", title: "Placer et régler un effet", where: "Page des moments, réglages sous chaque effet coché",
       html: `<p>Chaque effet coché a une <b>bande de calage</b> sur la durée du moment :</p>
         <ul><li>faites glisser la bande pour la déplacer, et ses poignées pour régler le début et la fin ; la vidéo montre l'instant visé pendant le geste ;</li>
@@ -243,6 +243,7 @@
     { id: "habillage", title: "Sous-titres, zooms et animations", where: "Page des moments > Style des sous-titres ; Zooms et animations",
       html: `<h3>Style des sous-titres</h3>
         <ul><li><b>Police</b> (celles fournies, ou la vôtre avec <b>Ajouter une police…</b> : TTF, OTF, WOFF), <b>graisse</b>, <b>taille</b>, <b>majuscules</b>, <b>couleur</b>.</li>
+        <li><b>Lignes au plus</b> (1, 2 ou 3) et <b>taille de chaque ligne</b> par rapport à la première (de 50 à 200 %) : par exemple une deuxième ligne plus grosse pour faire ressortir la fin de la phrase. Le texte est coupé pour que les lignes aient des largeurs proches. Aussi réglable sur la page <b>Rushes et montages</b>.</li>
         <li><b>Ombre</b> : intensité, flou et direction (autour du texte, ou décalée vers un côté).</li>
         <li>L'exemple se met à jour en direct ; <b>Style d'origine</b> revient au style de départ.</li></ul>
         <h3>Zooms et animations (tout le montage)</h3>

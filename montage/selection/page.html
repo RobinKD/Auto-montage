@@ -117,6 +117,8 @@
     text-transform: var(--cap-case, uppercase); line-height: 1.05; white-space: nowrap;
     text-shadow: var(--cap-shadow, 0 0.28cqw 1.3cqw rgba(0,0,0,0.5), 0 0 0.65cqw rgba(0,0,0,0.3));
   }
+  .cap-style .line-sizes { display: flex; flex-direction: column; gap: 8px; }
+  .cap-style .line-sizes label[hidden] { display: none; }
   .cap-style .shadow-pad { display: flex; flex-direction: row; align-items: center; gap: 14px; grid-column: 1 / -1; }
   .cap-style .pad {
     position: relative; flex: none; width: 132px; height: 132px; border-radius: 50%; border: 1px solid var(--line);
@@ -379,6 +381,11 @@
             <label class="inline"><input type="checkbox" id="cs-upper"> Majuscules</label>
             <label class="inline"><input type="color" id="cs-color"> Couleur</label>
           </div>
+          <label>Lignes au plus<select id="cs-lines"><option value="1">1 ligne (3 mots au plus)</option><option value="2">2 lignes (6 mots au plus)</option><option value="3">3 lignes (9 mots au plus)</option></select></label>
+          <div class="line-sizes">
+            <label id="cs-line2-row"><span>Ligne 2 : <b id="cs-line2-val"></b> de la ligne 1</span><input type="range" id="cs-line2" min="50" max="200" step="5"></label>
+            <label id="cs-line3-row"><span>Ligne 3 : <b id="cs-line3-val"></b> de la ligne 1</span><input type="range" id="cs-line3" min="50" max="200" step="5"></label>
+          </div>
           <label>Ombre : intensité <span id="cs-shadow-val"></span><input type="range" id="cs-shadow" min="0" max="100" step="5"></label>
           <label>Ombre : diffusion du flou <span id="cs-blur-val"></span><input type="range" id="cs-blur" min="0" max="60" step="1"></label>
           <div class="shadow-pad">
@@ -506,34 +513,50 @@
     if (s > 0.5) layers.push(at(blur / 4, 1.6 * (s - 0.5)));
     return layers.join(", ");
   }
-  // Même règle que le rendu (render_lib.caption_layout) : 2 lignes de même taille, coupées là où leurs largeurs
-  // (mesurées dans la police) sont les plus proches ; réduites si la plus longue dépasse.
+  // Même règle que le rendu (render_lib.caption_layout) : au plus CAP.lines lignes (2 par défaut), coupées là où leurs
+  // largeurs (mesurées dans la police, multipliées par la taille de chaque ligne) sont les plus proches ; réduites
+  // ensemble si la plus large dépasse.
   const CAP_MAX_WIDTH = FRAME_W - 140;  // 940 px sur 1080
   const capCanvas = document.createElement("canvas").getContext("2d");
+  const capLines = () => Number(CAP.lines ?? (DATA.captionLines && DATA.captionLines.lines) ?? 2) || 2;
+  const capSizes = () => CAP.lineSizes || (DATA.captionLines && DATA.captionLines.lineSizes) || [100, 100, 100];
+  // Toutes les façons de couper n mots en k lignes non vides (k - 1 coupures croissantes).
+  function* lineCuts(n, k, from = 1) {
+    if (k === 0) { yield []; return; }
+    for (let c = from; c <= n - k; c++) for (const rest of lineCuts(n, k - 1, c + 1)) yield [c, ...rest];
+  }
   // Un mot mis en valeur compte plus large (grossi de 20 %), comme dans le rendu.
   function captionLayout(words, big = []) {
-    const key = words.map((w, i) => (big[i] ? `*${w}` : w)).join(" ");
+    const n = Math.max(1, Math.min(capLines(), words.length));
+    const sizes = capSizes().slice(0, n).map((x) => x / 100);
+    while (sizes.length < n) sizes.push(1);
+    const key = `${n}|${sizes.join(",")}|` + words.map((w, i) => (big[i] ? `*${w}` : w)).join(" ");
     if (capLayouts.has(key)) return capLayouts.get(key);
     capCanvas.font = `${CAP.weight} ${CAP.size}px "${CAP.family}", "Patrick Hand", cursive`;
     const one = (w) => capCanvas.measureText(CAP.uppercase ? w.toUpperCase() : w).width;
     const space = one(" ");
     const width = (a, b) => { let x = 0; for (let i = a; i < b; i++) x += one(words[i]) * (big[i] ? 1.2 : 1) + (i > a ? space : 0); return x; };
-    let split = 0, widest = width(0, words.length), best = Infinity;
-    for (let k = 1; k < words.length; k++) {
-      const a = width(0, k), b = width(k, words.length);
-      if (Math.abs(a - b) < best) { best = Math.abs(a - b); split = k; widest = Math.max(a, b); }
+    let best = null, lines = [[0, words.length, sizes[0]]];
+    for (const cuts of lineCuts(words.length, n - 1)) {
+      const bounds = [0, ...cuts, words.length];
+      const w = sizes.map((k, i) => width(bounds[i], bounds[i + 1]) * k);
+      const spread = Math.round((Math.max(...w) - Math.min(...w)) * 1000) / 1000, widest = Math.max(...w);
+      if (!best || spread < best[0] || (spread === best[0] && widest < best[1])) {
+        best = [spread, widest];
+        lines = sizes.map((k, i) => [bounds[i], bounds[i + 1], k]);
+      }
     }
-    const out = { split, scale: Math.min(1, CAP_MAX_WIDTH / Math.max(1, widest)) };
+    const widest = Math.max(...lines.map(([a, b, k]) => width(a, b) * k));
+    const out = { lines, scale: Math.min(1, CAP_MAX_WIDTH / Math.max(1, widest)) };
     capLayouts.set(key, out);
     return out;
   }
   function fillCaption(el, words, { colors = [], current = -1 } = {}) {
     const big = words.map((_, i) => !!colors[i]);
-    const { split, scale } = captionLayout(words, big);
-    const lines = split ? [[0, split], [split, words.length]] : [[0, words.length]];
-    el.replaceChildren(...lines.map(([a, b]) => {
+    const { lines, scale } = captionLayout(words, big);
+    el.replaceChildren(...lines.map(([a, b, k]) => {
       const d = document.createElement("div");
-      d.style.fontSize = `${(CAP.size * scale) / PX_PER_CQW}cqw`;
+      d.style.fontSize = `${(CAP.size * k * scale) / PX_PER_CQW}cqw`;
       for (let i = a; i < b; i++) {
         const sp = document.createElement("span");
         sp.textContent = (i > a ? " " : "") + words[i];
@@ -544,12 +567,22 @@
       }
       return d;
     }));
+    // Comme le rendu : remonté s'il dépasse 40 px du bas de l'image (lignes nombreuses ou grandes).
+    if (el.id === "ov-cap" && el.parentElement) {
+      el.style.translate = "";
+      const limit = el.parentElement.clientHeight * (1 - 40 / FRAME_H);
+      const over = el.offsetTop + el.offsetHeight - limit;
+      if (over > 0) el.style.translate = `0 ${-over}px`;
+    }
   }
   function refreshCaption() {  // sous-titre affiché et exemple, redessinés avec le style actuel
     const el = document.getElementById("ov-cap");
     if (el) el.dataset.key = "";
+    if (fx) fx.caps = captionGroups(wordsOf(fx.m));  // nombre de lignes changé : mots par sous-titre aussi
     const sample = document.getElementById("cs-sample");
-    if (sample && !sample.hidden) fillCaption(sample, ["Voici", "vos", "sous-titres", "sur", "deux", "lignes"]);
+    const SAMPLES = { 1: ["Vos", "sous-titres", "ici"], 2: ["Voici", "vos", "sous-titres", "sur", "deux", "lignes"],
+                      3: ["Voici", "vos", "sous-titres", "répartis", "sur", "trois", "lignes", "bien", "équilibrées"] };
+    if (sample && !sample.hidden) fillCaption(sample, SAMPLES[capLines()] || SAMPLES[2]);
     if (typeof drawOverlay === "function") drawOverlay();
   }
   const moments = DATA.moments;
@@ -751,7 +784,10 @@
     const texts = t ? realign(m.words.map((w) => w.w), t) : m.words.map((w) => w.w);
     return m.words.map((w, k) => ({ text: texts[k], a: w.a, b: w.b }));
   }
+  // Mots et lettres au plus par sous-titre selon le nombre de lignes (fonts_lib.CAPTION_LIMITS).
+  const CAPTION_LIMITS = { 1: [3, 14], 2: [6, 26], 3: [9, 38] };
   function captionGroups(words) {
+    const [maxWords, maxChars] = CAPTION_LIMITS[capLines()] || CAPTION_LIMITS[2];
     const out = [];
     let g = [];
     const flush = () => {
@@ -764,7 +800,7 @@
       if (g.length && w.a - g[g.length - 1].b > 0.35) flush();
       g.push(w);
       const chars = g.reduce((s2, x) => s2 + x.text.length, 0);
-      if (/[.!?]$/.test(t) || g.length >= 6 || chars > 26 || (/,$/.test(t) && g.length >= 3)) flush();
+      if (/[.!?]$/.test(t) || g.length >= maxWords || chars > maxChars || (/,$/.test(t) && g.length >= 3)) flush();
     }
     flush();
     return out;
@@ -2361,12 +2397,18 @@ ${HFAudio.voiceElements(spec)}
       $("cs-color").value = st.color;
       $("cs-shadow").value = st.shadow; $("cs-blur").value = st.blur;
       setPad(st.ox ?? 0, st.oy ?? 0);
+      $("cs-lines").value = String(st.lines ?? 2);
+      const sizes = st.lineSizes || [100, 100, 100];
+      $("cs-line2").value = sizes[1] ?? 100; $("cs-line3").value = sizes[2] ?? 100;
       showShadowVals();
     }
     function showShadowVals() {
       const v = Number($("cs-shadow").value);
       $("cs-shadow-val").textContent = v === 0 ? "aucune" : `${v} %`;
       $("cs-blur-val").textContent = `${$("cs-blur").value} px`;
+      const lines = Number($("cs-lines").value);
+      $("cs-line2-row").hidden = lines < 2; $("cs-line3-row").hidden = lines < 3;
+      $("cs-line2-val").textContent = `${$("cs-line2").value} %`; $("cs-line3-val").textContent = `${$("cs-line3").value} %`;
     }
     // Direction et distance de l'ombre : point choisi dans le cercle (centre = ombre autour du texte,
     // bord = OFFSET px de décalage dans cette direction).
@@ -2411,14 +2453,16 @@ ${HFAudio.voiceElements(spec)}
       return { font: $("cs-font").value, weight: Number($("cs-weight").value), size: Number($("cs-size").value),
                uppercase: $("cs-upper").checked, color: $("cs-color").value,
                shadow: Number($("cs-shadow").value), blur: Number($("cs-blur").value),
-               ox: pad.ox, oy: pad.oy };
+               ox: pad.ox, oy: pad.oy, lines: Number($("cs-lines").value),
+               lineSizes: [100, Number($("cs-line2").value), Number($("cs-line3").value)] };
     }
     function preview(st) {  // aperçu immédiat, avant l'enregistrement
       const fam = family();
       const faces = Object.entries(fam.faces).map(([w, url]) => ({ w: Number(w), url }));
       const near = faces.reduce((b, f) => (Math.abs(f.w - st.weight) < Math.abs(b.w - st.weight) ? f : b), faces[0]);
       applyCaptionStyle({ family: `AM ${fam.id}`, files: [{ url: near.url, weight: String(near.w) }], weight: st.weight,
-                          size: st.size, uppercase: st.uppercase, color: st.color, shadow: st.shadow, blur: st.blur, ox: st.ox, oy: st.oy });
+                          size: st.size, uppercase: st.uppercase, color: st.color, shadow: st.shadow, blur: st.blur, ox: st.ox, oy: st.oy,
+                          lines: st.lines, lineSizes: st.lineSizes });
     }
     let saveT = null;
     function changed() {
@@ -2433,14 +2477,15 @@ ${HFAudio.voiceElements(spec)}
       }, 400);
     }
     $("cs-font").addEventListener("change", () => { fillWeights(Number($("cs-weight").value)); changed(); });
-    for (const id of ["cs-weight", "cs-upper", "cs-color"]) $(id).addEventListener("change", changed);
-    for (const id of ["cs-size", "cs-shadow", "cs-blur"]) $(id).addEventListener("input", changed);
+    for (const id of ["cs-weight", "cs-upper", "cs-color", "cs-lines"]) $(id).addEventListener("change", changed);
+    for (const id of ["cs-size", "cs-shadow", "cs-blur", "cs-line2", "cs-line3"]) $(id).addEventListener("input", changed);
     $("cs-reset").addEventListener("click", () => {
       const d = info.default;
       $("cs-font").value = info.fonts.find((f) => /^(oliver|patrick hand)/i.test(f.family) && f.source === "Auto-montage")?.id || info.fonts[0].id;
       fillWeights(d.weight);
       $("cs-size").value = d.size; $("cs-upper").checked = d.uppercase; $("cs-color").value = d.color;
       $("cs-shadow").value = d.shadow; $("cs-blur").value = d.blur; setPad(d.ox, d.oy);
+      $("cs-lines").value = String(d.lines ?? 2); $("cs-line2").value = (d.lineSizes || [])[1] ?? 100; $("cs-line3").value = (d.lineSizes || [])[2] ?? 100;
       changed();
     });
     $("cs-add-font").addEventListener("click", () => $("cs-font-file").click());

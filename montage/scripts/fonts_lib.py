@@ -14,7 +14,9 @@ suivants). Forme : {"font": "<id de famille>", "weight": 700, "size": 64,
 intensité de 0 à 100 (plus ou moins sombre), diffusion du flou en pixels de 0 à 60, et décalage
 ox (vers la droite) et oy (vers le bas) en pixels, à 40 px au plus du texte, choisi dans le cercle
 de la page des moments ; tout en pixels sur une image de 1080 px de large ; l'ancienne direction
-dx/dy de -1 à 1, d'avant la 0.42, est convertie en décalage). build_edit.py le copie dans edit.json
+dx/dy de -1 à 1, d'avant la 0.42, est convertie en décalage), "lines": 2, "lineSizes": [100, 100, 100]
+(nombre de lignes au plus, de 1 à 3, et taille de chaque ligne en % de la première, de 50 à 200 ; réglés
+sur la page des moments et sur « Rushes et montages »). build_edit.py le copie dans edit.json
 (« captionStyle ») avec les fichiers de la police, copiés dans public/fonts/choisie/.
 """
 import hashlib
@@ -34,7 +36,11 @@ STYLE_DEFAULT = os.path.join(WORK, "caption_style_default.json")
 FONT_EXT = (".ttf", ".otf", ".woff", ".woff2")
 # Style d'origine : Oliver (ou Patrick Hand) en gras, crème, en majuscules.
 DEFAULT = {"font": None, "weight": 700, "size": 64, "uppercase": True, "color": "#f4e2c2", "shadow": 50, "blur": 14,
-           "ox": 0, "oy": 0}
+           "ox": 0, "oy": 0, "lines": 2, "lineSizes": [100, 100, 100]}
+LINES_RANGE, LINE_SIZE_RANGE = (1, 3), (50, 200)
+# Mots et lettres au plus par sous-titre, selon le nombre de lignes (même règle dans la page des
+# moments, captionGroups).
+CAPTION_LIMITS = {1: (3, 14), 2: (6, 26), 3: (9, 38)}
 SHADOW_RANGE, BLUR_RANGE, OFFSET_MAX = (0, 100), (0, 60), 40
 SIZE_RANGE = (36, 120)
 # Graisses de fontconfig -> CSS.
@@ -154,7 +160,23 @@ def clean(data):
         except (TypeError, ValueError):
             pass
     style["ox"], style["oy"] = shadow_offset(data | {"shadow": style["shadow"], "blur": style["blur"]})
+    try:
+        style["lines"] = max(LINES_RANGE[0], min(LINES_RANGE[1], int(data.get("lines", 2))))
+    except (TypeError, ValueError):
+        pass
+    sizes = data.get("lineSizes")
+    if isinstance(sizes, list):
+        try:
+            sizes = [max(LINE_SIZE_RANGE[0], min(LINE_SIZE_RANGE[1], int(round(float(x))))) for x in sizes[:3]]
+            style["lineSizes"] = [100] + (sizes[1:] + DEFAULT["lineSizes"][len(sizes):])[:2]
+        except (TypeError, ValueError):
+            pass
     return style
+
+
+def caption_limits(style):
+    """(mots, lettres) au plus par sous-titre."""
+    return CAPTION_LIMITS[style.get("lines", 2) if style.get("lines") in CAPTION_LIMITS else 2]
 
 
 def shadow_offset(style):
@@ -177,7 +199,12 @@ def shadow_offset(style):
 
 
 def save_style(data):
-    style = clean(data)
+    """Enregistre le style ; les clés absentes gardent leur valeur (la page « Rushes et montages »
+    n'envoie que les lignes)."""
+    base = read_style()
+    if ("dx" in data or "dy" in data) and "ox" not in data and "oy" not in data:
+        base.pop("ox"), base.pop("oy")  # direction d'avant la 0.42 : convertie par shadow_offset
+    style = clean(base | data)
     os.makedirs(WORK, exist_ok=True)
     for path in (STYLE, STYLE_DEFAULT):
         json.dump(style, open(path, "w"), indent=1)
@@ -215,7 +242,7 @@ def copy_for_render(style):
     # Nom de famille propre au rendu : pas de confusion avec une police du système du même nom.
     return {"family": "AM Sous-titres", "label": family["family"], "files": files, "weight": style["weight"], "size": style["size"],
             "uppercase": style["uppercase"], "color": style["color"], "shadow": style["shadow"], "blur": style["blur"],
-            "ox": style["ox"], "oy": style["oy"]}
+            "ox": style["ox"], "oy": style["oy"], "lines": style["lines"], "lineSizes": style["lineSizes"]}
 
 
 if __name__ == "__main__":  # polices utilisables et style actuel (pour Claude et le dépannage)
