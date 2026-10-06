@@ -19,7 +19,7 @@ import imageio_ffmpeg
 import numpy as np
 
 import fonts_lib
-from moments_lib import (HF_VOICES, SOUNDS, VOICE_IDS, batterie_warp, effective_gaps, frame_size, is_gap, load_segments, rush_duration,
+from moments_lib import (HF_VOICES, SOUNDS, VOICE_IDS, audio_map, batterie_warp, effective_gaps, frame_size, is_gap, load_segments, rush_duration,
                          suggested_keep, voice_filter, word_map)
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
@@ -271,9 +271,11 @@ if os.path.exists(selection_path):
 
 # --- Audio d'origine ----------------------------------------------------------
 SR = 48000
+# Piste son du rush, ou toutes ses pistes mélangées (moments_lib.audio_map, comme prepare.sh).
+_rush_path = os.path.join(ROOT, open(os.path.join(WORK, "rush.txt")).read().strip())
 raw = subprocess.run(
-    [FFMPEG, "-v", "error", "-i", os.path.join(ROOT, open(os.path.join(WORK, "rush.txt")).read().strip()),
-     "-map", "0:a:0", "-ac", "1", "-ar", str(SR), "-f", "s16le", "-"],
+    [FFMPEG, "-v", "error", "-i", _rush_path, *(audio_map(_rush_path) or ["-map", "0:a:0"]),
+     "-ac", "1", "-ar", str(SR), "-f", "s16le", "-"],
     check=True, capture_output=True,
 ).stdout
 audio = np.frombuffer(raw, dtype=np.int16).astype(np.float32) / 32768

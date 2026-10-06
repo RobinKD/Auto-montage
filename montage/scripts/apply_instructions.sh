@@ -18,6 +18,7 @@ fi
 [ -s work/segments.json ] || { echo "Rush pas encore transcrit (work/segments.json)." >&2; exit 1; }
 command -v claude >/dev/null || { echo "Claude Code n'est pas installé." >&2; exit 1; }
 RUSH="$(basename "$(cat work/rush.txt)")"
+LANGUE="$(python3 -c "import sys; sys.path.insert(0, 'scripts'); import moments_lib as m; print(m.LANGUAGES[m.language('work', 'langue_rush.txt')].lower())")"
 
 CONSIGNES="Applique les consignes de montage de montage/work/instructions.md"
 $HAS_TEXT || CONSIGNES="Il n'y a pas de consignes écrites : fais un montage soigné (doublons et ratés retirés) en t'inspirant des éléments de style ci-dessous"
@@ -40,7 +41,7 @@ if [ -n "$HIDDEN" ]; then
 Effets écartés par l'utilisateur (page « Rushes et montages ») : $HIDDEN. Ne les utilise pas, sauf si les consignes les demandent explicitement (cash = caisse, bop = pastille sonore, clavier, voix = voix modifiée, gainvoix = volume de la voix par moment (sans effet sur toi), typed = texte tapé, chip = pastille)."
 fi
 PROMPT="Tu travailles dans le projet Auto-montage (interface locale : ne publie aucune page claude.ai, ne lance aucun rendu).
-Le rush « $RUSH » vient d'être préparé ; sa transcription par segment est dans montage/work/segments.json.
+Le rush « $RUSH » vient d'être préparé ; sa transcription par segment est dans montage/work/segments.json. On y parle $LANGUE : les sous-titres corrigés, l'intro et les pastilles sont dans cette langue, sauf si les consignes en demandent une autre.
 $CONSIGNES, comme aux étapes 3 et 5 de CLAUDE.md pour un nouveau rush :$STYLE
 1. Écris montage/work/suggestions.json : {\"keep\": [ids des segments à garder], \"reasons\": {\"id\": \"raison du retrait\"}} (doublon : garder la 2e prise ; ratés, apartés retirés).
 2. Écris montage/work/edit_choices.json au format décrit en tête de montage/scripts/build_edit.py (près de CHOICES_PATH), avec \"rush\": \"$RUSH\" : coupes au mot près (keep), corrections de sous-titres (fixes), voix modifiée (funny : [segment, premier mot, dernier mot, voix] avec voix = tremblement, robot, ecureuil, lutin, geant, megaphone, telephone, salle, batterie, radio ou choeur), bruit de caisse (cash), pastilles (chips), texte de l'intro (intro), sons (sfx : sons par défaut whoosh, pop, ding, boum, montee, glitch, photo, faux, juste, bop, cash, ou personnels), effets visuels (vfx : zoom avant, zoom sec, dézoom, secousse, flash, mot mis en valeur), selon les consignes, avec mesure (quelques effets bien placés, pas sur chaque phrase). Les réglages de tout le montage (zooms automatiques, sous-titres qui rebondissent, mot prononcé en couleur) vont dans montage/work/habillage.json : {\"autoZoom\": 0 à 1.6, \"pop\": vrai/faux, \"karaoke\": vrai/faux, \"karaokeColor\": \"#rrggbb\"}.

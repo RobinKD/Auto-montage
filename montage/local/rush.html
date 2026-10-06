@@ -221,6 +221,8 @@
     <h2 id="h-prepare"><span>3</span>Préparer</h2>
     <p class="note">Compter environ la durée du rush pour la transcription, puis 3 à 5 minutes pour la première version de travail. La page peut rester ouverte ou être fermée : la préparation continue.</p>
     <p class="warn" id="replace" hidden></p>
+    <p class="row note"><label for="langue">Langue parlée dans la vidéo :</label> <select id="langue"><option value="fr">Français</option></select>
+      <span>(la transcription suit cette langue ; une vidéo dans une autre langue serait mal transcrite)</span></p>
     <div class="row">
       <button type="button" class="primary" id="reopen" hidden>Rouvrir ce montage</button>
       <button type="button" class="primary" id="prepare" disabled>Préparer ce rush</button>
@@ -381,11 +383,22 @@
     sel.replaceChildren(new Option("—", ""), ...info.rushes.map((r) => new Option(`${r.name} (${mb(r.size)})${r.name === info.current ? " · en cours" : ""}`, r.name)));
     sel.value = info.rushes.some((r) => r.name === keep) ? keep : "";
     sel.hidden = $("or-list").hidden = !info.rushes.length;
+    showLanguage();
     showInstructions();
     showClaudeNotice();
     showJob(info.job);
     if (info.job.state === "running" && !polling) poll();
     choose(chosen);
+  }
+
+  // Langue parlée (transcription Whisper) : français par défaut ; le dernier choix est gardé
+  // pour les préparations suivantes (work/langue.txt).
+  let languageShown = false;
+  function showLanguage() {
+    if (languageShown || !info.langues) return;
+    languageShown = true;
+    $("langue").replaceChildren(...Object.entries(info.langues).map(([code, label]) => new Option(label, code)));
+    $("langue").value = info.langue || "fr";
   }
 
   // Consignes de montage : enregistrées dans work/instructions.md (zone de texte ou fichier),
@@ -750,7 +763,7 @@
     const withClaude = !!(info && info.claude && $("apply-instructions").checked
       && (info.instructions || (st && (st.sons.length || st.videos.length))));
     const res = await fetch("/api/prepare", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ rushes: parts,
-      instructions: withClaude }) });
+      instructions: withClaude, langue: $("langue").value }) });
     if (!res.ok) {
       const e = await res.json().catch(() => ({}));
       setStatus("job-status", e.error || `La préparation n'a pas pu démarrer (erreur ${res.status}).`, "err");

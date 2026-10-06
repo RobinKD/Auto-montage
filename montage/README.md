@@ -124,6 +124,17 @@ l'ordre, `./scripts/prepare.sh Partie1.mov Partie2.mov`. `scripts/join_rushes.py
 en « Partie1 (assemblage de 2).mov » (sans réencodage si les réglages sont identiques, sinon
 réencodées aux réglages de la première), puis la préparation continue sur ce rush assemblé.
 
+Langue parlée : français par défaut ; `./scripts/prepare.sh --langue en MonRush.mov` pour un rush
+en anglais (sur l'interface locale : « Langue parlée dans la vidéo », page « Rushes et montages »).
+Le choix est gardé pour les préparations suivantes (`work/langue.txt`), la langue du rush en cours
+est dans `work/langue_rush.txt` (`moments_lib.LANGUAGES`). La langue est fixée plutôt que détectée
+pour ne pas ralentir la transcription.
+
+Son : une vidéo à plusieurs pistes son (un micro par personne, enregistreur à part, caméra à deux
+entrées) a toutes ses pistes lisibles mélangées (`moments_lib.audio_map`, dans `prepare.sh`,
+`build_edit.py` et `join_rushes.py`). Une vidéo sans son est refusée avec un message : le
+découpage se fait d'après la parole.
+
 | Étape | Script | Sortie |
 | --- | --- | --- |
 | Version de travail 1080×1920 (MP4) | `prepare.sh` | `public/rushes/` |

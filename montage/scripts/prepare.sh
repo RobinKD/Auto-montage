@@ -3,12 +3,21 @@
 # Usage : ./scripts/prepare.sh <fichier du rush dans public/rushes/, ex. MonRush.mov>
 #         ./scripts/prepare.sh <vidéo 1> <vidéo 2> […]   plusieurs vidéos pour un même rush,
 #         assemblées dans l'ordre (scripts/join_rushes.py) puis préparées comme un seul rush
+#         ./scripts/prepare.sh --langue en <fichier…>   rush en anglais (français par défaut ;
+#         le choix est gardé pour les préparations suivantes : work/langue.txt)
 # Prérequis : npm i, pip install -r scripts/requirements.txt (ou le conteneur Docker/Podman :
 # lancé sur la machine sans ces outils, le script se relance dans le conteneur).
 set -euo pipefail
 cd "$(dirname "$0")/.."
 . scripts/in_container.sh
 
+mkdir -p work
+if [ "${1:-}" = "--langue" ]; then
+  python3 -c "import sys; sys.path.insert(0, 'scripts'); import moments_lib as m
+sys.exit(sys.argv[1] not in m.LANGUAGES)" "${2:-}" || { echo "Langue inconnue : ${2:-} (fr ou en)" >&2; exit 1; }
+  echo "$2" > work/langue.txt
+  shift 2
+fi
 if [ $# -lt 1 ]; then
   echo "Usage : $0 <fichier du rush dans public/rushes/> [<vidéo suivante>…]" >&2
   exit 1
@@ -19,6 +28,19 @@ if [ $# -gt 1 ]; then
 fi
 RUSH="public/rushes/$(basename "$1")"
 [ -f "$RUSH" ] || { echo "Rush introuvable : $RUSH" >&2; exit 1; }
+
+# Son du rush : sa piste son, ou toutes ses pistes mélangées (un micro par personne sur des
+# pistes séparées) ; repris par build_edit.py (moments_lib.audio_map).
+AUDIO_MAP=()
+while IFS= read -r a; do AUDIO_MAP+=("$a"); done < <(python3 -c "import sys; sys.path.insert(0, 'scripts'); import moments_lib as m
+args = m.audio_map(sys.argv[1])
+n = len(m.audio_streams(sys.argv[1]))
+n > 1 and print(f'{n} pistes son mélangées', file=sys.stderr)
+args and print(*args, sep=chr(10))" "$RUSH")
+if [ ${#AUDIO_MAP[@]} -eq 0 ]; then
+  echo "Cette vidéo n'a pas de son (ou un son illisible) : Auto-montage découpe le rush d'après la parole, il lui faut le son." >&2
+  exit 1
+fi
 
 # Domaines réseau de l'environnement cloud (session Claude Code sur le web) : signalés seulement.
 if [ "${CLAUDE_CODE_REMOTE:-}" = true ]; then bash scripts/check_network.sh || true; fi
@@ -39,6 +61,10 @@ if [ "$OLD" != "$RUSH" ] || { [ -n "$OLD_KEY" ] && [ "$OLD_KEY" != "$KEY" ]; }; 
 fi
 echo "$RUSH" > work/rush.txt
 echo "$KEY" > work/rush_key.txt
+# Langue du rush (transcription, consignes appliquées par Claude) : celle choisie pour cette préparation.
+LANGUE="$(python3 -c "import sys; sys.path.insert(0, 'scripts'); import moments_lib as m; print(m.language('work'))")"
+echo "$LANGUE" > work/langue_rush.txt
+
 
 echo "Étape 1/4 : version de travail 1080p (quelques minutes)"
 # 1. Version de travail 1080p en MP4 (analyse du visage, extraits, rendu HyperFrames), au format
@@ -54,16 +80,16 @@ print(*m.frame_size('.'), sep=':')")" != "$SIZE" ]; then
   rm -f public/rushes/rush_1080.mp4
 fi
 if [ ! -f public/rushes/rush_1080.mp4 ]; then
-  python3 scripts/progress.py ffmpeg "Version de travail (MP4)" "$FFMPEG" -v error -y -i "$RUSH" -map 0:v:0 -map 0:a:0 \
+  python3 scripts/progress.py ffmpeg "Version de travail (MP4)" "$FFMPEG" -v error -y -i "$RUSH" -map 0:v:0 "${AUDIO_MAP[@]}" \
     -vf "scale=$SIZE,setsar=1" -c:v libx264 -preset veryfast -crf 18 -g 15 -pix_fmt yuv420p \
     -c:a aac -b:a 192k public/rushes/rush_1080.part.mp4
   mv public/rushes/rush_1080.part.mp4 public/rushes/rush_1080.mp4
 fi
 
-echo "Étape 2/4 : transcription (Whisper, le plus long : environ la durée du rush)"
+echo "Étape 2/4 : transcription en $(python3 -c "import sys; sys.path.insert(0, 'scripts'); import moments_lib as m; print(m.LANGUAGES[sys.argv[1]].lower())" "$LANGUE") (Whisper, le plus long : environ la durée du rush)"
 # 2. Audio 16 kHz mono, segments de parole (VAD Silero) et transcription par segment.
 bash scripts/setup_whisper.sh
-"$FFMPEG" -v error -y -i "$RUSH" -vn -ac 1 -ar 16000 -c:a pcm_s16le work/rush_16k.wav
+"$FFMPEG" -v error -y -i "$RUSH" "${AUDIO_MAP[@]}" -ac 1 -ar 16000 -c:a pcm_s16le work/rush_16k.wav
 WHISPER="${WHISPER_DIR:-whisper.cpp}"  # Docker : /opt/whisper/whisper.cpp
 "$WHISPER/build/bin/vad-speech-segments" -f work/rush_16k.wav \
   -vm "$WHISPER/ggml-silero-v5.1.2.bin" -vsd 150 -vp 40 -np > work/vad.txt 2>/dev/null

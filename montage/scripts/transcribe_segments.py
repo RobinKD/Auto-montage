@@ -19,6 +19,7 @@ import re
 import subprocess
 import wave
 
+from moments_lib import language
 from progress import report
 
 ROOT = os.path.join(os.path.dirname(__file__), "..")
@@ -27,6 +28,7 @@ WHISPER = os.environ.get("WHISPER_DIR") or os.path.join(ROOT, "whisper.cpp")  # 
 PAD = 0.15  # son gardé autour de chaque segment
 GAP = 1.0  # silence entre deux segments d'un morceau
 CHUNK = 28.0  # longueur maximale d'un morceau (fenêtre de Whisper : 30 s)
+LANG = language(WORK, "langue_rush.txt")  # écrite par prepare.sh (moments_lib.LANGUAGES)
 
 with wave.open(os.path.join(WORK, "rush_16k.wav")) as w:
     sr = w.getframerate()
@@ -87,7 +89,7 @@ def whisper(files, label, weights, total_weight, done=0.0):
     fichier (secondes de parole) ajouté quand son JSON est écrit."""
     cmd = [os.path.join(WHISPER, "build", "bin", "whisper-cli"),
            "-m", os.path.join(WHISPER, "ggml-large-v3-turbo.bin"),
-           "-l", "fr", "-t", "4", "-mc", "0", "-ml", "1", "-sow", "-ojf", "-dtw", "large.v3.turbo"]
+           "-l", LANG, "-t", "4", "-mc", "0", "-ml", "1", "-sow", "-ojf", "-dtw", "large.v3.turbo"]
     for f in files:
         cmd += ["-f", f]
     proc = subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True, errors="replace")
