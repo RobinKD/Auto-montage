@@ -34,6 +34,7 @@ from urllib.parse import unquote, urlparse
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from join_rushes import joined_name  # noqa: E402
+from progress import exit_reason, resources  # noqa: E402
 import decoupage  # noqa: E402
 import fonts_lib  # noqa: E402
 from moments_lib import SOUNDS as DEFAULT_SOUNDS, DEFAULTS_VERSION, VISUALS, VOICES, edit_size, hf_preview_files, hidden_effects, res_label, sound_catalog, wav_len  # noqa: E402
@@ -544,7 +545,7 @@ def job_error(log, code):
     for line in reversed(log):
         if not line.strip().startswith("at "):
             return line.strip()
-    return f"code {code}"
+    return exit_reason(code, shell=True)
 
 
 PROGRESS = re.compile(r"^@progression ([\d.e+-]+) ([\d.e+-]+) (.+)$")
@@ -685,8 +686,13 @@ def run_job(steps, arg, args):
         if log:
             try:
                 log.write(text + "\n")
-            except (OSError, ValueError):
-                pass
+            except (OSError, ValueError) as e:
+                # Journal impossible à écrire (disque plein…) : dit une fois sur la page et dans
+                # le journal du serveur (work/logs/demarrage.log), qui suit le reste.
+                if not job.get("logError"):
+                    job["logError"] = f"journal de la tâche non écrit ({e}) : disque plein ?"
+                    print(f"Auto-montage : {job['logError']} ; {resources(LOGS)}", file=sys.stderr, flush=True)
+                print(text, file=sys.stderr, flush=True)
     try:
         rush = os.path.join(RUSHES, arg) if job["kind"] == "prepare" else \
             os.path.join(ROOT, read_text(os.path.join(WORK, "rush.txt")) or "")
@@ -719,7 +725,7 @@ def run_job(steps, arg, args):
                     set_progress(found)
                     if time.time() - last_progress > 30:
                         last_progress = time.time()
-                        write(f"   … {found[0]} : {found[1]:g} / {found[2]:g}")
+                        write(f"   … {found[0]} : {found[1]:g} / {found[2]:g} ({resources(ROOT)})")
                     continue
                 if line:
                     job["log"] = (job["log"] + [line])[-200:]
@@ -728,9 +734,10 @@ def run_job(steps, arg, args):
             job["proc"] = None
             if job.get("cancel"):
                 raise JobCancelled()
-            write(f"## {datetime.datetime.now().strftime('%H:%M:%S')} Fin de l'étape (code {code})")
+            write(f"## {datetime.datetime.now().strftime('%H:%M:%S')} Fin de l'étape ({exit_reason(code, shell=True)})")
             if code != 0:
-                raise RuntimeError(job_error(job["log"], proc.returncode))
+                write(f"   {resources(ROOT)}")
+                raise RuntimeError(job_error(job["log"], code))
         now = time.time()
         end_phase(now)
         key = f"étape:{job['step']}"
@@ -747,6 +754,8 @@ def run_job(steps, arg, args):
                    finishedAt=datetime.datetime.now().isoformat())
         write(f"\n# RÉSULTAT : annulé (étape « {job['step']} »)")
     except Exception as e:  # noqa: BLE001 - l'erreur est rendue à la page
+        if job.get("logError"):
+            e = RuntimeError(f"{e} ({job['logError']})")
         job.update(state="error", error=str(e), proc=None, finishedAt=datetime.datetime.now().isoformat())
         traceback.print_exc()
         write(f"\n{traceback.format_exc()}\n# RÉSULTAT : échec (étape « {job['step']} ») : {e}")
@@ -782,6 +791,28 @@ def open_job_log(kind, arg, steps):
         except OSError:
             pass
     return f
+
+
+def close_interrupted_logs():
+    """Au démarrage du serveur, aucune tâche ne tourne : un journal sans « # RÉSULTAT » est celui
+    d'une tâche coupée par l'arrêt du serveur ou du conteneur. Il est complété pour le dire."""
+    for name in sorted(os.listdir(LOGS))[-40:] if os.path.isdir(LOGS) else []:
+        path = os.path.join(LOGS, name)
+        if not (name[:4].isdigit() and name.endswith(".log")):
+            continue
+        try:
+            with open(path, "rb") as f:
+                f.seek(max(0, os.path.getsize(path) - 600))
+                if re.search(rb"^# R\xc3\x89SULTAT : ", f.read(), re.M):
+                    continue
+            last = datetime.datetime.fromtimestamp(os.path.getmtime(path)).strftime("%d/%m/%Y à %H:%M:%S")
+            with open(path, "a", encoding="utf-8") as f:
+                f.write(f"\n# Dernière écriture le {last}, puis plus rien : le serveur s'est arrêté pendant la tâche "
+                        "(Auto-montage ou Docker fermé, ordinateur éteint ou redémarré, mémoire de Docker épuisée…).\n"
+                        f"# Serveur redémarré le {datetime.datetime.now().strftime('%d/%m/%Y à %H:%M:%S')} "
+                        f"({resources(ROOT)}).\n# RÉSULTAT : interrompu\n")
+        except OSError:
+            pass
 
 
 def log_list():
@@ -867,7 +898,7 @@ def start_job(kind, steps, arg, args=None):
     with job_lock:
         if job["state"] == "running":
             return False
-        job.update(state="running", kind=kind, step="démarrage", error=None, log=[], arg=arg, progress=None,
+        job.update(state="running", kind=kind, step="démarrage", error=None, logError=None, log=[], arg=arg, progress=None,
                    cancel=False, proc=None, logFile=None, logName=None,
                    spent={}, stepStart=None, stepPhases=0.0, rushSeconds=0.0,
                    steps=[name for name, _ in steps],
@@ -1838,6 +1869,7 @@ if __name__ == "__main__":
     parser.add_argument("--port", type=int, default=8080)
     args = parser.parse_args()
     chat_load()
+    close_interrupted_logs()
     threading.Thread(target=update_loop, daemon=True).start()
     for m in chat["messages"]:  # réponse coupée par un arrêt du serveur
         if m.get("role") == "assistant" and not m.get("done"):

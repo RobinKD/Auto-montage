@@ -187,6 +187,10 @@ interne : les changements attendent la prochaine version.
 - Journal (/logs/) : chaque tâche écrit `work/logs/<date>_<tâche>.log` (40 gardés, fin
   « # RÉSULTAT : … ») ; démarrage et serveur dans `work/logs/demarrage.log` (entrypoint) ;
   erreurs de la discussion dans `work/logs/discussion.log` ; `/api/logs/rapport` les regroupe.
+  Points d'avancement avec disque libre et mémoire disponible (`progress.resources`) ; échec de
+  ffmpeg (`progress.ffmpeg`) : code ou signal expliqué (`exit_reason`) et ses 40 dernières lignes ;
+  au démarrage du serveur, un journal sans « # RÉSULTAT » est fermé en « interrompu »
+  (`close_interrupted_logs`) ; journal impossible à écrire : signalé sur la page et dans demarrage.log.
 - Tests : `tests/e2e.sh` (rush de synthèse de `tests/make_sample_rush.sh`) dans le workflow
   `tests.yml` (quand le projet change sur main, chaque lundi, ou à la main). L'interface
   <http://localhost:8080/> sert `work/moments/` telle quelle (relancer `make_moments.py`
