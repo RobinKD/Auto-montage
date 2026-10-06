@@ -25,7 +25,7 @@ STORE = os.path.join(WORK, "projets")
 # Fichiers de work/ communs à tous les rushes : jamais déplacés.
 # Les consignes (work/instructions.*) sont choisies avant de préparer le rush suivant : elles restent.
 SHARED = {"projets", "local_db", "timings.json", "models", "regen_trigger.txt", "instructions.md", "instructions.name",
-          "style", "logs", "github_token", "sauvegardes", "caption_style_default.json", "effets_page.json",
+          "style", "logs", "sauvegardes", "caption_style_default.json", "effets_page.json",
           "tutoriel_vu", "rendu_hyperframes"}
 # Hors de work/ : déplacés (lourds) ou copiés (suivis par git, restent en place).
 MOVED = ["public/rushes/rush_1080.mp4", "public/rushes/rush_1080.webm", "public/rushes/rush_2160.webm",

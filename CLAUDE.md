@@ -86,7 +86,7 @@ interne : les changements attendent la prochaine version.
   [::1] (et `AM_ALLOWED_HOSTS`) sont servis, les écritures d'une autre origine sont refusées
   (`parse_request`). Claude sans interaction (discussion, `apply_instructions.sh`,
   `style_claude.sh`) n'écrit que dans `montage/work/`, avec les interdits de `CHAT_DENIED`
-  (jeton, conversation, pages servies). Données insérées dans une page : `<` échappé.
+  (conversation, pages servies). Données insérées dans une page : `<` échappé.
   `src/data/edit.json` et `face.json` du dépôt sont ceux du rush de démonstration
   (`tests/make_demo_rush.py`) : n'y jamais versionner un vrai rush ; `update.py` garde ceux de
   l'utilisateur.

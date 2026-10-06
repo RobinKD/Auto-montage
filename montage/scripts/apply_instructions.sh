@@ -54,4 +54,4 @@ cd ..
 # réécrire un script que Claude lancerait ensuite.
 claude -p "$PROMPT" \
   --allowedTools "Read" "Write(montage/work/**)" "Edit(montage/work/**)" "Glob" "Grep" "Bash(cd montage && python3 scripts/build_edit.py)" "Bash(python3 scripts/build_edit.py)" "Bash(cd montage && python3 scripts/fonts_lib.py)" "Bash(python3 scripts/fonts_lib.py)" \
-  --disallowedTools "Read(montage/work/github_token)" "Edit(montage/work/chat/**)" "Edit(montage/work/github_token)" "Edit(montage/work/**/*.html)" "Edit(montage/work/**/*.js)" "Write(montage/work/chat/**)" "Write(montage/work/github_token)" "Write(montage/work/**/*.html)" "Write(montage/work/**/*.js)"  # comme CHAT_DENIED (local_server.py)
+  --disallowedTools "Edit(montage/work/chat/**)" "Edit(montage/work/**/*.html)" "Edit(montage/work/**/*.js)" "Write(montage/work/chat/**)" "Write(montage/work/**/*.html)" "Write(montage/work/**/*.js)"  # comme CHAT_DENIED (local_server.py)

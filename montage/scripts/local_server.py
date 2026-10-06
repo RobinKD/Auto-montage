@@ -917,13 +917,11 @@ CHAT_SCRIPTS = ["python3 scripts/use_selection.py work/local_db *", "python3 scr
                 "python3 scripts/fonts_lib.py"]  # polices utilisables (lecture seule)
 CHAT_TOOLS = ["Read", "Glob", "Grep", "Edit(montage/work/**)", "Write(montage/work/**)",
               *[f"Bash(cd montage && {c})" for c in CHAT_SCRIPTS]]
-# Interdits même dans montage/work/ : le jeton GitHub, la conversation elle-même (son numéro
+# Interdits même dans montage/work/ : la conversation elle-même (son numéro
 # est passé à « claude --resume ») et les pages servies par l'interface (un texte piégé ne doit
 # pas pouvoir y glisser du code). Même liste pour scripts/apply_instructions.sh et style_claude.sh.
-CHAT_DENIED = ["Read(montage/work/github_token)",
-               *[f"{t}({p})" for t in ("Edit", "Write") for p in
-                 ("montage/work/chat/**", "montage/work/github_token", "montage/work/**/*.html",
-                  "montage/work/**/*.js")]]
+CHAT_DENIED = [f"{t}({p})" for t in ("Edit", "Write") for p in
+               ("montage/work/chat/**", "montage/work/**/*.html", "montage/work/**/*.js")]
 SESSION_ID = re.compile(r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}")
 CHAT_CONTEXT = """Tu es dans l'interface locale d'Auto-montage (conteneur Docker ou Podman) ; l'utilisateur
 te parle depuis la page http://localhost:8080/chat/ et ne voit que tes textes et le nom des outils
