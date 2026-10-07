@@ -428,9 +428,16 @@
     $("reopen").textContent = isCurrent ? "Ouvrir ce montage" : "Rouvrir ce montage";
     $("reopen").disabled = busy;
     $("reopen").onclick = () => (isCurrent ? (location.href = "/") : act("open", saved, $("reopen")));
-    $("prepare").textContent = saved || isCurrent ? "Tout refaire depuis le début" : "Préparer ce rush";
-    $("prepare").classList.toggle("primary", !(saved || isCurrent));
-    if (saved || isCurrent) {
+    // Rush de la préparation en pause : la reprendre (pas tout refaire).
+    const paused = info && info.job && info.job.state !== "running" && info.job.paused;
+    const resumes = !!(paused && name && JSON.stringify(paused.args) === JSON.stringify(parts));
+    $("prepare").textContent = resumes ? "Reprendre la préparation" : saved || isCurrent ? "Tout refaire depuis le début" : "Préparer ce rush";
+    $("prepare").classList.toggle("primary", resumes || !(saved || isCurrent));
+    if (resumes) $("reopen").hidden = true;
+    if (resumes) {
+      $("replace").hidden = false;
+      $("replace").textContent = `La préparation de ${name} est en pause : elle reprendra là où elle en était.`;
+    } else if (saved || isCurrent) {
       $("replace").hidden = false;
       $("replace").textContent = `${name} a déjà un montage : « ${isCurrent ? "Ouvrir" : "Rouvrir"} ce montage » le reprend tel quel, sans rien recalculer. « Tout refaire depuis le début » relance la transcription et le découpage${saved && info.current && info.prepared ? `, et met le montage en cours (${info.current}) de côté` : ""}.`;
     }
@@ -1066,7 +1073,8 @@
 
   $("prepare").addEventListener("click", async () => {
     const paused = info && info.job && info.job.paused;
-    if (paused && !confirm(`La préparation de ${paused.arg} attend d'être reprise. La préparer à nouveau l'abandonne : tout ce qui en était fait sera effacé (« Abandonner… » permet d'en garder une partie). Continuer ?`)) return;
+    const resumes = !!(paused && JSON.stringify(paused.args) === JSON.stringify(parts));
+    if (paused && !resumes && !confirm(`La préparation de ${paused.arg} attend d'être reprise. La préparer à nouveau l'abandonne : tout ce qui en était fait sera effacé (« Abandonner… » permet d'en garder une partie). Continuer ?`)) return;
     $("prepare").disabled = true;
     // Consignes tapées mais pas encore enregistrées : enregistrées avant de préparer.
     if (!$("save-instructions").disabled && $("instructions-text").value.trim()) await saveTyped();
@@ -1074,7 +1082,7 @@
     const withClaude = !!(info && info.claude && $("apply-instructions").checked
       && (info.instructions || (st && (st.sons.length || st.videos.length))));
     const res = await fetch("/api/prepare", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ rushes: parts,
-      instructions: withClaude, langue: $("langue").value, abandon: !!paused }) });
+      instructions: withClaude, langue: $("langue").value, abandon: !!paused && !resumes }) });
     if (!res.ok) {
       const e = await res.json().catch(() => ({}));
       setStatus("job-status", e.error || `La préparation n'a pas pu démarrer (erreur ${res.status}).`, "err");

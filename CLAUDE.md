@@ -196,7 +196,7 @@ interne : les changements attendent la prochaine version.
   tâches sont refusées (`busy_error`), sauf mise à jour ; tache.json et reprise/ ne sont jamais rangés
   par `project.py`. « Abandonner… » : parties de `ABANDON_PARTS` (`/api/job/parts`) effacées ou
   gardées (`abandon_task`) ; gardées → `work/reprise/garde.json` (vidéos, taille, date), la prochaine
-  préparation du même rush part avec `AM_REPRISE=1` (`kept_parts`, `job["reuse"]`).
+  préparation du même rush part avec `AM_REPRISE=1` (`kept_parts`, `job["reuse"]`). « Préparer » le rush d'une préparation en pause la reprend (`/api/prepare` → `resume_job`).
 - Barres de progression de l'interface locale : un script long écrit des lignes
   `@progression <fait> <total> <libellé>` (`scripts/progress.py`, aussi pour suivre un ffmpeg) ;
   `local_server.py` les lit. Fait et total en secondes de vidéo (rush, ou montage pour le rendu :
