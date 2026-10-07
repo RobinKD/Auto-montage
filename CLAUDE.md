@@ -157,11 +157,12 @@ interne : les changements attendent la prochaine version.
   Playwright sur Linux ARM64 (Mac Apple Silicon), sinon `hyperframes browser ensure` ; ffprobe de `@ffprobe-installer`). Les effets sont dessinés image
   par image dans cette page (fonction `draw`) ; la page des moments les imite en direct : un effet
   ajouté doit l'être aux deux. Python (`scripts/render_lib.py`) : bruitages, police des
-  sous-titres (Pillow), mots mis en valeur, coupure en 2 lignes. 4K : 2 navigateurs au plus
-  (4 dépassent 14 Go de mémoire), 4 en 1080p. HyperFrames extrait les images de chaque plan avec un ffmpeg par
+  sous-titres (Pillow), mots mis en valeur, coupure en 2 lignes. 4K : 4 navigateurs dépassent 14 Go
+  de mémoire. HyperFrames extrait les images de chaque plan avec un ffmpeg par
   plan, tous à la fois : son ffmpeg est `scripts/ffmpeg_limite.sh` (verrous flock, `EXTRACTIONS`
-  à la fois, 2 en 4K ; délai de chaque ffmpeg porté à 6 h). Navigateurs (plus de 1 Go chacun en
-  1080p) : `memoire.choose_workers` d'après la mémoire libre et les mesures, ligne « Navigateurs du
+  à la fois, 2 en 4K ; délai de chaque ffmpeg porté à 6 h). Long montage (plus de 3 min) : rendu par parties d'environ 2 min (`PART_SECONDS` = `memoire.RENDER_PART`), chaque partie dans sa propre page avec ses seuls plans (`build(m, k, part)`, temps décalé de `OFF` images), gardées dans `work/rendu_parties/<empreinte>_NNN.mp4` (`parts_key` : edit.json, face.json, son.json, code du rendu) pour reprendre un rendu interrompu, puis `join_parts` (image copiée, son de chaque partie ramené à sa durée exacte). Navigateurs (plus de 1 Go chacun en
+  1080p) : `memoire.choose_workers`, un par cœur (8 au plus) tant que le besoin (mesures comprises)
+  tient dans 80 % de la mémoire libre (`RENDER_SHARE`), ligne « Navigateurs du
   rendu : N » lue par `local_server.py` ; page prête en 15 min au plus. Whisper : `scripts/setup_whisper.sh` (whisper.cpp 1.7.6
   compilé, modèles de Hugging Face).
 - Tutoriel (/tutoriel/, `local/tutorial.html`) : ouvert une fois au premier lancement (menu.js,
@@ -195,7 +196,7 @@ interne : les changements attendent la prochaine version.
   tâches sont refusées (`busy_error`), sauf mise à jour ; tache.json et reprise/ ne sont jamais rangés
   par `project.py`. « Abandonner… » : parties de `ABANDON_PARTS` (`/api/job/parts`) effacées ou
   gardées (`abandon_task`) ; gardées → `work/reprise/garde.json` (vidéos, taille, date), la prochaine
-  préparation du même rush part avec `AM_REPRISE=1` (`kept_parts`, `job["reuse"]`).
+  préparation du même rush part avec `AM_REPRISE=1` (`kept_parts`, `job["reuse"]`). « Préparer » le rush d'une préparation en pause la reprend (`/api/prepare` → `resume_job`).
 - Barres de progression de l'interface locale : un script long écrit des lignes
   `@progression <fait> <total> <libellé>` (`scripts/progress.py`, aussi pour suivre un ffmpeg) ;
   `local_server.py` les lit. Fait et total en secondes de vidéo (rush, ou montage pour le rendu :

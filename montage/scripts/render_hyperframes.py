@@ -8,6 +8,7 @@ Usage : python3 scripts/render_hyperframes.py apercu|final <sortie.mp4>
   final : source 4K (make_hd.py), page rendue à l'échelle 2 (2160x3840, 3840x2160 en paysage,
   2880x2160 en 4:3…).
 """
+import hashlib
 import json
 import os
 import re
@@ -26,6 +27,8 @@ import memoire  # noqa: E402
 
 DIR = os.path.join(ROOT, "work", "rendu_hyperframes")
 HF_AUDIO = os.path.join(ROOT, "selection", "hf_audio.js")
+PARTS = os.path.join(ROOT, "work", "rendu_parties")  # parties d'un long montage déjà rendues
+PART_SECONDS = memoire.RENDER_PART  # durée d'une partie (secondes de montage)
 # Extractions d'images des plans en même temps (scripts/ffmpeg_limite.sh) : environ 200 Mo chacune
 # en 1080p (4 fois plus en 4K : 2 au plus).
 EXTRACTIONS = max(1, min(4, os.cpu_count() or 1))
@@ -60,13 +63,13 @@ def link(src, name):
     return "assets/" + name
 
 
-def voice_audio(src, duration, e):
+def voice_audio(src, duration, e, t0=0.0):
     """Éléments audio de la voix, avec les voix modifiées de HF_VOICES, les graves, la clarté et
     le limiteur faits par HyperFrames : selection/hf_audio.js (le même code que l'aperçu de la
     page des moments), lancé avec node. Pistes à partir de 1 ; les bruitages sont sur les pistes 20 et plus."""
-    spec = {"src": src, "start": 0, "mediaStart": 0, "duration": duration, "volume": 1, "track": 1,
+    spec = {"src": src, "start": 0, "mediaStart": t0, "duration": duration, "volume": 1, "track": 1,
             "son": e.get("son") or {},
-            "windows": [{"a": f["start"], "b": f["end"], "voice": f["voice"], "force": f.get("force", 1)}
+            "windows": [{"a": f["start"] - t0, "b": f["end"] - t0, "voice": f["voice"], "force": f.get("force", 1)}
                         for f in e.get("funny") or [] if f.get("voice") in HF_VOICES]}
     js = ("const H = require(process.argv[1]); let s = ''; process.stdin.on('data', (d) => s += d);"
           "process.stdin.on('end', () => process.stdout.write(H.voiceElements(JSON.parse(s))));")
@@ -74,28 +77,40 @@ def voice_audio(src, duration, e):
                           check=True).stdout
 
 
-def build(m, k=1):
+def build(m, k=1, part=None):
     """Page du montage ; k : agrandissement fait dans la page (2 pour une 4K sans préréglage
-    « --resolution » de HyperFrames : 4:3 et autres formats que 9:16, 16:9 et carré)."""
+    « --resolution » de HyperFrames : 4:3 et autres formats que 9:16, 16:9 et carré).
+    part : (première image, image de fin) d'une partie du montage, rendue seule (main)."""
     e, fps, n = m.edit, m.fps, m.frames
+    f0, f1 = part or (0, n)
+    t0, length = f0 / fps, (f1 - f0) / fps
     r6 = lambda x: f"{x:.6f}".rstrip("0").rstrip(".")
     rush, key = m.rush
     src = link(rush, os.path.basename(rush))
     # Plans : un <video> par plan (chaque élément a un id : sans lui, HyperFrames le fige ou le
     # coupe), début arrondi à l'image inférieure, lecture un quart d'image après le début du plan
     # (l'image exacte du plan, sans glisser sur la précédente).
-    videos = "\n".join(
-        f'<video id="clip{i}" class="clip" muted playsinline src="{src}" data-start="{int(c["from"] / fps * 1e6) / 1e6}" '
-        f'data-duration="{r6(c["durationInFrames"] / fps)}" data-media-start="{r6((c[key] + 0.25) / fps)}" '
-        f'data-track-index="0"></video>' for i, c in enumerate(e["clips"]))
+    # Partie : les plans qui y passent, coupés à ses bords.
+    videos = []
+    for i, c in enumerate(e["clips"]):
+        a, b = max(c["from"], f0), min(c["from"] + c["durationInFrames"], f1)
+        if b > a:
+            videos.append(
+                f'<video id="clip{i}" class="clip" muted playsinline src="{src}" data-start="{int((a - f0) / fps * 1e6) / 1e6}" '
+                f'data-duration="{r6((b - a) / fps)}" data-media-start="{r6((c[key] + a - c["from"] + 0.25) / fps)}" '
+                f'data-track-index="0"></video>')
+    videos = "\n".join(videos)
     voice = os.path.join(ROOT, "public", "audio", "voice.wav")
-    audios = [voice_audio(link(voice, "voice.wav"), min(n / fps, wav_len(voice)), e)]
+    audios = [voice_audio(link(voice, "voice.wav"), min(length, wav_len(voice) - t0), e, t0)]
     for i, (path, start, dur, vol) in enumerate(m.sfx()):
-        dur = min(dur, wav_len(path), n / fps - start)
+        # Bruitage commencé avant la partie : sa suite (data-media-start).
+        start -= t0
+        skip = max(0.0, -start)
+        dur = min(dur - skip, wav_len(path) - skip, length - max(0.0, start))
         if dur > 0:
             name = "sfx/" + os.path.relpath(path, os.path.join(ROOT, "public")).replace("/", "_")
-            audios.append(f'<audio id="sfx{i}" src="{link(path, name)}" data-start="{r6(start)}" data-duration="{r6(dur)}" '
-                          f'data-track-index="{20 + i % 8}" data-volume="{vol}"></audio>')
+            audios.append(f'<audio id="sfx{i}" src="{link(path, name)}" data-start="{r6(max(0.0, start))}" data-duration="{r6(dur)}" '
+                          f'data-media-start="{r6(skip)}" data-track-index="{20 + i % 8}" data-volume="{vol}"></audio>')
     # Sous-titres : mots, couleurs des mots mis en valeur, lignes (et leur taille) et réduction.
     caps = []
     for c in e.get("captions") or []:
@@ -115,7 +130,7 @@ def build(m, k=1):
     pos = frame_layout(m.width, m.height)
     layout = {"W": str(m.width), "H": str(m.height), "OUTW": str(k * m.width), "OUTH": str(k * m.height), "K": str(k),
               "CAPTOP": str(pos["capTop"]), "TYPEDTOP": str(pos["typedTop"])}
-    for k, v in {**layout, "FPS": str(fps), "DUR": r6(n / fps), "VIDEOS": videos, "AUDIOS": "\n".join(audios),
+    for k, v in {**layout, "FPS": str(fps), "DUR": r6(length), "OFF": str(f0), "VIDEOS": videos, "AUDIOS": "\n".join(audios),
                  "POPPINS": link(POPPINS, "fonts/poppins.ttf"), "CAPFONT": link(m.font_file, "fonts/caption" + font_ext),
                  "CAPWEIGHT": str(m.font_weight), "DATA": json.dumps(data, ensure_ascii=False).replace("<", "\\u003c")}.items():
         page = page.replace("%" + k + "%", v)
@@ -150,36 +165,16 @@ def tools(hd=False):
     return env
 
 
-def main():
-    mode, out = sys.argv[1], sys.argv[2]
-    hd = mode == "final"
-    m = Montage(hd=hd)
-    shutil.rmtree(DIR, ignore_errors=True)
-    os.makedirs(os.path.join(DIR, "assets"))
-    json.dump({"paths": {"assets": "assets"}}, open(os.path.join(DIR, "hyperframes.json"), "w"))
-    preset = HD_PRESETS.get((m.width, m.height)) if hd else None
-    build(m, 2 if hd and not preset else 1)
-    # Navigateurs : 4 au plus (2 en 4K : 4 dépassent 14 Go), moins si la mémoire libre ne suffit pas
-    # (memoire.choose_workers, d'après les mesures des rendus précédents sur cette machine).
-    info = {"duration": 0, "source": (m.width, m.height), "work": (m.width, m.height), "montage": m.frames / m.fps}
-    workers = memoire.choose_workers(hd, info)
-    avail = memoire.available()[0]
-    print(f"Navigateurs du rendu : {workers}" + (f" ({memoire.go(avail)} de mémoire libre)" if avail else ""), flush=True)
-    cmd = ["node", os.path.join(NODE_MODULES, "hyperframes", "dist", "cli.js"), "render", DIR, "-o", os.path.abspath(out),
-           "--workers", str(workers), "--crf", "16" if hd else "20"]
-    if preset:
-        cmd += ["--resolution", preset]
-    proc = subprocess.Popen(cmd, cwd=ROOT, env=tools(hd), stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+def run_hyperframes(cmd, env, done, part_len, total):
+    """Rend une page ; avancement en secondes de montage (done : déjà rendu avant cette partie)."""
+    proc = subprocess.Popen(cmd, cwd=ROOT, env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
     buf = b""
-    # Avancement en secondes de montage rendues (pourcentage de HyperFrames).
-    total = round(m.frames / m.fps, 2)
-    report("Rendu de la vidéo", 0, total)
 
     def line(raw):
         text = re.sub(r"\x1b\[[0-9;?]*[A-Za-z]", "", raw.decode("utf-8", "replace")).strip()
         pct = re.search(r"(\d{1,3})%\s+(\S.*)$", text)
         if pct:
-            report("Rendu de la vidéo", round(min(100, int(pct.group(1))) * total / 100, 2), total)
+            report("Rendu de la vidéo", round(done + min(100, int(pct.group(1))) * part_len / 100, 2), total)
         elif text and not text.startswith(("[INFO]", "|", "o ")) and not set(text) <= set("█░ "):
             print(text, flush=True)
     for chunk in iter(lambda: proc.stdout.read1(4096), b""):
@@ -188,9 +183,111 @@ def main():
         for raw in lines:
             line(raw)
     line(buf)
-    if proc.wait() or not os.path.exists(out):
-        sys.exit(f"Échec du rendu HyperFrames (code {proc.returncode})")
-    report("Rendu de la vidéo", total, total, every=0)
+    return proc.wait()
+
+
+def parts_of(frames, fps):
+    """Parties du rendu : [(première image, image de fin)] d'environ PART_SECONDS chacune ; une
+    seule pour un montage de moins de 1,5 fois cette durée."""
+    count = max(1, round(frames / (fps * PART_SECONDS))) if frames > 1.5 * fps * PART_SECONDS else 1
+    bounds = [round(i * frames / count) for i in range(count + 1)]
+    return list(zip(bounds, bounds[1:]))
+
+
+def parts_key(m, mode, k, preset):
+    """Empreinte du montage et du code du rendu : une partie déjà rendue ne resert qu'au même."""
+    h = hashlib.sha1()
+    for path in (os.path.join(ROOT, "src", "data", "edit.json"), os.path.join(ROOT, "src", "data", "face.json"),
+                 __file__, HF_AUDIO, os.path.join(ROOT, "work", "son.json")):
+        try:
+            h.update(open(path, "rb").read())
+        except OSError:
+            h.update(b"-")
+    h.update(f"{mode} {k} {preset} {m.rush} {os.path.getsize(m.rush[0]) if os.path.exists(m.rush[0]) else 0}".encode())
+    return h.hexdigest()[:12]
+
+
+def join_parts(paths, lengths, out):
+    """Parties mises bout à bout : image copiée telle quelle ; son de chaque partie décodé et
+    ramené à la durée exacte de la partie (sans le blanc d'encodage de son début, qui décalerait
+    la suite), mis bout à bout puis encodé d'un seul tenant."""
+    ff = imageio_ffmpeg.get_ffmpeg_exe()
+    tmp, wavs = out + ".assemblage", []
+    os.makedirs(tmp, exist_ok=True)
+    try:
+        for i, (path, length) in enumerate(zip(paths, lengths)):
+            wav = os.path.join(tmp, f"{i:03d}.wav")
+            if subprocess.run([ff, "-v", "error", "-y", "-i", path, "-vn", "-ac", "2", "-ar", "48000",
+                               "-af", f"apad,atrim=duration={length:.6f}", "-c:a", "pcm_s16le", wav]).returncode:
+                return 1
+            wavs.append(wav)
+        for name, items in (("images.txt", paths), ("son.txt", wavs)):
+            open(os.path.join(tmp, name), "w").write("".join(f"file '{os.path.abspath(p)}'\n" for p in items))
+        return subprocess.run([ff, "-v", "error", "-y", "-f", "concat", "-safe", "0", "-i", os.path.join(tmp, "images.txt"),
+                               "-f", "concat", "-safe", "0", "-i", os.path.join(tmp, "son.txt"),
+                               "-map", "0:v", "-map", "1:a", "-c:v", "copy", "-c:a", "aac", "-b:a", "192k",
+                               "-movflags", "+faststart", out]).returncode
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+def main():
+    mode, out = sys.argv[1], sys.argv[2]
+    hd = mode == "final"
+    m = Montage(hd=hd)
+    preset = HD_PRESETS.get((m.width, m.height)) if hd else None
+    k = 2 if hd and not preset else 1
+    total = round(m.frames / m.fps, 2)
+    parts = parts_of(m.frames, m.fps)
+    # Navigateurs : autant que 80 % de la mémoire libre le permet, un par cœur au plus
+    # (memoire.choose_workers, d'après les mesures des rendus précédents sur cette machine).
+    info = {"duration": 0, "source": (m.width, m.height), "work": (m.width, m.height), "montage": total}
+    workers = memoire.choose_workers(hd, info)
+    avail = memoire.available()[0]
+    print(f"Navigateurs du rendu : {workers}" + (f" ({memoire.go(avail)} de mémoire libre)" if avail else ""), flush=True)
+    # Long montage : rendu par parties d'environ PART_SECONDS, chacune dans sa propre page avec ses
+    # seuls plans (mémoire de la plus longue partie, pas du montage entier), puis mises bout à bout.
+    # Une partie finie est gardée (work/rendu_parties/) : un rendu interrompu reprend aux suivantes.
+    key = parts_key(m, mode, k, preset)
+    os.makedirs(PARTS, exist_ok=True)
+    for name in os.listdir(PARTS):  # parties d'un autre montage
+        if not name.startswith(key):
+            os.remove(os.path.join(PARTS, name))
+    if len(parts) > 1:
+        print(f"Rendu en {len(parts)} parties d'environ {round(total / len(parts))} s", flush=True)
+    env = tools(hd)
+    report("Rendu de la vidéo", 0, total)
+    done_paths = []
+    for i, (f0, f1) in enumerate(parts):
+        path = out if len(parts) == 1 else os.path.join(PARTS, f"{key}_{i:03d}.mp4")
+        part_len = (f1 - f0) / m.fps
+        if len(parts) > 1 and os.path.exists(path):
+            print(f"Partie {i + 1} déjà rendue : gardée", flush=True)
+        else:
+            shutil.rmtree(DIR, ignore_errors=True)
+            os.makedirs(os.path.join(DIR, "assets"))
+            json.dump({"paths": {"assets": "assets"}}, open(os.path.join(DIR, "hyperframes.json"), "w"))
+            build(m, k, (f0, f1))
+            tmp = path if len(parts) == 1 else path[:-4] + ".part.mp4"
+            cmd = ["node", os.path.join(NODE_MODULES, "hyperframes", "dist", "cli.js"), "render", DIR, "-o",
+                   os.path.abspath(tmp), "--workers", str(workers), "--crf", "16" if hd else "20"]
+            if preset:
+                cmd += ["--resolution", preset]
+            if len(parts) > 1:
+                print(f"Partie {i + 1} sur {len(parts)}", flush=True)
+            code = run_hyperframes(cmd, env, f0 / m.fps, part_len, total)
+            if code or not os.path.exists(tmp):
+                sys.exit(f"Échec du rendu HyperFrames (code {code})")
+            if tmp != path:
+                os.replace(tmp, path)
+        done_paths.append(path)
+        report("Rendu de la vidéo", round(f1 / m.fps, 2), total, every=0)
+    if len(parts) > 1:
+        print("Assemblage des parties", flush=True)
+        if join_parts(done_paths, [(f1 - f0) / m.fps for f0, f1 in parts], out) or not os.path.exists(out):
+            sys.exit("Échec de l'assemblage des parties du rendu")
+        for p in done_paths:
+            os.remove(p)
     shutil.rmtree(os.path.join(DIR, "assets"), ignore_errors=True)  # liens vers le rush : inutiles ensuite
     print(f"Rendu HyperFrames : {out}")
 
@@ -337,10 +434,12 @@ function draw(frame) {
 }
 
 // Le numéro d'image suit le temps de la timeline (propriété d'un objet animée par GSAP).
+// Partie du montage rendue seule : son temps commence à l'image OFF du montage.
+const OFF = %OFF%;
 let shownFrame = -1;
 const clock = {
-  get t() { return shownFrame / FPS; },
-  set t(v) { const f = Math.min(D.frames - 1, Math.max(0, Math.round(v * FPS))); if (f !== shownFrame) { shownFrame = f; draw(f); } },
+  get t() { return (shownFrame - OFF) / FPS; },
+  set t(v) { const f = Math.min(D.frames - 1, Math.max(0, OFF + Math.round(v * FPS))); if (f !== shownFrame) { shownFrame = f; draw(f); } },
 };
 const tl = gsap.timeline({ paused: true });
 tl.fromTo(clock, { t: 0 }, { t: %DUR%, duration: %DUR%, ease: "none", immediateRender: true }, 0);

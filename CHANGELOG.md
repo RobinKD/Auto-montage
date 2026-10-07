@@ -4,6 +4,22 @@ Chaque version publiée reprend sa section dans ses notes (onglet Releases). Une
 section, le numéro dans `VERSION` et le tag `v<numéro>` poussé publient la version avec ses
 installateurs (voir `packaging/README.md`).
 
+## 0.58
+
+- **Rendu par parties** : un montage de plus de 3 minutes est rendu par parties d'environ
+  2 minutes, mises bout à bout ensuite (image identique, son sans décalage). La mémoire du rendu
+  ne grandit plus avec la longueur du montage : sur un montage de 5 minutes, 5,8 Go au lieu de
+  7 Go, et pas plus pour un montage plus long. Un rendu interrompu (pause, arrêt, panne)
+  reprend après la dernière partie finie au lieu de tout refaire.
+- **Mémoire utilisée au mieux** : le rendu ouvre autant de navigateurs que 80 % de la mémoire
+  libre le permet (un par cœur au plus), 4K comprise, d'après ce que les rendus précédents ont
+  vraiment pris sur la machine.
+- **Reprendre plutôt que tout refaire** : choisir le rush d'une préparation en pause propose
+  « Reprendre la préparation » ; avant, « Préparer » abandonnait la préparation en pause et
+  effaçait ce qui était fait.
+- Les mesures de mémoire de la machine restent quand on change de rush (elles partaient avec le
+  montage mis de côté).
+
 ## 0.57
 
 - **Mémoire** : avant de préparer un rush, la page **Rushes et montages** dit combien de mémoire la

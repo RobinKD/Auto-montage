@@ -2248,7 +2248,12 @@ class Handler(BaseHTTPRequestHandler):
                 if not claude_connected():
                     return self.send_json({"error": "Claude Code n'est pas connecté : ouvrez-le une fois (lanceur « Claude Code »)."}, 400)
                 steps = PREPARE_WITH_INSTRUCTIONS
-            if job["state"] != "running" and paused_task():
+            rec = paused_task() if job["state"] != "running" else None
+            if rec and rec.get("args") == parts and not body.get("abandon"):
+                # Même rush que la préparation en pause : elle reprend là où elle en était.
+                error = resume_job()
+                return self.send_json({"error": error}, 409) if error else self.send_json({"ok": True, "resumed": True}, 202)
+            if rec:
                 if not body.get("abandon"):  # la page demande d'abord confirmation
                     return self.send_json({"error": busy_error(), "paused": True}, 409)
                 abandon_task()

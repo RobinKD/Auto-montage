@@ -71,8 +71,15 @@ LABELS="|$label|"
 curl -fsS -X POST "$URL/api/job/pause" >/dev/null || fail "mise en pause"
 until curl -fsS "$URL/api/job" | json 'd["state"]' | has -x paused; do sleep 1; done
 curl -fsS "$URL/api/job" | json 'd["paused"]["state"], d["paused"]["step"]' | has "paused" || fail "tâche en pause non décrite"
-code="$(curl -s -o /dev/null -w '%{http_code}' -X POST -H "content-type: application/json" -d "{\"rush\": \"$NAME\"}" "$URL/api/prepare")"
-[ "$code" = 409 ] || fail "nouvelle préparation acceptée pendant la pause ($code)"
+# « Préparer » le même rush pendant la pause : la préparation reprend (rien n'est effacé).
+curl -fsS -X POST -H "content-type: application/json" -d "{\"rush\": \"$NAME\"}" "$URL/api/prepare" \
+  | json 'd.get("resumed")' | has -x True || fail "« Préparer » le rush en pause ne l'a pas reprise"
+until curl -fsS "$URL/api/job" | json '(d.get("progress") or {}).get("label", "")' | has .; do
+  [ $((SECONDS - t0)) -lt 1800 ] || fail "préparation reprise sans barre de progression"
+  sleep 1
+done
+curl -fsS -X POST "$URL/api/job/pause" >/dev/null || fail "mise en pause après la reprise"
+until curl -fsS "$URL/api/job" | json 'd["state"]' | has -x paused; do sleep 1; done
 echo "  en pause ($(curl -fsS "$URL/api/job" | json 'd["paused"]["current"]')), abandonnée en gardant tout"
 curl -fsS "$URL/api/job/parts" | json '[p["id"] for p in d["parts"]]' | has "'" || fail "parties déjà faites non listées"
 curl -fsS -X POST -H "content-type: application/json" -d '{"delete": []}' "$URL/api/job/abandon" >/dev/null || fail "abandon"

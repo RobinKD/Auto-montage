@@ -133,7 +133,7 @@ pour ne pas ralentir la transcription.
 Mémoire : au début, `scripts/memoire.py` estime d'après la vidéo (taille de l'image, durée) la
 mémoire de chaque étape (la transcription, environ 2,3 Go, et le rendu, plus de 1 Go par
 navigateur, sont les plus gourmandes) et la compare à la mémoire libre du conteneur : avertissement
-si elle est juste ou insuffisante. Le rendu ouvre moins de navigateurs quand la mémoire manque.
+si elle est juste ou insuffisante. Le rendu ouvre autant de navigateurs (un par cœur au plus) que 80 % de la mémoire libre le permet. Un montage de plus de 3 minutes est rendu par parties d'environ 2 minutes, mises bout à bout ensuite : la mémoire du rendu ne grandit plus avec la longueur du montage, et un rendu interrompu reprend après la dernière partie finie (`work/rendu_parties/`).
 L'interface locale le montre avant de préparer, au début de chaque étape, et quand la mémoire
 s'épuise pendant une étape (aussi pour la création 4K, qui demande le plus). Chaque préparation
 mesure la mémoire vraiment utilisée par chaque étape (`work/memoire_mesures.json`) : les estimations

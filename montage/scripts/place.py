@@ -8,6 +8,7 @@
                        prochaine création 4K
   rendu                copies des vidéos laissées par le dernier rendu (work/rendu_hyperframes/assets),
                        refaites au prochain rendu
+  parties              parties d'un long rendu interrompu (work/rendu_parties), refaites si effacées
   sauvegarde:<dossier> fichiers remplacés par une réinitialisation (work/sauvegardes)
   restes               envois coupés (.envoi-*) et fichiers d'une tâche arrêtée en route (*.part.*)
 
@@ -28,6 +29,7 @@ STORE = os.path.join(WORK, "projets")
 RUSHES = os.path.join(ROOT, "public", "rushes")
 OUT = os.path.join(ROOT, "out")
 ASSETS = os.path.join(WORK, "rendu_hyperframes", "assets")
+PARTS = os.path.join(WORK, "rendu_parties")  # parties d'un long rendu interrompu
 BACKUPS = os.path.join(WORK, "sauvegardes")
 VIDEO_EXT = (".mov", ".mp4", ".m4v", ".mkv", ".webm", ".avi", ".mts")
 DERIVED = re.compile(r"^rush_(1080|2160)\.")  # versions de travail du montage en cours
@@ -68,6 +70,10 @@ def leftovers():
 def render_copies():
     return [os.path.join(ASSETS, n) for n in os.listdir(ASSETS)
             if n.lower().endswith(VIDEO_EXT)] if os.path.isdir(ASSETS) else []
+
+
+def render_parts():
+    return [os.path.join(PARTS, n) for n in os.listdir(PARTS)] if os.path.isdir(PARTS) else []
 
 
 def day(ts):
@@ -123,6 +129,11 @@ def inventory():
         items.append({"id": "rendu", "group": "videos", "label": "Copies des vidéos du dernier rendu",
                       "size": sum(freed(p) for p in copies), "detail": ", ".join(os.path.basename(p) for p in copies),
                       "note": "Refaites au prochain rendu. Elles peuvent garder sur le disque une vidéo déjà supprimée ailleurs."})
+    parts = render_parts()
+    if parts:
+        items.append({"id": "parties", "group": "videos", "label": "Parties d'un rendu interrompu",
+                      "size": sum(freed(p) for p in parts), "detail": f"{len(parts)} partie(s)",
+                      "note": "Gardées pour reprendre le rendu sans les refaire ; refaites si elles sont effacées."})
     for name in sorted(os.listdir(BACKUPS)) if os.path.isdir(BACKUPS) else []:
         items.append({"id": f"sauvegarde:{name}", "group": "autres", "label": f"Sauvegarde {name}",
                       "size": freed(os.path.join(BACKUPS, name)),
@@ -152,7 +163,7 @@ def delete(ids):
         kind, _, name = item.partition(":")
         paths = {"projet": lambda: [os.path.join(STORE, name)], "rush": lambda: [os.path.join(RUSHES, name)],
                  "sauvegarde": lambda: [os.path.join(BACKUPS, name)], "hd": lambda: [os.path.join(RUSHES, "rush_2160.webm")],
-                 "rendu": render_copies, "restes": leftovers}[kind]()
+                 "rendu": render_copies, "parties": render_parts, "restes": leftovers}[kind]()
         for p in paths:
             remove(p)
         done.append(item)
