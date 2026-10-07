@@ -8,8 +8,8 @@ travail 185 à 410 Mo (1080p, 4K vers 1080p, 9:16), transcription 2,1 Go (Whispe
 modèle de 1,6 Go), visage 120 Mo, montage (build_edit.py) 150 Mo pour 2 min de rush (son du rush
 entier en mémoire). Rendu HyperFrames 1080p (7 octobre, programmes lancés compris, navigateurs
 dans leur propre session) avec 4 navigateurs : 4,6 Go pour 80 s de montage en 8 plans, 6 Go pour
-5 min en 8 plans, 7 Go pour 5 min en 150 plans (navigateurs de 1,05 à 1,3 Go chacun). Rendu 4K : 4 navigateurs ont dépassé 14 Go (d'où 2 au plus). Le
-rendu prend autant de navigateurs que la mémoire libre le permet (choose_workers).
+5 min en 8 plans, 7 Go pour 5 min en 150 plans (navigateurs de 1,05 à 1,3 Go chacun). Rendu 4K : 4 navigateurs ont dépassé 14 Go. Le rendu prend autant
+de navigateurs (un par cœur au plus) que 80 % de la mémoire libre le permet (choose_workers).
 
 Expérience de la machine : l'interface locale mesure le vrai pic de chaque opération pendant les
 préparations (somme des PSS des programmes de l'étape) et le garde dans work/memoire_mesures.json
@@ -43,8 +43,9 @@ def _mpx(size):
 
 
 def render_workers(hd=False):
-    """Navigateurs du rendu HyperFrames (comme render_hyperframes.py)."""
-    return max(1, min(2 if hd else 4, os.cpu_count() or 1))
+    """Navigateurs du rendu HyperFrames au plus : un par cœur, 8 au plus. La mémoire décide
+    ensuite (choose_workers)."""
+    return max(1, min(8, os.cpu_count() or 1))
 
 
 # Besoin de chaque opération, en Mo : fonction de la vidéo (v : durée « duration » du rush en
@@ -177,17 +178,20 @@ def tree_memory(root):
 RENDERS = {"Rendu de la vidéo": False, "Rendu 4K": True}
 
 
+RENDER_SHARE = 0.8  # part de la mémoire libre que le rendu peut prendre
+
+
 def choose_workers(hd, info, avail=None, measures=None):
-    """Navigateurs du rendu : le plus possible (4, 2 en 4K, au plus un par cœur) tant que le besoin
-    tient dans la mémoire libre ; 1 au moins."""
+    """Navigateurs du rendu : le plus possible (un par cœur, 8 au plus) tant que le besoin tient
+    dans 80 % de la mémoire libre au moment du rendu ; 1 au moins."""
     top = render_workers(hd)
     if avail is None:
         avail = available()[0]
     if avail is None:
-        return top
+        return min(top, 2 if hd else 4)  # mémoire libre inconnue : comme avant
     op = "Rendu 4K" if hd else "Rendu de la vidéo"
     for w in range(top, 1, -1):
-        if need(op, {**info, "workers": w}, measures) <= avail:
+        if need(op, {**info, "workers": w}, measures) <= RENDER_SHARE * avail:
             return w
     return 1
 

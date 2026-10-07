@@ -159,7 +159,7 @@ def main():
     json.dump({"paths": {"assets": "assets"}}, open(os.path.join(DIR, "hyperframes.json"), "w"))
     preset = HD_PRESETS.get((m.width, m.height)) if hd else None
     build(m, 2 if hd and not preset else 1)
-    # Navigateurs : 4 au plus (2 en 4K : 4 dépassent 14 Go), moins si la mémoire libre ne suffit pas
+    # Navigateurs : autant que 80 % de la mémoire libre le permet, un par cœur au plus
     # (memoire.choose_workers, d'après les mesures des rendus précédents sur cette machine).
     info = {"duration": 0, "source": (m.width, m.height), "work": (m.width, m.height), "montage": m.frames / m.fps}
     workers = memoire.choose_workers(hd, info)

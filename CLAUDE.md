@@ -157,11 +157,12 @@ interne : les changements attendent la prochaine version.
   Playwright sur Linux ARM64 (Mac Apple Silicon), sinon `hyperframes browser ensure` ; ffprobe de `@ffprobe-installer`). Les effets sont dessinés image
   par image dans cette page (fonction `draw`) ; la page des moments les imite en direct : un effet
   ajouté doit l'être aux deux. Python (`scripts/render_lib.py`) : bruitages, police des
-  sous-titres (Pillow), mots mis en valeur, coupure en 2 lignes. 4K : 2 navigateurs au plus
-  (4 dépassent 14 Go de mémoire), 4 en 1080p. HyperFrames extrait les images de chaque plan avec un ffmpeg par
+  sous-titres (Pillow), mots mis en valeur, coupure en 2 lignes. 4K : 4 navigateurs dépassent 14 Go
+  de mémoire. HyperFrames extrait les images de chaque plan avec un ffmpeg par
   plan, tous à la fois : son ffmpeg est `scripts/ffmpeg_limite.sh` (verrous flock, `EXTRACTIONS`
   à la fois, 2 en 4K ; délai de chaque ffmpeg porté à 6 h). Navigateurs (plus de 1 Go chacun en
-  1080p) : `memoire.choose_workers` d'après la mémoire libre et les mesures, ligne « Navigateurs du
+  1080p) : `memoire.choose_workers`, un par cœur (8 au plus) tant que le besoin (mesures comprises)
+  tient dans 80 % de la mémoire libre (`RENDER_SHARE`), ligne « Navigateurs du
   rendu : N » lue par `local_server.py` ; page prête en 15 min au plus. Whisper : `scripts/setup_whisper.sh` (whisper.cpp 1.7.6
   compilé, modèles de Hugging Face).
 - Tutoriel (/tutoriel/, `local/tutorial.html`) : ouvert une fois au premier lancement (menu.js,
