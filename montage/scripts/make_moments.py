@@ -59,8 +59,8 @@ for sub in ("clips", "thumbs"):
     os.makedirs(os.path.join(OUT, sub), exist_ok=True)
 source = os.path.join(ROOT, "public", "rushes", "rush_1080.mp4")  # H.264, lisible partout
 moments = []
-# Avancement : un pas par extrait (moments puis plans sans parole), puis la version de travail
-# pour la page (deux passes, comptées comme autant d'extraits que le rush a de moments).
+# Avancement en secondes de vidéo : durée des extraits faits (moments puis plans sans parole),
+# puis la version de travail pour la page (deux passes, chacune comptée pour la durée du montage).
 gap_list = effective_gaps(raw_segments, segments, rush_duration(WORK))
 # Extraits déjà faits pour les mêmes bornes : gardés (une scission ou une fusion ne refait
 # que les moments touchés). clips/.bornes.json : nom -> [début, fin].
@@ -71,26 +71,39 @@ except (OSError, ValueError):
     signatures = {}
 
 
+made = []  # extraits refaits par cette page
+
+
 def extract(name, a, b, crf, abr):
     sig = [round(a, 3), round(b, 3)] + ([f"{WIDTH}x{HEIGHT}"] if (WIDTH, HEIGHT) != (1080, 1920) else [])
     clip, thumb = os.path.join(OUT, "clips", name + ".mp4"), os.path.join(OUT, "thumbs", name + ".jpg")
     if signatures.get(name) == sig and os.path.exists(clip) and os.path.exists(thumb):
         return
+    # Noms provisoires renommés une fois complets ; liste des bornes enregistrée régulièrement :
+    # une préparation mise en pause ou coupée ne refait que les extraits manquants.
+    part_clip, part_thumb = clip[:-4] + ".part.mp4", thumb[:-4] + ".part.jpg"
     subprocess.run(
         [FFMPEG, "-v", "error", "-y", "-ss", f"{a:.3f}", "-to", f"{b:.3f}", "-i", source,
          "-vf", SMALL, "-c:v", "libx264", "-preset", "veryfast", "-crf", str(crf), "-pix_fmt", "yuv420p",
-         "-c:a", "aac", "-b:a", abr, "-ac", "1", "-movflags", "+faststart", clip],
+         "-c:a", "aac", "-b:a", abr, "-ac", "1", "-movflags", "+faststart", part_clip],
         check=True,
     )
     subprocess.run(
         [FFMPEG, "-v", "error", "-y", "-ss", f"{(a + b) / 2:.3f}", "-i", source, "-frames:v", "1",
-         "-vf", "scale=120:-2", "-q:v", "5", thumb],
+         "-vf", "scale=120:-2", "-q:v", "5", part_thumb],
         check=True,
     )
+    os.replace(part_clip, clip)
+    os.replace(part_thumb, thumb)
     signatures[name] = sig
+    made.append(name)
+    if len(made) % 10 == 0:
+        json.dump(signatures, open(sig_path + ".part", "w"))
+        os.replace(sig_path + ".part", sig_path)
 
 preview = os.path.join(ROOT, "out", "montage_apercu.mp4")
-steps_total = len(segments) + len(gap_list) + (max(4, len(segments) // 2) if os.path.exists(preview) else 0)
+montage_s = edit_data["durationInFrames"] / edit_data["fps"] if os.path.exists(preview) and edit_data.get("fps") else 0
+steps_total = sum(s["end"] - s["start"] + 0.1 for s in segments) + sum(g["end"] - g["start"] for g in gap_list) + 2 * montage_s
 steps_done = 0
 report("Découpage des moments", 0, steps_total or 1)
 for s in segments:
@@ -123,7 +136,7 @@ for s in segments:
         # Rang de chaque mot dans son segment d'origine (pour scinder ici).
         "origins": [[w["o"], w["oi"]] for w in s["words"]],
     })
-    steps_done += 1
+    steps_done += s["end"] - s["start"] + 0.1
     report("Découpage des moments", steps_done, steps_total)
 
 # Plans sans parole (entre les segments) : proposés décochés, à couper à la main sur la page.
@@ -135,7 +148,7 @@ for g in gap_list:
         "face": face_at((g["start"] + g["end"]) / 2), "cashWord": None, "chip": None,
         "suggested": False, "reason": "", "clip": f"clips/{name}.mp4", "thumb": f"thumbs/{name}.jpg",
     })
-    steps_done += 1
+    steps_done += g["end"] - g["start"]
     report("Découpage des moments", steps_done, steps_total)
 moments.sort(key=lambda m: m["start"])
 json.dump(signatures, open(sig_path, "w"))
@@ -151,7 +164,7 @@ if os.path.exists(preview):
                   "-preset", "slow", "-b:v", "2500k", "-pix_fmt", "yuv420p"]
         subprocess.run(common + ["-pass", "1", "-passlogfile", os.path.join(OUT, "pass"), "-an", "-f", "mp4", os.devnull],
                        check=True)
-        report("Découpage des moments", (steps_done + steps_total) / 2, steps_total, every=0)
+        report("Découpage des moments", steps_done + montage_s, steps_total, every=0)
         subprocess.run(common + ["-pass", "2", "-passlogfile", os.path.join(OUT, "pass"), "-c:a", "aac", "-b:a", "128k",
                                  "-movflags", "+faststart", target], check=True)
         for f in os.listdir(OUT):

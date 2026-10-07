@@ -158,7 +158,11 @@ interne : les changements attendent la prochaine version.
   par image dans cette page (fonction `draw`) ; la page des moments les imite en direct : un effet
   ajouté doit l'être aux deux. Python (`scripts/render_lib.py`) : bruitages, police des
   sous-titres (Pillow), mots mis en valeur, coupure en 2 lignes. 4K : 2 navigateurs au plus
-  (4 dépassent 14 Go de mémoire). Whisper : `scripts/setup_whisper.sh` (whisper.cpp 1.7.6
+  (4 dépassent 14 Go de mémoire), 4 en 1080p. HyperFrames extrait les images de chaque plan avec un ffmpeg par
+  plan, tous à la fois : son ffmpeg est `scripts/ffmpeg_limite.sh` (verrous flock, `EXTRACTIONS`
+  à la fois, 2 en 4K ; délai de chaque ffmpeg porté à 6 h). Navigateurs (plus de 1 Go chacun en
+  1080p) : `memoire.choose_workers` d'après la mémoire libre et les mesures, ligne « Navigateurs du
+  rendu : N » lue par `local_server.py` ; page prête en 15 min au plus. Whisper : `scripts/setup_whisper.sh` (whisper.cpp 1.7.6
   compilé, modèles de Hugging Face).
 - Tutoriel (/tutoriel/, `local/tutorial.html`) : ouvert une fois au premier lancement (menu.js,
   `work/tutoriel_vu`) ; trois onglets (sans Claude Code, avec, « Fonctionnalités en détail » :
@@ -174,9 +178,28 @@ interne : les changements attendent la prochaine version.
   `--resolution` pour 9:16, 16:9 et carré, sinon agrandie ×2 dans la page, `HD_PRESETS`),
   `make_hd.py`, la page des moments (`--ar`, `--u` = 10,8 px de la composition, classe `paysage`
   pour le lecteur large) et les téléchargements (`res_label`).
+- Mémoire : `scripts/memoire.py` (besoin de chaque opération d'après la taille de l'image et la durée,
+  `OPERATIONS` / `STEPS` ; mémoire libre bornée par la limite du conteneur) ; avertissement « juste » ou
+  « insuffisant » dans prepare.sh, sur /rush/ avant de préparer (`/api/memoire`), au début de chaque
+  étape (`check_memory`) et si la mémoire s'épuise (`watch_memory`), 4K comprise (`final_info`).
+  Apprise sur la machine : `local_server.sample_memory` mesure le pic (PSS des programmes de l'étape,
+  `memoire.tree_memory`, par filiation : les navigateurs ont leur session) de chaque opération (barre en cours, ligne `@memoire <opération>`, ou seule
+  opération de l'étape) ; étape réussie : `memoire.record` dans `work/memoire_mesures.json` ; besoin =
+  formule × plus grand rapport mesuré / prévu des 5 dernières mesures (+10 %, `memoire.factor`).
+- Pause et reprise de la préparation (/rush/ : « Mettre en pause », « Reprendre », « Abandonner ») :
+  `work/tache.json` (étapes, étape atteinte, avancement ; `save_task`, `paused_task`, `resume_job` de
+  `local_server.py`), resté « running » après un arrêt = coupée, reprenable aussi après une erreur ;
+  reprise = étape relancée avec `AM_REPRISE=1` (`prepare.sh --reprendre`), qui garde les morceaux de
+  `version_travail.py` (`work/reprise/travail/`), les morceaux transcrits (`work/seg/cle.txt`), les
+  visages (`work/reprise/visage.json`) et les extraits de la page. Tant qu'elle attend, les autres
+  tâches sont refusées (`busy_error`), sauf mise à jour ; tache.json et reprise/ ne sont jamais rangés
+  par `project.py`. « Abandonner… » : parties de `ABANDON_PARTS` (`/api/job/parts`) effacées ou
+  gardées (`abandon_task`) ; gardées → `work/reprise/garde.json` (vidéos, taille, date), la prochaine
+  préparation du même rush part avec `AM_REPRISE=1` (`kept_parts`, `job["reuse"]`).
 - Barres de progression de l'interface locale : un script long écrit des lignes
   `@progression <fait> <total> <libellé>` (`scripts/progress.py`, aussi pour suivre un ffmpeg) ;
-  `local_server.py` les lit. Temps restant : `PLAN` et `RATES`
+  `local_server.py` les lit. Fait et total en secondes de vidéo (rush, ou montage pour le rendu :
+  `UNITS`), montrés par opération sous chaque étape de /rush/ (`job.ops`). Temps restant : `PLAN` et `RATES`
   (secondes par seconde de rush ou de montage), recalés sur la machine dans `work/timings.json`.
 - Connexion à Claude (/claude/) : `claude auth login` dans un pseudo-terminal (adresse
   d'autorisation renvoyée à la page, code collé transmis) ; état par `claude auth status`.

@@ -4,9 +4,13 @@ Sortie : src/data/face.json -> [{t, x, y, r}] toutes les 0,5 s, en fractions
 de l'image (1080x1920, ou 1920x1080 en paysage ; x, y = centre du visage, r = demi-largeur).
 Modèle : work/models/haarcascade_frontalface_default.xml (dépôt opencv/opencv).
 Les trous (visage caché par une main, etc.) sont comblés par interpolation.
+Reprise : les détections sont enregistrées au fil de l'eau (work/reprise/visage.json) ; une
+préparation mise en pause ou coupée (AM_REPRISE=1) repart de la dernière ; elles restent là
+une fois toutes faites, jusqu'à la fin de la préparation (effacées avec work/reprise).
 """
 import json
 import os
+import time
 
 import cv2
 import numpy as np
@@ -38,9 +42,30 @@ W = cap.get(cv2.CAP_PROP_FRAME_WIDTH)
 H = cap.get(cv2.CAP_PROP_FRAME_HEIGHT)
 SW, SH = int(W) // 2 or 540, int(H) // 2 or 960  # image réduite de moitié pour la détection
 
+CHECKPOINT = os.path.join(ROOT, "work", "reprise", "visage.json")
+key = f"{n} {fps} {W}x{H} {os.path.getsize(SRC)}"
 samples = []
-for t in np.arange(0, n / fps, STEP):
+try:
+    saved = json.load(open(CHECKPOINT))
+    if os.environ.get("AM_REPRISE") == "1" and saved["key"] == key:
+        samples = [tuple(x) for x in saved["samples"]]
+        print(f"Reprise de la position du visage à {samples[-1][0] if samples else 0:.0f} s", flush=True)
+except (OSError, ValueError, KeyError, TypeError, IndexError):
+    pass
+
+
+def checkpoint():
+    os.makedirs(os.path.dirname(CHECKPOINT), exist_ok=True)
+    json.dump({"key": key, "samples": samples}, open(CHECKPOINT + ".part", "w"))
+    os.replace(CHECKPOINT + ".part", CHECKPOINT)
+
+
+saved_at = time.monotonic()
+for t in np.arange(0, n / fps, STEP)[len(samples):]:
     report("Position du visage", t, n / fps)
+    if time.monotonic() - saved_at > 20:
+        checkpoint()
+        saved_at = time.monotonic()
     cap.set(cv2.CAP_PROP_POS_FRAMES, int(t * fps))
     ok, frame = cap.read()
     if not ok:
@@ -53,6 +78,7 @@ for t in np.arange(0, n / fps, STEP):
         samples.append((t, (x + w / 2) / SW, (y + h / 2) / SH, w / 2 / SW))
     else:
         samples.append((t, None, None, None))
+report("Position du visage", n / fps, n / fps, every=0)
 
 known = [s for s in samples if s[1] is not None]
 if not known:  # aucun visage trouvé (image sombre, visage de profil…) : zooms centrés
@@ -68,12 +94,15 @@ for t, x, y, r in samples:
     res.append({"t": round(float(t), 2), "x": round(x, 4), "y": round(y, 4), "r": round(r, 4)})
 
 # Lissage léger pour éviter les à-coups.
-for key in ("x", "y", "r"):
-    v = np.array([p[key] for p in res])
+for coord in ("x", "y", "r"):
+    v = np.array([p[coord] for p in res])
     v = np.convolve(np.pad(v, 2, mode="edge"), np.ones(5) / 5, mode="valid")
     for p, val in zip(res, v):
-        p[key] = round(float(val), 4)
+        p[coord] = round(float(val), 4)
 
 os.makedirs(os.path.dirname(OUT), exist_ok=True)
 json.dump(res, open(OUT, "w"))
+# Détections gardées jusqu'à la fin de la préparation : une préparation abandonnée en gardant
+# la position du visage (page « Rushes et montages ») la reprend sans rien refaire.
+checkpoint()
 print(f"{len(known)}/{len(samples)} détections, médiane x={np.median([k[1] for k in known]):.3f} y={np.median([k[2] for k in known]):.3f} r={np.median([k[3] for k in known]):.3f}")

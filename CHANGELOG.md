@@ -4,6 +4,37 @@ Chaque version publiée reprend sa section dans ses notes (onglet Releases). Une
 section, le numéro dans `VERSION` et le tag `v<numéro>` poussé publient la version avec ses
 installateurs (voir `packaging/README.md`).
 
+## 0.57
+
+- **Mémoire** : avant de préparer un rush, la page **Rushes et montages** dit combien de mémoire la
+  préparation demandera d'après la vidéo (taille de l'image, durée), étape par étape, et combien il
+  en reste de libre. Si c'est juste ou insuffisant, un avertissement explique quoi faire (fermer
+  d'autres programmes, donner plus de mémoire à Docker). La vérification est refaite au début de
+  chaque étape, et un avertissement apparaît si la mémoire s'épuise en cours de route. La création
+  de la 4K, la plus gourmande, prévient aussi.
+- **Pause et reprise** : une préparation peut être mise en pause à tout moment (« Mettre en
+  pause »), puis reprise plus tard là où elle en était (« Reprendre la préparation »), même après
+  avoir fermé Auto-montage, Docker ou éteint l'ordinateur. Une préparation coupée par un arrêt ou
+  arrêtée par une erreur (mémoire, place sur le disque) se reprend de la même façon, sans tout
+  refaire : la version de travail repart de la dernière minute faite, la transcription des passages
+  pas encore transcrits, la détection du visage de sa dernière position.
+- **Abandonner en gardant une partie** : « Abandonner… » liste ce qui est déjà fait (version de
+  travail, son et transcription, position du visage, extraits de la page des moments) avec la place
+  que chaque partie prend. Tout est coché pour être effacé ; une partie décochée est gardée, et la
+  prochaine préparation du même rush la reprend sans la refaire.
+- **Mémoire apprise sur la machine** : chaque préparation mesure la mémoire vraiment utilisée par
+  chaque étape. Les estimations suivantes partent de ces mesures, rapportées à la taille de la
+  nouvelle vidéo, et la page dit pour chaque étape si le chiffre vient de mesures ou d'une
+  estimation.
+- **Rendu des longues vidéos** : le rendu de la version de travail d'un long rush pouvait épuiser la
+  mémoire et s'arrêter (« code -9 »). HyperFrames lisait tous les plans en même temps (150 plans :
+  plus de 10 Go) ; il en lit maintenant 4 à la fois (2 en 4K), sous 1 Go. Ensuite, chaque
+  navigateur du rendu prend plus d'un gigaoctet : le rendu en ouvre moins de 4 quand la mémoire
+  libre ne suffit pas (plus lent, mais il va au bout), et donne plus de temps à la page d'un long
+  montage pour être prête.
+- **Avancement détaillé** : chaque étape de la préparation montre où elle en est, en pourcentage et
+  en temps de vidéo traité (« Transcription : 43 % · 2 min 41 s sur 6 min 17 s de vidéo »).
+
 ## 0.56
 
 - **Lignes des sous-titres** : dans « Style des sous-titres » de la page des moments, et sur la page

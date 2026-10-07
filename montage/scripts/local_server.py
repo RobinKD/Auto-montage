@@ -30,12 +30,13 @@ import time
 import traceback
 import unicodedata
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from urllib.parse import unquote, urlparse
+from urllib.parse import parse_qs, unquote, urlparse
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from join_rushes import joined_name  # noqa: E402
 from progress import exit_reason, resources  # noqa: E402
 import decoupage  # noqa: E402
+import memoire  # noqa: E402
 import place  # noqa: E402
 import fonts_lib  # noqa: E402
 from moments_lib import SOUNDS as DEFAULT_SOUNDS, DEFAULTS_VERSION, LANGUAGES, VISUALS, VOICES, edit_size, hf_preview_files, hidden_effects, language, res_label, sound_catalog, wav_len  # noqa: E402
@@ -361,13 +362,13 @@ INSTRUCTIONS = os.path.join(WORK, "instructions.md")
 # poste, rush de 26 s sur 2 cœurs) ; elles sont recalées après chaque tâche réussie sur les
 # durées réelles de la machine (work/timings.json), et l'opération en cours suit sa propre
 # vitesse dès qu'elle a avancé.
-PLAN = {"préparation du rush": ["Version de travail (MP4)", "Transcription", "Position du visage"],
+PLAN = {"préparation du rush": ["Version de travail (MP4)", "Extraction du son", "Transcription", "Position du visage"],
         "rendu de la version de travail": ["Rendu de la vidéo"], "rendu 1080p": ["Rendu de la vidéo"],
         "page des moments": ["Découpage des moments"], "mise à jour de la page": ["Découpage des moments"],
         "source 4K": ["Source 4K"], "rendu 4K": ["Rendu 4K"],
         "mesures des vidéos d'exemple": ["Analyse des vidéos d'exemple"]}
 RATES = {  # clé : (échelle, secondes par seconde d'échelle)
-    "Version de travail (MP4)": ("rush", 0.3),
+    "Version de travail (MP4)": ("rush", 0.3), "Extraction du son": ("rush", 0.01),
     "Transcription": ("rush", 0.3), "Position du visage": ("rush", 0.1),
     # Plusieurs vidéos pour un rush : mises bout à bout (copie) ou réencodées (réglages différents).
     "Assemblage des vidéos": ("rush", 0.03), "Assemblage des vidéos (réencodage)": ("rush", 1.2),
@@ -383,6 +384,18 @@ RATES = {  # clé : (échelle, secondes par seconde d'échelle)
     "Source 4K": ("rush", 1.9), "Rendu 4K": ("montage", 20), "étape:rendu 4K": ("fixe", 20),
 }
 TIMINGS = os.path.join(WORK, "timings.json")
+# Avancement affiché en temps de vidéo traité : unité de chaque opération (« rush » : secondes du
+# rush, « montage » : secondes du montage) ; les autres sont des nombres (segments…).
+UNITS = {k: kind for k, (kind, _) in RATES.items() if kind != "fixe"} | {"Segments transcrits seuls": "segments"}
+# Pause et reprise (préparation d'un rush) : la tâche en cours est décrite dans work/tache.json
+# (étapes, étape atteinte, avancement), mis à jour à chaque étape. « Mettre en pause » arrête les
+# programmes en gardant ce qui est fait (morceaux de la version de travail, morceaux transcrits,
+# positions du visage, extraits : work/reprise/, work/seg/, work/moments/clips/) ; « Reprendre »
+# relance l'étape atteinte avec AM_REPRISE=1, qui repart de là. Une tâche coupée par un arrêt du
+# serveur, du conteneur ou de l'ordinateur (fichier resté « running »), ou arrêtée par une erreur,
+# se reprend de la même façon.
+TASK = os.path.join(WORK, "tache.json")
+RESUMABLE = {"prepare"}
 INSTRUCTIONS_NAME = os.path.join(WORK, "instructions.name")
 
 
@@ -622,6 +635,7 @@ def end_phase(now):
     p = job.get("progress")
     if p and not p.get("ended"):
         p["ended"] = True
+        job["opStart"].setdefault(p["label"], p.get("start", 0.0))
         job["spent"][p["label"]] = job["spent"].get(p["label"], 0) + now - p["since"]
         job["stepPhases"] += now - p["since"]
 
@@ -632,8 +646,14 @@ def set_progress(found):
     now = time.time()
     if current and current["label"] != label:
         end_phase(now)
-    since = current["since"] if current and current["label"] == label else now
-    job["progress"] = {"label": label, "done": done, "total": total, "since": since, "at": now}
+    same = current and current["label"] == label
+    since = current["since"] if same else now
+    # Part déjà faite quand l'opération commence (reprise après une pause) : la vitesse mesurée
+    # ne compte que ce qui avance pendant cette tâche.
+    start = current.get("start", 0.0) if same else min(1.0, done / total) if total else 0.0
+    job["progress"] = {"label": label, "done": done, "total": total, "since": since, "at": now, "start": start}
+    job["ops"][label] = {"done": done, "total": total, "unit": UNITS.get(label), "step": job["step"]}
+    job["memOp"] = None  # mémoire comptée pour cette opération (sample_memory)
 
 
 def speed_factor(rates):
@@ -643,7 +663,7 @@ def speed_factor(rates):
     for key, spent in job["spent"].items():
         if key in RATES and RATES[key][0] != "fixe":
             real += spent
-            planned += estimate(key, rates)
+            planned += estimate(key, rates) * (1 - job["opStart"].get(key, 0.0))
     if planned < 1 or real < 1:
         return 1.0
     return min(10.0, max(0.1, real / planned))
@@ -665,10 +685,11 @@ def remaining_time():
     upcoming = plan
     if p and not p.get("ended"):
         f = min(1.0, p["done"] / p["total"]) if p["total"] else 0.0
+        f0 = p.get("start", 0.0)
         model = estimate(p["label"], rates) * (1 - f)
         elapsed = now - p["since"]
-        live = elapsed * (1 - f) / f if f > 0 and elapsed > 3 else model
-        w = min(1.0, f / 0.25)  # vitesse mesurée de plus en plus suivie
+        live = elapsed * (1 - f) / (f - f0) if f > f0 and elapsed > 3 else model
+        w = min(1.0, (f - f0) / 0.25)  # vitesse mesurée de plus en plus suivie
         current = w * live + (1 - w) * model
         upcoming = plan[plan.index(p["label"]) + 1:] if p["label"] in plan else plan
     elif p and p["label"] in plan:
@@ -682,7 +703,7 @@ def remaining_time():
     return current, rest
 
 
-def run_job(steps, arg, args):
+def run_job(steps, arg, args, first=0):
     log = job.get("logFile")
 
     def write(text):
@@ -702,25 +723,60 @@ def run_job(steps, arg, args):
         # Plusieurs vidéos à assembler : le rush assemblé n'existe pas encore (ou va être refait).
         job["rushSeconds"] = sum(media_seconds(os.path.join(RUSHES, a)) for a in args) if len(args) > 1 \
             else style_seconds() if job["kind"] == "style" else media_seconds(rush)
-        for step, cmd in steps:
+        # Mémoire : besoin de la tâche (son étape la plus gourmande) et de chaque étape.
+        paths = [os.path.join(RUSHES, a) for a in args] if job["kind"] == "prepare" else [rush]
+        try:
+            if not any(name in memoire.STEPS for name, _ in steps[first:]):
+                raise LookupError  # tâche sans étape lourde (mise à jour, analyse du style…)
+            job["memInfo"] = memoire.video_info(paths, montage=None if job["kind"] == "prepare" else montage_seconds())
+            plan = memoire.summary([name for name, _ in steps[first:]], job["memInfo"])
+            job["memory"] = {k: plan[k] for k in ("peak", "peakOp", "available", "total", "level", "message")}
+            write(f"# Mémoire : environ {memoire.go(plan['peak'])} au plus fort ({plan['peakOp']}), "
+                  f"{memoire.go(plan['available'] or 0)} libres sur {memoire.go(plan['total'] or 0)}"
+                  + (f"\n# ATTENTION : {plan['message']}" if plan["message"] else ""))
+        except LookupError:
+            job["memInfo"] = None
+        except Exception:  # noqa: BLE001 - estimation seulement
+            traceback.print_exc()
+            job["memInfo"] = None
+        if job.get("resumed"):
+            write(f"# Reprise à l'étape « {steps[first][0]} »")
+        if job.get("reuse"):
+            write("# Parties gardées d'une préparation abandonnée : " + ", ".join(kept_parts(args)))
+        # Reprise, ou parties gardées par un abandon : ce qui est déjà fait n'est pas refait.
+        env = dict(os.environ, AM_REPRISE="1") if job.get("resumed") or job.get("reuse") else None
+        for index, (step, cmd) in enumerate(steps):
+            if index < first:  # reprise : étapes déjà faites
+                continue
             now = time.time()
             if job.get("stepStart"):
                 end_phase(now)
                 key = f"étape:{job['step']}"
                 job["spent"][key] = job["spent"].get(key, 0) + now - job["stepStart"] - job["stepPhases"]
-            job.update(step=step, progress=None, stepStart=now, stepPhases=0.0)
+            job.update(step=step, stepIndex=index, progress=None, stepStart=now, stepPhases=0.0)
+            save_task("running")
             write(f"\n## {datetime.datetime.now().strftime('%H:%M:%S')} Étape : {step} ({' '.join(cmd)})")
+            check_memory(step, write)
             last_progress = 0.0
             if job.get("cancel"):
-                raise JobCancelled()
+                raise JobPaused() if job.get("pause") else JobCancelled()
             # Groupe de processus à part : « Annuler » arrête le script et tout ce qu'il a lancé.
             argv = [a for c in cmd for a in (args if c == "{args}" else [c.replace("{arg}", arg)])]
-            proc = subprocess.Popen(argv, cwd=ROOT, text=True,
+            proc = subprocess.Popen(argv, cwd=ROOT, text=True, env=env,
                                     stdout=subprocess.PIPE, stderr=subprocess.STDOUT, bufsize=1,
                                     start_new_session=True)
             job["proc"] = proc
+            job.update(memOp=None, memPeaks={}, renderWorkers=None)
+            sampler = threading.Thread(target=sample_memory, args=(proc, step), daemon=True)
+            sampler.start()
             for line in proc.stdout:  # journal en direct (progression du rendu, étapes…)
                 line = line.rstrip()
+                if line.startswith("@memoire "):  # opération en cours, sans barre d'avancement
+                    job["memOp"] = line[9:].strip()
+                    continue
+                nav = re.match(r"Navigateurs du rendu : (\d+)", line)
+                if nav:  # nombre choisi d'après la mémoire libre : compte dans la mesure du rendu
+                    job["renderWorkers"] = int(nav.group(1))
                 found = progress_of(line) if line else None
                 if found and job["kind"] == "final" and found[0] == "Rendu de la vidéo":
                     found = ("Rendu 4K",) + found[1:]
@@ -729,30 +785,43 @@ def run_job(steps, arg, args):
                     if time.time() - last_progress > 30:
                         last_progress = time.time()
                         write(f"   … {found[0]} : {found[1]:g} / {found[2]:g} ({resources(ROOT)})")
+                        watch_memory(write)
+                        save_task("running")  # avancement gardé si tout s'arrête d'un coup
                     continue
                 if line:
                     job["log"] = (job["log"] + [line])[-200:]
                     write(line)
             code = proc.wait()
             job["proc"] = None
+            sampler.join(timeout=5)
             if job.get("cancel"):
-                raise JobCancelled()
+                raise JobPaused() if job.get("pause") else JobCancelled()
             write(f"## {datetime.datetime.now().strftime('%H:%M:%S')} Fin de l'étape ({exit_reason(code, shell=True)})")
             if code != 0:
                 write(f"   {resources(ROOT)}")
                 raise RuntimeError(job_error(job["log"], code))
+            record_memory(write, partial=(job.get("resumed") or job.get("reuse")) and index == first)
         now = time.time()
         end_phase(now)
         key = f"étape:{job['step']}"
         job["spent"][key] = job["spent"].get(key, 0) + now - job["stepStart"] - job["stepPhases"]
-        learn_timings()
+        if not job.get("resumed") and not job.get("reuse"):  # durées d'une tâche reprise : pas représentatives
+            learn_timings()
+        remove_task()
         job.update(state="done", step="terminé", progress=None, finishedAt=datetime.datetime.now().isoformat())
         write(f"\n# RÉSULTAT : réussi ({round(time.time() - job['startedTs'])} s)")
         if job["kind"] in ("update", "reset"):  # programme remplacé : redémarrage du conteneur
             job["step"] = "redémarrage"
             threading.Timer(3, lambda: os._exit(0)).start()
+    except JobPaused:
+        remove_partial_files()
+        job.update(state="paused", error=None, proc=None, finishedAt=datetime.datetime.now().isoformat())
+        save_task("paused")
+        job["progress"] = None
+        write(f"\n# RÉSULTAT : pause (étape « {job['step']} » ; « Reprendre » la continue)")
     except JobCancelled:
         remove_partial_files()
+        remove_task()
         job.update(state="cancelled", error=None, progress=None, proc=None,
                    finishedAt=datetime.datetime.now().isoformat())
         write(f"\n# RÉSULTAT : annulé (étape « {job['step']} »)")
@@ -760,6 +829,8 @@ def run_job(steps, arg, args):
         if job.get("logError"):
             e = RuntimeError(f"{e} ({job['logError']})")
         job.update(state="error", error=str(e), proc=None, finishedAt=datetime.datetime.now().isoformat())
+        if job["kind"] in RESUMABLE:  # reprise possible une fois le problème réglé (mémoire, place…)
+            save_task("error")
         traceback.print_exc()
         write(f"\n{traceback.format_exc()}\n# RÉSULTAT : échec (étape « {job['step']} ») : {e}")
     finally:
@@ -769,6 +840,234 @@ def run_job(steps, arg, args):
 
 class JobCancelled(Exception):
     pass
+
+
+class JobPaused(Exception):
+    pass
+
+
+# --- Pause et reprise (work/tache.json) -----------------------------------------------
+def save_task(state):
+    """Décrit la tâche en cours (reprenable) dans work/tache.json : de quoi la reprendre."""
+    if job["kind"] not in RESUMABLE:
+        return
+    p = job.get("progress")
+    elapsed = job.get("before", 0.0) + time.time() - job["startedTs"]
+    rec = {"state": state, "kind": job["kind"], "arg": job["arg"], "args": job["args"], "steps": job["steps"],
+           "index": job.get("stepIndex", 0), "step": job["step"], "ops": job["ops"], "elapsed": round(elapsed),
+           "langue": job.get("langue"), "startedAt": job.get("firstStartedAt") or job["startedAt"],
+           "error": job.get("error"), "at": datetime.datetime.now().isoformat(timespec="seconds"),
+           "current": p["label"] if p else None}
+    try:
+        os.makedirs(WORK, exist_ok=True)
+        json.dump(rec, open(TASK + ".part", "w"), ensure_ascii=False, indent=1)
+        os.replace(TASK + ".part", TASK)
+    except OSError:
+        traceback.print_exc()
+
+
+def remove_path(path):
+    try:
+        shutil.rmtree(path) if os.path.isdir(path) else os.remove(path)
+    except OSError:
+        pass
+
+
+def remove_task():
+    for path in (TASK, os.path.join(WORK, "reprise")):
+        remove_path(path)
+
+
+# « Abandonner » une préparation : chaque partie déjà faite peut être effacée ou gardée. Une
+# partie gardée resservira à la prochaine préparation du même rush (work/reprise/garde.json :
+# préparation lancée comme une reprise, AM_REPRISE=1, sans rien refaire de ce qui est gardé).
+REPRISE = os.path.join(WORK, "reprise")
+KEPT = os.path.join(REPRISE, "garde.json")
+ABANDON_PARTS = [
+    ("travail", "Version de travail", [os.path.join(RUSHES, "rush_1080.mp4"), os.path.join(REPRISE, "travail")]),
+    ("son", "Son et transcription", [os.path.join(WORK, n) for n in ("rush_16k.wav", "vad.txt", "seg", "segments.json")]),
+    ("visage", "Position du visage", [os.path.join(REPRISE, "visage.json")]),
+    ("moments", "Extraits de la page des moments", [os.path.join(WORK, "moments", n) for n in ("clips", "thumbs")]),
+]
+
+
+def rush_fingerprint(args):
+    """Vidéos d'un rush (nom, taille, date) : une partie gardée ne resert qu'au même rush."""
+    out = []
+    for a in args:
+        try:
+            st = os.stat(os.path.join(RUSHES, a))
+            out.append([a, st.st_size, int(st.st_mtime)])
+        except OSError:
+            out.append([a, None, None])
+    return out
+
+
+def abandon_parts():
+    """Parties déjà faites de la préparation en pause : [{id, label, size}] (celles qui existent)."""
+    out = []
+    for pid, label, paths in ABANDON_PARTS:
+        size = sum(dir_size(p) if os.path.isdir(p) else os.path.getsize(p) for p in paths if os.path.exists(p))
+        if any(os.path.exists(p) for p in paths):
+            out.append({"id": pid, "label": label, "size": size})
+    return out
+
+
+def abandon_task(delete=None):
+    """Abandonne la préparation en pause : efface les parties de « delete » (toutes sans liste),
+    garde les autres pour la prochaine préparation du même rush."""
+    rec = paused_task() or {}
+    ids = [pid for pid, _, _ in ABANDON_PARTS]
+    delete = ids if delete is None else [d for d in delete if d in ids]
+    kept = []
+    for pid, _, paths in ABANDON_PARTS:
+        if pid in delete:
+            for path in paths:
+                remove_path(path)
+        elif any(os.path.exists(p) for p in paths):
+            kept.append(pid)
+    remove_path(TASK)
+    # Restes de reprise des parties effacées (la version de travail en cours : son.flac…).
+    for name in os.listdir(REPRISE) if os.path.isdir(REPRISE) else []:
+        if not (name == "travail" and "travail" in kept or name == "visage.json" and "visage" in kept):
+            remove_path(os.path.join(REPRISE, name))
+    if kept and rec.get("args"):
+        os.makedirs(REPRISE, exist_ok=True)
+        json.dump({"args": rec["args"], "rush": rush_fingerprint(rec["args"]), "kept": kept},
+                  open(KEPT, "w"), ensure_ascii=False)
+    return kept
+
+
+def kept_parts(args):
+    """Parties gardées par un abandon pour ces vidéos (même rush), ou []."""
+    try:
+        rec = json.load(open(KEPT))
+        if rec.get("args") == list(args) and rec.get("rush") == rush_fingerprint(args):
+            return rec.get("kept") or []
+    except (OSError, ValueError, AttributeError):
+        pass
+    return []
+
+
+def paused_task():
+    """Tâche à reprendre (en pause, coupée par un arrêt, ou arrêtée par une erreur), ou None.
+    Pendant qu'une tâche tourne, celle-ci n'en est pas une."""
+    if job["state"] == "running":
+        return None
+    try:
+        rec = json.load(open(TASK))
+        if rec.get("kind") not in RESUMABLE or not isinstance(rec.get("steps"), list):
+            return None
+    except (OSError, ValueError, AttributeError):
+        return None
+    if rec.get("state") == "running":  # le serveur s'est arrêté pendant la tâche
+        rec["state"] = "interrompu"
+    return rec
+
+
+def busy_error():
+    """Message d'une tâche refusée : une autre tourne, ou une préparation attend d'être reprise."""
+    rec = paused_task()
+    if rec:
+        return (f"La préparation de {rec['arg']} est en pause : reprenez-la ou abandonnez-la d'abord "
+                "(page « Rushes et montages »).")
+    return "Une tâche est en cours : attendez qu'elle finisse."
+
+
+def busy():
+    return job["state"] == "running" or paused_task() is not None
+
+
+def resume_job():
+    """Reprend la tâche en pause à l'étape où elle s'était arrêtée. Message d'erreur, ou None."""
+    rec = paused_task()
+    if not rec:
+        return "Aucune tâche à reprendre."
+    every = dict(PREPARE_WITH_INSTRUCTIONS)
+    if not all(name in every for name in rec["steps"]):
+        return "Cette tâche ne peut pas être reprise : abandonnez-la."
+    missing = [a for a in rec["args"] if not os.path.isfile(os.path.join(RUSHES, a))]
+    if missing:
+        return f"La vidéo {missing[0]} n'est plus dans le dossier des rushes : la préparation ne peut pas reprendre."
+    if "consignes de montage (Claude)" in rec["steps"][rec["index"]:] and not claude_connected():
+        return "Claude Code n'est pas connecté : connectez-le (page « Connexion à Claude »), puis reprenez."
+    if rec.get("langue") in LANGUAGES:  # langue de la transcription, lue par prepare.sh
+        open(os.path.join(WORK, "langue.txt"), "w", encoding="utf-8").write(rec["langue"] + "\n")
+    steps = [(name, every[name]) for name in rec["steps"]]
+    if not start_job(rec["kind"], steps, rec["arg"], rec["args"], resume=rec):
+        return busy_error()
+    return None
+
+
+# --- Mémoire (scripts/memoire.py) --------------------------------------------------------
+def check_memory(step, write):
+    """Au début de chaque étape : son besoin de mémoire comparé à la mémoire libre maintenant."""
+    if not job.get("memInfo"):
+        return
+    try:
+        if step in ("rendu de la version de travail", "rendu 1080p", "rendu 4K", "source 4K"):
+            job["memInfo"]["montage"] = montage_seconds()  # montage fait entre-temps
+        ops = memoire.operations([step], job["memInfo"])
+        if not ops:
+            return
+        _, op, need = max(ops, key=lambda o: o[2])
+        avail, total = memoire.available()
+        level = memoire.verdict(need, avail)
+        job["stepMemory"] = {"step": step, "op": op, "need": need, "available": avail, "level": level,
+                             "message": memoire.advice(level, need, avail, f"l'étape « {op} »")}
+        write(f"   Mémoire de l'étape : environ {memoire.go(need)} ({op}), {memoire.go(avail or 0)} libres"
+              + ("" if level == "ok" else f" : {level.upper()}"))
+    except Exception:  # noqa: BLE001 - estimation seulement
+        traceback.print_exc()
+
+
+def sample_memory(proc, step):
+    """Pendant une étape : pic de mémoire de chaque opération (somme des PSS de l'étape et de tout
+    ce qu'elle a lancé, une fois par seconde), dans job["memPeaks"]. L'opération est celle de la barre
+    d'avancement en cours, ou d'une ligne « @memoire <opération> », ou la seule de l'étape."""
+    alone = memoire.STEPS.get(step, [])
+    while proc.poll() is None:
+        used = memoire.tree_memory(proc.pid)
+        p = job.get("progress")
+        op = job.get("memOp") or (p["label"] if p and p["label"] in memoire.OPERATIONS else None) \
+            or (alone[0] if len(alone) == 1 else None)
+        if op in memoire.OPERATIONS and used:
+            peaks = job["memPeaks"]
+            peaks[op] = max(peaks.get(op, 0), used)
+        time.sleep(1)
+
+
+def record_memory(write, partial=False):
+    """Étape réussie : pics mesurés gardés (work/memoire_mesures.json) pour les prochaines
+    estimations. Étape reprise en route : pas gardés (une partie du travail était déjà faite)."""
+    peaks, info = job.get("memPeaks") or {}, job.get("memInfo")
+    if not peaks or not info:
+        return
+    write("   Mémoire mesurée : " + ", ".join(f"{op} {memoire.go(n)}" for op, n in peaks.items()))
+    if partial:
+        return
+    for op, peak in peaks.items():
+        try:
+            w = job.get("renderWorkers")
+            memoire.record(op, peak, {**info, "workers": w} if w and op in memoire.RENDERS else info)
+        except Exception:  # noqa: BLE001 - mesure seulement
+            traceback.print_exc()
+
+
+def watch_memory(write):
+    """Pendant une étape : mémoire presque épuisée (moins de 300 Mo ou de 4 % libres)."""
+    avail, total = memoire.available()
+    if avail is None:
+        return
+    low = avail < max(300 * memoire.MO, 0.04 * total)
+    sm = job.get("stepMemory") or {}
+    if low and not sm.get("low"):
+        sm.update(low=True, level="insuffisant", available=avail,
+                  message=f"La mémoire est presque épuisée ({memoire.go(avail)} libres) : l'étape risque d'être "
+                          "arrêtée. Fermez d'autres programmes, ou mettez la préparation en pause et donnez plus "
+                          "de mémoire à Docker (Réglages > Resources > Memory).")
+        job["stepMemory"] = sm
+        write(f"   ATTENTION : mémoire presque épuisée ({memoire.go(avail)} libres)")
 
 
 # --- Journal (page /logs/) ------------------------------------------------------------
@@ -909,11 +1208,13 @@ def no_space(need, folder):
             + " Pour en libérer : « Libérer de la place », en bas de la page « Rushes et montages ».")
 
 
-def cancel_job():
+def cancel_job(pause=False):
+    """Arrête la tâche en cours ; avec pause, elle est gardée pour être reprise (préparation)."""
     with job_lock:
-        if job["state"] != "running":
+        if job["state"] != "running" or (pause and job["kind"] not in RESUMABLE):
             return False
         job["cancel"] = True
+        job["pause"] = pause
         proc = job.get("proc")
     if proc:
         try:
@@ -923,35 +1224,44 @@ def cancel_job():
     return True
 
 
-def start_job(kind, steps, arg, args=None):
-    """arg : objet de la tâche (rush, variante…) ; args : vidéos du rush (« {args} »), [arg] par défaut."""
+def start_job(kind, steps, arg, args=None, resume=None, reuse=False):
+    """arg : objet de la tâche (rush, variante…) ; args : vidéos du rush (« {args} »), [arg] par défaut.
+    resume : tâche en pause (work/tache.json) reprise à son étape. reuse : préparation qui reprend
+    les parties gardées par un abandon (work/reprise/garde.json). Refusée si une tâche tourne ou
+    si une préparation attend d'être reprise (sauf pour la reprendre)."""
     with job_lock:
-        if job["state"] == "running":
+        if job["state"] == "running" or (resume is None and kind not in ("update", "reset") and paused_task()):
             return False
+        r = resume or {}
         job.update(state="running", kind=kind, step="démarrage", error=None, logError=None, log=[], arg=arg, progress=None,
-                   cancel=False, proc=None, logFile=None, logName=None,
-                   spent={}, stepStart=None, stepPhases=0.0, rushSeconds=0.0,
-                   steps=[name for name, _ in steps],
+                   cancel=False, pause=False, proc=None, logFile=None, logName=None,
+                   spent={}, opStart={}, stepStart=None, stepPhases=0.0, rushSeconds=0.0,
+                   steps=[name for name, _ in steps], args=args or [arg], stepIndex=r.get("index", 0),
+                   ops=dict(r.get("ops") or {}), resumed=bool(resume), reuse=reuse, before=float(r.get("elapsed") or 0),
+                   firstStartedAt=r.get("startedAt"), memory=None, stepMemory=None, memInfo=None,
+                   langue=r.get("langue") or language(WORK),
                    startedAt=datetime.datetime.now().isoformat(), startedTs=time.time())
         try:
-            job["logFile"] = open_job_log(kind, arg + (f" ({' + '.join(args)})" if args and len(args) > 1 else ""),
-                                          job["steps"])
+            title = arg + (f" ({' + '.join(args)})" if args and len(args) > 1 else "")
+            job["logFile"] = open_job_log(kind, title + (" : reprise" if resume else ""), job["steps"])
             job["logName"] = os.path.basename(job["logFile"].name)
         except OSError:
             traceback.print_exc()
-    threading.Thread(target=run_job, args=(steps, arg, args or [arg]), daemon=True).start()
+    threading.Thread(target=run_job, args=(steps, arg, args or [arg], r.get("index", 0)), daemon=True).start()
     return True
 
 
 def job_status():
-    status = {k: v for k, v in job.items() if k not in ("log", "spent", "proc", "cancel", "logFile")} | {"log": job["log"][-30:], "now": time.time()}
+    status = {k: v for k, v in job.items() if k not in ("log", "spent", "proc", "cancel", "logFile", "opStart", "memInfo", "memPeaks", "memOp", "renderWorkers")} \
+        | {"log": job["log"][-30:], "now": time.time(), "paused": paused_task(),
+           "plan": PLAN}
     if job["state"] == "running":
         try:
             current, rest = remaining_time()
         except Exception:  # noqa: BLE001 - l'estimation ne doit jamais casser le suivi
             traceback.print_exc()
             current, rest = None, None
-        elapsed = time.time() - job["startedTs"]
+        elapsed = job.get("before", 0.0) + time.time() - job["startedTs"]
         status["remaining"] = None if rest is None else round(rest)
         status["overall"] = round(elapsed / (elapsed + rest), 4) if rest is not None and elapsed + rest > 0 else 0.0
         if status.get("progress") and current is not None:
@@ -1285,8 +1595,14 @@ def final_info():
     rush = media_seconds(os.path.join(ROOT, read_text(os.path.join(WORK, "rush.txt")) or "-"))
     scale = {"montage": montage, "rush": rush, "fixe": 1}
     estimate = sum(rates[k] * scale[RATES[k][0]] for k in ("Source 4K", "Rendu 4K", "étape:rendu 4K"))
+    try:  # mémoire nécessaire (rendu 4K : le plus gourmand) comparée à la mémoire libre
+        mem = memoire.summary([n for n, _ in FINAL_STEPS], memoire.video_info(
+            [os.path.join(ROOT, read_text(os.path.join(WORK, "rush.txt")) or "-")], montage=montage))
+        mem = {k: mem[k] for k in ("peak", "available", "level", "message")}
+    except Exception:  # noqa: BLE001 - estimation seulement
+        mem = None
     return {"available": os.path.exists(apercu) and montage > 0, "estimate": round(estimate), "res": res,
-            "running": job["state"] == "running" and job["kind"] == "final"}
+            "memory": mem, "running": job["state"] == "running" and job["kind"] == "final"}
 
 
 # Noms sous lesquels l'interface est ouverte (navigateur de la machine, lanceurs, contrôle de
@@ -1518,6 +1834,18 @@ class Handler(BaseHTTPRequestHandler):
             return self.send_json(place.inventory())
         if path == "/api/rushes":
             return self.send_json(rush_list())
+        if path == "/api/memoire":  # mémoire nécessaire à la préparation d'un rush (avant de la lancer)
+            q = parse_qs(urlparse(self.path).query)
+            parts = [safe_rush_name(r) for r in q.get("rush", [])[:20]]
+            if not parts or not all(parts) or not all(os.path.isfile(os.path.join(RUSHES, n)) for n in parts):
+                return self.send_json({"error": "Rush introuvable dans public/rushes."}, 400)
+            steps = [n for n, _ in (PREPARE_WITH_INSTRUCTIONS if q.get("instructions") == ["1"] else PREPARE_STEPS)]
+            plan = memoire.summary(steps, memoire.video_info([os.path.join(RUSHES, n) for n in parts]))
+            kept = kept_parts(parts)
+            plan["kept"] = [label for pid, label, _ in ABANDON_PARTS if pid in kept]
+            return self.send_json(plan)
+        if path == "/api/job/parts":  # parties déjà faites d'une préparation en pause (« Abandonner »)
+            return self.send_json({"parts": abandon_parts() if paused_task() else []})
         if path in ("/local/shim.js", "/local/menu.js"):
             return self.send_file(os.path.join(ROOT, "local", os.path.basename(path)))
         if path.startswith("/out/"):
@@ -1744,7 +2072,8 @@ class Handler(BaseHTTPRequestHandler):
     def do_POST(self):
         route = urlparse(self.path).path
         if route not in ("/api/regen", "/api/prepare", "/api/final", "/api/chat", "/api/chat/stop", "/api/chat/new",
-                         "/api/projects/open", "/api/projects/delete", "/api/projects/save", "/api/job/cancel", "/api/place/delete",
+                         "/api/projects/open", "/api/projects/delete", "/api/projects/save", "/api/job/cancel", "/api/job/pause",
+                         "/api/job/resume", "/api/job/abandon", "/api/place/delete",
                          "/api/claude/login", "/api/claude/code", "/api/claude/logout",
                          "/api/update/check", "/api/update/apply", "/api/update/reset", "/api/restart", "/api/style/analyse", "/api/son/analyse", "/api/tutorial/seen",
                          "/api/moments/merge", "/api/moments/split", "/api/moments/unmerge", "/api/moments/unsplit"):
@@ -1768,14 +2097,14 @@ class Handler(BaseHTTPRequestHandler):
                                                     f"il tourne encore en {VERSION} : redémarrez-le.", "restart": True}, 400)
                 return self.send_json({"error": r.get("error") or "Vous avez déjà la dernière version."}, 400)
             if not start_job("update", [("mise à jour", ["python3", "scripts/update.py", "apply", r["tag"]])], r["tag"]):
-                return self.send_json({"error": "Une tâche est en cours : attendez qu'elle finisse."}, 409)
+                return self.send_json({"error": busy_error()}, 409)
             return self.send_json({"ok": True, "tag": r["tag"]}, 202)
         if route == "/api/update/reset":
             if body.get("confirm") is not True:  # la page demande toujours une confirmation avant
                 return self.send_json({"error": "Réinitialisation non confirmée."}, 400)
             tag = f"v{VERSION}"  # version qui tourne (VERSION sur le disque a pu être modifié)
             if not start_job("reset", [("réinitialisation", ["python3", "scripts/update.py", "reset", tag])], tag):
-                return self.send_json({"error": "Une tâche est en cours : attendez qu'elle finisse."}, 409)
+                return self.send_json({"error": busy_error()}, 409)
             return self.send_json({"ok": True, "tag": tag}, 202)
         if route == "/api/claude/login":
             if not shutil.which("claude"):
@@ -1796,14 +2125,30 @@ class Handler(BaseHTTPRequestHandler):
             if not cancel_job():
                 return self.send_json({"error": "Aucune tâche en cours."}, 409)
             return self.send_json({"ok": True})
+        if route == "/api/job/pause":
+            if not cancel_job(pause=True):
+                return self.send_json({"error": "Aucune préparation en cours."}, 409)
+            return self.send_json({"ok": True})
+        if route == "/api/job/resume":
+            error = resume_job()
+            return self.send_json({"error": error}, 409) if error else self.send_json({"ok": True}, 202)
+        if route == "/api/job/abandon":
+            delete = body.get("delete")  # parties à effacer (toutes sans liste)
+            if delete is not None and (not isinstance(delete, list) or not all(isinstance(d, str) for d in delete)):
+                return self.send_json({"error": "Choix invalide."}, 400)
+            with job_lock:
+                if job["state"] == "running" or not paused_task():
+                    return self.send_json({"error": "Aucune préparation en pause."}, 409)
+                kept = abandon_task(delete)
+            return self.send_json({"ok": True, "kept": kept})
         if route.startswith("/api/projects/"):
             action = route.rsplit("/", 1)[1]
             pid = str(body.get("id") or "")
             if action != "save" and not SAFE_ID.match(pid):
                 return self.send_json({"error": "montage invalide"}, 400)
             with job_lock:  # pas pendant une préparation, une génération ou une création 4K
-                if job["state"] == "running":
-                    return self.send_json({"error": "Une tâche est en cours : attendez qu'elle finisse."}, 409)
+                if busy():
+                    return self.send_json({"error": busy_error()}, 409)
                 ok, msg = run_project(action, *([pid] if action != "save" else []))
             return self.send_json({"ok": ok, "message": msg[0]} if ok else {"error": msg[0]}, 200 if ok else 400)
         if route == "/api/place/delete":
@@ -1813,6 +2158,10 @@ class Handler(BaseHTTPRequestHandler):
             with job_lock:  # une tâche en cours écrit dans ces dossiers (et ses fichiers .part.*)
                 if job["state"] == "running":
                     return self.send_json({"error": "Une tâche est en cours : attendez qu'elle finisse."}, 409)
+                rec = paused_task()  # vidéos d'une préparation en pause : gardées pour la reprendre
+                if rec and any(i == f"rush:{a}" for i in ids for a in rec["args"]):
+                    return self.send_json({"error": f"La préparation de {rec['arg']} est en pause : ses vidéos sont "
+                                                    "gardées tant qu'elle n'est pas reprise ou abandonnée."}, 409)
                 before = shutil.disk_usage(ROOT).free
                 try:
                     done = place.delete(ids)
@@ -1823,7 +2172,7 @@ class Handler(BaseHTTPRequestHandler):
             if not final_info()["available"]:
                 return self.send_json({"error": "Pas encore de version de travail : générez-la d'abord."}, 400)
             if not start_job("final", FINAL_STEPS, "4k"):
-                return self.send_json({"error": "Une tâche est déjà en cours : attendez qu'elle finisse."}, 409)
+                return self.send_json({"error": busy_error()}, 409)
             return self.send_json({"ok": True}, 202)
         if route == "/api/chat":
             message = str(body.get("message") or "").strip()
@@ -1845,8 +2194,8 @@ class Handler(BaseHTTPRequestHandler):
         if route.startswith("/api/moments/"):
             # Scinder ou fusionner des moments (scripts/decoupage.py), puis refaire la page des
             # moments (seuls les extraits touchés sont recalculés).
-            if job["state"] == "running":
-                return self.send_json({"error": "Une tâche est en cours : attendez qu'elle finisse."}, 409)
+            if busy():
+                return self.send_json({"error": busy_error()}, 409)
             action = route.rsplit("/", 1)[1]
             try:
                 mid = int(body.get("id"))
@@ -1857,7 +2206,7 @@ class Handler(BaseHTTPRequestHandler):
             except (TypeError, ValueError):
                 return self.send_json({"error": "Moment invalide."}, 400)
             if not start_job("decoupage", [("page des moments", ["python3", "scripts/make_moments.py"])], message):
-                return self.send_json({"error": "Une tâche est en cours : attendez qu'elle finisse."}, 409)
+                return self.send_json({"error": busy_error()}, 409)
             return self.send_json({"ok": True, "message": message}, 202)
         if route == "/api/tutorial/seen":
             os.makedirs(WORK, exist_ok=True)
@@ -1876,7 +2225,7 @@ class Handler(BaseHTTPRequestHandler):
             if not claude_connected():
                 return self.send_json({"error": "Claude Code n'est pas connecté : connectez-le sur la page « Connexion à Claude »."}, 400)
             if not start_job("style", STYLE_STEPS, f"{len(style_videos())} vidéo(s) d'exemple"):
-                return self.send_json({"error": "Une tâche est déjà en cours : attendez qu'elle finisse."}, 409)
+                return self.send_json({"error": busy_error()}, 409)
             return self.send_json({"ok": True}, 202)
         if route == "/api/prepare":
             # Une vidéo (« rush ») ou plusieurs (« rushes », dans l'ordre) : assemblées en un rush.
@@ -1899,11 +2248,15 @@ class Handler(BaseHTTPRequestHandler):
                 if not claude_connected():
                     return self.send_json({"error": "Claude Code n'est pas connecté : ouvrez-le une fois (lanceur « Claude Code »)."}, 400)
                 steps = PREPARE_WITH_INSTRUCTIONS
+            if job["state"] != "running" and paused_task():
+                if not body.get("abandon"):  # la page demande d'abord confirmation
+                    return self.send_json({"error": busy_error(), "paused": True}, 409)
+                abandon_task()
             if job["state"] != "running":  # langue de la transcription, lue par prepare.sh
                 os.makedirs(WORK, exist_ok=True)
                 open(os.path.join(WORK, "langue.txt"), "w", encoding="utf-8").write(langue + "\n")
-            if not start_job("prepare", steps, name, parts):
-                return self.send_json({"error": "Une tâche est déjà en cours : attendez qu'elle finisse."}, 409)
+            if not start_job("prepare", steps, name, parts, reuse=bool(kept_parts(parts))):
+                return self.send_json({"error": busy_error()}, 409)
             return self.send_json({"ok": True}, 202)
         variant = str(body.get("variant") or "travail")
         if not SAFE_ID.match(variant):
@@ -1920,7 +2273,7 @@ class Handler(BaseHTTPRequestHandler):
                        "updatedAt": datetime.datetime.now().isoformat()},
                       open(doc, "w"), ensure_ascii=False, indent=1)
         if not start_job("regen", REGEN_STEPS, variant):
-            return self.send_json({"error": "une génération est déjà en cours"}, 409)
+            return self.send_json({"error": busy_error()}, 409)
         return self.send_json({"ok": True}, 202)
 
 

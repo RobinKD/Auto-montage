@@ -22,9 +22,14 @@ sys.path.insert(0, os.path.dirname(__file__))
 from progress import report  # noqa: E402
 from moments_lib import HF_VOICES, frame_layout  # noqa: E402
 from render_lib import POPPINS, ROOT, Montage, headless_chrome  # noqa: E402
+import memoire  # noqa: E402
 
 DIR = os.path.join(ROOT, "work", "rendu_hyperframes")
 HF_AUDIO = os.path.join(ROOT, "selection", "hf_audio.js")
+# Extractions d'images des plans en même temps (scripts/ffmpeg_limite.sh) : environ 200 Mo chacune
+# en 1080p (4 fois plus en 4K : 2 au plus).
+EXTRACTIONS = max(1, min(4, os.cpu_count() or 1))
+EXTRACTIONS_HD = max(1, min(2, os.cpu_count() or 1))
 NODE_MODULES = os.path.join(ROOT, "node_modules")
 # 4K : préréglages de « hyperframes render --resolution » (même page, rendue à l'échelle 2) ; les
 # autres formats (4:3…) sont agrandis dans la page elle-même (build, k = 2).
@@ -118,10 +123,20 @@ def build(m, k=1):
     shutil.copy(os.path.join(NODE_MODULES, "gsap", "dist", "gsap.min.js"), os.path.join(DIR, "assets", "gsap.min.js"))
 
 
-def tools():
+def tools(hd=False):
     """ffmpeg (imageio-ffmpeg), ffprobe (@ffprobe-installer) et Chrome sans écran (render_lib)."""
     env = dict(os.environ, HYPERFRAMES_NO_TELEMETRY="1", DO_NOT_TRACK="1", HYPERFRAMES_NO_UPDATE_CHECK="1",
                HYPERFRAMES_NO_AUTO_INSTALL="1", HYPERFRAMES_FFMPEG_PATH=imageio_ffmpeg.get_ffmpeg_exe())
+    # Extraction des images des plans : un ffmpeg par plan, tous en même temps chez HyperFrames
+    # (plus de 10 Go pour 150 plans) ; scripts/ffmpeg_limite.sh en laisse passer EXTRACTIONS à la
+    # fois. L'attente compte dans le délai de chaque ffmpeg (5 min par défaut) : porté à 6 h.
+    # Page d'un long montage (150 plans : 35 à 45 s par navigateur) : plus que les 45 s permises
+    # par défaut pour être prête.
+    env["PRODUCER_PLAYER_READY_TIMEOUT_MS"] = str(15 * 60 * 1000)
+    if os.name == "posix":
+        env.update(AM_FFMPEG_REAL=env["HYPERFRAMES_FFMPEG_PATH"], AM_FFMPEG_SLOTS=str(EXTRACTIONS_HD if hd else EXTRACTIONS),
+                   AM_FFMPEG_LOCKS=os.path.join(DIR, "verrous"), FFMPEG_PROCESS_TIMEOUT_MS=str(6 * 3600 * 1000),
+                   HYPERFRAMES_FFMPEG_PATH=os.path.join(ROOT, "scripts", "ffmpeg_limite.sh"))
     probe = subprocess.run(["node", "-p", "require('@ffprobe-installer/ffprobe').path"], cwd=ROOT,
                            capture_output=True, text=True).stdout.strip()
     if not probe or not os.path.exists(probe):
@@ -144,21 +159,27 @@ def main():
     json.dump({"paths": {"assets": "assets"}}, open(os.path.join(DIR, "hyperframes.json"), "w"))
     preset = HD_PRESETS.get((m.width, m.height)) if hd else None
     build(m, 2 if hd and not preset else 1)
-    # 4K : 2 navigateurs au plus (4 dépassent 14 Go de mémoire et le rendu est arrêté).
-    workers = max(1, min(2 if hd else 4, os.cpu_count() or 1))
+    # Navigateurs : 4 au plus (2 en 4K : 4 dépassent 14 Go), moins si la mémoire libre ne suffit pas
+    # (memoire.choose_workers, d'après les mesures des rendus précédents sur cette machine).
+    info = {"duration": 0, "source": (m.width, m.height), "work": (m.width, m.height), "montage": m.frames / m.fps}
+    workers = memoire.choose_workers(hd, info)
+    avail = memoire.available()[0]
+    print(f"Navigateurs du rendu : {workers}" + (f" ({memoire.go(avail)} de mémoire libre)" if avail else ""), flush=True)
     cmd = ["node", os.path.join(NODE_MODULES, "hyperframes", "dist", "cli.js"), "render", DIR, "-o", os.path.abspath(out),
            "--workers", str(workers), "--crf", "16" if hd else "20"]
     if preset:
         cmd += ["--resolution", preset]
-    proc = subprocess.Popen(cmd, cwd=ROOT, env=tools(), stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    proc = subprocess.Popen(cmd, cwd=ROOT, env=tools(hd), stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
     buf = b""
-    report("Rendu de la vidéo", 0, 100)
+    # Avancement en secondes de montage rendues (pourcentage de HyperFrames).
+    total = round(m.frames / m.fps, 2)
+    report("Rendu de la vidéo", 0, total)
 
     def line(raw):
         text = re.sub(r"\x1b\[[0-9;?]*[A-Za-z]", "", raw.decode("utf-8", "replace")).strip()
         pct = re.search(r"(\d{1,3})%\s+(\S.*)$", text)
         if pct:
-            report("Rendu de la vidéo", min(100, int(pct.group(1))), 100)
+            report("Rendu de la vidéo", round(min(100, int(pct.group(1))) * total / 100, 2), total)
         elif text and not text.startswith(("[INFO]", "|", "o ")) and not set(text) <= set("█░ "):
             print(text, flush=True)
     for chunk in iter(lambda: proc.stdout.read1(4096), b""):
@@ -169,7 +190,7 @@ def main():
     line(buf)
     if proc.wait() or not os.path.exists(out):
         sys.exit(f"Échec du rendu HyperFrames (code {proc.returncode})")
-    report("Rendu de la vidéo", 100, 100)
+    report("Rendu de la vidéo", total, total, every=0)
     shutil.rmtree(os.path.join(DIR, "assets"), ignore_errors=True)  # liens vers le rush : inutiles ensuite
     print(f"Rendu HyperFrames : {out}")
 

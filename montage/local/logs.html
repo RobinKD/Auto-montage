@@ -49,7 +49,7 @@
   .chip { font-size: 12px; font-weight: 600; border-radius: 999px; padding: 1px 9px; white-space: nowrap; }
   .chip.réussi { color: var(--accent); background: var(--accent-soft); }
   .chip.échec, .chip.interrompu { color: var(--warn); background: var(--warn-soft); }
-  .chip.annulé, .chip.serveur { color: var(--muted); background: var(--line); }
+  .chip.annulé, .chip.serveur, .chip.pause { color: var(--muted); background: var(--line); }
   .chip.running { color: var(--bg); background: var(--accent); }
   pre {
     margin: 0; max-height: 70vh; overflow: auto; background: var(--bg); border: 1px solid var(--line); border-radius: 8px;
@@ -91,7 +91,7 @@
 
 <script>
   const $ = (id) => document.getElementById(id);
-  const STATES = { "réussi": "réussi", "échec": "échec", "annulé": "annulé", interrompu: "interrompu (serveur arrêté)", running: "en cours", serveur: "serveur" };
+  const STATES = { "réussi": "réussi", "échec": "échec", "annulé": "annulé", pause: "en pause (à reprendre)", interrompu: "interrompu (serveur arrêté)", running: "en cours", serveur: "serveur" };
   let current = null;
   let timer = null;
   const when = (iso) => new Date(iso).toLocaleString("fr-FR", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", second: "2-digit" });
