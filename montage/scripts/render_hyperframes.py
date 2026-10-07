@@ -152,13 +152,15 @@ def main():
         cmd += ["--resolution", preset]
     proc = subprocess.Popen(cmd, cwd=ROOT, env=tools(), stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
     buf = b""
-    report("Rendu de la vidéo", 0, 100)
+    # Avancement en secondes de montage rendues (pourcentage de HyperFrames).
+    total = round(m.frames / m.fps, 2)
+    report("Rendu de la vidéo", 0, total)
 
     def line(raw):
         text = re.sub(r"\x1b\[[0-9;?]*[A-Za-z]", "", raw.decode("utf-8", "replace")).strip()
         pct = re.search(r"(\d{1,3})%\s+(\S.*)$", text)
         if pct:
-            report("Rendu de la vidéo", min(100, int(pct.group(1))), 100)
+            report("Rendu de la vidéo", round(min(100, int(pct.group(1))) * total / 100, 2), total)
         elif text and not text.startswith(("[INFO]", "|", "o ")) and not set(text) <= set("█░ "):
             print(text, flush=True)
     for chunk in iter(lambda: proc.stdout.read1(4096), b""):
@@ -169,7 +171,7 @@ def main():
     line(buf)
     if proc.wait() or not os.path.exists(out):
         sys.exit(f"Échec du rendu HyperFrames (code {proc.returncode})")
-    report("Rendu de la vidéo", 100, 100)
+    report("Rendu de la vidéo", total, total, every=0)
     shutil.rmtree(os.path.join(DIR, "assets"), ignore_errors=True)  # liens vers le rush : inutiles ensuite
     print(f"Rendu HyperFrames : {out}")
 

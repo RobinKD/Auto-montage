@@ -133,6 +133,20 @@
   .steps li.now::before { content: "●"; color: var(--accent); }
   .steps li.done::before { content: "✓"; color: var(--accent); }
   .steps li.done { color: var(--muted); }
+  .steps li { flex-wrap: wrap; }
+  .steps li > .pct { margin-left: auto; font-size: 14px; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .steps .ops { list-style: none; margin: 2px 0 0 1.6em; padding: 0; width: 100%; display: flex; flex-direction: column; gap: 3px; }
+  .steps .ops li { font-size: 14px; color: var(--muted); gap: 8px; }
+  .steps .ops li::before { content: none; }
+  .steps .ops li.now { color: var(--fg); }
+  .steps .ops .bar { flex: 0 0 90px; height: 6px; border-radius: 3px; background: var(--line); align-self: center; overflow: hidden; }
+  .steps .ops .bar i { display: block; height: 100%; background: var(--accent); }
+  .steps .ops .what { flex: 1 1 140px; }
+  .steps .ops .how { font-variant-numeric: tabular-nums; }
+  .mem details { margin-top: 4px; }
+  .mem ul { margin: 4px 0 0; padding-left: 1.2em; }
+  .paused { display: flex; flex-direction: column; gap: 8px; border: 1px solid var(--line); border-radius: 10px; padding: 12px; background: var(--surface); }
+  .paused p { margin: 0; }
   pre {
     margin: 0; max-height: 14rem; overflow: auto; background: var(--bg); border: 1px solid var(--line);
     border-radius: 8px; padding: 8px 10px; font-family: var(--mono); font-size: 12px; line-height: 1.5;
@@ -253,6 +267,15 @@
     <p class="warn" id="replace" hidden></p>
     <p class="row note"><label for="langue">Langue parlée dans la vidéo :</label> <select id="langue"><option value="fr">Français</option></select>
       <span>(la transcription suit cette langue ; une vidéo dans une autre langue serait mal transcrite)</span></p>
+    <div class="note mem" id="mem-plan" hidden></div>
+    <div class="paused" id="paused" hidden>
+      <p id="paused-text"></p>
+      <div class="row">
+        <button type="button" class="primary" id="resume">Reprendre la préparation</button>
+        <button type="button" id="abandon">Abandonner</button>
+      </div>
+      <p class="note">« Abandonner » efface ce qui a été fait pour cette préparation ; les montages enregistrés ne sont pas touchés.</p>
+    </div>
     <div class="row">
       <button type="button" class="primary" id="reopen" hidden>Rouvrir ce montage</button>
       <button type="button" class="primary" id="prepare" disabled>Préparer ce rush</button>
@@ -268,7 +291,9 @@
     <div class="progress" id="progress" hidden>
       <div class="row"><span id="o-label">Préparation</span><span class="facts" id="o-facts"></span></div>
       <progress id="o-bar" max="1" value="0"></progress>
-      <div class="row"><button type="button" id="cancel">Annuler</button><span class="note">Arrête la tâche ; ce qui était déjà prêt est gardé.</span></div>
+      <p class="warn" id="mem-warn" hidden></p>
+      <div class="row"><button type="button" id="pause" hidden>Mettre en pause</button><button type="button" id="cancel">Annuler</button></div>
+      <p class="note" id="pause-note" hidden>« Mettre en pause » arrête la préparation en gardant ce qui est fait : elle reprend là où elle en était, même après avoir fermé Auto-montage ou éteint l'ordinateur. « Annuler » l'arrête pour de bon.</p>
     </div>
     <p class="status" id="job-status" role="status"></p>
     <pre id="log" hidden></pre>
@@ -305,6 +330,63 @@
     $("o-label").textContent = p ? `${what} · ${p.label.toLowerCase()}` : `${what} · ${job.step}`;
     $("o-bar").value = job.overall || 0;
     $("o-facts").textContent = `${Math.floor((job.overall || 0) * 100)} %${remaining(job.remaining)}`;
+    // Pause (préparation seulement) et avertissement de mémoire (étape en cours, sinon toute la tâche).
+    $("pause").hidden = $("pause-note").hidden = job.kind !== "prepare";
+    const mem = (job.stepMemory && job.stepMemory.level !== "ok" && job.stepMemory.message)
+      || (job.memory && job.memory.level !== "ok" && job.memory.message) || "";
+    $("mem-warn").hidden = !mem;
+    $("mem-warn").textContent = mem;
+  }
+  // Avancement de chaque opération en temps de vidéo traité (« 2 min 41 s sur 6 min 17 s de vidéo »).
+  const dur = (s) => {
+    s = Math.max(0, Math.round(s));
+    if (s < 60) return `${s} s`;
+    if (s < 3600) return `${Math.floor(s / 60)} min${s % 60 ? ` ${String(s % 60).padStart(2, "0")} s` : ""}`;
+    return `${Math.floor(s / 3600)} h ${String(Math.floor(s / 60) % 60).padStart(2, "0")}`;
+  };
+  function opFacts(o) {
+    const f = o.total ? Math.min(1, o.done / o.total) : 0;
+    const pct = `${Math.floor(f * 100)} %`;
+    if (o.unit === "rush") return `${pct} · ${dur(o.done)} sur ${dur(o.total)} de vidéo`;
+    if (o.unit === "montage") return `${pct} · ${dur(o.done)} sur ${dur(o.total)} de montage`;
+    if (o.unit === "segments") return `${pct} · ${Math.round(o.done)} sur ${Math.round(o.total)}`;
+    return pct;
+  }
+  const OP_NAMES = { "Version de travail (MP4)": "Version de travail", "Segments transcrits seuls": "Hésitations isolées (transcrites seules)", "Rendu de la vidéo": "Rendu", "Découpage des moments": "Extraits des moments" };
+  // Étapes de la tâche (en cours, ou en pause : t = work/tache.json) : faites, en cours, à faire,
+  // avec l'avancement de chacune de leurs opérations.
+  function showSteps(t, running) {
+    const names = [...$("steps").children].map((li) => li.dataset.step);
+    $("steps").hidden = false;
+    [...$("steps").children].forEach((li) => { li.hidden = Array.isArray(t.steps) && !t.steps.includes(li.dataset.step); });
+    const at = t.state === "done" ? names.length : names.indexOf(t.step);
+    const ops = t.ops || {};
+    const plan = (info && info.job && info.job.plan) || t.plan || {};
+    [...$("steps").children].forEach((li, i) => {
+      li.className = i < at ? "done" : i === at && running ? "now" : "";
+      if (!li.dataset.label) li.dataset.label = li.textContent;
+      // Opérations vues, dans l'ordre où elles ont commencé, puis celles à venir.
+      const labels = Object.keys(ops).filter((k) => ops[k].step === li.dataset.step);
+      for (const k of plan[li.dataset.step] || []) if (!labels.includes(k)) labels.push(k);
+      const seen = labels.filter((k) => ops[k]);
+      const box = document.createElement("ul");
+      box.className = "ops";
+      if (i <= at) for (const k of labels) {
+        const o = ops[k];
+        if (!o && i < at) continue;  // opération sautée (version de travail déjà faite…)
+        const row = document.createElement("li");
+        const f = o && o.total ? Math.min(1, o.done / o.total) : 0;
+        row.className = t.current === k || (running && t.progress && t.progress.label === k) ? "now" : "";
+        const bar = Object.assign(document.createElement("span"), { className: "bar" });
+        bar.append(Object.assign(document.createElement("i"), { style: `width: ${Math.round(f * 100)}%` }));
+        row.append(bar, Object.assign(document.createElement("span"), { className: "what", textContent: OP_NAMES[k] || k }),
+          Object.assign(document.createElement("span"), { className: "how", textContent: o ? opFacts(o) : "à faire" }));
+        box.append(row);
+      }
+      li.replaceChildren(li.dataset.label);
+      if (box.children.length && !(i < at && seen.length <= 1)) li.append(box);
+      else if (seen.length === 1 && i <= at) li.append(Object.assign(document.createElement("span"), { className: "pct", textContent: opFacts(ops[seen[0]]) }));
+    });
   }
   const mb = (n) => (n >= 1073741824 ? `${(n / 1073741824).toFixed(1)} Go` : `${Math.round(n / 1048576)} Mo`);
   let info = null;      // réponse de /api/rushes
@@ -317,9 +399,11 @@
   function choose(name) {
     chosen = name;
     $("chosen").textContent = name || "";
-    $("step-prepare").classList.toggle("off", !name);
+    // Préparation en cours ou en pause : suivie même sans rush choisi.
+    $("step-prepare").classList.toggle("off", !name && !(info && info.job && (info.job.paused || info.job.state === "running")));
     const busy = info && info.job.state === "running";
     $("prepare").disabled = !name || busy;
+    showMemoryPlan();
     const replace = name && info && info.current && info.current !== name && info.prepared;
     $("replace").hidden = !replace;
     if (replace) {
@@ -933,7 +1017,39 @@
     });
   }
 
+  // Mémoire nécessaire à la préparation du rush choisi, comparée à la mémoire libre.
+  let memKey = null;
+  async function showMemoryPlan() {
+    const st = info && info.style;
+    const withClaude = !!(info && info.claude && $("apply-instructions").checked
+      && (info.instructions || (st && (st.sons.length || st.videos.length))));
+    const key = parts.length ? JSON.stringify([parts, withClaude]) : null;
+    if (key === memKey) return;
+    memKey = key;
+    const box = $("mem-plan");
+    if (!key) { box.hidden = true; return; }
+    const q = parts.map((p) => `rush=${encodeURIComponent(p)}`).join("&") + (withClaude ? "&instructions=1" : "");
+    const m = await fetch(`/api/memoire?${q}`).then((r) => (r.ok ? r.json() : null)).catch(() => null);
+    if (key !== memKey) return;
+    box.hidden = !m;
+    if (!m) return;
+    const go = (n) => `${(n / 1073741824).toFixed(1).replace(".", ",")} Go`;
+    const free = m.available == null ? "mémoire libre inconnue" : `${go(m.available)} libres sur ${go(m.total)}`;
+    box.className = m.level === "ok" ? "note mem" : "warn mem";
+    box.replaceChildren(`Mémoire : il faudra environ ${go(m.peak)} au plus fort de la préparation (${(OP_NAMES[m.peakOp] || m.peakOp).toLowerCase()}) ; ${free}.`
+      + (m.message ? ` ${m.message}` : ""));
+    const d = document.createElement("details");
+    d.append(Object.assign(document.createElement("summary"), { textContent: "Mémoire de chaque étape" }));
+    const ul = document.createElement("ul");
+    for (const o of m.operations) ul.append(Object.assign(document.createElement("li"), { textContent: `${OP_NAMES[o.op] || o.op} : ${go(o.need)}${o.level === "ok" ? "" : ` (${o.level})`}` }));
+    d.append(ul);
+    box.append(d);
+  }
+  $("apply-instructions").addEventListener("change", () => showMemoryPlan());
+
   $("prepare").addEventListener("click", async () => {
+    const paused = info && info.job && info.job.paused;
+    if (paused && !confirm(`La préparation de ${paused.arg} attend d'être reprise. La préparer à nouveau l'abandonne : ce qui en était fait sera effacé. Continuer ?`)) return;
     $("prepare").disabled = true;
     // Consignes tapées mais pas encore enregistrées : enregistrées avant de préparer.
     if (!$("save-instructions").disabled && $("instructions-text").value.trim()) await saveTyped();
@@ -941,7 +1057,7 @@
     const withClaude = !!(info && info.claude && $("apply-instructions").checked
       && (info.instructions || (st && (st.sons.length || st.videos.length))));
     const res = await fetch("/api/prepare", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ rushes: parts,
-      instructions: withClaude, langue: $("langue").value }) });
+      instructions: withClaude, langue: $("langue").value, abandon: !!paused }) });
     if (!res.ok) {
       const e = await res.json().catch(() => ({}));
       setStatus("job-status", e.error || `La préparation n'a pas pu démarrer (erreur ${res.status}).`, "err");
@@ -961,30 +1077,72 @@
       setStatus("job-status", `${JOB_NAMES[job.kind] || "Une tâche"} est en cours${job.kind === "style" ? "" : " (page des moments)"} : attendez sa fin, ou annulez-la, avant de préparer un rush.`);
       return;
     }
+    showPaused(job);
     if (!job || job.kind !== "prepare" || job.state === "idle") return;
-    $("steps").hidden = false;
     $("log").hidden = !job.log.length;
     $("log").textContent = job.log.join("\n");
     $("log").scrollTop = $("log").scrollHeight;
     // Étapes de cette préparation seulement (celles de Claude quand il y a des consignes).
-    [...$("steps").children].forEach((li) => { li.hidden = Array.isArray(job.steps) && !job.steps.includes(li.dataset.step); });
-    const names = [...$("steps").children].map((li) => li.dataset.step);
-    const at = job.state === "done" ? names.length : names.indexOf(job.step);
-    [...$("steps").children].forEach((li, i) => { li.className = i < at ? "done" : i === at && job.state === "running" ? "now" : ""; });
+    if (job.state !== "paused") showSteps(job, job.state === "running");
     showProgress(job);
     if (job.state === "running") {
       const since = Math.max(0, Math.round((Date.now() - new Date(job.startedAt)) / 60000));
       setStatus("job-status", `Préparation de ${job.arg} en cours (${since} min)…`);
     } else if (job.state === "done") {
       setStatus("job-status", `${job.arg} est prêt.`, "ok");
-    } else if (job.state === "error") {
+    } else if (job.state === "error" && !job.paused) {
       setStatus("job-status", `La préparation a échoué à l'étape « ${job.step} » : ${job.error}. Le détail est sur la page « Journal » (lien en haut).`, "err");
     } else if (job.state === "cancelled") {
       setStatus("job-status", `Préparation de ${job.arg} annulée à l'étape « ${job.step} ». Vous pouvez la relancer quand vous voulez ; les montages enregistrés ne sont pas touchés.`, "err");
+    } else if (job.state === "paused") {
+      setStatus("job-status", "");
     }
   }
+  // Préparation à reprendre (mise en pause, coupée par un arrêt, ou arrêtée par une erreur).
+  function showPaused(job) {
+    const t = job && job.state !== "running" && job.paused;
+    $("paused").hidden = !t;
+    if (!t) return;
+    $("step-prepare").classList.remove("off");
+    const o = t.current && t.ops && t.ops[t.current];
+    const where = `à l'étape « ${t.step} »${o ? ` (${(OP_NAMES[t.current] || t.current).toLowerCase()} : ${opFacts(o)})` : ""}`;
+    $("paused-text").textContent = t.state === "paused"
+      ? `La préparation de ${t.arg} est en pause ${where}. Elle reprendra là où elle en était, même après avoir fermé Auto-montage ou redémarré l'ordinateur.`
+      : t.state === "error"
+        ? `La préparation de ${t.arg} s'est arrêtée sur une erreur ${where}${t.error ? ` : ${t.error}` : ""}. Une fois le problème réglé (mémoire, place sur le disque…), elle peut reprendre là où elle en était.`
+        : `La préparation de ${t.arg} a été coupée ${where} (Auto-montage, Docker ou l'ordinateur arrêté). Elle peut reprendre là où elle en était.`;
+    showSteps(t, false);
+  }
+  $("pause").addEventListener("click", async () => {
+    $("pause").disabled = true;
+    const res = await fetch("/api/job/pause", { method: "POST" }).catch(() => null);
+    setTimeout(() => { $("pause").disabled = false; }, 2000);
+    if (!res || !res.ok) setStatus("job-status", "La préparation n'a pas pu être mise en pause.", "err");
+    poll();
+  });
+  $("resume").addEventListener("click", async () => {
+    $("resume").disabled = true;
+    const res = await fetch("/api/job/resume", { method: "POST" }).catch(() => null);
+    $("resume").disabled = false;
+    if (!res || !res.ok) {
+      const e = res ? await res.json().catch(() => ({})) : {};
+      setStatus("job-status", e.error || "La préparation n'a pas pu reprendre.", "err");
+      return;
+    }
+    $("paused").hidden = true;
+    poll();
+  });
+  $("abandon").addEventListener("click", async () => {
+    if (!confirm("Abandonner cette préparation ? Ce qui en était fait sera effacé ; il faudra la relancer depuis le début.")) return;
+    const res = await fetch("/api/job/abandon", { method: "POST" }).catch(() => null);
+    if (!res || !res.ok) setStatus("job-status", "La préparation n'a pas pu être abandonnée.", "err");
+    else setStatus("job-status", "Préparation abandonnée.");
+    $("steps").hidden = true;
+    await refresh();
+  });
   $("cancel").addEventListener("click", async () => {
-    if (!confirm("Annuler la tâche en cours ? Elle s'arrête tout de suite ; il faudra la relancer depuis le début.")) return;
+    const prep = info && info.job && info.job.kind === "prepare";
+    if (!confirm(`Annuler la tâche en cours ? Elle s'arrête tout de suite ; il faudra la relancer depuis le début.${prep ? " Pour la continuer plus tard, choisissez plutôt « Mettre en pause »." : ""}`)) return;
     $("cancel").disabled = true;
     await fetch("/api/job/cancel", { method: "POST" }).catch(() => {});
     setTimeout(() => { $("cancel").disabled = false; }, 2000);

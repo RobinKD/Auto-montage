@@ -174,9 +174,22 @@ interne : les changements attendent la prochaine version.
   `--resolution` pour 9:16, 16:9 et carré, sinon agrandie ×2 dans la page, `HD_PRESETS`),
   `make_hd.py`, la page des moments (`--ar`, `--u` = 10,8 px de la composition, classe `paysage`
   pour le lecteur large) et les téléchargements (`res_label`).
+- Mémoire : `scripts/memoire.py` (besoin de chaque opération d'après la taille de l'image et la durée,
+  `OPERATIONS` / `STEPS` ; mémoire libre bornée par la limite du conteneur) ; avertissement « juste » ou
+  « insuffisant » dans prepare.sh, sur /rush/ avant de préparer (`/api/memoire`), au début de chaque
+  étape (`check_memory`) et si la mémoire s'épuise (`watch_memory`), 4K comprise (`final_info`).
+- Pause et reprise de la préparation (/rush/ : « Mettre en pause », « Reprendre », « Abandonner ») :
+  `work/tache.json` (étapes, étape atteinte, avancement ; `save_task`, `paused_task`, `resume_job` de
+  `local_server.py`), resté « running » après un arrêt = coupée, reprenable aussi après une erreur ;
+  reprise = étape relancée avec `AM_REPRISE=1` (`prepare.sh --reprendre`), qui garde les morceaux de
+  `version_travail.py` (`work/reprise/travail/`), les morceaux transcrits (`work/seg/cle.txt`), les
+  visages (`work/reprise/visage.json`) et les extraits de la page. Tant qu'elle attend, les autres
+  tâches sont refusées (`busy_error`), sauf mise à jour ; tache.json et reprise/ ne sont jamais rangés
+  par `project.py`.
 - Barres de progression de l'interface locale : un script long écrit des lignes
   `@progression <fait> <total> <libellé>` (`scripts/progress.py`, aussi pour suivre un ffmpeg) ;
-  `local_server.py` les lit. Temps restant : `PLAN` et `RATES`
+  `local_server.py` les lit. Fait et total en secondes de vidéo (rush, ou montage pour le rendu :
+  `UNITS`), montrés par opération sous chaque étape de /rush/ (`job.ops`). Temps restant : `PLAN` et `RATES`
   (secondes par seconde de rush ou de montage), recalés sur la machine dans `work/timings.json`.
 - Connexion à Claude (/claude/) : `claude auth login` dans un pseudo-terminal (adresse
   d'autorisation renvoyée à la page, code collé transmis) ; état par `claude auth status`.

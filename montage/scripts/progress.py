@@ -34,16 +34,18 @@ def _seconds(h, m, s):
     return int(h) * 3600 + int(m) * 60 + float(s)
 
 
-def ffmpeg(label, cmd, total=None):
+def ffmpeg(label, cmd, total=None, offset=0.0, whole=None):
     """Lance ffmpeg avec -progress et rapporte le temps encodé sur la durée de l'entrée (ou sur
-    « total » secondes de sortie, pour une sortie plus courte que l'entrée)."""
+    « total » secondes de sortie, pour une sortie plus courte que l'entrée). Un morceau d'un
+    travail plus long (offset, whole) : rapporté comme offset + temps encodé sur whole."""
     if total is None:
         inputs = [cmd[i + 1] for i, a in enumerate(cmd[:-1]) if a == "-i"]
         probe = subprocess.run([cmd[0], "-hide_banner", "-i", inputs[0]], capture_output=True, text=True) if inputs else None
         m = re.search(r"Duration: (\d+):(\d+):([\d.]+)", probe.stderr if probe else "")
         total = _seconds(*m.groups()) if m else 0
+    whole = whole or total
     if total:
-        report(label, 0, total)  # la barre (et son chronomètre) démarre avec ffmpeg
+        report(label, offset, whole)  # la barre (et son chronomètre) démarre avec ffmpeg
     # Messages de ffmpeg recopiés au fil de l'eau (journal) et gardés pour le bilan d'un échec.
     proc = subprocess.Popen(cmd[:1] + ["-progress", "pipe:1", "-nostats"] + cmd[1:],
                             stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, errors="replace")
@@ -58,11 +60,11 @@ def ffmpeg(label, cmd, total=None):
     for line in proc.stdout:
         key, _, value = line.strip().partition("=")
         if key == "out_time_us" and total and value.isdigit():
-            report(label, min(int(value) / 1e6, total), total)
+            report(label, offset + min(int(value) / 1e6, total), whole)
     code = proc.wait()
     reader.join(5)
     if code == 0 and total:
-        report(label, total, total)
+        report(label, offset + total, whole)
     if code:
         print(f"ERREUR : ffmpeg ({label}) s'est arrêté : {exit_reason(code)}", flush=True)
         print(f"   {resources(cmd[-1])}", flush=True)

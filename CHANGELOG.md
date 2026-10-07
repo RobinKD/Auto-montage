@@ -4,6 +4,23 @@ Chaque version publiée reprend sa section dans ses notes (onglet Releases). Une
 section, le numéro dans `VERSION` et le tag `v<numéro>` poussé publient la version avec ses
 installateurs (voir `packaging/README.md`).
 
+## 0.57
+
+- **Mémoire** : avant de préparer un rush, la page **Rushes et montages** dit combien de mémoire la
+  préparation demandera d'après la vidéo (taille de l'image, durée), étape par étape, et combien il
+  en reste de libre. Si c'est juste ou insuffisant, un avertissement explique quoi faire (fermer
+  d'autres programmes, donner plus de mémoire à Docker). La vérification est refaite au début de
+  chaque étape, et un avertissement apparaît si la mémoire s'épuise en cours de route. La création
+  de la 4K, la plus gourmande, prévient aussi.
+- **Pause et reprise** : une préparation peut être mise en pause à tout moment (« Mettre en
+  pause »), puis reprise plus tard là où elle en était (« Reprendre la préparation »), même après
+  avoir fermé Auto-montage, Docker ou éteint l'ordinateur. Une préparation coupée par un arrêt ou
+  arrêtée par une erreur (mémoire, place sur le disque) se reprend de la même façon, sans tout
+  refaire : la version de travail repart de la dernière minute faite, la transcription des passages
+  pas encore transcrits, la détection du visage de sa dernière position.
+- **Avancement détaillé** : chaque étape de la préparation montre où elle en est, en pourcentage et
+  en temps de vidéo traité (« Transcription : 43 % · 2 min 41 s sur 6 min 17 s de vidéo »).
+
 ## 0.56
 
 - **Lignes des sous-titres** : dans « Style des sous-titres » de la page des moments, et sur la page

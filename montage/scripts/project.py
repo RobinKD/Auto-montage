@@ -27,7 +27,8 @@ STORE = os.path.join(WORK, "projets")
 # rush suivant : elles restent (langue_rush.txt, la langue du rush, est rangée avec lui).
 SHARED = {"projets", "local_db", "timings.json", "models", "regen_trigger.txt", "instructions.md", "instructions.name", "langue.txt",
           "style", "logs", "sauvegardes", "caption_style_default.json", "effets_page.json",
-          "tutoriel_vu", "rendu_hyperframes"}
+          "tutoriel_vu", "rendu_hyperframes",
+          "tache.json", "reprise"}  # préparation en cours ou en pause (local_server.py) : jamais rangée
 # Hors de work/ : déplacés (lourds) ou copiés (suivis par git, restent en place).
 MOVED = ["public/rushes/rush_1080.mp4", "public/rushes/rush_1080.webm", "public/rushes/rush_2160.webm",
          "public/audio", "out/montage_apercu.mp4", "out/montage_4k.mp4"]

@@ -2180,6 +2180,9 @@ ${HFAudio.voiceElements(spec)}
     $("gen-bar").hidden = frac === null;
     if (frac !== null) $("gen-bar").value = frac;
     $("gen-facts").textContent = frac === null ? "" : `${Math.floor(frac * 100)} %${remaining(p.remaining)}`;
+    // Mémoire juste ou insuffisante pour l'étape en cours (scripts/memoire.py) : dit sous la barre.
+    const mem = job.stepMemory && job.stepMemory.level !== "ok" ? job.stepMemory.message : "";
+    if (mem) $("gen-label").textContent += ` · ${mem}`;
     $("gen-all-label").textContent = job.kind === "final" ? "Ensemble de la création 4K" : "Ensemble de la génération";
     $("gen-all").value = job.overall || 0;
     $("gen-all-facts").textContent = `${Math.floor((job.overall || 0) * 100)} %${remaining(job.remaining)}`;

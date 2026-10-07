@@ -130,6 +130,26 @@ Le choix est gardé pour les préparations suivantes (`work/langue.txt`), la lan
 est dans `work/langue_rush.txt` (`moments_lib.LANGUAGES`). La langue est fixée plutôt que détectée
 pour ne pas ralentir la transcription.
 
+Mémoire : au début, `scripts/memoire.py` estime d'après la vidéo (taille de l'image, durée) la
+mémoire de chaque étape (la transcription, environ 2,3 Go, est en général la plus gourmande) et la
+compare à la mémoire libre du conteneur : avertissement si elle est juste ou insuffisante.
+L'interface locale le montre avant de préparer, au début de chaque étape, et quand la mémoire
+s'épuise pendant une étape (aussi pour la création 4K, qui demande le plus).
+
+Pause et reprise : une préparation interrompue (pause, arrêt d'Auto-montage ou de l'ordinateur,
+erreur) reprend là où elle en était avec `./scripts/prepare.sh --reprendre MonRush.mov` (ou
+« Reprendre la préparation » sur la page « Rushes et montages » ; la tâche est décrite dans
+`work/tache.json`). La version de travail est encodée par morceaux d'une minute
+(`scripts/version_travail.py`, morceaux dans `work/reprise/travail/`), Whisper ne transcrit que
+les morceaux qui n'ont pas encore de texte (`work/seg/`), la détection du visage repart de sa
+dernière position enregistrée (`work/reprise/visage.json`) et la page des moments ne refait que
+les extraits manquants. Le rendu et l'application des consignes par Claude reprennent au début de
+leur étape. Sans `--reprendre`, tout est refait.
+
+Avancement : chaque opération longue écrit des lignes `@progression <fait> <total> <libellé>`
+(`scripts/progress.py`) en secondes de vidéo traitées (du rush, ou du montage pour le rendu) ;
+l'interface locale les affiche en pourcentage par étape (« 2 min 41 s sur 6 min 17 s de vidéo »).
+
 Son : une vidéo à plusieurs pistes son (un micro par personne, enregistreur à part, caméra à deux
 entrées) a toutes ses pistes lisibles mélangées (`moments_lib.audio_map`, dans `prepare.sh`,
 `build_edit.py` et `join_rushes.py`). Une vidéo sans son est refusée avec un message : le
@@ -137,7 +157,7 @@ découpage se fait d'après la parole.
 
 | Étape | Script | Sortie |
 | --- | --- | --- |
-| Version de travail 1080×1920 (MP4) | `prepare.sh` | `public/rushes/` |
+| Version de travail 1080×1920 (MP4), par morceaux d'une minute | `version_travail.py` (via `prepare.sh`) | `public/rushes/` |
 | Source 4K des images gardées (rendu final) | `make_hd.py` via `render.sh final` | `public/rushes/rush_2160.webm` |
 | Segments de parole (VAD Silero) et transcription mot à mot par segment (Whisper large-v3-turbo, segments transcrits ensemble par morceaux de 28 s) | `setup_whisper.sh`, `transcribe_segments.py` | `work/segments.json` |
 | Position du visage | `detect_face.py` | `src/data/face.json` |

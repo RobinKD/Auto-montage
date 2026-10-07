@@ -5,6 +5,10 @@
 #         assemblées dans l'ordre (scripts/join_rushes.py) puis préparées comme un seul rush
 #         ./scripts/prepare.sh --langue en <fichier…>   rush en anglais (français par défaut ;
 #         le choix est gardé pour les préparations suivantes : work/langue.txt)
+#         ./scripts/prepare.sh --reprendre <fichier…>   reprend une préparation interrompue (pause,
+#         arrêt, panne) là où elle en était : morceaux de la version de travail (work/reprise/),
+#         morceaux transcrits (work/seg/), positions du visage déjà trouvées. Sans cette option
+#         (ni AM_REPRISE=1, mis par l'interface locale), tout est refait.
 # Prérequis : npm i, pip install -r scripts/requirements.txt (ou le conteneur Docker/Podman :
 # lancé sur la machine sans ces outils, le script se relance dans le conteneur).
 set -euo pipefail
@@ -12,6 +16,10 @@ cd "$(dirname "$0")/.."
 . scripts/in_container.sh
 
 mkdir -p work
+if [ "${1:-}" = "--reprendre" ]; then
+  export AM_REPRISE=1
+  shift
+fi
 if [ "${1:-}" = "--langue" ]; then
   python3 -c "import sys; sys.path.insert(0, 'scripts'); import moments_lib as m
 sys.exit(sys.argv[1] not in m.LANGUAGES)" "${2:-}" || { echo "Langue inconnue : ${2:-} (fr ou en)" >&2; exit 1; }
@@ -61,6 +69,12 @@ if [ "$OLD" != "$RUSH" ] || { [ -n "$OLD_KEY" ] && [ "$OLD_KEY" != "$KEY" ]; }; 
 fi
 echo "$RUSH" > work/rush.txt
 echo "$KEY" > work/rush_key.txt
+# Préparation reprise : ce qui est déjà fait est gardé ; sinon, restes d'une préparation
+# interrompue effacés (tout est refait).
+REPRISE="${AM_REPRISE:-}"
+[ "$REPRISE" = 1 ] || rm -rf work/reprise
+# Mémoire nécessaire à chaque étape d'après la vidéo, comparée à la mémoire libre (avertissement).
+python3 scripts/memoire.py "$RUSH" || true
 # Langue du rush (transcription, consignes appliquées par Claude) : celle choisie pour cette préparation.
 LANGUE="$(python3 -c "import sys; sys.path.insert(0, 'scripts'); import moments_lib as m; print(m.language('work'))")"
 echo "$LANGUE" > work/langue_rush.txt
@@ -79,20 +93,28 @@ if [ -f public/rushes/rush_1080.mp4 ] && [ "$(python3 -c "import sys; sys.path.i
 print(*m.frame_size('.'), sep=':')")" != "$SIZE" ]; then
   rm -f public/rushes/rush_1080.mp4
 fi
+#    Encodée par morceaux d'une minute (scripts/version_travail.py) : une reprise repart du
+#    premier morceau manquant.
 if [ ! -f public/rushes/rush_1080.mp4 ]; then
-  python3 scripts/progress.py ffmpeg "Version de travail (MP4)" "$FFMPEG" -v error -y -i "$RUSH" -map 0:v:0 "${AUDIO_MAP[@]}" \
-    -vf "scale=$SIZE,setsar=1" -c:v libx264 -preset veryfast -crf 18 -g 15 -pix_fmt yuv420p \
-    -c:a aac -b:a 192k public/rushes/rush_1080.part.mp4
-  mv public/rushes/rush_1080.part.mp4 public/rushes/rush_1080.mp4
+  python3 scripts/version_travail.py "$RUSH"
 fi
 
 echo "Étape 2/4 : transcription en $(python3 -c "import sys; sys.path.insert(0, 'scripts'); import moments_lib as m; print(m.LANGUAGES[sys.argv[1]].lower())" "$LANGUE") (Whisper, le plus long : environ la durée du rush)"
 # 2. Audio 16 kHz mono, segments de parole (VAD Silero) et transcription par segment.
+#    (Reprise : son et segments déjà faits gardés, morceaux déjà transcrits aussi.)
 bash scripts/setup_whisper.sh
-"$FFMPEG" -v error -y -i "$RUSH" "${AUDIO_MAP[@]}" -ac 1 -ar 16000 -c:a pcm_s16le work/rush_16k.wav
+if [ "$REPRISE" != 1 ] || [ ! -f work/rush_16k.wav ]; then
+  python3 scripts/progress.py ffmpeg "Extraction du son" "$FFMPEG" -v error -y -i "$RUSH" "${AUDIO_MAP[@]}" \
+    -ac 1 -ar 16000 -c:a pcm_s16le work/rush_16k.part.wav
+  mv work/rush_16k.part.wav work/rush_16k.wav
+  rm -f work/vad.txt
+fi
 WHISPER="${WHISPER_DIR:-whisper.cpp}"  # Docker : /opt/whisper/whisper.cpp
-"$WHISPER/build/bin/vad-speech-segments" -f work/rush_16k.wav \
-  -vm "$WHISPER/ggml-silero-v5.1.2.bin" -vsd 150 -vp 40 -np > work/vad.txt 2>/dev/null
+if [ "$REPRISE" != 1 ] || [ ! -f work/vad.txt ]; then
+  "$WHISPER/build/bin/vad-speech-segments" -f work/rush_16k.wav \
+    -vm "$WHISPER/ggml-silero-v5.1.2.bin" -vsd 150 -vp 40 -np > work/vad.part.txt 2>/dev/null
+  mv work/vad.part.txt work/vad.txt
+fi
 python3 scripts/transcribe_segments.py
 
 echo "Étape 3/4 : position du visage"

@@ -186,7 +186,8 @@
         if (job && job.kind === "final") {
           bar.value = job.overall || 0;
           const left = typeof job.remaining === "number" ? ` · encore ~${Math.max(1, Math.round(job.remaining / 60))} min` : "";
-          label.textContent = job.state === "running" ? `${job.progress ? job.progress.label : job.step}… ${Math.floor((job.overall || 0) * 100)} %${left}` : "";
+          const mem = job.stepMemory && job.stepMemory.level !== "ok" ? ` ${job.stepMemory.message}` : "";
+          label.textContent = job.state === "running" ? `${job.progress ? job.progress.label : job.step}… ${Math.floor((job.overall || 0) * 100)} %${left}${mem}` : "";
           if (job.state === "done") { location.reload(); return; }
           if (job.state === "cancelled") { label.textContent = "Création annulée."; make.disabled = false; make.textContent = v4k ? "Recréer la 4K" : "Créer la version 4K"; bar.hidden = true; stop.hidden = true; return; }
           if (job.state === "error") { label.textContent = `Échec à l'étape « ${job.step} » : ${job.error}`; make.disabled = false; make.textContent = "Réessayer"; bar.hidden = true; stop.hidden = true; return; }
@@ -195,7 +196,8 @@
       }
     };
     make.addEventListener("click", async () => {
-      if (!confirm(`Créer la version 4K ? Cela prend du temps (${minutes(DATA.final.estimate || 0)} sur cet ordinateur).`)) return;
+      const mem = DATA.final.memory && DATA.final.memory.level !== "ok" ? `\n\n${DATA.final.memory.message}` : "";
+      if (!confirm(`Créer la version 4K ? Cela prend du temps (${minutes(DATA.final.estimate || 0)} sur cet ordinateur).${mem}`)) return;
       const r = await fetch("/api/final", { method: "POST" });
       if (!r.ok) { label.textContent = (await r.json().catch(() => ({}))).error || `erreur ${r.status}`; return; }
       follow();
