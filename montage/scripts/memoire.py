@@ -69,11 +69,11 @@ OPERATIONS = {
     # navigateur par « worker » (plus lourd avec beaucoup de plans : un tous les 2 s de montage
     # environ), et ce qui grandit avec le montage rendu (2,3 Mo par seconde, tous navigateurs).
     "Rendu de la vidéo": lambda v: 1100 + v.get("workers", render_workers()) * (
-        450 + 280 * _mpx(v["work"]) + 0.85 * v["montage"]) + 2.3 * v["montage"],
+        450 + 280 * _mpx(v["work"]) + 0.85 * _part(v)) + 2.3 * _part(v),
     "Découpage des moments": lambda v: 350,
     "Source 4K": lambda v: 400 + 120 * 4 * _mpx(v["work"]) + 14 * _mpx(v["source"]),
     "Rendu 4K": lambda v: 1100 + v.get("workers", render_workers(True)) * (
-        400 + 1320 * _mpx(v["work"]) + 0.85 * v["montage"]) + 4 * 2.3 * v["montage"],
+        400 + 1320 * _mpx(v["work"]) + 0.85 * _part(v)) + 4 * 2.3 * _part(v),
 }
 # Opérations de chaque étape des tâches de l'interface locale (noms de local_server.py).
 STEPS = {
@@ -179,6 +179,12 @@ RENDERS = {"Rendu de la vidéo": False, "Rendu 4K": True}
 
 
 RENDER_SHARE = 0.8  # part de la mémoire libre que le rendu peut prendre
+RENDER_PART = 120  # long montage rendu par parties de 2 min environ (render_hyperframes.py)
+
+
+def _part(v):
+    """Durée de montage rendue d'un coup : le montage, ou une partie (au plus 1,5 fois RENDER_PART)."""
+    return v["montage"] if v["montage"] <= 1.5 * RENDER_PART else 1.5 * RENDER_PART
 
 
 def choose_workers(hd, info, avail=None, measures=None):

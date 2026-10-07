@@ -160,7 +160,7 @@ interne : les changements attendent la prochaine version.
   sous-titres (Pillow), mots mis en valeur, coupure en 2 lignes. 4K : 4 navigateurs dépassent 14 Go
   de mémoire. HyperFrames extrait les images de chaque plan avec un ffmpeg par
   plan, tous à la fois : son ffmpeg est `scripts/ffmpeg_limite.sh` (verrous flock, `EXTRACTIONS`
-  à la fois, 2 en 4K ; délai de chaque ffmpeg porté à 6 h). Navigateurs (plus de 1 Go chacun en
+  à la fois, 2 en 4K ; délai de chaque ffmpeg porté à 6 h). Long montage (plus de 3 min) : rendu par parties d'environ 2 min (`PART_SECONDS` = `memoire.RENDER_PART`), chaque partie dans sa propre page avec ses seuls plans (`build(m, k, part)`, temps décalé de `OFF` images), gardées dans `work/rendu_parties/<empreinte>_NNN.mp4` (`parts_key` : edit.json, face.json, son.json, code du rendu) pour reprendre un rendu interrompu, puis `join_parts` (image copiée, son de chaque partie ramené à sa durée exacte). Navigateurs (plus de 1 Go chacun en
   1080p) : `memoire.choose_workers`, un par cœur (8 au plus) tant que le besoin (mesures comprises)
   tient dans 80 % de la mémoire libre (`RENDER_SHARE`), ligne « Navigateurs du
   rendu : N » lue par `local_server.py` ; page prête en 15 min au plus. Whisper : `scripts/setup_whisper.sh` (whisper.cpp 1.7.6
