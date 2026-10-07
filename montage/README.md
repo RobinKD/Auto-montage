@@ -131,10 +131,13 @@ est dans `work/langue_rush.txt` (`moments_lib.LANGUAGES`). La langue est fixée 
 pour ne pas ralentir la transcription.
 
 Mémoire : au début, `scripts/memoire.py` estime d'après la vidéo (taille de l'image, durée) la
-mémoire de chaque étape (la transcription, environ 2,3 Go, est en général la plus gourmande) et la
-compare à la mémoire libre du conteneur : avertissement si elle est juste ou insuffisante.
+mémoire de chaque étape (la transcription, environ 2,3 Go, et le rendu, plus de 1 Go par
+navigateur, sont les plus gourmandes) et la compare à la mémoire libre du conteneur : avertissement
+si elle est juste ou insuffisante. Le rendu ouvre moins de navigateurs quand la mémoire manque.
 L'interface locale le montre avant de préparer, au début de chaque étape, et quand la mémoire
-s'épuise pendant une étape (aussi pour la création 4K, qui demande le plus).
+s'épuise pendant une étape (aussi pour la création 4K, qui demande le plus). Chaque préparation
+mesure la mémoire vraiment utilisée par chaque étape (`work/memoire_mesures.json`) : les estimations
+suivantes partent de ces mesures, rapportées à la taille de la nouvelle vidéo.
 
 Pause et reprise : une préparation interrompue (pause, arrêt d'Auto-montage ou de l'ordinateur,
 erreur) reprend là où elle en était avec `./scripts/prepare.sh --reprendre MonRush.mov` (ou
@@ -144,7 +147,9 @@ erreur) reprend là où elle en était avec `./scripts/prepare.sh --reprendre Mo
 les morceaux qui n'ont pas encore de texte (`work/seg/`), la détection du visage repart de sa
 dernière position enregistrée (`work/reprise/visage.json`) et la page des moments ne refait que
 les extraits manquants. Le rendu et l'application des consignes par Claude reprennent au début de
-leur étape. Sans `--reprendre`, tout est refait.
+leur étape. Sans `--reprendre`, tout est refait. « Abandonner… » sur la page efface au choix
+chaque partie déjà faite ; celles qui sont gardées resservent à la prochaine préparation du même
+rush.
 
 Avancement : chaque opération longue écrit des lignes `@progression <fait> <total> <libellé>`
 (`scripts/progress.py`) en secondes de vidéo traitées (du rush, ou du montage pour le rendu) ;

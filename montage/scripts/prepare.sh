@@ -111,6 +111,7 @@ if [ "$REPRISE" != 1 ] || [ ! -f work/rush_16k.wav ]; then
 fi
 WHISPER="${WHISPER_DIR:-whisper.cpp}"  # Docker : /opt/whisper/whisper.cpp
 if [ "$REPRISE" != 1 ] || [ ! -f work/vad.txt ]; then
+  echo "@memoire Détection de la parole"  # mémoire mesurée par l'interface locale (sans barre)
   "$WHISPER/build/bin/vad-speech-segments" -f work/rush_16k.wav \
     -vm "$WHISPER/ggml-silero-v5.1.2.bin" -vsd 150 -vp 40 -np > work/vad.part.txt 2>/dev/null
   mv work/vad.part.txt work/vad.txt
@@ -125,6 +126,7 @@ mkdir -p work/models
 python3 scripts/detect_face.py
 
 echo "Étape 4/4 : bruitages et montage"
+echo "@memoire Bruitages et montage"
 # 4. Police Oliver, bruitages provisoires et montage.
 bash scripts/fetch_fonts.sh
 python3 scripts/make_sfx.py

@@ -18,6 +18,20 @@ installateurs (voir `packaging/README.md`).
   arrêtée par une erreur (mémoire, place sur le disque) se reprend de la même façon, sans tout
   refaire : la version de travail repart de la dernière minute faite, la transcription des passages
   pas encore transcrits, la détection du visage de sa dernière position.
+- **Abandonner en gardant une partie** : « Abandonner… » liste ce qui est déjà fait (version de
+  travail, son et transcription, position du visage, extraits de la page des moments) avec la place
+  que chaque partie prend. Tout est coché pour être effacé ; une partie décochée est gardée, et la
+  prochaine préparation du même rush la reprend sans la refaire.
+- **Mémoire apprise sur la machine** : chaque préparation mesure la mémoire vraiment utilisée par
+  chaque étape. Les estimations suivantes partent de ces mesures, rapportées à la taille de la
+  nouvelle vidéo, et la page dit pour chaque étape si le chiffre vient de mesures ou d'une
+  estimation.
+- **Rendu des longues vidéos** : le rendu de la version de travail d'un long rush pouvait épuiser la
+  mémoire et s'arrêter (« code -9 »). HyperFrames lisait tous les plans en même temps (150 plans :
+  plus de 10 Go) ; il en lit maintenant 4 à la fois (2 en 4K), sous 1 Go. Ensuite, chaque
+  navigateur du rendu prend plus d'un gigaoctet : le rendu en ouvre moins de 4 quand la mémoire
+  libre ne suffit pas (plus lent, mais il va au bout), et donne plus de temps à la page d'un long
+  montage pour être prête.
 - **Avancement détaillé** : chaque étape de la préparation montre où elle en est, en pourcentage et
   en temps de vidéo traité (« Transcription : 43 % · 2 min 41 s sur 6 min 17 s de vidéo »).
 

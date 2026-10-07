@@ -653,6 +653,7 @@ def set_progress(found):
     start = current.get("start", 0.0) if same else min(1.0, done / total) if total else 0.0
     job["progress"] = {"label": label, "done": done, "total": total, "since": since, "at": now, "start": start}
     job["ops"][label] = {"done": done, "total": total, "unit": UNITS.get(label), "step": job["step"]}
+    job["memOp"] = None  # mémoire comptée pour cette opération (sample_memory)
 
 
 def speed_factor(rates):
@@ -740,7 +741,10 @@ def run_job(steps, arg, args, first=0):
             job["memInfo"] = None
         if job.get("resumed"):
             write(f"# Reprise à l'étape « {steps[first][0]} »")
-        env = dict(os.environ, AM_REPRISE="1") if job.get("resumed") else None
+        if job.get("reuse"):
+            write("# Parties gardées d'une préparation abandonnée : " + ", ".join(kept_parts(args)))
+        # Reprise, ou parties gardées par un abandon : ce qui est déjà fait n'est pas refait.
+        env = dict(os.environ, AM_REPRISE="1") if job.get("resumed") or job.get("reuse") else None
         for index, (step, cmd) in enumerate(steps):
             if index < first:  # reprise : étapes déjà faites
                 continue
@@ -762,8 +766,17 @@ def run_job(steps, arg, args, first=0):
                                     stdout=subprocess.PIPE, stderr=subprocess.STDOUT, bufsize=1,
                                     start_new_session=True)
             job["proc"] = proc
+            job.update(memOp=None, memPeaks={}, renderWorkers=None)
+            sampler = threading.Thread(target=sample_memory, args=(proc, step), daemon=True)
+            sampler.start()
             for line in proc.stdout:  # journal en direct (progression du rendu, étapes…)
                 line = line.rstrip()
+                if line.startswith("@memoire "):  # opération en cours, sans barre d'avancement
+                    job["memOp"] = line[9:].strip()
+                    continue
+                nav = re.match(r"Navigateurs du rendu : (\d+)", line)
+                if nav:  # nombre choisi d'après la mémoire libre : compte dans la mesure du rendu
+                    job["renderWorkers"] = int(nav.group(1))
                 found = progress_of(line) if line else None
                 if found and job["kind"] == "final" and found[0] == "Rendu de la vidéo":
                     found = ("Rendu 4K",) + found[1:]
@@ -780,17 +793,19 @@ def run_job(steps, arg, args, first=0):
                     write(line)
             code = proc.wait()
             job["proc"] = None
+            sampler.join(timeout=5)
             if job.get("cancel"):
                 raise JobPaused() if job.get("pause") else JobCancelled()
             write(f"## {datetime.datetime.now().strftime('%H:%M:%S')} Fin de l'étape ({exit_reason(code, shell=True)})")
             if code != 0:
                 write(f"   {resources(ROOT)}")
                 raise RuntimeError(job_error(job["log"], code))
+            record_memory(write, partial=(job.get("resumed") or job.get("reuse")) and index == first)
         now = time.time()
         end_phase(now)
         key = f"étape:{job['step']}"
         job["spent"][key] = job["spent"].get(key, 0) + now - job["stepStart"] - job["stepPhases"]
-        if not job.get("resumed"):  # durées d'une tâche reprise en route : pas représentatives
+        if not job.get("resumed") and not job.get("reuse"):  # durées d'une tâche reprise : pas représentatives
             learn_timings()
         remove_task()
         job.update(state="done", step="terminé", progress=None, finishedAt=datetime.datetime.now().isoformat())
@@ -851,12 +866,87 @@ def save_task(state):
         traceback.print_exc()
 
 
+def remove_path(path):
+    try:
+        shutil.rmtree(path) if os.path.isdir(path) else os.remove(path)
+    except OSError:
+        pass
+
+
 def remove_task():
     for path in (TASK, os.path.join(WORK, "reprise")):
+        remove_path(path)
+
+
+# « Abandonner » une préparation : chaque partie déjà faite peut être effacée ou gardée. Une
+# partie gardée resservira à la prochaine préparation du même rush (work/reprise/garde.json :
+# préparation lancée comme une reprise, AM_REPRISE=1, sans rien refaire de ce qui est gardé).
+REPRISE = os.path.join(WORK, "reprise")
+KEPT = os.path.join(REPRISE, "garde.json")
+ABANDON_PARTS = [
+    ("travail", "Version de travail", [os.path.join(RUSHES, "rush_1080.mp4"), os.path.join(REPRISE, "travail")]),
+    ("son", "Son et transcription", [os.path.join(WORK, n) for n in ("rush_16k.wav", "vad.txt", "seg", "segments.json")]),
+    ("visage", "Position du visage", [os.path.join(REPRISE, "visage.json")]),
+    ("moments", "Extraits de la page des moments", [os.path.join(WORK, "moments", n) for n in ("clips", "thumbs")]),
+]
+
+
+def rush_fingerprint(args):
+    """Vidéos d'un rush (nom, taille, date) : une partie gardée ne resert qu'au même rush."""
+    out = []
+    for a in args:
         try:
-            shutil.rmtree(path) if os.path.isdir(path) else os.remove(path)
+            st = os.stat(os.path.join(RUSHES, a))
+            out.append([a, st.st_size, int(st.st_mtime)])
         except OSError:
-            pass
+            out.append([a, None, None])
+    return out
+
+
+def abandon_parts():
+    """Parties déjà faites de la préparation en pause : [{id, label, size}] (celles qui existent)."""
+    out = []
+    for pid, label, paths in ABANDON_PARTS:
+        size = sum(dir_size(p) if os.path.isdir(p) else os.path.getsize(p) for p in paths if os.path.exists(p))
+        if any(os.path.exists(p) for p in paths):
+            out.append({"id": pid, "label": label, "size": size})
+    return out
+
+
+def abandon_task(delete=None):
+    """Abandonne la préparation en pause : efface les parties de « delete » (toutes sans liste),
+    garde les autres pour la prochaine préparation du même rush."""
+    rec = paused_task() or {}
+    ids = [pid for pid, _, _ in ABANDON_PARTS]
+    delete = ids if delete is None else [d for d in delete if d in ids]
+    kept = []
+    for pid, _, paths in ABANDON_PARTS:
+        if pid in delete:
+            for path in paths:
+                remove_path(path)
+        elif any(os.path.exists(p) for p in paths):
+            kept.append(pid)
+    remove_path(TASK)
+    # Restes de reprise des parties effacées (la version de travail en cours : son.flac…).
+    for name in os.listdir(REPRISE) if os.path.isdir(REPRISE) else []:
+        if not (name == "travail" and "travail" in kept or name == "visage.json" and "visage" in kept):
+            remove_path(os.path.join(REPRISE, name))
+    if kept and rec.get("args"):
+        os.makedirs(REPRISE, exist_ok=True)
+        json.dump({"args": rec["args"], "rush": rush_fingerprint(rec["args"]), "kept": kept},
+                  open(KEPT, "w"), ensure_ascii=False)
+    return kept
+
+
+def kept_parts(args):
+    """Parties gardées par un abandon pour ces vidéos (même rush), ou []."""
+    try:
+        rec = json.load(open(KEPT))
+        if rec.get("args") == list(args) and rec.get("rush") == rush_fingerprint(args):
+            return rec.get("kept") or []
+    except (OSError, ValueError, AttributeError):
+        pass
+    return []
 
 
 def paused_task():
@@ -929,6 +1019,39 @@ def check_memory(step, write):
               + ("" if level == "ok" else f" : {level.upper()}"))
     except Exception:  # noqa: BLE001 - estimation seulement
         traceback.print_exc()
+
+
+def sample_memory(proc, step):
+    """Pendant une étape : pic de mémoire de chaque opération (somme des PSS de l'étape et de tout
+    ce qu'elle a lancé, une fois par seconde), dans job["memPeaks"]. L'opération est celle de la barre
+    d'avancement en cours, ou d'une ligne « @memoire <opération> », ou la seule de l'étape."""
+    alone = memoire.STEPS.get(step, [])
+    while proc.poll() is None:
+        used = memoire.tree_memory(proc.pid)
+        p = job.get("progress")
+        op = job.get("memOp") or (p["label"] if p and p["label"] in memoire.OPERATIONS else None) \
+            or (alone[0] if len(alone) == 1 else None)
+        if op in memoire.OPERATIONS and used:
+            peaks = job["memPeaks"]
+            peaks[op] = max(peaks.get(op, 0), used)
+        time.sleep(1)
+
+
+def record_memory(write, partial=False):
+    """Étape réussie : pics mesurés gardés (work/memoire_mesures.json) pour les prochaines
+    estimations. Étape reprise en route : pas gardés (une partie du travail était déjà faite)."""
+    peaks, info = job.get("memPeaks") or {}, job.get("memInfo")
+    if not peaks or not info:
+        return
+    write("   Mémoire mesurée : " + ", ".join(f"{op} {memoire.go(n)}" for op, n in peaks.items()))
+    if partial:
+        return
+    for op, peak in peaks.items():
+        try:
+            w = job.get("renderWorkers")
+            memoire.record(op, peak, {**info, "workers": w} if w and op in memoire.RENDERS else info)
+        except Exception:  # noqa: BLE001 - mesure seulement
+            traceback.print_exc()
 
 
 def watch_memory(write):
@@ -1101,9 +1224,10 @@ def cancel_job(pause=False):
     return True
 
 
-def start_job(kind, steps, arg, args=None, resume=None):
+def start_job(kind, steps, arg, args=None, resume=None, reuse=False):
     """arg : objet de la tâche (rush, variante…) ; args : vidéos du rush (« {args} »), [arg] par défaut.
-    resume : tâche en pause (work/tache.json) reprise à son étape. Refusée si une tâche tourne ou
+    resume : tâche en pause (work/tache.json) reprise à son étape. reuse : préparation qui reprend
+    les parties gardées par un abandon (work/reprise/garde.json). Refusée si une tâche tourne ou
     si une préparation attend d'être reprise (sauf pour la reprendre)."""
     with job_lock:
         if job["state"] == "running" or (resume is None and kind not in ("update", "reset") and paused_task()):
@@ -1113,7 +1237,7 @@ def start_job(kind, steps, arg, args=None, resume=None):
                    cancel=False, pause=False, proc=None, logFile=None, logName=None,
                    spent={}, opStart={}, stepStart=None, stepPhases=0.0, rushSeconds=0.0,
                    steps=[name for name, _ in steps], args=args or [arg], stepIndex=r.get("index", 0),
-                   ops=dict(r.get("ops") or {}), resumed=bool(resume), before=float(r.get("elapsed") or 0),
+                   ops=dict(r.get("ops") or {}), resumed=bool(resume), reuse=reuse, before=float(r.get("elapsed") or 0),
                    firstStartedAt=r.get("startedAt"), memory=None, stepMemory=None, memInfo=None,
                    langue=r.get("langue") or language(WORK),
                    startedAt=datetime.datetime.now().isoformat(), startedTs=time.time())
@@ -1128,7 +1252,7 @@ def start_job(kind, steps, arg, args=None, resume=None):
 
 
 def job_status():
-    status = {k: v for k, v in job.items() if k not in ("log", "spent", "proc", "cancel", "logFile", "opStart", "memInfo")} \
+    status = {k: v for k, v in job.items() if k not in ("log", "spent", "proc", "cancel", "logFile", "opStart", "memInfo", "memPeaks", "memOp", "renderWorkers")} \
         | {"log": job["log"][-30:], "now": time.time(), "paused": paused_task(),
            "plan": PLAN}
     if job["state"] == "running":
@@ -1716,7 +1840,12 @@ class Handler(BaseHTTPRequestHandler):
             if not parts or not all(parts) or not all(os.path.isfile(os.path.join(RUSHES, n)) for n in parts):
                 return self.send_json({"error": "Rush introuvable dans public/rushes."}, 400)
             steps = [n for n, _ in (PREPARE_WITH_INSTRUCTIONS if q.get("instructions") == ["1"] else PREPARE_STEPS)]
-            return self.send_json(memoire.summary(steps, memoire.video_info([os.path.join(RUSHES, n) for n in parts])))
+            plan = memoire.summary(steps, memoire.video_info([os.path.join(RUSHES, n) for n in parts]))
+            kept = kept_parts(parts)
+            plan["kept"] = [label for pid, label, _ in ABANDON_PARTS if pid in kept]
+            return self.send_json(plan)
+        if path == "/api/job/parts":  # parties déjà faites d'une préparation en pause (« Abandonner »)
+            return self.send_json({"parts": abandon_parts() if paused_task() else []})
         if path in ("/local/shim.js", "/local/menu.js"):
             return self.send_file(os.path.join(ROOT, "local", os.path.basename(path)))
         if path.startswith("/out/"):
@@ -2004,11 +2133,14 @@ class Handler(BaseHTTPRequestHandler):
             error = resume_job()
             return self.send_json({"error": error}, 409) if error else self.send_json({"ok": True}, 202)
         if route == "/api/job/abandon":
+            delete = body.get("delete")  # parties à effacer (toutes sans liste)
+            if delete is not None and (not isinstance(delete, list) or not all(isinstance(d, str) for d in delete)):
+                return self.send_json({"error": "Choix invalide."}, 400)
             with job_lock:
                 if job["state"] == "running" or not paused_task():
                     return self.send_json({"error": "Aucune préparation en pause."}, 409)
-                remove_task()
-            return self.send_json({"ok": True})
+                kept = abandon_task(delete)
+            return self.send_json({"ok": True, "kept": kept})
         if route.startswith("/api/projects/"):
             action = route.rsplit("/", 1)[1]
             pid = str(body.get("id") or "")
@@ -2119,11 +2251,11 @@ class Handler(BaseHTTPRequestHandler):
             if job["state"] != "running" and paused_task():
                 if not body.get("abandon"):  # la page demande d'abord confirmation
                     return self.send_json({"error": busy_error(), "paused": True}, 409)
-                remove_task()
+                abandon_task()
             if job["state"] != "running":  # langue de la transcription, lue par prepare.sh
                 os.makedirs(WORK, exist_ok=True)
                 open(os.path.join(WORK, "langue.txt"), "w", encoding="utf-8").write(langue + "\n")
-            if not start_job("prepare", steps, name, parts):
+            if not start_job("prepare", steps, name, parts, reuse=bool(kept_parts(parts))):
                 return self.send_json({"error": busy_error()}, 409)
             return self.send_json({"ok": True}, 202)
         variant = str(body.get("variant") or "travail")

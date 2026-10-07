@@ -6,8 +6,16 @@ Les étapes se suivent : le besoin d'une tâche est celui de son opération la p
 Mesures (6 octobre 2026, 4 cœurs, pic de la somme des PSS de tous les processus) : version de
 travail 185 à 410 Mo (1080p, 4K vers 1080p, 9:16), transcription 2,1 Go (Whisper large-v3-turbo,
 modèle de 1,6 Go), visage 120 Mo, montage (build_edit.py) 150 Mo pour 2 min de rush (son du rush
-entier en mémoire), rendu HyperFrames 1080p (4 navigateurs) 1,1 Go. Rendu 4K : 4 navigateurs ont
-dépassé 14 Go (d'où 2 au plus), soit plus de 3 Go par navigateur.
+entier en mémoire). Rendu HyperFrames 1080p (7 octobre, programmes lancés compris, navigateurs
+dans leur propre session) avec 4 navigateurs : 4,6 Go pour 80 s de montage en 8 plans, 6 Go pour
+5 min en 8 plans, 7 Go pour 5 min en 150 plans (navigateurs de 1,05 à 1,3 Go chacun). Rendu 4K : 4 navigateurs ont dépassé 14 Go (d'où 2 au plus). Le
+rendu prend autant de navigateurs que la mémoire libre le permet (choose_workers).
+
+Expérience de la machine : l'interface locale mesure le vrai pic de chaque opération pendant les
+préparations (somme des PSS des programmes de l'étape) et le garde dans work/memoire_mesures.json
+avec le besoin prévu pour ce rush-là (record). Le besoin prévu d'un nouveau rush est celui de la
+formule (qui suit la taille de l'image et la durée), multiplié par le plus grand rapport mesuré /
+prévu des 5 dernières mesures de l'opération, plus 10 % de marge (entre 0,5 et 3 fois la formule).
 
 Mémoire disponible : MemAvailable de /proc/meminfo, bornée par la limite du conteneur (cgroup)
 quand il y en a une. Avertissement « juste » sous 1,25 fois le besoin, « insuffisant » en dessous.
@@ -26,6 +34,8 @@ from moments_lib import display_size, work_size  # noqa: E402
 
 MO = 2**20
 MARGIN = 1.25  # « juste » : moins de 25 % au-dessus du besoin
+MEASURES = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "work", "memoire_mesures.json")
+KEEP_MEASURES = 10  # mesures gardées par opération
 
 
 def _mpx(size):
@@ -54,10 +64,15 @@ OPERATIONS = {
     "Bruitages et montage": lambda v: 250 + 0.3 * v["duration"],
     "Consignes de montage (Claude)": lambda v: 600,
     "Montage selon les consignes": lambda v: 250 + 0.3 * v["duration"],
-    "Rendu de la vidéo": lambda v: 400 + render_workers() * (150 + 100 * _mpx(v["work"])),
+    # Rendu : HyperFrames (node, encodeur ffmpeg, extractions d'images des plans 4 à la fois), un
+    # navigateur par « worker » (plus lourd avec beaucoup de plans : un tous les 2 s de montage
+    # environ), et ce qui grandit avec le montage rendu (2,3 Mo par seconde, tous navigateurs).
+    "Rendu de la vidéo": lambda v: 1100 + v.get("workers", render_workers()) * (
+        450 + 280 * _mpx(v["work"]) + 0.85 * v["montage"]) + 2.3 * v["montage"],
     "Découpage des moments": lambda v: 350,
     "Source 4K": lambda v: 400 + 120 * 4 * _mpx(v["work"]) + 14 * _mpx(v["source"]),
-    "Rendu 4K": lambda v: 600 + render_workers(True) * (400 + 1320 * _mpx(v["work"])),
+    "Rendu 4K": lambda v: 1100 + v.get("workers", render_workers(True)) * (
+        400 + 1320 * _mpx(v["work"]) + 0.85 * v["montage"]) + 4 * 2.3 * v["montage"],
 }
 # Opérations de chaque étape des tâches de l'interface locale (noms de local_server.py).
 STEPS = {
@@ -88,14 +103,109 @@ def video_info(paths, montage=None):
             "montage": montage if montage is not None else 0.6 * duration, "parts": len(paths)}
 
 
-def operations(steps, info):
-    """[(étape, opération, besoin en octets)] des étapes données, dans l'ordre."""
+def model(op, info):
+    """Besoin d'après la formule seule, en octets."""
+    return int(OPERATIONS[op](info) * MO)
+
+
+def load_measures():
+    try:
+        data = __import__("json").load(open(MEASURES))
+        return data if isinstance(data, dict) else {}
+    except (OSError, ValueError):
+        return {}
+
+
+def factor(op, measures=None):
+    """(facteur appris, nombre de mesures) : plus grand rapport mesuré / prévu des 5 dernières
+    mesures, avec 10 % de marge ; (1, 0) sans mesure."""
+    obs = [o for o in (measures if measures is not None else load_measures()).get(op, [])
+           if o.get("model") and o.get("peak")][-5:]
+    if not obs:
+        return 1.0, 0
+    return min(3.0, max(0.5, 1.1 * max(o["peak"] / o["model"] for o in obs))), len(obs)
+
+
+def need(op, info, measures=None):
+    """Besoin prévu en octets : formule × facteur appris sur cette machine."""
+    return int(model(op, info) * factor(op, measures)[0])
+
+
+def record(op, peak, info):
+    """Garde le pic mesuré d'une opération terminée, avec le besoin prévu par la formule."""
+    import datetime
+    import json
+    data = load_measures()
+    obs = data.setdefault(op, [])
+    obs.append({"peak": int(peak), "model": model(op, info), "duration": round(info.get("duration", 0)),
+                "work": list(info.get("work") or []), "at": datetime.datetime.now().isoformat(timespec="seconds")})
+    data[op] = obs[-KEEP_MEASURES:]
+    os.makedirs(os.path.dirname(MEASURES), exist_ok=True)
+    json.dump(data, open(MEASURES + ".part", "w"), indent=1)
+    os.replace(MEASURES + ".part", MEASURES)
+
+
+def tree_memory(root):
+    """Mémoire utilisée par un programme et tout ce qu'il a lancé (somme des PSS, en octets) : une
+    étape de l'interface locale. Par filiation, pas par session : les navigateurs du rendu ont la
+    leur. 0 si illisible (hors Linux)."""
+    children = {}
+    try:
+        pids = [p for p in os.listdir("/proc") if p.isdigit()]
+    except OSError:
+        return 0
+    for pid in pids:
+        try:
+            ppid = int(open(f"/proc/{pid}/stat").read().rsplit(")", 1)[1].split()[1])
+            children.setdefault(ppid, []).append(int(pid))
+        except (OSError, ValueError, IndexError):
+            continue
+    total, todo = 0, [root]
+    while todo:
+        pid = todo.pop()
+        todo += children.get(pid, [])
+        try:
+            for line in open(f"/proc/{pid}/smaps_rollup"):
+                if line.startswith("Pss:"):
+                    total += int(line.split()[1]) * 1024
+                    break
+        except (OSError, ValueError):
+            continue
+    return total
+
+
+RENDERS = {"Rendu de la vidéo": False, "Rendu 4K": True}
+
+
+def choose_workers(hd, info, avail=None, measures=None):
+    """Navigateurs du rendu : le plus possible (4, 2 en 4K, au plus un par cœur) tant que le besoin
+    tient dans la mémoire libre ; 1 au moins."""
+    top = render_workers(hd)
+    if avail is None:
+        avail = available()[0]
+    if avail is None:
+        return top
+    op = "Rendu 4K" if hd else "Rendu de la vidéo"
+    for w in range(top, 1, -1):
+        if need(op, {**info, "workers": w}, measures) <= avail:
+            return w
+    return 1
+
+
+def operations(steps, info, avail=None):
+    """[(étape, opération, besoin en octets)] des étapes données, dans l'ordre. Rendu : avec le
+    nombre de navigateurs qu'il prendra d'après la mémoire libre (choose_workers)."""
     out = []
+    measures = load_measures()
     for step in steps:
         ops = list(STEPS.get(step, []))
         if step == "préparation du rush" and info.get("parts", 1) > 1:
             ops.insert(0, "Assemblage des vidéos (réencodage)")
-        out += [(step, op, int(OPERATIONS[op](info) * MO)) for op in ops]
+        for op in ops:
+            v = info
+            if op in RENDERS and "workers" not in info:
+                v = {**info, "workers": choose_workers(RENDERS[op], info, avail, measures)}
+            out.append((step, op, need(op, v, measures)))
     return out
 
 
@@ -149,11 +259,13 @@ def advice(level, need, avail, what):
 
 def summary(steps, info):
     """Bilan pour une tâche : besoin de chaque opération, pic, mémoire libre et avertissement."""
-    ops = operations(steps, info)
     avail, total = available()
+    ops = operations(steps, info, avail)
     peak = max(ops, key=lambda o: o[2]) if ops else (None, None, 0)
     level = verdict(peak[2], avail)
-    return {"operations": [{"step": s, "op": o, "need": n, "level": verdict(n, avail)} for s, o, n in ops],
+    measures = load_measures()
+    return {"operations": [{"step": s, "op": o, "need": n, "level": verdict(n, avail),
+                            "measured": factor(o, measures)[1]} for s, o, n in ops],
             "peak": peak[2], "peakOp": peak[1], "available": avail, "total": total, "level": level,
             "message": advice(level, peak[2], avail, f"l'étape « {peak[1]} »") if peak[1] else ""}
 

@@ -56,7 +56,7 @@ curl -fsS -X PUT --data-binary "@$BIP" "$URL/api/style/sons/Bip%20essai.wav" | h
 
 echo "3. Préparation (transcription, montage, rendu, page des moments), avec une pause"
 MEM="$(curl -fsS "$URL/api/memoire?rush=$NAME")"
-echo "$MEM" | json 'd["peak"] > 0 and d["peakOp"]' | has -x "Transcription" || fail "mémoire nécessaire : $MEM"
+echo "$MEM" | json 'd["peak"] > 0 and d["peakOp"]' | has -x "Transcription\|Rendu de la vidéo" || fail "mémoire nécessaire : $MEM"
 echo "  mémoire : $(echo "$MEM" | json '"%.1f Go au plus fort, %s" % (d["peak"] / 2**30, d["level"])')"
 curl -fsS -X POST -H "content-type: application/json" \
   -d "{\"rush\": \"$NAME\", \"instructions\": $WITH_CLAUDE}" "$URL/api/prepare" >/dev/null || fail "lancement de la préparation"
@@ -73,9 +73,27 @@ until curl -fsS "$URL/api/job" | json 'd["state"]' | has -x paused; do sleep 1; 
 curl -fsS "$URL/api/job" | json 'd["paused"]["state"], d["paused"]["step"]' | has "paused" || fail "tâche en pause non décrite"
 code="$(curl -s -o /dev/null -w '%{http_code}' -X POST -H "content-type: application/json" -d "{\"rush\": \"$NAME\"}" "$URL/api/prepare")"
 [ "$code" = 409 ] || fail "nouvelle préparation acceptée pendant la pause ($code)"
-echo "  en pause ($(curl -fsS "$URL/api/job" | json 'd["paused"]["current"]')), reprise"
+echo "  en pause ($(curl -fsS "$URL/api/job" | json 'd["paused"]["current"]')), abandonnée en gardant tout"
+curl -fsS "$URL/api/job/parts" | json '[p["id"] for p in d["parts"]]' | has "'" || fail "parties déjà faites non listées"
+curl -fsS -X POST -H "content-type: application/json" -d '{"delete": []}' "$URL/api/job/abandon" >/dev/null || fail "abandon"
+curl -fsS "$URL/api/job" | json 'd["paused"]' | has -x None || fail "tâche en pause restée après l'abandon"
+curl -fsS "$URL/api/memoire?rush=$NAME" | json 'd["kept"]' | has "'" || fail "parties gardées non reprises"
+curl -fsS -X POST -H "content-type: application/json" \
+  -d "{\"rush\": \"$NAME\", \"instructions\": $WITH_CLAUDE}" "$URL/api/prepare" >/dev/null || fail "nouvelle préparation"
+until label="$(curl -fsS "$URL/api/job" | json '(d.get("progress") or {}).get("label", "")')" && [ -n "$label" ]; do
+  [ $((SECONDS - t0)) -lt 1800 ] || fail "préparation sans barre de progression"
+  sleep 1
+done
+LABELS="$LABELS$label|"
+curl -fsS -X POST "$URL/api/job/pause" >/dev/null || fail "deuxième mise en pause"
+until curl -fsS "$URL/api/job" | json 'd["state"]' | has -x paused; do sleep 1; done
+echo "  préparée à nouveau avec ce qui était gardé, en pause ($label), reprise"
 curl -fsS -X POST "$URL/api/job/resume" >/dev/null || fail "reprise"
 wait_job
+curl -fsS "$URL/api/logs/rapport" | has "Parties gardées" || fail "parties gardées non signalées au journal"
+# Mémoire mesurée (pas pour l'étape reprise en route : une partie était déjà faite).
+curl -fsS "$URL/api/memoire?rush=$NAME" | json '[o["op"] for o in d["operations"] if o["measured"]]' | has "Rendu de la vidéo" \
+  || fail "mémoire du rendu non mesurée"
 curl -fsS "$URL/api/job" | json 'd["paused"]' | has -x None || fail "tâche en pause restée après la reprise"
 case "$LABELS" in *Transcription*) ;; *) fail "pas de barre de progression « Transcription » (vu : ${LABELS:-aucune})" ;; esac
 

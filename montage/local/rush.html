@@ -147,6 +147,10 @@
   .mem ul { margin: 4px 0 0; padding-left: 1.2em; }
   .paused { display: flex; flex-direction: column; gap: 8px; border: 1px solid var(--line); border-radius: 10px; padding: 12px; background: var(--surface); }
   .paused p { margin: 0; }
+  .abandon { display: flex; flex-direction: column; gap: 6px; border-top: 1px solid var(--line); padding-top: 8px; }
+  .abandon label { display: flex; gap: 8px; align-items: baseline; }
+  .abandon label small { color: var(--muted); }
+  .mem .measured { color: var(--muted); }
   pre {
     margin: 0; max-height: 14rem; overflow: auto; background: var(--bg); border: 1px solid var(--line);
     border-radius: 8px; padding: 8px 10px; font-family: var(--mono); font-size: 12px; line-height: 1.5;
@@ -272,9 +276,17 @@
       <p id="paused-text"></p>
       <div class="row">
         <button type="button" class="primary" id="resume">Reprendre la préparation</button>
-        <button type="button" id="abandon">Abandonner</button>
+        <button type="button" id="abandon">Abandonner…</button>
       </div>
-      <p class="note">« Abandonner » efface ce qui a été fait pour cette préparation ; les montages enregistrés ne sont pas touchés.</p>
+      <div class="abandon" id="abandon-box" hidden>
+        <p>Effacer :</p>
+        <div id="abandon-parts"></div>
+        <p class="note">Une partie décochée est gardée : la prochaine préparation de ce rush la reprend sans la refaire. Les montages enregistrés ne sont jamais touchés.</p>
+        <div class="row">
+          <button type="button" id="abandon-go">Abandonner la préparation</button>
+          <button type="button" id="abandon-back">Retour</button>
+        </div>
+      </div>
     </div>
     <div class="row">
       <button type="button" class="primary" id="reopen" hidden>Rouvrir ce montage</button>
@@ -1036,20 +1048,25 @@
     const go = (n) => `${(n / 1073741824).toFixed(1).replace(".", ",")} Go`;
     const free = m.available == null ? "mémoire libre inconnue" : `${go(m.available)} libres sur ${go(m.total)}`;
     box.className = m.level === "ok" ? "note mem" : "warn mem";
-    box.replaceChildren(`Mémoire : il faudra environ ${go(m.peak)} au plus fort de la préparation (${(OP_NAMES[m.peakOp] || m.peakOp).toLowerCase()}) ; ${free}.`
+    box.replaceChildren(`Mémoire : il faudra environ ${go(m.peak)} au plus fort de la préparation (${(OP_NAMES[m.peakOp] || m.peakOp).toLowerCase()}) ; ${free}. Les étapes se suivent : il faut la mémoire de la plus gourmande, pas leur somme.`
       + (m.message ? ` ${m.message}` : ""));
-    const d = document.createElement("details");
-    d.append(Object.assign(document.createElement("summary"), { textContent: "Mémoire de chaque étape" }));
+    // Chaque étape : les étapes se suivent, la mémoire de l'une est rendue avant la suivante.
     const ul = document.createElement("ul");
-    for (const o of m.operations) ul.append(Object.assign(document.createElement("li"), { textContent: `${OP_NAMES[o.op] || o.op} : ${go(o.need)}${o.level === "ok" ? "" : ` (${o.level})`}` }));
-    d.append(ul);
-    box.append(d);
+    for (const o of m.operations) {
+      const li = Object.assign(document.createElement("li"), { textContent: `${OP_NAMES[o.op] || o.op} : ${go(o.need)}${o.level === "ok" ? "" : ` (${o.level})`} ` });
+      li.append(Object.assign(document.createElement("span"), { className: "measured",
+        textContent: o.measured ? `(d'après ${o.measured} mesure${o.measured > 1 ? "s" : ""} sur cette machine)` : "(estimation, pas encore mesurée ici)" }));
+      ul.append(li);
+    }
+    box.append(ul);
+    if (m.kept && m.kept.length) box.append(Object.assign(document.createElement("p"), { className: "note",
+      textContent: `Repris d'une préparation abandonnée, sans être refait : ${m.kept.join(", ").toLowerCase()}.` }));
   }
   $("apply-instructions").addEventListener("change", () => showMemoryPlan());
 
   $("prepare").addEventListener("click", async () => {
     const paused = info && info.job && info.job.paused;
-    if (paused && !confirm(`La préparation de ${paused.arg} attend d'être reprise. La préparer à nouveau l'abandonne : ce qui en était fait sera effacé. Continuer ?`)) return;
+    if (paused && !confirm(`La préparation de ${paused.arg} attend d'être reprise. La préparer à nouveau l'abandonne : tout ce qui en était fait sera effacé (« Abandonner… » permet d'en garder une partie). Continuer ?`)) return;
     $("prepare").disabled = true;
     // Consignes tapées mais pas encore enregistrées : enregistrées avant de préparer.
     if (!$("save-instructions").disabled && $("instructions-text").value.trim()) await saveTyped();
@@ -1132,12 +1149,34 @@
     $("paused").hidden = true;
     poll();
   });
+  // « Abandonner… » : parties déjà faites, toutes cochées (effacées) ; une partie décochée est gardée.
   $("abandon").addEventListener("click", async () => {
-    if (!confirm("Abandonner cette préparation ? Ce qui en était fait sera effacé ; il faudra la relancer depuis le début.")) return;
-    const res = await fetch("/api/job/abandon", { method: "POST" }).catch(() => null);
-    if (!res || !res.ok) setStatus("job-status", "La préparation n'a pas pu être abandonnée.", "err");
-    else setStatus("job-status", "Préparation abandonnée.");
+    const r = await fetch("/api/job/parts").then((x) => (x.ok ? x.json() : null)).catch(() => null);
+    const list = $("abandon-parts");
+    list.replaceChildren();
+    const mo = (n) => (n >= 1073741824 ? `${(n / 1073741824).toFixed(1).replace(".", ",")} Go` : `${Math.max(1, Math.round(n / 1048576))} Mo`);
+    for (const p of (r && r.parts) || []) {
+      const label = document.createElement("label");
+      const box = Object.assign(document.createElement("input"), { type: "checkbox", checked: true, value: p.id });
+      label.append(box, `${p.label} `, Object.assign(document.createElement("small"), { textContent: mo(p.size) }));
+      list.append(label);
+    }
+    if (!list.children.length) list.append(Object.assign(document.createElement("p"), { className: "note", textContent: "Rien n'a encore été fait." }));
+    $("abandon-box").hidden = false;
+  });
+  $("abandon-back").addEventListener("click", () => { $("abandon-box").hidden = true; });
+  $("abandon-go").addEventListener("click", async () => {
+    const del = [...$("abandon-parts").querySelectorAll("input:checked")].map((b) => b.value);
+    const res = await fetch("/api/job/abandon", { method: "POST", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ delete: del }) }).catch(() => null);
+    const r = res && res.ok ? await res.json().catch(() => ({})) : null;
+    if (!r) setStatus("job-status", "La préparation n'a pas pu être abandonnée.", "err");
+    else setStatus("job-status", r.kept && r.kept.length
+      ? "Préparation abandonnée. Ce que vous avez gardé resservira à la prochaine préparation de ce rush."
+      : "Préparation abandonnée.");
+    $("abandon-box").hidden = true;
     $("steps").hidden = true;
+    memKey = null;
     await refresh();
   });
   $("cancel").addEventListener("click", async () => {
