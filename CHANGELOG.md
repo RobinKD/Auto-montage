@@ -4,6 +4,16 @@ Chaque version publiée reprend sa section dans ses notes (onglet Releases). Une
 section, le numéro dans `VERSION` et le tag `v<numéro>` poussé publient la version avec ses
 installateurs (voir `packaging/README.md`).
 
+## 0.60
+
+- **La préparation en pause n'est plus perdue à la mise à jour** : mettre à jour (ou réinitialiser)
+  Auto-montage pendant qu'une préparation était en pause effaçait la pause et ce qui était déjà
+  fait (version de travail en cours, positions du visage) : il fallait tout recommencer. Elle est
+  maintenant gardée et se reprend après le redémarrage. Cette mise à jour-ci (depuis la 0.59) est
+  encore faite par l'ancien programme : finissez la préparation en pause avant de l'installer,
+  ou copiez de côté `montage/work/tache.json` et le dossier `montage/work/reprise`, puis
+  remettez-les une fois la mise à jour faite.
+
 ## 0.59
 
 - **Rendu des longs montages sans remplir le disque** : HyperFrames gardait les images extraites
