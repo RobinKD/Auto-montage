@@ -10,18 +10,21 @@
                        refaites au prochain rendu
   parties              parties d'un long rendu interrompu (work/rendu_parties), refaites si effacées
   sauvegarde:<dossier> fichiers remplacés par une réinitialisation (work/sauvegardes)
-  restes               envois coupés (.envoi-*) et fichiers d'une tâche arrêtée en route (*.part.*)
+  restes               envois coupés (.envoi-*), fichiers d'une tâche arrêtée en route (*.part.*) et
+                       images extraites par HyperFrames restées dans le dossier temporaire
 
 Usage : python3 scripts/place.py                  liste (JSON)
         python3 scripts/place.py delete <id>…     supprime (seulement des éléments de la liste)
 Le serveur ne l'appelle que quand aucune tâche ne tourne (« restes » serait sinon une tâche en cours).
 """
 import datetime
+import glob
 import json
 import os
 import re
 import shutil
 import sys
+import tempfile
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 WORK = os.path.join(ROOT, "work")
@@ -62,9 +65,15 @@ def freed(path):
     return total
 
 
+def extract_caches():
+    """Images extraites par HyperFrames gardées dans le dossier temporaire (rendus d'avant la
+    0.59, ou lancés à la main) : jusqu'à plus de 10 Go."""
+    return glob.glob(os.path.join(tempfile.gettempdir(), "hyperframes-extract-cache-*"))
+
+
 def leftovers():
     return [os.path.join(d, n) for d in (RUSHES, OUT) if os.path.isdir(d)
-            for n in os.listdir(d) if n.startswith(".envoi-") or ".part." in n]
+            for n in os.listdir(d) if n.startswith(".envoi-") or ".part." in n] + extract_caches()
 
 
 def render_copies():
