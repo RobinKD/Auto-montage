@@ -193,7 +193,8 @@ interne : les changements attendent la prochaine version.
   reprise = étape relancée avec `AM_REPRISE=1` (`prepare.sh --reprendre`), qui garde les morceaux de
   `version_travail.py` (`work/reprise/travail/`), les morceaux transcrits (`work/seg/cle.txt`), les
   visages (`work/reprise/visage.json`) et les extraits de la page. Tant qu'elle attend, les autres
-  tâches sont refusées (`busy_error`), sauf mise à jour ; tache.json et reprise/ ne sont jamais rangés
+  tâches sont refusées (`busy_error`), sauf mise à jour et réinitialisation (qui ne l'effacent pas : seule la
+  fin d'une préparation appelle `remove_task`) ; tache.json et reprise/ ne sont jamais rangés
   par `project.py`. « Abandonner… » : parties de `ABANDON_PARTS` (`/api/job/parts`) effacées ou
   gardées (`abandon_task`) ; gardées → `work/reprise/garde.json` (vidéos, taille, date), la prochaine
   préparation du même rush part avec `AM_REPRISE=1` (`kept_parts`, `job["reuse"]`). « Préparer » le rush d'une préparation en pause la reprend (`/api/prepare` → `resume_job`).

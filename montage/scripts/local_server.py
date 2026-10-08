@@ -807,7 +807,8 @@ def run_job(steps, arg, args, first=0):
         job["spent"][key] = job["spent"].get(key, 0) + now - job["stepStart"] - job["stepPhases"]
         if not job.get("resumed") and not job.get("reuse"):  # durées d'une tâche reprise : pas représentatives
             learn_timings()
-        remove_task()
+        if job["kind"] in RESUMABLE:  # une mise à jour garde la préparation en pause
+            remove_task()
         job.update(state="done", step="terminé", progress=None, finishedAt=datetime.datetime.now().isoformat())
         write(f"\n# RÉSULTAT : réussi ({round(time.time() - job['startedTs'])} s)")
         if job["kind"] in ("update", "reset"):  # programme remplacé : redémarrage du conteneur
@@ -821,7 +822,8 @@ def run_job(steps, arg, args, first=0):
         write(f"\n# RÉSULTAT : pause (étape « {job['step']} » ; « Reprendre » la continue)")
     except JobCancelled:
         remove_partial_files()
-        remove_task()
+        if job["kind"] in RESUMABLE:
+            remove_task()
         job.update(state="cancelled", error=None, progress=None, proc=None,
                    finishedAt=datetime.datetime.now().isoformat())
         write(f"\n# RÉSULTAT : annulé (étape « {job['step']} »)")
@@ -874,6 +876,8 @@ def remove_path(path):
 
 
 def remove_task():
+    """Efface la préparation en pause : seulement à la fin (réussie ou annulée) d'une préparation,
+    jamais à celle d'une autre tâche (mise à jour, réinitialisation : permises pendant la pause)."""
     for path in (TASK, os.path.join(WORK, "reprise")):
         remove_path(path)
 
