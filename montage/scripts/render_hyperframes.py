@@ -10,6 +10,7 @@ Usage : python3 scripts/render_hyperframes.py apercu|final <sortie.mp4>
 """
 import hashlib
 import json
+import math
 import os
 import re
 import shutil
@@ -24,11 +25,24 @@ from progress import report  # noqa: E402
 from moments_lib import HF_VOICES, frame_layout  # noqa: E402
 from render_lib import POPPINS, ROOT, Montage, headless_chrome  # noqa: E402
 import memoire  # noqa: E402
+import place  # noqa: E402
 
 DIR = os.path.join(ROOT, "work", "rendu_hyperframes")
 HF_AUDIO = os.path.join(ROOT, "selection", "hf_audio.js")
 PARTS = os.path.join(ROOT, "work", "rendu_parties")  # parties d'un long montage déjà rendues
 PART_SECONDS = memoire.RENDER_PART  # durée d'une partie (secondes de montage)
+# Disque pris par le rendu (partie la plus longue raccourcie pour qu'il tienne, disk_part) :
+# - images des plans d'une partie, extraites par HyperFrames (JPEG qualité 95) avant de la rendre :
+#   0,06 à 0,16 octet par pixel mesurés (rush de synthèse, rush filmé), 0,2 par prudence ;
+# - mémoire partagée de chaque navigateur, écrite dans /tmp (Chrome, quand /dev/shm est petit comme
+#   sous Docker) : 2 Go mesurés pour 4 navigateurs en 1080p, environ 250 octets par pixel ;
+# - vidéos rendues : les parties (pendant le rendu), puis aussi le montage assemblé (à la fin, sans
+#   images extraites ni navigateurs), environ 1 Mo/s en 1080p chacun.
+FRAME_BYTES = 0.2
+BROWSER_BYTES = 300
+OUT_BYTES = 0.5  # par pixel et par seconde de montage
+DISK_SHARE = 0.8  # part du disque libre que le rendu peut prendre
+MIN_PART = 20  # secondes de montage : partie la plus courte, sinon disque trop plein pour rendre
 # Extractions d'images des plans en même temps (scripts/ffmpeg_limite.sh) : environ 200 Mo chacune
 # en 1080p (4 fois plus en 4K : 2 au plus).
 EXTRACTIONS = max(1, min(4, os.cpu_count() or 1))
@@ -148,6 +162,10 @@ def tools(hd=False):
     # Page d'un long montage (150 plans : 35 à 45 s par navigateur) : plus que les 45 s permises
     # par défaut pour être prête.
     env["PRODUCER_PLAYER_READY_TIMEOUT_MS"] = str(15 * 60 * 1000)
+    # Images extraites des plans : par défaut dans un cache de /tmp que HyperFrames ne vide qu'au
+    # bout d'une heure, toutes parties comprises (un montage de 22 min : plus de 13 Go, disque
+    # plein). Sans cache, celles d'une partie vont dans son dossier de travail, effacé à sa fin.
+    env["HYPERFRAMES_EXTRACT_CACHE_DIR"] = "off"
     if os.name == "posix":
         env.update(AM_FFMPEG_REAL=env["HYPERFRAMES_FFMPEG_PATH"], AM_FFMPEG_SLOTS=str(EXTRACTIONS_HD if hd else EXTRACTIONS),
                    AM_FFMPEG_LOCKS=os.path.join(DIR, "verrous"), FFMPEG_PROCESS_TIMEOUT_MS=str(6 * 3600 * 1000),
@@ -186,10 +204,22 @@ def run_hyperframes(cmd, env, done, part_len, total):
     return proc.wait()
 
 
-def parts_of(frames, fps):
+def disk_part(fps, pixels, free, workers, total):
+    """Durée de partie la plus longue (secondes de montage) dont les images extraites tiennent dans
+    DISK_SHARE du disque libre, à côté des navigateurs et des parties déjà rendues (pixels : ceux
+    de l'image rendue et de la source) ; None si le disque ne limite pas (1,5 fois PART_SECONDS)."""
+    room = DISK_SHARE * free - workers * BROWSER_BYTES * pixels - total * OUT_BYTES * pixels
+    longest = room / (fps * pixels * FRAME_BYTES)
+    return None if longest >= 1.5 * PART_SECONDS else longest
+
+
+def parts_of(frames, fps, longest=None):
     """Parties du rendu : [(première image, image de fin)] d'environ PART_SECONDS chacune ; une
-    seule pour un montage de moins de 1,5 fois cette durée."""
+    seule pour un montage de moins de 1,5 fois cette durée. longest : durée la plus longue
+    permise par le disque (disk_part)."""
     count = max(1, round(frames / (fps * PART_SECONDS))) if frames > 1.5 * fps * PART_SECONDS else 1
+    if longest:
+        count = max(count, math.ceil(frames / (fps * longest)))
     bounds = [round(i * frames / count) for i in range(count + 1)]
     return list(zip(bounds, bounds[1:]))
 
@@ -205,6 +235,13 @@ def parts_key(m, mode, k, preset):
             h.update(b"-")
     h.update(f"{mode} {k} {preset} {m.rush} {os.path.getsize(m.rush[0]) if os.path.exists(m.rush[0]) else 0}".encode())
     return h.hexdigest()[:12]
+
+
+def remove(path):
+    if os.path.isdir(path) and not os.path.islink(path):
+        shutil.rmtree(path, ignore_errors=True)
+    elif os.path.lexists(path):
+        os.remove(path)
 
 
 def join_parts(paths, lengths, out):
@@ -238,11 +275,29 @@ def main():
     preset = HD_PRESETS.get((m.width, m.height)) if hd else None
     k = 2 if hd and not preset else 1
     total = round(m.frames / m.fps, 2)
-    parts = parts_of(m.frames, m.fps)
+    for cache in place.extract_caches():  # images extraites gardées par un rendu précédent
+        shutil.rmtree(cache, ignore_errors=True)
+    # Pixels de l'image rendue et des images extraites de la source (4K : le double de chaque côté).
+    pixels = m.width * m.height * (4 if hd else 1)
     # Navigateurs : autant que 80 % de la mémoire libre le permet, un par cœur au plus
-    # (memoire.choose_workers, d'après les mesures des rendus précédents sur cette machine).
+    # (memoire.choose_workers, d'après les mesures des rendus précédents sur cette machine), moins
+    # si le disque est trop plein pour leur mémoire partagée.
     info = {"duration": 0, "source": (m.width, m.height), "work": (m.width, m.height), "montage": total}
     workers = memoire.choose_workers(hd, info)
+    free = shutil.disk_usage(ROOT).free
+    longest = disk_part(m.fps, pixels, free, workers, total)
+    while longest is not None and longest < MIN_PART and workers > 1:
+        workers -= 1
+        longest = disk_part(m.fps, pixels, free, workers, total)
+    if longest is not None and longest < MIN_PART:
+        need = (MIN_PART * m.fps * FRAME_BYTES + BROWSER_BYTES + total * OUT_BYTES) * pixels / DISK_SHARE
+        sys.exit(f"Pas assez de place sur le disque pour le rendu : {memoire.go(free)} libres, il en faut "
+                 f"au moins {memoire.go(need)}. De la place peut être libérée en bas de la page "
+                 "« Rushes et montages » (« Libérer de la place »).")
+    parts = parts_of(m.frames, m.fps, longest)
+    if len(parts) > 1 and 2 * total * OUT_BYTES * pixels > DISK_SHARE * free:
+        print(f"Attention : disque presque plein ({memoire.go(free)} libres), l'assemblage des parties "
+              f"à la fin pourrait manquer de place (environ {memoire.go(2 * total * OUT_BYTES * pixels)}).", flush=True)
     avail = memoire.available()[0]
     print(f"Navigateurs du rendu : {workers}" + (f" ({memoire.go(avail)} de mémoire libre)" if avail else ""), flush=True)
     # Long montage : rendu par parties d'environ PART_SECONDS, chacune dans sa propre page avec ses
@@ -250,16 +305,18 @@ def main():
     # Une partie finie est gardée (work/rendu_parties/) : un rendu interrompu reprend aux suivantes.
     key = parts_key(m, mode, k, preset)
     os.makedirs(PARTS, exist_ok=True)
-    for name in os.listdir(PARTS):  # parties d'un autre montage
+    for name in os.listdir(PARTS):  # parties d'un autre montage, dossiers d'un rendu interrompu
         if not name.startswith(key):
-            os.remove(os.path.join(PARTS, name))
+            remove(os.path.join(PARTS, name))
     if len(parts) > 1:
-        print(f"Rendu en {len(parts)} parties d'environ {round(total / len(parts))} s", flush=True)
+        print(f"Rendu en {len(parts)} parties d'environ {round(total / len(parts))} s"
+              + (f" (place sur le disque : {memoire.go(free)} libres)" if longest else ""), flush=True)
     env = tools(hd)
     report("Rendu de la vidéo", 0, total)
     done_paths = []
     for i, (f0, f1) in enumerate(parts):
-        path = out if len(parts) == 1 else os.path.join(PARTS, f"{key}_{i:03d}.mp4")
+        # Nom de la partie : ses bornes (le découpage dépend aussi du disque libre).
+        path = out if len(parts) == 1 else os.path.join(PARTS, f"{key}_{f0:07d}-{f1:07d}.mp4")
         part_len = (f1 - f0) / m.fps
         if len(parts) > 1 and os.path.exists(path):
             print(f"Partie {i + 1} déjà rendue : gardée", flush=True)
@@ -277,7 +334,9 @@ def main():
                 print(f"Partie {i + 1} sur {len(parts)}", flush=True)
             code = run_hyperframes(cmd, env, f0 / m.fps, part_len, total)
             if code or not os.path.exists(tmp):
-                sys.exit(f"Échec du rendu HyperFrames (code {code})")
+                left = shutil.disk_usage(ROOT).free
+                sys.exit(f"Échec du rendu HyperFrames (code {code})" + (
+                    f" : disque presque plein ({memoire.go(left)} libres)" if left < 2 * 2**30 else ""))
             if tmp != path:
                 os.replace(tmp, path)
         done_paths.append(path)
@@ -286,8 +345,9 @@ def main():
         print("Assemblage des parties", flush=True)
         if join_parts(done_paths, [(f1 - f0) / m.fps for f0, f1 in parts], out) or not os.path.exists(out):
             sys.exit("Échec de l'assemblage des parties du rendu")
-        for p in done_paths:
-            os.remove(p)
+        for name in os.listdir(PARTS):
+            if name.startswith(key):
+                remove(os.path.join(PARTS, name))
     shutil.rmtree(os.path.join(DIR, "assets"), ignore_errors=True)  # liens vers le rush : inutiles ensuite
     print(f"Rendu HyperFrames : {out}")
 

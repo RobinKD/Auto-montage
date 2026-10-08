@@ -1180,6 +1180,9 @@ def remove_partial_files(uploads=False):
                     os.remove(os.path.join(folder, name))
                 except OSError:
                     pass
+    if uploads:  # images extraites par HyperFrames restées d'un rendu (place.extract_caches)
+        for cache in place.extract_caches():
+            shutil.rmtree(cache, ignore_errors=True)
 
 
 def dir_size(path):
