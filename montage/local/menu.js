@@ -85,6 +85,12 @@
     const pad = getComputedStyle(document.body);
     bar.style.marginLeft = `-${pad.paddingLeft}`;
     bar.style.marginRight = `-${pad.paddingRight}`;
+    // Hauteur du bandeau (sans le menu déroulé) dans --am-top : les parties figées des pages
+    // (lecteur et boutons de la page des moments) se placent dessous au lieu d'être cachées.
+    const row = bar.querySelector(".am-bar-in");
+    const setTop = () => document.documentElement.style.setProperty("--am-top", `${row.offsetHeight + 1}px`);
+    setTop();
+    if (window.ResizeObserver) new ResizeObserver(setTop).observe(row);
 
     // Nouvelle version disponible : pastille sur le menu et sur « Mises à jour ».
     fetch("/api/status").then((r) => r.json()).then((st) => {

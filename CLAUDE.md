@@ -107,6 +107,9 @@ interne : les changements attendent la prochaine version.
   `local_server.py` à toutes ses pages (liste `PAGES`) ; pas de liens de navigation dans les pages.
   Il marque aussi les parties qui ont besoin de Claude Code (attribut `data-needs-claude`) :
   pastille « Nécessite Claude Code », grisées et `inert` sans connexion (`/api/status`).
+  Il pose `--am-top` (hauteur du bandeau) : le lecteur et la synthèse de la page des moments, figés
+  en haut pendant le défilement (`.viewer`, `.bar`, `--fix-top`), se placent dessous ; bouton
+  « haut de la page » (`to-top`) en bas à droite.
 - Sous-titres : jusqu'à 6 mots sur 2 lignes par défaut, coupées là où les largeurs mesurées (multipliées
   par la taille de chaque ligne) sont les plus proches (`render_lib.caption_layout` et `captionLayout` de la
   page des moments) ; nombre de lignes au plus (`lines`, 1 à 3, mots par sous-titre :
