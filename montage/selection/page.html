@@ -325,23 +325,27 @@
   .tlk-head .primary, .primary { background: var(--accent) !important; color: #002b28 !important; border-color: var(--accent) !important; font-weight: 600; }
   .tlk-head .at-info { font-family: var(--mono); font-size: 12px; color: var(--fg); font-variant-numeric: tabular-nums; min-width: 12em; }
   .tlk-head .zoom { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; color: var(--muted); }
-  .tlk-labels .i { height: 78px; }
-  .itrack { position: relative; height: 78px; }
-  .itrack .film { position: absolute; top: 6px; bottom: 6px; left: 0; right: 0; display: flex; overflow: hidden; border-radius: 4px; }
-  .itrack .film span { flex: none; height: 100%; background-repeat: no-repeat; }
-  .itrack .part { position: absolute; top: 6px; bottom: 6px; border: 0; border-radius: 0; padding: 0; background: none; cursor: pointer; }
-  .itrack .part.off { background: repeating-linear-gradient(135deg, rgb(0 0 0 / 0.7) 0 5px, rgb(0 0 0 / 0.35) 5px 10px); }
-  .itrack .part .pl { position: absolute; left: 4px; top: 3px; font-size: 11px; line-height: 1; padding: 2px 5px; border-radius: 4px; background: rgb(0 0 0 / 0.6); color: #fff; white-space: nowrap; }
-  .itrack .part.on .pl { background: var(--accent); color: #002b28; }
-  .itrack .part:hover { box-shadow: inset 0 0 0 2px rgb(255 255 255 / 0.5); }
-  .itrack .cut { position: absolute; top: 0; bottom: 0; width: 2px; margin-left: -1px; background: var(--warn); z-index: 3; }
-  .itrack .cut button { position: absolute; bottom: 2px; left: 50%; transform: translateX(-50%); font-size: 11px; line-height: 1; padding: 2px 4px; border-radius: 5px; background: var(--warn-soft); color: var(--warn); border-color: var(--warn); white-space: nowrap; }
-  .itrack .trim { position: absolute; top: 6px; bottom: 6px; background: rgb(0 0 0 / 0.65); pointer-events: none; }
-  /* Effets du moment : fins repères colorés sous les images (clic : leurs réglages). */
-  .itrack .fxm { position: absolute; height: 4px; bottom: 1px; border-radius: 2px; border: 0; padding: 0; cursor: pointer; z-index: 2; min-width: 4px; }
-  .itrack .fxm.s { background: var(--sfx); } .itrack .fxm.v { background: var(--vfx); } .itrack .fxm.k { background: var(--key); }
-  .itrack .kf { position: absolute; top: 50%; width: 14px; height: 14px; margin: -7px 0 0 -7px; transform: rotate(45deg); background: var(--key); border: 2px solid #000; border-radius: 2px; padding: 0; z-index: 4; cursor: pointer; }
-  .itrack .kf:hover, .itrack .kf:focus-visible { outline: 2px solid #fff; }
+  /* Frise du moment : effets, sous-titres, ligne de coupe ; parties retirées hachurées sur toute la hauteur. */
+  .ktrack { position: relative; }
+  .ktrack .cutline { position: absolute; left: 0; height: 24px; pointer-events: none; }
+  .ktrack .cutline::before { content: ""; position: absolute; left: 0; right: 0; top: 11px; height: 2px; border-radius: 1px; background: var(--off); }
+  .ktrack .part { position: absolute; top: 0; bottom: 0; border: 0; border-radius: 0; padding: 0; background: none; cursor: pointer; z-index: 3; pointer-events: none; }
+  .ktrack .part.off { background: repeating-linear-gradient(135deg, rgb(0 0 0 / 0.6) 0 5px, rgb(0 0 0 / 0.3) 5px 10px); }
+  .ktrack .part .pl { pointer-events: auto; position: absolute; left: 4px; bottom: 4px; font-size: 11px; line-height: 1; padding: 2px 5px; border-radius: 4px; background: var(--panel2); color: var(--fg); white-space: nowrap; }
+  .ktrack .part.on .pl { background: var(--accent); color: #002b28; }
+  .ktrack .cut { position: absolute; top: 0; bottom: 0; width: 2px; margin-left: -1px; background: var(--warn); z-index: 5; }
+  .ktrack .cut button { position: absolute; bottom: 3px; left: 50%; transform: translateX(-50%); font-size: 11px; line-height: 1; padding: 2px 4px; border-radius: 5px; background: var(--warn-soft); color: var(--warn); border-color: var(--warn); white-space: nowrap; }
+  .ktrack .trim { position: absolute; top: 0; bottom: 0; background: rgb(0 0 0 / 0.6); pointer-events: none; z-index: 3; }
+  .ktrack .fxm { position: absolute; height: 18px; border-radius: 4px; border: 0; padding: 0 5px; cursor: pointer; z-index: 2; min-width: 6px; font-size: 11px; line-height: 18px; color: #fff; text-align: left; white-space: nowrap; overflow: visible; }
+  .ktrack .fxm.s { background: color-mix(in srgb, var(--sfx) 70%, transparent); } .ktrack .fxm.v { background: color-mix(in srgb, var(--vfx) 70%, transparent); }
+  .ktrack .fxm.k { background: color-mix(in srgb, var(--key) 55%, transparent); color: #000; padding-left: 12px; }
+  .ktrack .fxm:hover, .ktrack .fxm:focus-visible { outline: 2px solid #fff; }
+  .ktrack .cap { position: absolute; height: 26px; border-radius: 4px; background: rgb(164 107 255 / 0.18); pointer-events: none; }
+  .ktrack .cap.alt { background: rgb(164 107 255 / 0.3); }
+  .ktrack .wd { position: absolute; height: 26px; line-height: 26px; padding: 0 2px; font-size: 12px; color: var(--fg); overflow: hidden; white-space: nowrap; text-overflow: clip; cursor: pointer; z-index: 1; box-sizing: border-box; border-left: 1px solid rgb(255 255 255 / 0.12); }
+  .ktrack .wd:hover { background: rgb(255 255 255 / 0.12); }
+  .ktrack .kf { position: absolute; width: 14px; height: 14px; margin: -7px 0 0 -7px; transform: rotate(45deg); background: var(--key); border: 2px solid #000; border-radius: 2px; padding: 0; z-index: 4; cursor: pointer; }
+  .ktrack .kf:hover, .ktrack .kf:focus-visible { outline: 2px solid #fff; }
   .fxset.focus { outline: 1px solid var(--accent); border-radius: 6px; outline-offset: 3px; }
   /* Réglage d'un cadre du zoom libre, sur l'image du lecteur. */
   .framer { position: absolute; inset: 0; z-index: 4; cursor: grab; touch-action: none; outline: 2px dashed var(--key); outline-offset: -2px; }
@@ -2017,7 +2021,7 @@ ${HFAudio.voiceElements(spec)}
     drawPlayheads();
   }
 
-  // Frise du moment ouvert : règle et images ; parties gardées ou retirées (clic sur leur étiquette),
+  // Frise du moment ouvert : règle, effets, sous-titres, ligne de coupe ; parties gardées ou retirées (clic sur leur étiquette),
   // coupes « ✂ × », repères des effets, losanges du zoom libre (clic : régler ce cadre).
   function renderMomentTl() {
     const box = $("tlk"), om = openMoment();
@@ -2053,15 +2057,83 @@ ${HFAudio.voiceElements(spec)}
     zo.disabled = frise.zoom === ZOOMS[0]; zi.disabled = frise.zoom === ZOOMS[ZOOMS.length - 1];
     zoom.append(document.createTextNode("Zoom"), zo, el("span", "", `×${frise.zoom}`), zi);
     head.append(zoom, btn("✕", "Fermer le moment (Échap)", () => { frise.open = null; frise.sel.clear(); editing = null; renderOpen(); }));
-    // Piste d'images.
-    const labels = el("div", "tlk-labels");
-    labels.append(el("span", "r"), el("span", "i", "Image"));
-    const sc = el("div", "tlk-scroll"), inner = el("div", "tlk-in");
-    inner.style.width = `${len * kpps + 16}px`;
-    const track = el("div", "itrack");
-    track.append(filmstrip(s0, s0 + len, len * kpps, 66, m.thumb));
+    // Pistes : effets (s'il y en a), sous-titres (s'il y en a), et la ligne de coupe en bas,
+    // seule quand le moment n'a ni effet ni sous-titre ; parties gardées / retirées sur toute la hauteur.
     const px = (t) => `${Math.max(0, Math.min(len, t)) * kpps}px`;
     const span = (node, a, b) => { node.style.left = px(a); node.style.width = `${(Math.min(len, b) - Math.max(0, a)) * kpps}px`; return node; };
+    const fxs = [];
+    if (!DERUSH) {
+      sfxOf(m).forEach((f, idx) => {
+        const name = (catalog.find((c) => c.id === f.kind) || { label: f.kind }).label;
+        const a = Number(f.at) || 0;
+        const b = f.kind === "voix" ? a + (Number(f.dur) || 1) : a + Math.max(1, f.repeat || 1) * soundLen(f) + (Math.max(1, f.repeat || 1) - 1) * Math.max(0, (Number(f.gap) || 0) - soundLen(f));
+        fxs.push({ cls: "s", a, b: Math.max(b, a + 0.05), name, focus: `s${idx}` });
+      });
+      vfxOf(m).forEach((f, idx) => {
+        if (f.kind === "highlight") return;
+        const name = (VFX_CATALOG.find((c) => c.id === f.kind) || { label: f.kind }).label;
+        const a = Number(f.at) || 0, b = a + (Number(f.dur) || 0.5);
+        fxs.push({ cls: f.kind === "zoomlibre" ? "k" : "v", a, b: Math.max(b, a + 0.05), name, focus: `v${idx}`, key: f.kind === "zoomlibre" ? { f, idx } : null });
+      });
+    }
+    // Lignes des effets : un effet va sur la première ligne où il ne chevauche rien (étiquette comprise).
+    const lanes = [];
+    fxs.sort((x, y) => x.a - y.a).forEach((x) => {
+      const end = Math.max(x.b, x.a + (x.name.length * 6.5 + 14) / kpps);
+      let k = lanes.findIndex((e) => e <= x.a);
+      if (k < 0) { k = lanes.length; lanes.push(0); }
+      lanes[k] = end; x.lane = k;
+    });
+    const words = m.gap || (DERUSH && !derushSubs()) ? [] : wordsOf(m).filter((w) => w.text);
+    const LANE = 22, FXH = lanes.length ? lanes.length * LANE + 6 : 0, SUBH = words.length ? 34 : 0, CUTH = 24;
+    const labels = el("div", "tlk-labels");
+    labels.append(el("span", "r"));
+    if (FXH) labels.append(Object.assign(el("span", "", "Effets"), { style: `height:${FXH}px` }));
+    if (SUBH) labels.append(Object.assign(el("span", "", "Sous-titres"), { style: `height:${SUBH}px` }));
+    labels.append(Object.assign(el("span", "", "Coupe"), { style: `height:${CUTH}px` }));
+    const sc = el("div", "tlk-scroll"), inner = el("div", "tlk-in");
+    inner.style.width = `${len * kpps + 16}px`;
+    const track = el("div", "ktrack");
+    track.style.height = `${FXH + SUBH + CUTH}px`;
+    const cutline = el("span", "cutline");
+    cutline.style.top = `${FXH + SUBH}px`;
+    cutline.style.width = `${len * kpps}px`;
+    track.append(cutline);
+    if (FXH) {
+      for (const x of fxs) {
+        const title = `${x.name} · ${x.a.toFixed(2)} s`;
+        const mk = btn(x.name, title, (e) => { e.stopPropagation(); frise.focus = x.focus; frise.tab = "moment"; seekMoment(m, x.a); renderInspector(); }, `fxm ${x.cls}`);
+        span(mk, x.a, x.b);
+        mk.style.top = `${4 + x.lane * LANE}px`;
+        mk.setAttribute("aria-label", title);
+        mk.addEventListener("pointerdown", (e) => e.stopPropagation());
+        track.append(mk);
+        if (x.key) for (const [which, t] of [["from", x.a], ["to", x.b]]) {
+          const f = x.key.f;
+          const kf = btn("", `${which === "from" ? "Cadre de début" : "Cadre de fin"} du zoom libre (${Math.round(keyFrame(f[which]).s * 100)} %) : clic pour le régler`,
+            (e) => { e.stopPropagation(); openFramer(m, x.key.idx, which); }, "kf");
+          kf.style.left = px(t);
+          kf.style.top = `${4 + x.lane * LANE + 9}px`;
+          kf.addEventListener("pointerdown", (e) => e.stopPropagation());
+          track.append(kf);
+        }
+      }
+    }
+    if (SUBH) {
+      // Sous-titres tels qu'ils s'afficheront (groupes de mots), chaque mot à sa place : un clic y met la tête de lecture.
+      captionGroups(wordsOf(m)).forEach((g, gi) => {
+        const cap = span(el("span", `cap${gi % 2 ? " alt" : ""}`), g.a, g.b);
+        cap.style.top = `${FXH + 4}px`;
+        track.append(cap);
+      });
+      for (const w of words) {
+        const wd = span(el("span", "wd", w.text), w.a, Math.max(w.b, w.a + 0.05));
+        wd.style.top = `${FXH + 4}px`;
+        wd.dataset.a = String(w.a);
+        wd.title = `« ${w.text} » · ${w.a.toFixed(2)} s`;
+        track.append(wd);
+      }
+    }
     if (m.gap) {
       const tr = trimOf(m);
       if (tr.in > 0.01) track.append(span(el("span", "trim"), 0, tr.in));
@@ -2097,44 +2169,14 @@ ${HFAudio.voiceElements(spec)}
         track.append(mark);
       });
     }
-    // Repères des effets (clic : leurs réglages dans l'inspecteur) et cadres du zoom libre.
-    if (!DERUSH) {
-      let row = 0;
-      const marker = (cls, a, b, title, focus) => {
-        const mk = btn("", title, (e) => { e.stopPropagation(); frise.focus = focus; frise.tab = "moment"; seekMoment(m, a); renderInspector(); }, `fxm ${cls}`);
-        span(mk, a, Math.max(b, a + 0.05));
-        mk.style.bottom = `${1 + 5 * row++}px`;
-        mk.setAttribute("aria-label", title);
-        mk.addEventListener("pointerdown", (e) => e.stopPropagation());
-        track.append(mk);
-      };
-      sfxOf(m).forEach((f, idx) => {
-        const name = (catalog.find((c) => c.id === f.kind) || { label: f.kind }).label;
-        const a = Number(f.at) || 0;
-        const b = f.kind === "voix" ? a + (Number(f.dur) || 1) : a + Math.max(1, f.repeat || 1) * soundLen(f) + (Math.max(1, f.repeat || 1) - 1) * Math.max(0, (Number(f.gap) || 0) - soundLen(f));
-        marker("s", a, b, `${name} · ${a.toFixed(2)} s`, `s${idx}`);
-      });
-      vfxOf(m).forEach((f, idx) => {
-        if (f.kind === "highlight") return;
-        const name = (VFX_CATALOG.find((c) => c.id === f.kind) || { label: f.kind }).label;
-        const a = Number(f.at) || 0, b = a + (Number(f.dur) || 0.5);
-        marker(f.kind === "zoomlibre" ? "k" : "v", a, b, `${name} · ${a.toFixed(2)} s`, `v${idx}`);
-        if (f.kind === "zoomlibre") for (const [which, t] of [["from", a], ["to", b]]) {
-          const kf = btn("", `${which === "from" ? "Cadre de début" : "Cadre de fin"} du zoom libre (${Math.round(keyFrame(f[which]).s * 100)} %) : clic pour le régler`,
-            (e) => { e.stopPropagation(); openFramer(m, idx, which); }, "kf");
-          kf.style.left = px(t);
-          kf.addEventListener("pointerdown", (e) => e.stopPropagation());
-          track.append(kf);
-        }
-      });
-    }
-    // Clic ou glisser sur les images : la tête de lecture suit.
+    // Clic ou glisser sur les pistes : la tête de lecture suit (clic sur un mot : son début).
     track.addEventListener("pointerdown", (ev) => {
       if (ev.button) return;
       ev.preventDefault();
       track.setPointerCapture(ev.pointerId);
       const at = (e) => { const r = inner.getBoundingClientRect(); seekMoment(m, (e.clientX - r.left) / kpps); };
-      at(ev);
+      const wd = ev.target.closest && ev.target.closest(".wd");
+      if (wd) seekMoment(m, Number(wd.dataset.a)); else at(ev);
       const up = () => { track.removeEventListener("pointermove", at); track.removeEventListener("pointerup", up); };
       track.addEventListener("pointermove", at);
       track.addEventListener("pointerup", up);

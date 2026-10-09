@@ -166,8 +166,10 @@ interne : les changements attendent la prochaine version.
   panneaux globaux), barre d'outils (`renderToolbar`), frise du rush sur une ligne (`renderMain` :
   `clipBlock` avec les images du rush de `filmstrip`, poignées `addHandles` → `trimEdge`, forme
   d'onde `drawWave`, zoom `frise.pps` gardé dans localStorage, `scrubRush`) et frise du moment
-  ouvert (`renderMomentTl` : règle et images seulement, parties, coupes, repères des effets,
-  zoom `frise.zoom`). Images : planches `work/moments/frames/sNNN.jpg` (une image toutes les
+  ouvert (`renderMomentTl` : règle, puis piste « Effets » s'il y en a (bandes nommées, rangées
+  sans chevauchement), « Sous-titres » s'il y en a (groupes de `captionGroups`, chaque mot à sa
+  place, clic : son début), et toujours la ligne « Coupe » en bas, seule sans effet ni sous-titre ;
+  parties retirées hachurées sur toute la hauteur, coupes, zoom `frise.zoom`). Images : planches `work/moments/frames/sNNN.jpg` (une image toutes les
   0,5 s, `moments_lib.timeline_strip`, DATA `strip`) ; forme d'onde : `timeline_wave` (DATA
   `wave`, 20 crêtes par seconde). Sélection Maj / Ctrl + clic (`pickMoment`, fusion
   `/api/moments/merge` avec `count`) ; clavier : Espace, ← →, Maj + ← →, Échap. Effets réglés dans

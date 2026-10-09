@@ -64,10 +64,11 @@ npm i
    enregistrés avant cet effet (sans `fxv: 2`) gardent la voix proposée.
    La page ressemble à un logiciel de montage : frise du rush sur une ligne qui défile (images de
    chaque moment, forme d'onde de la voix, case garder / retirer, poignées pour raccourcir le
-   début ou la fin du moment choisi), et frise du moment choisi dessous (règle : image et mot à
+   début ou la fin du moment choisi), et frise du moment choisi dessous (ses effets et ses sous-titres mot à mot
+   s'il en a, et une ligne de coupe ; règle : image et mot à
    l'instant choisi, « ‹ › » ou ← → une image, zoom jusqu'à ×16 pour placer chaque image à la
    souris) ; puis « Couper ici » découpe un moment en parties à garder ou retirer une à une
-   (étiquette de chaque partie sur ses images), par exemple pour retirer une
+   (étiquette de chaque partie sur la ligne de coupe), par exemple pour retirer une
    répétition que Whisper n'a pas transcrite. La coupe tombe sur l'image choisie (positions
    calées sur les images du rush, 30 i/s) ; dans la variante, la partie k du moment id s'écrit
    `"id/k"` et les instants de coupe sont dans le document du moment (`cuts`).

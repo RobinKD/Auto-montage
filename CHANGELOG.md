@@ -4,6 +4,13 @@ Chaque version publiée reprend sa section dans ses notes (onglet Releases). Une
 section, le numéro dans `VERSION` et le tag `v<numéro>` poussé publient la version avec ses
 installateurs (voir `packaging/README.md`).
 
+## 0.66
+
+- **Frise du moment** : au lieu des images, elle montre les **effets** du moment (une bande de
+  couleur à leur nom, clic : leurs réglages) et ses **sous-titres** mot à mot (un clic sur un mot
+  y place la tête de lecture), quand il y en a ; en bas, une **ligne de coupe** où se coupent et
+  se gardent ou se retirent les parties. Sans effet ni sous-titre, il ne reste que cette ligne.
+
 ## 0.65
 
 - **Page des moments façon logiciel de montage** (CapCut), en sombre : la barre du haut garde

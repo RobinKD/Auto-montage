@@ -116,7 +116,7 @@
         <li>Les plans <b>sans parole</b> (hachurés) peuvent être ajoutés, avec leur début et leur fin.</li></ul>`,
       media: [{ img: "moments.jpg", caption: "La page des moments : lecteur, inspecteur, et les frises en bas" }] },
     { title: "Ajouter des effets", where: "Page des moments, sur chaque moment",
-      html: `<p>Cochez des <b>sons</b> (caisse, pop, whoosh, ding, boum…) et des <b>effets visuels</b> (zoom avant, zoom sec, dézoom, <b>zoom libre</b>, secousse, flash, mot mis en valeur, texte tapé, pastille) dans l'inspecteur ; calez-les sur leur bande (ou bouton « Ici » à la tête de lecture), réglez leur durée, leur force et leur volume. Ils apparaissent en fins repères de couleur sous les images de la frise du moment.</p>
+      html: `<p>Cochez des <b>sons</b> (caisse, pop, whoosh, ding, boum…) et des <b>effets visuels</b> (zoom avant, zoom sec, dézoom, <b>zoom libre</b>, secousse, flash, mot mis en valeur, texte tapé, pastille) dans l'inspecteur ; calez-les sur leur bande (ou bouton « Ici » à la tête de lecture), réglez leur durée, leur force et leur volume. Ils apparaissent en bandes de couleur nommées sur la frise du moment (piste « Effets »).</p>
         <p>« Effets proposés sur les moments » (onglet « Tout le montage » de l'inspecteur) choisit ceux qui apparaissent sur chaque moment ; « Ajouter des sons… » y ajoute les vôtres. Sur « Rushes et montages », le bouton ▶ fait écouter ou voir chaque effet.</p>`,
       media: [{ video: "demo-effets.mp4", caption: "Zoom sec sur « gratuitement », puis « makrout » mis en valeur" }, { img: "effets.jpg", caption: "Un son et le zoom libre d'un moment, avec leur calage" }] },
     { title: "Régler les sous-titres et l'habillage", where: "Page des moments > Style des sous-titres, Zooms et animations",
@@ -210,7 +210,7 @@
         <li>Pendant la lecture de la version de travail, le moment en cours est encadré de jaune sur la frise, avec la tête de lecture ; « Dans la version de travail » marque, dans l'inspecteur, les moments présents dans la dernière vidéo générée.</li>
         <li><b>Variante</b> : <b>Nouvelle variante</b> garde une autre sélection du même rush (une courte, une longue…). On passe de l'une à l'autre par la liste, et « Générer » monte celle qui est affichée.</li></ul>` },
     { id: "decoupe", title: "Couper à l'image près", where: "Page des moments, frise du moment",
-      html: `<p>La frise du moment, sous celle du rush, montre ses images. Glissez sur la règle ou sur les images pour placer la tête de lecture : l'image s'affiche dans le lecteur et le mot prononcé est écrit en haut (« après “courses” », « avant la parole »). ‹ et › (ou <kbd>←</kbd> <kbd>→</kbd>) avancent ou reculent d'une image (1/30 s) ; <b>Zoom +</b> agrandit la frise jusqu'à ×16 pour placer chaque image à la souris.</p>
+      html: `<p>La frise du moment, sous celle du rush, montre ses effets et ses sous-titres mot à mot (s'il en a) au-dessus d'une ligne de coupe. Glissez sur la règle ou sur la frise pour placer la tête de lecture (un clic sur un mot la met à son début) : l'image s'affiche dans le lecteur et le mot prononcé est écrit en haut (« après “courses” », « avant la parole »). ‹ et › (ou <kbd>←</kbd> <kbd>→</kbd>) avancent ou reculent d'une image (1/30 s) ; <b>Zoom +</b> agrandit la frise jusqu'à ×16 pour placer chaque image à la souris.</p>
         <ul><li><b>Couper ici</b> pose une coupe à la tête de lecture : le moment est partagé en parties. L'étiquette de chaque partie (« ✓ gardée », « ✗ retirée ») la retire ou la remet d'un clic (une hésitation, un mot de trop) ; une partie retirée est hachurée. Survolez une partie pour voir ses mots.</li>
         <li><b>✂ ×</b> sur une coupe la retire.</li>
         <li>Sur la frise du rush, les <b>poignées blanches</b> du moment choisi raccourcissent son début ou sa fin (une coupe et la partie retirée, posées pour vous).</li>
@@ -225,7 +225,7 @@
         <li><b>Texte d'origine</b> revient à la transcription.</li>
         <li>Les sous-titres affichent jusqu'à 6 mots, sur deux lignes de même largeur (3 mots sur une ligne, 9 sur trois : réglage « Lignes au plus » du style des sous-titres).</li></ul>` },
     { id: "calage", title: "Placer et régler un effet", where: "Page des moments, inspecteur du moment",
-      html: `<p>Chaque effet coché a sa ligne dans l'inspecteur, avec une <b>bande de calage</b> sur la durée du moment, et un fin repère de couleur sous les images de la frise du moment (clic : ses réglages) :</p>
+      html: `<p>Chaque effet coché a sa ligne dans l'inspecteur, avec une <b>bande de calage</b> sur la durée du moment, et une bande de couleur à son nom sur la frise du moment (clic : ses réglages) :</p>
         <ul><li>faites glisser la bande pour la déplacer, et ses poignées pour régler le début et la fin ; la vidéo montre l'instant visé pendant le geste ;</li>
         <li>au clavier, sur une poignée : <kbd>←</kbd> <kbd>→</kbd> d'une image, avec <kbd>Maj</kbd> de 10 images ;</li>
         <li><b>Ici</b> place le départ à l'instant de lecture (le moment doit être ouvert dans le lecteur).</li></ul>
