@@ -6,6 +6,7 @@ Entrées : work/segments.json (segments de parole transcrits, par prepare.sh),
 Sorties : work/moments/index.html     page à publier (gabarit selection/page.html)
           work/moments/clips/*.mp4    un extrait vidéo par moment (360x640, avec le son)
           work/moments/thumbs/*.jpg   une vignette par moment
+          work/moments/frames/*.jpg   images du rush toutes les 0,5 s (planches de 10 x 10), frises
           work/moments/montage.mp4    la version de travail actuelle (out/montage_apercu.mp4,
                                       compressée pour la page), si elle existe
 Le bouton « Générer la version de travail » de la page programme dans ~1 min la routine dont
@@ -23,7 +24,7 @@ import subprocess
 
 import imageio_ffmpeg
 
-from moments_lib import (SOUNDS, VOICES, hf_preview_files, edit_size, frame_layout, res_label, effective_gaps, load_segments, rush_duration, sound_catalog, suggested_keep,
+from moments_lib import (SOUNDS, VOICES, hf_preview_files, timeline_strip, timeline_wave, edit_size, frame_layout, res_label, effective_gaps, load_segments, rush_duration, sound_catalog, suggested_keep,
                          wav_len)
 import fonts_lib
 from progress import report
@@ -250,6 +251,9 @@ downloads_page = open(downloads_path).read().strip() if os.path.exists(downloads
 # Nombre de lignes des sous-titres et taille de chacune (page publiée : sans le style de l'interface locale).
 caption_lines = fonts_lib.read_style()
 hf_preview_files(OUT)  # aperçu des voix faites par HyperFrames (hf/)
+# Frises de la page : images du rush toutes les 0,5 s et forme d'onde de la voix.
+strip = timeline_strip(source, OUT, WIDTH, HEIGHT, FFMPEG)
+wave_peaks = timeline_wave(WORK)
 page = open(os.path.join(ROOT, "selection", "page.html")).read()
 data = {"rush": os.path.basename(rush), "width": WIDTH, "height": HEIGHT, "layout": frame_layout(WIDTH, HEIGHT), "moments": moments, "working": working,
         "sfxCatalog": sfx_catalog, "regenTrigger": trigger, "downloadsPage": downloads_page,
@@ -257,7 +261,8 @@ data = {"rush": os.path.basename(rush), "width": WIDTH, "height": HEIGHT, "layou
                   "type": overlay.get("introType", 1.6)} if overlay.get("intro") else None,
         "captionFont": font, "captionLines": {k: caption_lines[k] for k in ("lines", "lineSizes")},
         "persons": {str(k): v for k, v in PERSONS.items()},
-        "voices": [{"id": i, "label": label, "desc": desc} for i, label, desc in VOICES]}
+        "voices": [{"id": i, "label": label, "desc": desc} for i, label, desc in VOICES],
+        "strip": strip, "wave": wave_peaks, "rushEnd": round(rush_duration(WORK), 2)}
 # Nom du rush échappé, données sans « < » (une transcription contenant « </script> » ne
 # referme pas le script de la page).
 page = page.replace("__RUSH__", html.escape(os.path.splitext(os.path.basename(rush))[0]))

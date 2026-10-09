@@ -4,6 +4,33 @@ Chaque version publiée reprend sa section dans ses notes (onglet Releases). Une
 section, le numéro dans `VERSION` et le tag `v<numéro>` poussé publient la version avec ses
 installateurs (voir `packaging/README.md`).
 
+## 0.65
+
+- **Page des moments façon logiciel de montage** (CapCut), en sombre : la barre du haut garde
+  la durée gardée, la variante et « Générer la version de travail » ; au milieu, le lecteur et
+  un **inspecteur** à droite (le moment choisi : garder, texte des sous-titres, fusion, effets ;
+  onglet « Tout le montage » pour le style des sous-titres, les zooms, le son et les effets
+  proposés) ; en bas, les frises.
+- **Frise du rush** : une seule ligne qui défile de gauche à droite, chaque moment avec ses
+  images, une case pour le garder ou le retirer, ses parties retirées hachurées, et dessous la
+  **forme d'onde** de la voix (verte pour ce qui est gardé). Un curseur zoome la frise ; on
+  glisse la tête de lecture sur la règle. Le moment choisi a un contour blanc et deux poignées
+  pour raccourcir son début ou sa fin. Barre d'outils : Couper, Scinder, Fusionner, Garder,
+  Retirer, Corriger.
+- **Frise du moment**, sous celle du rush quand un moment est choisi : ses images seulement, à
+  zoomer jusqu'à ×16, pour placer la tête de lecture à l'image près, couper (« Couper ici »),
+  garder ou retirer chaque partie et voir ses effets en fins repères de couleur.
+- **Plusieurs moments d'un coup** : Maj + clic sélectionne une suite de moments, Ctrl + clic
+  (⌘ sur Mac) en ajoute un ; on les garde, les retire ou les fusionne en un seul.
+- **Clavier** : Espace lit ou met en pause, ← → avancent d'une image, Maj + ← → passent au
+  moment précédent ou suivant, Échap ferme le moment.
+- **Nouvel effet « Zoom libre »** : un zoom progressif d'un cadre à un autre, comme les images
+  clés de CapCut. Le début et la fin se placent à la tête de lecture (« Ici »), et chaque cadre
+  se règle en zoomant l'image du lecteur (molette, pincement ou curseur) et en la faisant
+  glisser ; les deux cadres sont des losanges jaunes sur la frise du moment.
+- En Dérushage, pas d'effets : la frise du moment, le texte des sous-titres (si la case est
+  cochée) et les actions de découpe restent.
+
 ## 0.64
 
 - **Deux modes, au choix dans le bandeau du haut** : « Dérushage » et « Auto-montage ».

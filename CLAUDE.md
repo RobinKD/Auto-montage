@@ -15,7 +15,7 @@ détail est dans `montage/README.md` ; les consignes de montage viennent de l'ut
    doublon 1re prise, raté, aparté), puis `python3 scripts/make_moments.py`. Consignes de
    montage : celles du chat, ou `work/instructions.md` (choisi sur la page « Rushes et montages »).
 4. Publier `work/moments/index.html` comme page claude.ai avec `capabilities: {db: {}}` et
-   les fichiers `clips/*.mp4`, `thumbs/*.jpg`, `visages/*.jpg`, `hf/*.js` et `montage.mp4`, et donner le lien à
+   les fichiers `clips/*.mp4`, `thumbs/*.jpg`, `frames/*.jpg`, `visages/*.jpg`, `hf/*.js` et `montage.mp4`, et donner le lien à
    l'utilisateur.
    Republier au même lien (même chemin de fichier) après chaque nouvel aperçu, avec
    `capabilities: {db: {}, downloads: true, mcp: {servers: [{server: "Claude Code Remote", tools: ["update_trigger"]}]}}`.
@@ -140,7 +140,7 @@ interne : les changements attendent la prochaine version.
   avec le limiteur à -1,5 dB) ; `scripts/analyze_sound.py` (bruit de fond, clics et chocs) → `work/son_analyse.json`.
 - Effets fournis par défaut : liste unique dans `scripts/moments_lib.py` (`SOUNDS` : sons de
   `public/sfx/`, synthétisés par `make_sfx.py` ; `VISUALS` : texte tapé, pastille, zoom avant,
-  zoom sec, dézoom, secousse, flash, mot mis en valeur). `build_edit.py` en tire `zoomFx`,
+  zoom sec, dézoom, secousse, flash, mot mis en valeur, zoom libre). `build_edit.py` en tire `zoomFx`,
   `shakes`, `flashes`, `highlights` (edit.json, rendus par `render_hyperframes.py` et l'aperçu de la page) ;
   habillage de tout le montage dans `work/habillage.json` (`autoZoom`, `pop`, `karaoke`).
   Tous les effets par défaut (sons, « voix », effets visuels) et « gainvoix » (curseur de
@@ -161,12 +161,31 @@ interne : les changements attendent la prochaine version.
   Audio dans l'aperçu (`buildVoiceChain`, aussi utilisé sans lecteur HyperFrames) ;
   exemples sur /rush/ : `local/tutoriel/voix/<voix>.mp3` (`tests/make_voice_demo.py`, voix Piper,
   filtres ffmpeg pour toutes les voix).
+- Page des moments façon CapCut (`selection/page.html`, sombre) : barre du haut (`.bar`), lecteur
+  et inspecteur (`renderInspector` : moment ouvert, sélection, onglet « Tout le montage » avec les
+  panneaux globaux), barre d'outils (`renderToolbar`), frise du rush sur une ligne (`renderMain` :
+  `clipBlock` avec les images du rush de `filmstrip`, poignées `addHandles` → `trimEdge`, forme
+  d'onde `drawWave`, zoom `frise.pps` gardé dans localStorage, `scrubRush`) et frise du moment
+  ouvert (`renderMomentTl` : règle et images seulement, parties, coupes, repères des effets,
+  zoom `frise.zoom`). Images : planches `work/moments/frames/sNNN.jpg` (une image toutes les
+  0,5 s, `moments_lib.timeline_strip`, DATA `strip`) ; forme d'onde : `timeline_wave` (DATA
+  `wave`, 20 crêtes par seconde). Sélection Maj / Ctrl + clic (`pickMoment`, fusion
+  `/api/moments/merge` avec `count`) ; clavier : Espace, ← →, Maj + ← →, Échap. Effets réglés dans
+  l'inspecteur (`momentExtras`, absent en dérushage) ; `renderList` redessine tout,
+  `renderOpen` seulement ce qui dépend du moment ouvert.
 - Calage des effets sur la page des moments : `fxBar` (bande déplaçable, poignées début/fin,
-  clavier image par image). Sons : durée d'une répétition = `len` du catalogue
+  clavier image par image), dans la ligne de l'effet de l'inspecteur. Sons : durée d'une répétition = `len` du catalogue
   (`moments_lib.sound_catalog`, `wav_len`), répétitions = `repeat`, `gap` = durée + `pause` ;
   voix modifiée et effets visuels : `at` et `dur`.
+- Zoom libre (`zoomlibre`, images clés à la CapCut) : `{at, dur, from: {s, x, y}, to: {s, x, y}}`
+  (s de 1 à 4, x, y centre de l'image visible) ; cadre de début avant `at`, de fin après, passage
+  progressif (`ease`) sur tout le moment, sans plafond des visages. Page : `keyZoomAt`, réglage
+  d'un cadre sur l'image du lecteur (`openFramer` : molette, pincement, glisser), losanges `kf`
+  sur la frise du moment ; `build_edit.py` → `zoomFx` de type `key` (instants `a`, `b` du rush,
+  sur tout le moment) ; `render_hyperframes.py` `draw` (`kz`), même calcul.
 - Moments scindés ou fusionnés (page des moments, interface locale : « Scinder ici »,
-  « Fusionner ↓ », « Séparer », « Recoller ↑ ») : `work/decoupage.json` (`splits` : segment ->
+  « Fusionner », « Fusionner avec le suivant », « Fusionner en un seul » pour une sélection,
+  « Séparer », « Recoller ») : `work/decoupage.json` (`splits` : segment ->
   mots de coupe ; `merges` : ids consécutifs), `scripts/decoupage.py` (report des réglages de
   `local_db` : effets décalés, moments gardés), puis `make_moments.py` (extraits refaits
   seulement si leurs bornes changent : `clips/.bornes.json`). `segments.json` ne change pas :

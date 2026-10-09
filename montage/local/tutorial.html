@@ -110,15 +110,15 @@
       media: [{ img: "rush-video.jpg", caption: "Choisir une ou plusieurs vidéos" }, { img: "rush-preparation.jpg", caption: "La préparation en cours" }] },
     { title: "Choisir les moments", where: "Menu > Page des moments",
       html: `<p>Chaque moment est une phrase. Les moments cochés forment la vidéo ; Auto-montage décoche déjà les <b>premières prises</b> (une phrase redite juste après) et les ratés.</p>
-        <ul><li>Cliquez sur un moment pour le voir, habillé comme dans la vidéo.</li>
-        <li><b>Découpe</b> : le curseur coupe un moment au mot près ; chaque partie se coche à part.</li>
-        <li><b>Corriger</b> : corrige le texte des sous-titres.</li>
-        <li>Les plans <b>sans parole</b> peuvent être ajoutés, avec leur début et leur fin.</li></ul>`,
-      media: [{ img: "moments.jpg", caption: "La page des moments : lecteur à gauche, moments à droite" }] },
+        <ul><li>En bas, la <b>frise du rush</b> montre tous les moments sur une ligne qui défile, avec leurs images et la forme d'onde de la voix. Cliquez sur un moment pour le voir, habillé comme dans la vidéo : sa propre frise s'ouvre dessous, et l'<b>inspecteur</b> (à droite) montre son texte et ses effets.</li>
+        <li><b>Couper ici</b> (frise du moment) coupe un moment à l'image près ; chaque partie se garde ou se retire d'un clic. Les poignées blanches du moment choisi raccourcissent son début ou sa fin.</li>
+        <li><b>Corriger</b> : corrige le texte des sous-titres, dans l'inspecteur.</li>
+        <li>Les plans <b>sans parole</b> (hachurés) peuvent être ajoutés, avec leur début et leur fin.</li></ul>`,
+      media: [{ img: "moments.jpg", caption: "La page des moments : lecteur, inspecteur, et les frises en bas" }] },
     { title: "Ajouter des effets", where: "Page des moments, sur chaque moment",
-      html: `<p>Cochez des <b>sons</b> (caisse, pop, whoosh, ding, boum…) et des <b>effets visuels</b> (zoom avant, zoom sec, dézoom, secousse, flash, mot mis en valeur, texte tapé, pastille) ; réglez leur départ (bouton « Ici » pendant la lecture), leur durée, leur force et leur volume.</p>
-        <p>« Effets proposés sur les moments » choisit ceux qui apparaissent dans la liste ; « Ajouter des sons… » y ajoute les vôtres. Sur « Rushes et montages », le bouton ▶ fait écouter ou voir chaque effet.</p>`,
-      media: [{ video: "demo-effets.mp4", caption: "Zoom sec sur « gratuitement », puis « makrout » mis en valeur" }, { img: "effets.jpg", caption: "Le zoom sec d'un moment et son calage" }] },
+      html: `<p>Cochez des <b>sons</b> (caisse, pop, whoosh, ding, boum…) et des <b>effets visuels</b> (zoom avant, zoom sec, dézoom, <b>zoom libre</b>, secousse, flash, mot mis en valeur, texte tapé, pastille) dans l'inspecteur ; calez-les sur leur bande (ou bouton « Ici » à la tête de lecture), réglez leur durée, leur force et leur volume. Ils apparaissent en fins repères de couleur sous les images de la frise du moment.</p>
+        <p>« Effets proposés sur les moments » (onglet « Tout le montage » de l'inspecteur) choisit ceux qui apparaissent sur chaque moment ; « Ajouter des sons… » y ajoute les vôtres. Sur « Rushes et montages », le bouton ▶ fait écouter ou voir chaque effet.</p>`,
+      media: [{ video: "demo-effets.mp4", caption: "Zoom sec sur « gratuitement », puis « makrout » mis en valeur" }, { img: "effets.jpg", caption: "Un son et le zoom libre d'un moment, avec leur calage" }] },
     { title: "Régler les sous-titres et l'habillage", where: "Page des moments > Style des sous-titres, Zooms et animations",
       html: `<p>Les sous-titres tiennent sur deux lignes équilibrées (ou une, ou trois, de tailles différentes si vous voulez). Choisissez la <b>police</b> (ou ajoutez la vôtre), la taille, la graisse, la couleur, les majuscules et l'<b>ombre</b> (intensité, flou, direction).</p>
         <p>Dans « Zooms et animations » : intensité des zooms automatiques sur le visage, sous-titres qui apparaissent avec un rebond, <b>mot prononcé en couleur</b>.</p>`,
@@ -179,6 +179,7 @@
     ["Dézoom", "On part serré et on revient au cadre large."],
     ["Secousse", "L'image tremble puis se calme, pour souligner un mot fort. La force règle l'amplitude."],
     ["Flash blanc", "Éclair blanc bref, pour marquer un changement de partie."],
+    ["Zoom libre", "Zoom progressif d'un cadre à un autre, comme les images clés de CapCut : placez le début et la fin à la tête de lecture (« Ici »), puis réglez chaque cadre en zoomant l'image du lecteur (molette, pincement ou curseur) et en la faisant glisser. Avant le début, le cadre de début ; après la fin, celui de fin."],
     ["Mot mis en valeur", "Un ou plusieurs mots du sous-titre plus gros et dans la couleur choisie, sur tout le moment."],
     ["Texte tapé", "Texte écrit lettre par lettre en grand, au milieu de l'image (comme l'intro), avec ou sans son de clavier ; « frappe » règle la vitesse. Pas de sous-titre pendant qu'il est affiché."],
     ["Pastille", "Pastille blanche avec un titre, en haut de l'image, avec ou sans son « bop » : pratique pour numéroter des étapes."],
@@ -198,29 +199,33 @@
   ].map(([id, label, desc]) => ({ label, desc, src: `/tutoriel/voix/${id}.mp3` }));
 
   const DETAILS = [
-    { id: "moments", title: "La liste des moments", where: "Page des moments",
-      html: `<p>Un moment correspond à une phrase. Sa case <b>cochée</b> le met dans la vidéo ; la durée gardée et le nombre de moments s'affichent en haut.</p>
-        <ul><li><b>Tous</b>, <b>Gardés</b>, <b>Retirés</b>, <b>Sans parole</b> filtrent la liste.</li>
-        <li>Un moment écarté d'office dit pourquoi : « Suggéré : retirer (doublon 1re prise) », « raté », « aparté »… Vous pouvez le recocher.</li>
+    { id: "moments", title: "Les frises des moments", where: "Page des moments",
+      html: `<p>Un moment correspond à une phrase. La page ressemble à un logiciel de montage : le lecteur au milieu, l'<b>inspecteur</b> à droite, et en bas la <b>frise du rush</b>, une seule ligne qui défile de gauche à droite (curseur de zoom de la barre d'outils). Chaque moment y est à sa place, de la largeur de sa durée, avec ses images ; dessous, la <b>forme d'onde</b> de la voix est verte pour ce qui est gardé, grise pour le reste. La <b>case</b> de chaque moment le met dans la vidéo ou l'en retire ; un moment retiré est grisé, une partie retirée hachurée. La durée gardée s'affiche en haut.</p>
+        <ul><li><b>Clic</b> sur un moment : il s'affiche dans le lecteur, sa frise s'ouvre sous celle du rush, et l'inspecteur montre son texte et ses effets. Glissez sur la règle pour déplacer la tête de lecture dans tout le rush.</li>
+        <li>Clavier : <kbd>Espace</kbd> lit ou met en pause, <kbd>←</kbd> <kbd>→</kbd> avancent ou reculent d'une image, <kbd>Maj</kbd> + <kbd>←</kbd> <kbd>→</kbd> passent au moment précédent ou suivant, <kbd>Échap</kbd> ferme le moment.</li>
+        <li><b>Maj + clic</b> sélectionne une suite de moments, <b>Ctrl + clic</b> (<b>⌘ + clic</b> sur Mac) en ajoute ou en retire un : <b>Garder</b>, <b>Retirer</b> ou <b>Fusionner</b> d'un coup (barre d'outils ou inspecteur).</li>
+        <li>Un moment écarté d'office a un trait orange en haut, et l'inspecteur dit pourquoi : « Suggéré : retirer (doublon 1re prise) », « raté », « aparté »… Vous pouvez le recocher.</li>
+        <li>Petits signes sur les moments : ✎ texte corrigé, ✂ découpé, ✦ effets.</li>
         <li><b>Revenir aux suggestions</b> annule vos choix de cases et revient à la sélection proposée.</li>
-        <li>« Dans la version de travail » marque les moments présents dans la dernière vidéo générée ; pendant sa lecture, le moment en cours est surligné.</li>
+        <li>Pendant la lecture de la version de travail, le moment en cours est encadré de jaune sur la frise, avec la tête de lecture ; « Dans la version de travail » marque, dans l'inspecteur, les moments présents dans la dernière vidéo générée.</li>
         <li><b>Variante</b> : <b>Nouvelle variante</b> garde une autre sélection du même rush (une courte, une longue…). On passe de l'une à l'autre par la liste, et « Générer » monte celle qui est affichée.</li></ul>` },
-    { id: "decoupe", title: "Couper au mot près", where: "Page des moments, ligne « Découpe » de chaque moment",
-      html: `<p>Faites glisser le curseur de la ligne <b>Découpe</b> : l'image s'affiche dans le lecteur et le mot prononcé à cet instant est écrit à côté (« après “courses” », « avant la parole »). Les boutons ‹ et › avancent ou reculent d'une image (1/30 s), et près du curseur chaque image est accessible à la souris.</p>
-        <ul><li><b>Couper ici</b> pose une coupe : le moment est partagé en parties, chacune avec sa case. Décochez une partie pour la retirer (une hésitation, un mot de trop). Survolez une partie pour voir ses mots.</li>
-        <li><b>✂ 2,35 ×</b> retire la coupe correspondante.</li>
-        <li><b>Scinder ici</b> fait deux vrais moments à partir du mot le plus proche du curseur : chacun a ensuite son texte, ses effets et sa case. <b>Recoller ↑</b> défait la scission.</li>
-        <li><b>Fusionner ↓</b> réunit un moment et le suivant en un seul, pause comprise (l'extrait reste continu). <b>Séparer</b> défait la fusion, et chaque moment retrouve ses réglages.</li>
+    { id: "decoupe", title: "Couper à l'image près", where: "Page des moments, frise du moment",
+      html: `<p>La frise du moment, sous celle du rush, montre ses images. Glissez sur la règle ou sur les images pour placer la tête de lecture : l'image s'affiche dans le lecteur et le mot prononcé est écrit en haut (« après “courses” », « avant la parole »). ‹ et › (ou <kbd>←</kbd> <kbd>→</kbd>) avancent ou reculent d'une image (1/30 s) ; <b>Zoom +</b> agrandit la frise jusqu'à ×16 pour placer chaque image à la souris.</p>
+        <ul><li><b>Couper ici</b> pose une coupe à la tête de lecture : le moment est partagé en parties. L'étiquette de chaque partie (« ✓ gardée », « ✗ retirée ») la retire ou la remet d'un clic (une hésitation, un mot de trop) ; une partie retirée est hachurée. Survolez une partie pour voir ses mots.</li>
+        <li><b>✂ ×</b> sur une coupe la retire.</li>
+        <li>Sur la frise du rush, les <b>poignées blanches</b> du moment choisi raccourcissent son début ou sa fin (une coupe et la partie retirée, posées pour vous).</li>
+        <li><b>Scinder</b> (barre d'outils) fait deux vrais moments à partir du mot le plus proche de la tête de lecture : chacun a ensuite son texte, ses effets et sa case. <b>Recoller</b> défait la scission.</li>
+        <li><b>Fusionner</b> réunit le moment et le suivant en un seul, pause comprise (l'extrait reste continu), ou tous les moments sélectionnés (Maj + clic). <b>Séparer</b> défait la fusion, et chaque moment retrouve ses réglages.</li>
         <li>Une scission ou une fusion reporte les effets déjà placés (décalés au bon instant) et garde vos cases.</li></ul>` },
-    { id: "sansparole", title: "Plans sans parole", where: "Page des moments, filtre « Sans parole »",
-      html: `<p>Les passages où personne ne parle (un geste, un objet montré) sont aussi listés. Cochez-en un pour l'ajouter, puis choisissez la partie gardée : <b>Garder de … à … s</b>, ou placez le curseur de la ligne <b>Bornes</b> et cliquez <b>Début ici</b> et <b>Fin ici</b>. La partie gardée apparaît en couleur sur le curseur.</p>` },
+    { id: "sansparole", title: "Plans sans parole", where: "Page des moments, plans grisés de la frise du rush",
+      html: `<p>Les passages où personne ne parle (un geste, un objet montré) sont aussi sur la frise, plus sombres. Cochez-en un pour l'ajouter, puis ouvrez-le : faites glisser ses poignées sur la frise du rush, ou placez la tête de lecture et cliquez <b>Début ici</b> et <b>Fin ici</b> (frise du moment).</p>` },
     { id: "texte", title: "Corriger les sous-titres", where: "Page des moments, bouton « Corriger »",
-      html: `<ul><li><b>Corriger</b> ouvre le texte du moment : <kbd>Entrée</kbd> enregistre, <kbd>Maj</kbd>+<kbd>Entrée</kbd> va à la ligne, <kbd>Échap</kbd> annule. Les mots corrigés s'affichent au rythme de la parole.</li>
+      html: `<ul><li>Le texte du moment est dans l'inspecteur (<b>Corriger</b> dans la barre d'outils y mène) : <kbd>Entrée</kbd> enregistre, <kbd>Maj</kbd>+<kbd>Entrée</kbd> va à la ligne, <kbd>Échap</kbd> annule. Les mots corrigés s'affichent au rythme de la parole.</li>
         <li><b>Supprimer les sous-titres</b> enlève le texte de ce moment seulement (la voix et l'image restent) ; le moment est alors marqué « Sans sous-titres ».</li>
         <li><b>Texte d'origine</b> revient à la transcription.</li>
         <li>Les sous-titres affichent jusqu'à 6 mots, sur deux lignes de même largeur (3 mots sur une ligne, 9 sur trois : réglage « Lignes au plus » du style des sous-titres).</li></ul>` },
-    { id: "calage", title: "Placer et régler un effet", where: "Page des moments, réglages sous chaque effet coché",
-      html: `<p>Chaque effet coché a une <b>bande de calage</b> sur la durée du moment :</p>
+    { id: "calage", title: "Placer et régler un effet", where: "Page des moments, inspecteur du moment",
+      html: `<p>Chaque effet coché a sa ligne dans l'inspecteur, avec une <b>bande de calage</b> sur la durée du moment, et un fin repère de couleur sous les images de la frise du moment (clic : ses réglages) :</p>
         <ul><li>faites glisser la bande pour la déplacer, et ses poignées pour régler le début et la fin ; la vidéo montre l'instant visé pendant le geste ;</li>
         <li>au clavier, sur une poignée : <kbd>←</kbd> <kbd>→</kbd> d'une image, avec <kbd>Maj</kbd> de 10 images ;</li>
         <li><b>Ici</b> place le départ à l'instant de lecture (le moment doit être ouvert dans le lecteur).</li></ul>
@@ -228,6 +233,8 @@
         <p>La bande dure un son. Allongez-la et le son se <b>répète</b> (repères sur la bande) ; <b>pause</b> ajoute un silence entre deux répétitions. <b>volume</b> règle ce son sur ce moment (100 % = volume d'origine).</p>
         <h3>Effets visuels et voix</h3>
         <p>La bande donne le début et la durée ; <b>force</b> règle l'ampleur (zooms, secousse, voix modifiée). Le texte tapé, la pastille et le mot mis en valeur ont leur champ de texte (et une couleur pour le mot).</p>
+        <h3>Zoom libre</h3>
+        <p>Deux cadres, losanges jaunes sur la frise du moment : <b>Ici</b> place le début ou la fin à la tête de lecture, puis le cadre s'ouvre sur l'image du lecteur. Zoomez à la molette (ou en pinçant, ou au curseur) à l'endroit visé, faites glisser l'image pour la cadrer, puis <b>Valider</b>. <b>Régler le cadre</b> (ou un clic sur un losange) le reprend. Entre les deux, le zoom passe progressivement d'un cadre à l'autre.</p>
         <p>Tout se voit et s'entend tout de suite dans l'aperçu du moment, et dans la vidéo à la prochaine « Générer la version de travail ».</p>` },
     { id: "sons", title: "Sons fournis", where: "Page des moments, « Effets : » de chaque moment",
       html: `<p>Ils sont créés par Auto-montage (aucun son téléchargé). Cliquez sur ▶ pour écouter.</p>`, catalog: SOUNDS },
@@ -236,7 +243,7 @@
     { id: "voix", title: "Voix modifiées", where: "Page des moments, effet « Voix » de chaque moment",
       html: `<p>Pour un passage drôle ou gêné : cochez « Voix », choisissez la voix dans la liste, calez le passage et réglez la force (jusqu'à 200 %). Chaque exemple fait entendre la même phrase avec la voix normale, puis modifiée.</p>`, catalog: VOICES },
     { id: "proposes", title: "Choisir les effets proposés, ajouter les vôtres", where: "Rushes et montages > Effets proposés ; page des moments > Effets proposés sur les moments",
-      html: `<ul><li>Au départ, <b>aucun effet fourni n'est proposé</b> : cochez ceux que vous voulez voir dans la liste de chaque moment. Un effet déjà placé sur un moment reste visible même s'il est décoché.</li>
+      html: `<ul><li>Au départ, <b>aucun effet fourni n'est proposé</b> : cochez ceux que vous voulez voir dans l'inspecteur de chaque moment. Un effet déjà placé sur un moment reste visible même s'il est décoché.</li>
         <li><b>Volume de tous les effets sonores</b> s'ajoute au volume de chaque son.</li>
         <li><b>Ajouter des sons…</b> importe vos propres bruitages (WAV, MP3, M4A…) : ils servent à tous vos montages.</li>
         <li><b>Volume de la voix par moment</b>, une fois proposé, ajoute un curseur « Voix » sur chaque moment.</li></ul>` },

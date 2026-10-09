@@ -18,6 +18,59 @@ def rush_duration(work_dir):
         return w.getnframes() / w.getframerate()
 
 
+# Frises de la page des moments (« façon CapCut ») : une image du rush toutes les STRIP_STEP s, en
+# planches de STRIP_TILE x STRIP_TILE images (work/moments/frames/), et la forme d'onde de la voix.
+STRIP_STEP = 0.5
+STRIP_TILE = 10
+WAVE_RATE = 20  # crêtes par seconde
+
+
+def timeline_strip(source, out_dir, width, height, ffmpeg):
+    """Planches d'images du rush pour les frises de la page (petit côté de 72 px). Refaites
+    seulement si le rush ou le format changent (frames/.cle). Renvoie leur description pour la page."""
+    folder = os.path.join(out_dir, "frames")
+    w, h = (round(72 * width / height), 72) if width >= height else (72, round(72 * height / width))
+    st = os.stat(source)
+    key = f"{st.st_size}|{st.st_mtime_ns}|{w}x{h}|{STRIP_STEP}|{STRIP_TILE}"
+    key_path = os.path.join(folder, ".cle")
+    sheets = sorted(n for n in os.listdir(folder) if n.endswith(".jpg")) if os.path.isdir(folder) else []
+    if not (sheets and os.path.exists(key_path) and open(key_path).read() == key):
+        import shutil
+        import subprocess
+        part = folder + ".part"
+        shutil.rmtree(part, ignore_errors=True)
+        os.makedirs(part)
+        subprocess.run([ffmpeg, "-v", "error", "-y", "-i", source, "-an", "-vf",
+                        f"fps={1 / STRIP_STEP:g},scale={w}:{h},setsar=1,tile={STRIP_TILE}x{STRIP_TILE}",
+                        "-q:v", "6", os.path.join(part, "s%03d.jpg")], check=True)
+        open(os.path.join(part, ".cle"), "w").write(key)
+        shutil.rmtree(folder, ignore_errors=True)
+        os.replace(part, folder)
+        sheets = sorted(n for n in os.listdir(folder) if n.endswith(".jpg"))
+    return {"step": STRIP_STEP, "tile": STRIP_TILE, "w": w, "h": h, "sheets": [f"frames/{n}" for n in sheets]}
+
+
+def timeline_wave(work_dir):
+    """Forme d'onde du rush (work/rush_16k.wav) : WAVE_RATE crêtes par seconde, de 0 à 100."""
+    path = os.path.join(work_dir, "rush_16k.wav")
+    if not os.path.exists(path):
+        return None
+    import array
+    with wave.open(path) as w:
+        rate, n, step = w.getframerate(), w.getnframes(), max(1, w.getframerate() // WAVE_RATE)
+        peaks = []
+        while True:
+            chunk = w.readframes(step * 2000)
+            if not chunk:
+                break
+            a = array.array("h", chunk[: len(chunk) // 2 * 2])
+            for i in range(0, len(a), step):
+                part = a[i:i + step]
+                peaks.append(max(max(part), -min(part)) if part else 0)
+    top = max(peaks or [1]) or 1
+    return [round(100 * (p / top) ** 0.6) for p in peaks]
+
+
 # Formats courants : des proportions à moins de 1 % de l'un d'eux (9:16 recadré puis agrandi…)
 # prennent exactement ce format.
 COMMON_RATIOS = [(9, 16), (16, 9), (4, 3), (3, 4), (1, 1), (4, 5), (5, 4), (2, 3), (3, 2)]
@@ -306,6 +359,7 @@ SOUNDS = [
 VISUALS = [
     ("typed", "Texte tapé"), ("chip", "Pastille"), ("zoomin", "Zoom avant"), ("zoomsec", "Zoom sec"),
     ("dezoom", "Dézoom"), ("shake", "Secousse"), ("flash", "Flash blanc"), ("highlight", "Mot mis en valeur"),
+    ("zoomlibre", "Zoom libre"),
 ]
 
 

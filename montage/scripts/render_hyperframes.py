@@ -471,7 +471,10 @@ function draw(frame) {
   // Zooms automatiques, zoom placé sur un moment, secousse.
   const zoom = D.zooms.find((z) => inRange(t, z)) || D.zooms[D.zooms.length - 1] || { type: "in", start: 0, end: 1 };
   let scale = zoom.type === "in" ? 1 + 0.12 * H.autoZoom * ease((t - zoom.start) / Math.max(0.01, zoom.end - zoom.start)) : 1 + 0.22 * H.autoZoom;
-  const m = D.zoomFx.find((z) => inRange(t, z));
+  // Zoom libre (« key ») : d'un cadre à l'autre entre les instants a et b du rush, sur tout le
+  // moment ; il passe avant les autres zooms et le plafond des visages (cadre choisi à la main).
+  const kz = D.zoomFx.find((z) => z.type === "key" && inRange(t, z));
+  const m = kz ? null : D.zoomFx.find((z) => z.type !== "key" && inRange(t, z));
   if (m) { const p = ease((t - m.start) / Math.max(0.01, m.anim)); scale = m.type === "in" ? 1 + m.force * p : m.type === "punch" ? 1 + m.force : 1 + m.force * (1 - p); }
   const sh = D.shakes.find((x) => inRange(t, x));
   let dx = 0, dy = 0;
@@ -480,16 +483,23 @@ function draw(frame) {
     dx = 40 * sh.force * damp * (Math.sin(t * 71) + 0.5 * Math.sin(t * 37));
     dy = 40 * sh.force * damp * (Math.cos(t * 59) + 0.5 * Math.sin(t * 43));
   }
+  const z = el("zoom");
+  if (kz) {  // même calcul que keyZoomAt de la page des moments
+    const p = ease((sourceTime(frame) - kz.a) / Math.max(0.05, kz.b - kz.a)), A = kz.from, B = kz.to;
+    const s = A.s + (B.s - A.s) * p, x = A.x + (B.x - A.x) * p, y = A.y + (B.y - A.y) * p;
+    z.style.transform = `translate(${dx}px, ${dy}px) scale(${s})`;
+    z.style.transformOrigin = `${centeredOrigin(x, s) * 100}% ${centeredOrigin(y, s) * 100}%`;
+  } else {
   const fo = D.focus.find((x) => inRange(t, x));
   const f = faceAt(sourceTime(frame), fo && fo.person);
   // Personne ne sort de l'image (zooms automatiques et placés) ; cadrage sur une personne :
   // zoom de base du plan rapproché, plafonné pour garder son visage entier.
   scale = Math.min(scale * (f.base || 1), f.s);
-  const z = el("zoom");
   z.style.transform = `translate(${dx}px, ${dy}px) scale(${scale})`;
   const P = f.panel || [0, 0, 1, 1];
   z.style.transformOrigin = f.center ? `${centeredOrigin(f.x, scale, P[0], P[2]) * 100}% ${centeredOrigin(f.y, scale, P[1], P[3]) * 100}%`
     : `${f.x * 100}% ${f.y * 100}%`;
+  }
 
   // Texte tapé.
   const ty = D.typed.find((x) => inRange(t, x));

@@ -7,56 +7,36 @@
     border: 1px solid var(--line); border-radius: 999px; background: var(--surface); color: inherit; font: inherit; font-size: 13px; cursor: pointer; }
   .framing-choice img { width: 28px; height: 28px; border-radius: 50%; object-fit: cover; display: block; }
   .framing-choice.on { border-color: var(--accent); box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 35%, transparent); }
-  /* Layout : à gauche un lecteur collant (version de travail ou moment choisi), à droite le
-     bandeau de synthèse puis la liste des moments dans l'ordre du rush. Une colonne sur mobile. */
+  /* Page sombre, façon logiciel de montage (CapCut) : barre du haut, lecteur et inspecteur au
+     milieu, frises en bas. Une colonne sur téléphone. */
   :root {
-    --bg: #f5f3ef;
-    --surface: #fffdf9;
-    --fg: #1f1d1a;
-    --muted: #6f695f;
-    --line: #e4ded4;
-    --accent: #2d6a5a;
-    --accent-soft: #dcebe5;
-    --now: #fbe7b5;
-    --warn: #9a5b12;
-    --warn-soft: #f6e7d2;
-    --frame: #12110f;
+    --bg: #141416; --surface: #1c1c1f; --panel2: #232327; --fg: #ececf1; --muted: #8d8d96; --line: #2e2e33;
+    --accent: #1fd1c6; --accent-soft: #123f3d; --now: #3a3220; --warn: #ff9d3c; --warn-soft: #3a2614;
+    --frame: #000; --wave: #25c49a; --off: #5a5a62; --sfx: #3a8dff; --vfx: #ff5fa2; --text: #a46bff; --key: #ffd84d;
     --display: "Poppins", "Helvetica Neue", Arial, sans-serif;
     --body: "Source Sans 3", "Helvetica Neue", Arial, sans-serif;
     --mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
-  }
-  @media (prefers-color-scheme: dark) {
-    :root:not([data-theme="light"]) {
-      --bg: #151412; --surface: #1d1b18; --fg: #f1ece4; --muted: #a39a8d; --line: #2f2b26;
-      --accent: #7cc2ad; --accent-soft: #1f3530; --now: #4a3c1c; --warn: #e3a95b; --warn-soft: #3a2a15;
-      --frame: #000; color-scheme: dark;
-    }
-  }
-  :root[data-theme="dark"] {
-    --bg: #151412; --surface: #1d1b18; --fg: #f1ece4; --muted: #a39a8d; --line: #2f2b26;
-    --accent: #7cc2ad; --accent-soft: #1f3530; --now: #4a3c1c; --warn: #e3a95b; --warn-soft: #3a2a15;
-    --frame: #000; color-scheme: dark;
+    color-scheme: dark;
   }
   * { box-sizing: border-box; }
-  body { background: var(--bg); color: var(--fg); font-family: var(--body); font-size: 16px; line-height: 1.45; padding: 0 16px; }
-  main { max-width: 1100px; margin: 0 auto; padding-block: 20px 48px; display: flex; flex-direction: column; gap: 14px; }
-  h1 { font-family: var(--display); font-weight: 900; font-size: 26px; line-height: 1.1; margin: 0; text-wrap: balance; }
-  .sub { color: var(--muted); font-size: 14px; margin: 2px 0 0; }
-  .layout { display: grid; grid-template-columns: minmax(0, 340px) minmax(0, 1fr); gap: 20px; align-items: start; }
-  /* Lecteur et boutons du haut figés pendant qu'on fait défiler les moments, sous le bandeau
-     de l'interface locale (sa hauteur dans --am-top, posée par local/menu.js). */
+  body { background: var(--bg); color: var(--fg); font-family: var(--body); font-size: 15px; line-height: 1.45; margin: 0; padding: 0; }
+  .app { display: flex; flex-direction: column; height: calc(100vh - var(--am-top, 0px)); min-height: 560px; }
+  .topbar, .edit { flex: none; }
+  h1 { font-family: var(--display); font-weight: 700; font-size: 18px; line-height: 1.1; margin: 0; }
+  .sub { color: var(--muted); font-size: 13px; margin: 2px 0 0; }
   :root { --fix-top: calc(var(--am-top, 0px) + env(safe-area-inset-top, 0px)); }
-  .viewer {
-    position: sticky; top: calc(var(--fix-top) + 12px);
-    display: flex; flex-direction: column; gap: 8px; min-width: 0;
-  }
+  /* Barre du haut : nom du rush, durée gardée, variante, génération. */
+  .topbar { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 8px 20px; padding: 10px 16px; border-bottom: 1px solid var(--line); background: var(--surface); }
+  .brand { flex: 1 1 260px; min-width: 0; }
+  .brand .sub { max-width: 70ch; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  /* Milieu : lecteur (au centre) et inspecteur (à droite), hauteur fixe ; l'inspecteur défile. */
+  .stage { flex: 1 1 auto; min-height: 220px; display: grid; grid-template-columns: minmax(0, 1fr) minmax(300px, 400px); border-bottom: 1px solid var(--line); }
+  .viewer { display: flex; flex-direction: column; gap: 6px; min-width: 0; min-height: 0; padding: 10px 16px 8px; }
   .tabs { display: flex; gap: 6px; }
-  .screen {
-    background: var(--frame); border-radius: 14px; overflow: hidden;
-    aspect-ratio: var(--ar, 9 / 16); max-width: 100%; margin: 0 auto; width: 100%;
-    /* Assez petit pour que les onglets, la barre de lecture et la légende tiennent aussi à l'écran. */
-    max-height: min(72vh, calc(100vh - var(--fix-top) - 190px)); min-height: 160px;
-  }
+  /* Le lecteur occupe la place libre, aux proportions du rush. */
+  .screen-box { flex: 1; min-height: 120px; container-type: size; display: grid; place-items: center; }
+  .screen { background: var(--frame); border-radius: 6px; overflow: hidden; aspect-ratio: var(--ar, 9 / 16);
+    width: min(100cqw, calc(100cqh * var(--arn, 0.5625))); height: auto; }
   .screen { position: relative; container-type: inline-size; }
   .screen video { width: 100%; height: 100%; display: block; object-fit: cover; transform-origin: 50% 50%; }
   /* Habillage des moments, aux proportions de la composition, celles du rush (1080x1920, 1920x1080,
@@ -162,7 +142,7 @@
     color: #1d1d1b; background: #fff; padding: calc(2 * var(--u)) calc(3.3 * var(--u)); border-radius: 999px; white-space: nowrap;
     box-shadow: 0 calc(0.74 * var(--u)) calc(2.2 * var(--u)) rgba(0,0,0,0.25);
   }
-  .caption { font-size: 13px; color: var(--muted); min-height: 1.45em; }
+  .caption { font-size: 13px; color: var(--muted); min-height: 1.45em; margin: 0; }
   /* Barre de lecture toujours visible (celle du navigateur se masque pendant la lecture). */
   .transport { display: flex; align-items: center; gap: 6px; min-width: 0; }
   .transport button { padding: 4px 8px; font-size: 13px; flex: none; }
@@ -170,15 +150,11 @@
   .transport input[type="range"] { flex: 1; min-width: 0; accent-color: var(--accent); margin: 0; }
   .transport .time { font-family: var(--mono); font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; flex: none; }
   .screen video { cursor: pointer; }
-  .content { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
-  .bar {
-    position: sticky; top: var(--fix-top); z-index: 2;
-    background: var(--surface); border: 1px solid var(--line); border-radius: 14px;
-    padding: 12px 14px; display: flex; flex-direction: column; gap: 10px;
-  }
-  .row1 { display: flex; flex-wrap: wrap; align-items: end; gap: 10px 18px; }
+  .bar { display: flex; flex-direction: column; gap: 6px; flex: 2 1 520px; min-width: 0; }
+  .row1 { display: flex; flex-wrap: wrap; align-items: end; gap: 8px 18px; }
+  .total { flex-direction: row !important; align-items: baseline; gap: 8px; flex-wrap: wrap; }
   .total { display: flex; flex-direction: column; min-width: 0; }
-  .total b { font-family: var(--display); font-weight: 700; font-size: 30px; line-height: 1; font-variant-numeric: tabular-nums; }
+  .total b { font-family: var(--display); font-weight: 700; font-size: 24px; line-height: 1; font-variant-numeric: tabular-nums; }
   .label { font-size: 12px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
   .variant { display: flex; flex-direction: column; gap: 3px; margin-left: auto; min-width: 0; }
   .variant-controls { display: flex; flex-wrap: wrap; gap: 6px; }
@@ -213,35 +189,12 @@
   .gen-progress span:last-child { font-variant-numeric: tabular-nums; }
   .gen-progress button { font: inherit; font-size: 13px; }
   .gen-progress progress { width: 100%; height: 8px; accent-color: var(--accent); }
-  ol { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
-  li {
-    display: grid; grid-template-columns: auto auto minmax(0, 1fr) auto; align-items: center; gap: 4px 12px;
-    background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 8px 12px 8px 10px;
-  }
-  li.off { background: transparent; }
-  li.off .text { color: var(--muted); text-decoration: line-through; text-decoration-color: var(--line); }
-  li.now { background: var(--now); border-color: var(--now); }
-  li.playing { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
   input[type="checkbox"] { width: 22px; height: 22px; accent-color: var(--accent); margin: 0; cursor: pointer; }
-  .thumb {
-    position: relative; width: 40px; height: 71px; padding: 0; border: 0; border-radius: 6px; overflow: hidden;
-    background: var(--frame);
-  }
-  .thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
-  .thumb span {
-    position: absolute; inset: auto 0 0 0; height: 22px; display: grid; place-items: center;
-    background: rgba(0, 0, 0, 0.55); color: #fff;
-  }
-  .thumb svg { width: 10px; height: 10px; fill: currentColor; }
-  .text { min-width: 0; overflow-wrap: anywhere; cursor: pointer; }
-  .meta { font-family: var(--mono); font-size: 12px; color: var(--muted); text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
   .why {
     font-size: 12px; font-weight: 600;
     color: var(--warn); background: var(--warn-soft); border-radius: 999px; padding: 1px 9px;
   }
   .inedit { font-size: 12px; font-weight: 600; color: var(--accent); }
-  .empty { color: var(--muted); padding: 24px; text-align: center; display: block; }
-  .textcell { min-width: 0; display: flex; flex-direction: column; gap: 6px; }
   .textline { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; min-width: 0; }
   .fix { font-size: 12px; padding: 1px 8px; border-radius: 6px; background: transparent; color: var(--muted); }
   .editor { display: flex; flex-direction: column; gap: 6px; }
@@ -259,21 +212,6 @@
   .fxset { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; font-size: 13px; color: var(--muted); }
   .fxset b { color: var(--fg); font-weight: 600; min-width: 4.5em; }
   .fxset label { display: inline-flex; align-items: center; gap: 4px; }
-  /* Curseur de découpe : position dans le moment (image affichée dans le lecteur), repères des
-     coupes déjà faites, mot prononcé à cet instant. */
-  /* Curseur : une barre verticale (comme les repères de coupe, en plus épais) sur un rail fin. */
-  .cutbar { position: relative; flex: 1 1 220px; min-width: 160px; display: flex; align-items: center; height: 26px; }
-  .cutbar input { -webkit-appearance: none; appearance: none; width: 100%; height: 26px; margin: 0; background: transparent; cursor: pointer; position: relative; z-index: 1; }
-  .cutbar::before { content: ""; position: absolute; left: 0; right: 0; top: 50%; height: 4px; margin-top: -2px; border-radius: 2px; background: var(--line); }
-  .cutbar input::-webkit-slider-runnable-track { height: 4px; background: transparent; }
-  .cutbar input::-moz-range-track { height: 4px; background: transparent; }
-  .cutbar input::-webkit-slider-thumb { -webkit-appearance: none; width: 4px; height: 24px; margin-top: -10px; border: 0; border-radius: 2px; background: var(--accent); }
-  .cutbar input::-moz-range-thumb { width: 4px; height: 24px; border: 0; border-radius: 2px; background: var(--accent); }
-  .cutbar input:focus-visible { outline: none; }
-  .cutbar input:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 3px var(--accent-soft); }
-  .cutbar input:focus-visible::-moz-range-thumb { box-shadow: 0 0 0 3px var(--accent-soft); }
-  .cutbar i { position: absolute; top: 50%; width: 2px; height: 16px; margin: -8px 0 0 -1px; background: var(--warn); pointer-events: none; border-radius: 1px; }
-  .cutbar .kept { position: absolute; top: 50%; height: 6px; margin-top: -3px; background: var(--accent); opacity: 0.4; border-radius: 3px; pointer-events: none; }
   /* Calage d'un effet : bande déplaçable sur la durée du moment, poignées de début et de fin,
      repères des répétitions d'un son. */
   .fxbar { position: relative; flex: 1 1 240px; min-width: 170px; height: 26px; touch-action: none; user-select: none; }
@@ -293,25 +231,9 @@
   .fixed { font-size: 12px; font-weight: 600; color: var(--accent); }
   .regen { background: var(--accent); color: var(--bg); border-color: var(--accent); font-weight: 600; }
   .regen:disabled { opacity: 0.55; cursor: default; }
-  @media (max-width: 760px) {
-    .layout, .layout.paysage { grid-template-columns: minmax(0, 1fr); }
-    /* Écran étroit : le lecteur reste en haut (plus petit), la liste défile dessous ; la synthèse
-       et ses boutons défilent avec la liste (les deux figés ne laisseraient plus de place). */
-    .viewer {
-      top: var(--fix-top); z-index: 3; background: var(--bg); margin-inline: -16px; padding: 8px 16px;
-      border-bottom: 1px solid var(--line);
-    }
-    .bar { position: static; }
-    /* Hauteur fixée (largeur déduite des proportions) : sans elle, l'image restait à 0 de large. */
-    .screen { height: min(36vh, calc((100vw - 32px) / var(--arn, 0.5625))); width: auto; max-height: none; min-height: 0; }
-    .caption { font-size: 12px; min-height: 0; margin: 0; }
-  }
   @media (max-width: 520px) {
-    li { grid-template-columns: auto auto minmax(0, 1fr); }
-    .meta { grid-column: 3; text-align: left; }
     .variant { margin-left: 0; }
   }
-  @media (prefers-reduced-motion: no-preference) { li { transition: background-color 120ms; } }
   /* Bouton « haut de la page », en bas à droite dès qu'on a fait défiler. */
   .to-top {
     position: fixed; z-index: 40; right: calc(16px + env(safe-area-inset-right, 0px)); bottom: calc(16px + env(safe-area-inset-bottom, 0px));
@@ -320,55 +242,155 @@
   }
   .to-top:hover { border-color: var(--accent); }
   .to-top[hidden] { display: none; }
+  /* Inspecteur : moment choisi (texte, actions, effets) ou réglages de tout le montage. */
+  .inspector { display: flex; flex-direction: column; min-height: 0; border-left: 1px solid var(--line); background: var(--surface); }
+  .insp-tabs { display: flex; gap: 2px; padding: 8px 12px 0; border-bottom: 1px solid var(--line); flex: none; }
+  .insp-tabs button { border: 0; border-bottom: 2px solid transparent; border-radius: 0; background: none; color: var(--muted); padding: 6px 10px; }
+  .insp-tabs button[aria-selected="true"] { color: var(--fg); border-bottom-color: var(--accent); }
+  .insp-pane { flex: 1; min-height: 0; overflow: auto; padding: 12px; display: flex; flex-direction: column; gap: 10px; }
+  .insp-pane[hidden] { display: none; }
+  .insp-pane h2 { font-family: var(--display); font-size: 15px; font-weight: 700; margin: 0; }
+  .insp-pane h3 { font-size: 13px; font-weight: 600; margin: 4px 0 0; color: var(--fg); }
+  .insp-empty { color: var(--muted); font-size: 14px; }
+  .insp-badges { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+  .badge { font-size: 12px; border: 1px solid var(--line); border-radius: 999px; padding: 2px 10px; color: var(--muted); }
+  .badge.on { color: var(--accent); border-color: var(--accent); }
+  .at-keep { display: inline-flex; align-items: center; gap: 8px; font-weight: 600; cursor: pointer; }
+  .at-keep input { width: 18px; height: 18px; }
+  .at-acts { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+  .at-acts button { font-size: 13px; padding: 3px 9px; }
+  .insp-pane .cap-style { background: var(--panel2); }
+  .insp-pane .fxbar { flex-basis: 100%; }
+  /* Barre d'outils au-dessus des frises. */
+  .edit { display: flex; flex-direction: column; background: var(--bg); min-width: 0; user-select: none; -webkit-user-select: none; }
+  .toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 4px; padding: 6px 12px; border-bottom: 1px solid var(--line); }
+  .toolbar button { border: 0; background: none; padding: 5px 9px; font-size: 14px; border-radius: 6px; }
+  .toolbar button:hover:not(:disabled) { background: var(--panel2); }
+  .toolbar button:disabled { opacity: 0.35; cursor: default; }
+  .toolbar .sep { width: 1px; height: 20px; background: var(--line); margin: 0 4px; }
+  .toolbar .tc { margin: 0 auto; font-family: var(--mono); font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; padding: 0 10px; }
+  .toolbar .zoomer { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--muted); }
+  .toolbar .zoomer input { width: 9em; accent-color: var(--fg); }
+  .toolbar .selinfo { font-size: 13px; color: var(--fg); background: var(--panel2); border-radius: 6px; padding: 3px 8px; }
+  /* Frise du rush : une ligne qui défile ; règle, vidéo (images de chaque moment), son. */
+  .tlm, .tlk { display: grid; grid-template-columns: 74px minmax(0, 1fr); min-width: 0; }
+  .tlm-labels, .tlk-labels { display: flex; flex-direction: column; font-size: 12px; color: var(--muted); border-right: 1px solid var(--line); }
+  .tlm-labels span, .tlk-labels span { display: flex; align-items: center; padding: 0 10px; }
+  .tlm-labels .r, .tlk-labels .r { height: 26px; }
+  .tlm-labels .v { height: 66px; }
+  .tlm-labels .s { height: 40px; }
+  .tlm-scroll, .tlk-scroll { overflow-x: auto; overflow-y: hidden; min-width: 0; scrollbar-color: var(--off) transparent; }
+  .tlm-in, .tlk-in { position: relative; isolation: isolate; }
+  .ruler { position: relative; height: 26px; cursor: ew-resize; touch-action: none; border-bottom: 1px solid var(--line); }
+  .ruler i { position: absolute; bottom: 0; width: 1px; height: 5px; background: var(--off); }
+  .ruler i.big { height: 10px; background: var(--muted); }
+  .ruler b { position: absolute; top: 3px; font-family: var(--mono); font-size: 10px; font-weight: 500; color: var(--muted); transform: translateX(3px); white-space: nowrap; }
+  .vtrack { position: relative; height: 66px; }
+  .strack { position: relative; height: 40px; }
+  .strack canvas { position: sticky; left: 0; display: block; height: 40px; }
+  /* Un moment : bande d'images, contour blanc quand il est choisi. */
+  .clip { position: absolute; top: 5px; bottom: 5px; border-radius: 5px; overflow: hidden; cursor: pointer; background: #2b3a4a; border: 0; padding: 0; }
+  .clip .film { position: absolute; inset: 0; display: flex; pointer-events: none; }
+  .clip .film span { flex: none; height: 100%; background-repeat: no-repeat; }
+  .clip:not(.kept) .film { filter: grayscale(0.85) brightness(0.45); }
+  .clip.gap { background: #26262b; }
+  .clip.gap .film { opacity: 0.55; }
+  .clip .off { position: absolute; top: 0; bottom: 0; background: repeating-linear-gradient(135deg, rgb(0 0 0 / 0.55) 0 4px, rgb(0 0 0 / 0.25) 4px 8px); pointer-events: none; }
+  .clip.warn::before { content: ""; position: absolute; left: 0; right: 0; top: 0; height: 3px; background: var(--warn); z-index: 2; }
+  .clip .ck { position: absolute; top: 4px; right: 4px; width: 18px; height: 18px; border-radius: 4px; z-index: 2; background: rgb(0 0 0 / 0.45); border: 1px solid rgb(255 255 255 / 0.6); color: #000; font-size: 13px; line-height: 16px; text-align: center; padding: 0; }
+  .clip.kept .ck { background: var(--accent); border-color: var(--accent); }
+  .clip .ck.part { background: linear-gradient(135deg, var(--accent) 50%, rgb(0 0 0 / 0.45) 50%); }
+  .clip .mk { position: absolute; left: 4px; bottom: 3px; font-size: 11px; color: #fff; text-shadow: 0 1px 2px #000; z-index: 2; pointer-events: none; }
+  .clip.now { box-shadow: inset 0 0 0 2px var(--key); }
+  .clip.sel { box-shadow: 0 0 0 2px #fff; z-index: 3; }
+  .clip.sel::after { content: ""; position: absolute; inset: 0; background: rgb(255 255 255 / 0.22); pointer-events: none; }
+  .clip.open { box-shadow: inset 0 0 0 2px #fff, 0 0 0 1px #fff; z-index: 3; overflow: visible; }
+  .clip.open .film, .clip.open .off { border-radius: 5px; overflow: hidden; }
+  .clip:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+  /* Poignées du moment choisi : raccourcir le début ou la fin (une coupe et la partie retirée). */
+  .clip .hd { position: absolute; top: -1px; bottom: -1px; width: 12px; background: #fff; z-index: 4; cursor: ew-resize; touch-action: none; display: flex; align-items: center; justify-content: center; }
+  .clip .hd::after { content: ""; width: 2px; height: 16px; border-left: 1px solid #555; border-right: 1px solid #555; }
+  .clip .hd.a { border-radius: 5px 0 0 5px; margin-left: -12px; }
+  .clip .hd.b { border-radius: 0 5px 5px 0; }
+  /* Tête de lecture : trait blanc avec sa tête sur la règle. */
+  .phead { position: absolute; top: 0; bottom: 0; width: 2px; margin-left: -1px; background: #fff; z-index: 6; pointer-events: none; }
+  .phead::before { content: ""; position: absolute; top: 0; left: -6px; width: 14px; height: 14px; background: #fff; clip-path: polygon(0 0, 100% 0, 100% 60%, 50% 100%, 0 60%); }
+  .tlm .tlm-end { position: absolute; top: 0; bottom: 0; border-left: 1px dashed var(--off); }
+  /* Frise du moment : règle et images seulement ; parties retirées hachurées, coupes, effets. */
+  .tlk { border-top: 2px solid var(--accent); }
+  .tlk-head { grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; padding: 6px 12px; border-bottom: 1px solid var(--line); }
+  .tlk-head .when { font-weight: 600; }
+  .tlk-head .txt { color: var(--muted); font-size: 13px; flex: 1 1 200px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .tlk-head button { font-size: 13px; padding: 3px 9px; background: var(--panel2); }
+  .tlk-head .primary, .primary { background: var(--accent) !important; color: #002b28 !important; border-color: var(--accent) !important; font-weight: 600; }
+  .tlk-head .at-info { font-family: var(--mono); font-size: 12px; color: var(--fg); font-variant-numeric: tabular-nums; min-width: 12em; }
+  .tlk-head .zoom { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; color: var(--muted); }
+  .tlk-labels .i { height: 78px; }
+  .itrack { position: relative; height: 78px; }
+  .itrack .film { position: absolute; top: 6px; bottom: 6px; left: 0; right: 0; display: flex; overflow: hidden; border-radius: 4px; }
+  .itrack .film span { flex: none; height: 100%; background-repeat: no-repeat; }
+  .itrack .part { position: absolute; top: 6px; bottom: 6px; border: 0; border-radius: 0; padding: 0; background: none; cursor: pointer; }
+  .itrack .part.off { background: repeating-linear-gradient(135deg, rgb(0 0 0 / 0.7) 0 5px, rgb(0 0 0 / 0.35) 5px 10px); }
+  .itrack .part .pl { position: absolute; left: 4px; top: 3px; font-size: 11px; line-height: 1; padding: 2px 5px; border-radius: 4px; background: rgb(0 0 0 / 0.6); color: #fff; white-space: nowrap; }
+  .itrack .part.on .pl { background: var(--accent); color: #002b28; }
+  .itrack .part:hover { box-shadow: inset 0 0 0 2px rgb(255 255 255 / 0.5); }
+  .itrack .cut { position: absolute; top: 0; bottom: 0; width: 2px; margin-left: -1px; background: var(--warn); z-index: 3; }
+  .itrack .cut button { position: absolute; bottom: 2px; left: 50%; transform: translateX(-50%); font-size: 11px; line-height: 1; padding: 2px 4px; border-radius: 5px; background: var(--warn-soft); color: var(--warn); border-color: var(--warn); white-space: nowrap; }
+  .itrack .trim { position: absolute; top: 6px; bottom: 6px; background: rgb(0 0 0 / 0.65); pointer-events: none; }
+  /* Effets du moment : fins repères colorés sous les images (clic : leurs réglages). */
+  .itrack .fxm { position: absolute; height: 4px; bottom: 1px; border-radius: 2px; border: 0; padding: 0; cursor: pointer; z-index: 2; min-width: 4px; }
+  .itrack .fxm.s { background: var(--sfx); } .itrack .fxm.v { background: var(--vfx); } .itrack .fxm.k { background: var(--key); }
+  .itrack .kf { position: absolute; top: 50%; width: 14px; height: 14px; margin: -7px 0 0 -7px; transform: rotate(45deg); background: var(--key); border: 2px solid #000; border-radius: 2px; padding: 0; z-index: 4; cursor: pointer; }
+  .itrack .kf:hover, .itrack .kf:focus-visible { outline: 2px solid #fff; }
+  .fxset.focus { outline: 1px solid var(--accent); border-radius: 6px; outline-offset: 3px; }
+  /* Réglage d'un cadre du zoom libre, sur l'image du lecteur. */
+  .framer { position: absolute; inset: 0; z-index: 4; cursor: grab; touch-action: none; outline: 2px dashed var(--key); outline-offset: -2px; }
+  .framer:active { cursor: grabbing; }
+  .framer i { position: absolute; background: rgb(255 255 255 / 0.35); pointer-events: none; }
+  .framer i:nth-child(1) { left: 33.33%; top: 0; bottom: 0; width: 1px; } .framer i:nth-child(2) { left: 66.66%; top: 0; bottom: 0; width: 1px; }
+  .framer i:nth-child(3) { top: 33.33%; left: 0; right: 0; height: 1px; } .framer i:nth-child(4) { top: 66.66%; left: 0; right: 0; height: 1px; }
+  .framer-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; font-size: 13px; background: var(--panel2); border: 1px solid var(--key); border-radius: 8px; padding: 6px 10px; }
+  .framer-bar[hidden] { display: none; }
+  .framer-bar label { display: inline-flex; align-items: center; gap: 6px; }
+  .framer-bar input[type=range] { width: 10em; accent-color: var(--key); }
+  .framer-bar .sub { flex-basis: 100%; margin: 0; font-size: 12px; }
+  .kz { display: grid; grid-template-columns: auto 1fr; gap: 4px 8px; align-items: center; width: 100%; font-size: 13px; }
+  .kz .kzrow { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
+  .kz .kzrow span { font-family: var(--mono); font-size: 12px; color: var(--fg); margin-right: 4px; }
+  @media (max-width: 900px) {
+    /* Téléphone ou tablette : lecteur en haut (figé), frises, puis inspecteur. */
+    .stage { display: contents; }
+    .app { height: auto; min-height: 0; }
+    .viewer { order: 1; position: sticky; top: var(--fix-top); z-index: 8; background: var(--bg); border-bottom: 1px solid var(--line); padding: 8px 12px; }
+    .screen-box { flex: none; height: min(28vh, calc((100vw - 24px) / var(--arn, 0.5625))); }
+    .viewer { gap: 4px; }
+    .viewer .tabs button { font-size: 13px; padding: 4px 8px; }
+    .viewer .caption, #downloads-page { display: none; }
+    .edit { order: 2; }
+    .inspector { order: 3; border-left: 0; border-top: 1px solid var(--line); }
+    .insp-pane { overflow: visible; }
+    .topbar { order: 0; }
+    .tlm, .tlk { grid-template-columns: 0 minmax(0, 1fr); }
+    .tlm-labels, .tlk-labels { visibility: hidden; border: 0; }
+    .toolbar .tc { order: 9; flex-basis: 100%; margin: 0; padding: 2px 0; }
+    .caption { font-size: 12px; min-height: 0; margin: 0; }
+  }
   .derush-subs { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; }
   .derush-subs label { display: inline-flex; flex-direction: row; align-items: center; gap: 8px; font-weight: 600; font-size: 15px; color: var(--fg); cursor: pointer; }
   .derush-subs input { width: 18px; height: 18px; accent-color: var(--accent); }
   .derush-subs .sub { margin: 0; }
 </style>
 
-<main>
-  <header>
-    <h1>Sélection des moments</h1>
-    <p class="sub" id="sub">Cochez ce qui reste dans la version de travail. Les blancs sont déjà retirés.</p>
-  </header>
-
-  <div class="layout">
-    <section class="viewer" aria-label="Lecteur">
-      <div class="tabs" role="tablist">
-        <button type="button" class="tab" role="tab" id="tab-work" aria-selected="true">Version de travail</button>
-        <button type="button" class="tab" role="tab" id="tab-moment" aria-selected="false" disabled>Moment</button>
-        <button type="button" id="fullscreen" class="fs-btn" style="margin-left: auto;" hidden title="Voir la vidéo en plein écran (Échap pour sortir ; clic ou Espace : lecture / pause)"><span aria-hidden="true">⛶</span> Plein écran</button>
-        <button type="button" id="download" hidden title="Télécharger la version de travail (MP4 720x1280, compressée pour la page)">Télécharger</button>
-      </div>
-      <div class="dl-menu" id="dl-menu" hidden role="region" aria-label="Télécharger"></div>
-      <a id="downloads-page" hidden target="_blank" rel="noopener" style="font-size: 13px; color: var(--accent); align-self: flex-end;">Toutes les qualités (1080p, 4K)</a>
-      <div class="screen">
-        <video id="player" playsinline preload="metadata"></video>
-        <div class="ov" id="ov" hidden>
-          <div class="ov-chip" id="ov-chip" hidden></div>
-          <div class="ov-intro" id="ov-intro" hidden></div>
-          <div class="ov-cap" id="ov-cap"></div>
-          <div class="ov-flash" id="ov-flash" hidden></div>
-        </div>
-        <div class="fs-bar" id="fs-bar" aria-label="Lecture en plein écran">
-          <button type="button" class="fs-play" id="fs-play" aria-label="Lecture">▶</button>
-          <input type="range" id="fs-seek" min="0" max="1" step="0.01" value="0" aria-label="Position">
-          <span class="fs-time" id="fs-time">0:00 / 0:00</span>
-          <button type="button" id="fs-exit">Quitter le plein écran</button>
-        </div>
-      </div>
-      <div class="transport" aria-label="Lecture">
-        <button type="button" class="play" id="t-play" aria-label="Lecture">▶</button>
-        <button type="button" id="t-back" title="Reculer d'une image (1/30 s)" aria-label="Image précédente">−</button>
-        <input type="range" id="t-seek" min="0" max="1" step="0.01" value="0" aria-label="Position">
-        <button type="button" id="t-fwd" title="Avancer d'une image (1/30 s)" aria-label="Image suivante">+</button>
-        <span class="time" id="t-time">0.00 / 0.00 s</span>
-      </div>
-      <p class="caption" id="caption"></p>
-    </section>
-
-    <div class="content">
-      <section class="bar" aria-label="Synthèse">
+<main class="app">
+  <!-- Page façon logiciel de montage : en haut la synthèse (durée gardée, variante, génération),
+       au milieu le lecteur et l'inspecteur (moment choisi, réglages de tout le montage), en bas la
+       frise du rush (une ligne horizontale qui défile) et, quand un moment est choisi, sa frise à lui. -->
+  <header class="topbar">
+    <div class="brand">
+      <h1>Moments</h1>
+      <p class="sub" id="sub"></p>
+    </div>
+    <section class="bar" aria-label="Synthèse">
         <div class="row1">
           <div class="total">
             <span class="label">Durée gardée</span>
@@ -386,10 +408,6 @@
           </div>
         </div>
         <div class="row2">
-          <button type="button" class="chip" data-filter="all" aria-pressed="true">Tous</button>
-          <button type="button" class="chip" data-filter="on" aria-pressed="false">Gardés</button>
-          <button type="button" class="chip" data-filter="off" aria-pressed="false">Retirés</button>
-          <button type="button" class="chip" data-filter="gap" aria-pressed="false">Sans parole</button>
           <button type="button" id="reset">Revenir aux suggestions</button>
           <button type="button" id="regen" class="regen" hidden>Générer la version de travail</button>
           <span class="status" id="status" role="status">Chargement de la sélection…</span>
@@ -402,6 +420,60 @@
           <div><button type="button" id="gen-cancel">Annuler</button><span>la version précédente reste en place</span></div>
         </div>
       </section>
+  </header>
+
+  <div class="stage">
+    <section class="viewer" aria-label="Lecteur">
+      <div class="tabs" role="tablist">
+        <button type="button" class="tab" role="tab" id="tab-work" aria-selected="true">Version de travail</button>
+        <button type="button" class="tab" role="tab" id="tab-moment" aria-selected="false" disabled>Moment</button>
+        <button type="button" id="fullscreen" class="fs-btn" style="margin-left: auto;" hidden title="Voir la vidéo en plein écran (Échap pour sortir ; clic ou Espace : lecture / pause)"><span aria-hidden="true">⛶</span> Plein écran</button>
+        <button type="button" id="download" hidden title="Télécharger la version de travail (MP4 720x1280, compressée pour la page)">Télécharger</button>
+      </div>
+      <div class="dl-menu" id="dl-menu" hidden role="region" aria-label="Télécharger"></div>
+      <a id="downloads-page" hidden target="_blank" rel="noopener" style="font-size: 13px; color: var(--accent); align-self: flex-end;">Toutes les qualités (1080p, 4K)</a>
+      <div class="screen-box"><div class="screen">
+        <video id="player" playsinline preload="metadata"></video>
+        <div class="ov" id="ov" hidden>
+          <div class="ov-chip" id="ov-chip" hidden></div>
+          <div class="ov-intro" id="ov-intro" hidden></div>
+          <div class="ov-cap" id="ov-cap"></div>
+          <div class="ov-flash" id="ov-flash" hidden></div>
+        </div>
+        <!-- Réglage d'un cadre du zoom libre : molette ou pincement pour zoomer, glisser pour déplacer. -->
+        <div class="framer" id="framer" hidden aria-hidden="true"><i></i><i></i><i></i><i></i></div>
+        <div class="fs-bar" id="fs-bar" aria-label="Lecture en plein écran">
+          <button type="button" class="fs-play" id="fs-play" aria-label="Lecture">▶</button>
+          <input type="range" id="fs-seek" min="0" max="1" step="0.01" value="0" aria-label="Position">
+          <span class="fs-time" id="fs-time">0:00 / 0:00</span>
+          <button type="button" id="fs-exit">Quitter le plein écran</button>
+        </div>
+      </div></div>
+      <div class="transport" aria-label="Lecture">
+        <button type="button" class="play" id="t-play" aria-label="Lecture">▶</button>
+        <button type="button" id="t-back" title="Reculer d'une image (1/30 s)" aria-label="Image précédente">−</button>
+        <input type="range" id="t-seek" min="0" max="1" step="0.01" value="0" aria-label="Position">
+        <button type="button" id="t-fwd" title="Avancer d'une image (1/30 s)" aria-label="Image suivante">+</button>
+        <span class="time" id="t-time">0.00 / 0.00 s</span>
+      </div>
+      <div class="framer-bar" id="framer-bar" hidden role="group" aria-label="Cadre du zoom libre">
+        <b id="framer-title">Cadre</b>
+        <label>Zoom <input type="range" id="framer-zoom" min="100" max="400" step="1" value="100"> <span id="framer-val">100 %</span></label>
+        <button type="button" id="framer-reset" title="Revenir à l'image entière">Image entière</button>
+        <button type="button" id="framer-ok" class="primary">Valider</button>
+        <button type="button" id="framer-cancel">Annuler</button>
+        <span class="sub">Molette ou pincement sur l'image : zoomer à cet endroit ; glisser : déplacer le cadre.</span>
+      </div>
+      <p class="caption" id="caption"></p>
+    </section>
+
+    <aside class="inspector" aria-label="Inspecteur">
+      <div class="insp-tabs" role="tablist">
+        <button type="button" role="tab" id="itab-moment" aria-selected="true">Moment</button>
+        <button type="button" role="tab" id="itab-all" aria-selected="false">Tout le montage</button>
+      </div>
+      <div class="insp-pane" id="insp-moment" role="tabpanel" aria-labelledby="itab-moment"></div>
+      <div class="insp-pane" id="insp-all" role="tabpanel" aria-labelledby="itab-all" hidden>
       <div class="cap-style derush-subs" id="derush-subs-row" hidden>
         <label><input type="checkbox" id="derush-subs"> Sous-titres dans la version de travail</label>
         <span class="sub" id="derush-subs-status" role="status">Texte corrigé avec « Corriger » ; appliqué à la prochaine « Générer la version de travail ».</span>
@@ -493,9 +565,20 @@
         <p class="sub" id="fx-choice-status" role="status" style="margin: 6px 0 0;"></p>
       </details>
 
-      <ol id="list"></ol>
-    </div>
+      </div>
+    </aside>
   </div>
+
+  <!-- Frise du rush : tous les moments à leur place, une seule ligne qui défile ; dessous, la
+       forme d'onde de la voix. Frise du moment : ouverte quand un moment est choisi. -->
+  <section class="edit" id="edit" aria-label="Frises">
+    <div class="toolbar" id="toolbar"></div>
+    <div class="tlm" id="tlm">
+      <div class="tlm-labels"><span class="r"></span><span class="v">Vidéo</span><span class="s">Son</span></div>
+      <div class="tlm-scroll" id="tlm-scroll"><div class="tlm-in" id="tlm-in"></div></div>
+    </div>
+    <div class="tlk" id="tlk" hidden></div>
+  </section>
 </main>
 <button type="button" class="to-top" id="to-top" hidden title="Revenir en haut de la page" aria-label="Revenir en haut de la page">↑</button>
 
@@ -670,7 +753,7 @@
   const working = DATA.working;
   const inEdit = new Set(working ? working.clips.map((c) => c.seg) : []);
   const suggested = moments.filter((m) => m.suggested).map((m) => m.id);
-  const state = { variant: "travail", names: { travail: "Travail" }, keep: new Set(suggested), filter: "all" };
+  const state = { variant: "travail", names: { travail: "Travail" }, keep: new Set(suggested) };
   let db = null;
   let saveTimer = null;
   let dirty = false; // modification locale pas encore enregistrée
@@ -714,7 +797,7 @@
   const VFX_CATALOG = [
     { id: "typed", label: "Texte tapé" }, { id: "chip", label: "Pastille" }, { id: "zoomin", label: "Zoom avant" },
     { id: "zoomsec", label: "Zoom sec" }, { id: "dezoom", label: "Dézoom" }, { id: "shake", label: "Secousse" },
-    { id: "flash", label: "Flash blanc" }, { id: "highlight", label: "Mot mis en valeur" },
+    { id: "flash", label: "Flash blanc" }, { id: "highlight", label: "Mot mis en valeur" }, { id: "zoomlibre", label: "Zoom libre" },
   ];
   const HAB = { autoZoom: 1, pop: false, karaoke: false, karaokeColor: "#ffd84d", ...(DATA.habillage || {}) };
   const normWord = (w) => w.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "");
@@ -794,6 +877,11 @@
     if (kind === "dezoom") return { kind, at: t0, dur: 0.8, force: 30 };
     if (kind === "shake") return { kind, at: t0, dur: 0.4, force: 50 };
     if (kind === "flash") return { kind, at: t0, dur: 0.25 };
+    if (kind === "zoomlibre") {  // de l'image entière à un cadre serré sur le visage, depuis la tête de lecture
+      const at = Math.round(Math.min(Math.max(0, momentTime(m)), Math.max(0, momentLen(m) - 0.5)) * 100) / 100;
+      const fc = faceInClip(m, at + 1);
+      return { kind, at, dur: Math.round(Math.min(1.5, momentLen(m) - at) * 100) / 100, from: { s: 1, x: 0.5, y: 0.5 }, to: keyFrame({ s: 1.5, x: fc.x, y: fc.y }) };
+    }
     if (kind === "highlight") {  // le mot le plus long du moment, à changer
       const w = (m.words.map((x) => x.w.replace(/[^\p{L}\p{N}'-]/gu, "")).sort((a, b) => b.length - a.length)[0]) || "mot";
       return { kind, text: w, color: "#ffd84d" };
@@ -825,9 +913,9 @@
   const setStatus = (text, kind = "") => { const el = $("status"); el.textContent = text; el.className = `status ${kind}`; };
   const playIcon = '<svg viewBox="0 0 10 10" aria-hidden="true"><path d="M2 1l7 4-7 4z"/></svg>';
 
-  $("sub").textContent = `Rush ${DATA.rush} · ${moments.filter((m) => !m.gap).length} moments de parole (+ ${moments.filter((m) => m.gap).length} plans sans parole à part). `
-    + (DERUSH ? "Cochez les moments à garder et découpez-les : la version de travail les met bout à bout, sans effets."
-      : "Cochez ce qui reste dans la version de travail.");
+  $("sub").title = $("sub").textContent = `Rush ${DATA.rush} · ${moments.filter((m) => !m.gap).length} moments de parole (+ ${moments.filter((m) => m.gap).length} plans sans parole à part). `
+    + (DERUSH ? "Sur la frise du bas, cochez les moments à garder et ouvrez-en un pour le découper : la version de travail les met bout à bout, sans effets."
+      : "Sur la frise du bas, cochez ce qui reste dans la version de travail ; ouvrez un moment pour le corriger, le découper et placer ses effets.");
 
   // --- Habillage des moments (calculé dans la page, à partir de l'état courant) ----
   // Mêmes règles que scripts/build_edit.py : sous-titres jusqu'à 6 mots sur 2 lignes
@@ -874,7 +962,7 @@
     let g = [];
     const flush = () => {
       if (!g.length) return;
-      out.push({ words: g.map((x) => x.text.trim()), times: g.map((x) => x.a), a: g[0].a });
+      out.push({ words: g.map((x) => x.text.trim()), times: g.map((x) => x.a), a: g[0].a, b: g[g.length - 1].b });
       g = [];
     };
     for (const w of words.filter((x) => x.text)) {
@@ -931,8 +1019,9 @@
       else if (f.kind === "flash") flashes.push({ a, b: a + d });
       else if (f.kind === "highlight" && String(f.text || "").trim()) hl.push({ words: String(f.text).split(/\s+/).map(normWord).filter(Boolean), color: f.color || "#ffd84d" });
     }
+    const key = vfxOf(m).find((f) => f.kind === "zoomlibre") || null;  // zoom libre : tout le moment
     return { m, caps: captionGroups(words), events: events.map((e) => ({ ...e, done: false })), typed, chips, voice, zoomType: m.id % 2,
-             zooms, shakes, flashes, hl };
+             zooms, shakes, flashes, hl, key };
   }
 
   // Voix modifiées (moments_lib.VOICES) : identifiant, libellé, description.
@@ -1213,14 +1302,21 @@ ${HFAudio.voiceElements(spec)}
       sx = (4000 / FRAME_W) * sh.force * damp * (Math.sin(t * 71) + 0.5 * Math.sin(t * 37));
       sy = (4000 / FRAME_H) * sh.force * damp * (Math.cos(t * 59) + 0.5 * Math.sin(t * 43));
     }
-    // Cadrage suivi dans le temps (make_moments.py, faceTrack), comme le rendu : zoom centré sur
-    // les visages retenus et plafonné pour qu'aucun ne sorte de l'image.
+    // Zoom libre (ou cadre en cours de réglage) : grossissement et centre choisis, sans le plafond
+    // des visages ; sinon cadrage suivi dans le temps (make_moments.py, faceTrack), comme le rendu :
+    // zoom centré sur les visages retenus et plafonné pour qu'aucun ne sorte de l'image.
+    const K = framer.m && framer.m.id === fx.m.id ? framer.k : fx.key ? keyZoomAt(fx.key, t) : null;
+    if (K) {
+      player.style.transformOrigin = `${centeredOrigin(K.x, K.s) * 100}% ${centeredOrigin(K.y, K.s) * 100}%`;
+      player.style.transform = `translate(${sx}%, ${sy}%) scale(${K.s})`;
+    } else {
     const fc = faceInClip(fx.m, t);
     scale = Math.min(scale * (fc.base || 1), fc.s);
     const P = fc.panel || [0, 0, 1, 1];
     player.style.transformOrigin = fc.center ? `${centeredOrigin(fc.x, scale, P[0], P[2]) * 100}% ${centeredOrigin(fc.y, scale, P[1], P[3]) * 100}%`
       : `${fc.x * 100}% ${fc.y * 100}%`;
     player.style.transform = `translate(${sx}%, ${sy}%) scale(${scale})`;
+    }
     }
     const fl = fx.flashes.find((x) => t >= x.a && t < x.b);
     const flEl = $("ov-flash");
@@ -1302,7 +1398,7 @@ ${HFAudio.voiceElements(spec)}
     if (!player.src.endsWith(working.src)) player.src = working.src;
     const when = working.renderedAt ? new Date(working.renderedAt) : null;
     const stamp = when ? ` du ${when.toLocaleDateString("fr-FR", { day: "numeric", month: "short" })} à ${when.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}` : "";
-    $("caption").textContent = `Version de travail${stamp} · ${fmt(working.duration)} · le moment en cours est surligné dans la liste`;
+    $("caption").textContent = `Version de travail${stamp} · ${fmt(working.duration)} · le moment en cours est encadré sur la frise du rush`;
     if (autoplay) player.play().catch(() => {});
     renderList();
   }
@@ -1330,25 +1426,32 @@ ${HFAudio.voiceElements(spec)}
     if (quiet) syncCurrent(); else renderList();
   }
   function syncCurrent() {
-    document.querySelectorAll("#list li[data-id]").forEach((li) => li.classList.toggle("playing", Number(li.dataset.id) === currentMoment));
+    document.querySelectorAll("#tlm-in .clip[data-id]").forEach((b) => b.classList.toggle("playing", Number(b.dataset.id) === currentMoment));
     document.querySelectorAll("[data-cur]").forEach((b) => { b.disabled = Number(b.dataset.cur) !== currentMoment; });
   }
-  // Curseur de découpe du moment en cours : suit la lecture (sauf pendant qu'on le fait glisser).
-  let cutDragging = false;
-  let cutPending = null;  // instant visé pendant le chargement du moment choisi au curseur
-  function syncCutSlider() {
-    if (mode !== "moment" || currentMoment === null || cutDragging || cutPending !== null || player.readyState < 1) return;
-    const el = document.getElementById(`cutpos-${currentMoment}`);
-    if (el) { el.value = String(player.currentTime); el.dispatchEvent(new Event("sync")); }
+  // Tête de lecture de la frise du moment (règle, images, ‹ ›) : l'image s'affiche dans
+  // le lecteur ; le moment s'y charge s'il n'y est pas (sans lecture). Positions calées sur les
+  // images du rush (30 i/s) : une coupe tombe sur l'image affichée.
+  let cutPending = null;  // instant visé pendant le chargement du moment
+  const clipStart = (m) => (m.gap ? m.start : Math.max(0, m.start - 0.05));
+  const snapIn = (m, t) => Math.max(0, Math.min(momentLen(m), Math.round((clipStart(m) + t) * 30) / 30 - clipStart(m)));
+  const momentTime = (m) => (mode === "moment" && currentMoment === m.id
+    ? (cutPending ?? player.currentTime) : (frise.at.get(m.id) ?? (m.gap ? trimOf(m).in : 0)));
+  function seekMoment(m, t) {
+    t = snapIn(m, t);
+    frise.at.set(m.id, t);
+    if (mode !== "moment" || currentMoment !== m.id) {
+      cutPending = t;
+      showMoment(m.id, { autoplay: false, quiet: true });
+      player.addEventListener("loadedmetadata", () => {
+        if (currentMoment !== m.id) return;  // un autre moment a été ouvert entre-temps
+        player.currentTime = cutPending ?? t;
+        player.addEventListener("seeked", () => { cutPending = null; }, { once: true });
+      }, { once: true });
+    } else if (cutPending !== null) cutPending = t;  // moment encore en chargement : nouvel instant visé
+    else { player.pause(); player.currentTime = t; }
+    drawPlayheads();
   }
-  for (const ev of ["timeupdate", "seeked"]) player.addEventListener(ev, syncCutSlider);
-  // Curseur d'un moment (découpe, bornes d'un plan sans parole) : le faire glisser montre
-  // l'image dans le lecteur (le moment se charge s'il n'est pas ouvert, sans lecture) ; ‹ ›
-  // avancent d'une image ; marks = repères (coupes), range = partie gardée en couleur ;
-  // describe(t) complète le temps affiché (mot prononcé…).
-  // Zoom : sur 2 s autour de la position, chaque image du curseur est accessible à la souris.
-  const zoomed = new Map();  // id du moment -> centre du zoom (s)
-  const ZOOM = 1;            // demi-largeur de la fenêtre zoomée, en s
   // Calage d'un effet sur la durée du moment : bande [début, fin] à déplacer, poignées pour le
   // début et la fin (image par image au clavier : flèches, Maj = 10 images). Pendant le geste,
   // la vidéo va à l'instant visé ; au relâchement, commit(début, fin). « unit » et « pause »
@@ -1444,90 +1547,6 @@ ${HFAudio.voiceElements(spec)}
   }
   player.addEventListener("timeupdate", () => document.querySelectorAll(".fxbar").forEach((x) => x._draw && x._draw()));
 
-  function scrubber(m, len, { marks = [], range = null, label = "", describe = null } = {}) {
-    // Positions calées sur les images du rush (30 i/s) : la coupe tombe sur l'image affichée.
-    const s0 = m.gap ? m.start : Math.max(0, m.start - 0.05);
-    const snap = (t) => Math.max(0, Math.min(len, Math.round((s0 + t) * 30) / 30 - s0));
-    const bar = document.createElement("div");
-    bar.className = "cutbar";
-    const pos = document.createElement("input");
-    pos.type = "range"; pos.id = `cutpos-${m.id}`; pos.step = "any";
-    const start = snap(currentMoment === m.id ? Math.min(player.currentTime, len) : (range ? range[0] : 0));
-    const center = zoomed.get(m.id);
-    const lo = center === undefined ? 0 : Math.max(0, Math.min(center - ZOOM, len - 2 * ZOOM));
-    const hi = center === undefined ? len : Math.min(len, lo + 2 * ZOOM);
-    pos.min = String(lo); pos.max = String(hi);
-    pos.value = String(Math.max(lo, Math.min(hi, start)));
-    pos.setAttribute("aria-label", label);
-    const at = (t) => `calc(2px + (100% - 4px) * ${Math.max(0, Math.min(1, (t - lo) / (hi - lo)))})`;  // pouce de 4 px
-    if (range) {
-      const k = document.createElement("span");
-      k.className = "kept";
-      const a = Math.max(lo, range[0]), b = Math.min(hi, range[1]);
-      k.style.left = at(a);
-      k.style.width = `calc((100% - 4px) * ${Math.max(0, (b - a) / (hi - lo))})`;
-      bar.append(k);
-    }
-    bar.append(pos);
-    for (const c of marks.filter((c) => c >= lo && c <= hi)) {
-      const tick = document.createElement("i");
-      tick.style.left = at(c);
-      bar.append(tick);
-    }
-    const info = document.createElement("span");
-    info.className = "cutinfo";
-    const showInfo = () => {
-      const t = Number(pos.value);
-      info.textContent = describe ? `${t.toFixed(2)} s · ${describe(t)}` : `${t.toFixed(2)} s`;
-    };
-    const seekTo = (t) => {
-      t = snap(t);
-      pos.value = String(t);
-      showInfo();
-      if (currentMoment !== m.id) {
-        cutPending = t;
-        showMoment(m.id, { autoplay: false, quiet: true });
-        player.addEventListener("loadedmetadata", () => {
-          player.currentTime = cutPending ?? Number(pos.value);
-          player.addEventListener("seeked", () => { cutPending = null; }, { once: true });
-        }, { once: true });
-      } else if (cutPending !== null) {
-        cutPending = t;  // moment encore en chargement : on vise le nouvel instant
-      } else {
-        player.pause();
-        player.currentTime = t;
-      }
-    };
-    pos.addEventListener("pointerdown", () => { cutDragging = true; });
-    pos.addEventListener("input", () => { cutDragging = true; seekTo(Number(pos.value)); });
-    pos.addEventListener("change", () => { cutDragging = false; });
-    pos.addEventListener("pointerup", () => { cutDragging = false; });
-    pos.addEventListener("sync", showInfo);
-    const nudge = (text, frames, title) => {
-      const b = document.createElement("button");
-      b.type = "button"; b.textContent = text; b.title = title;
-      b.addEventListener("click", () => {
-        const t = snap(Number(pos.value) + frames / 30);
-        if (zoomed.has(m.id) && (t < lo || t > hi)) { zoomed.set(m.id, t); renderList(); return seekAfterRender(m, t); }
-        seekTo(t);
-      });
-      return b;
-    };
-    const zoom = document.createElement("button");
-    zoom.type = "button";
-    zoom.textContent = zoomed.has(m.id) ? "Vue entière" : "Zoom";
-    zoom.title = zoomed.has(m.id) ? "Revoir le moment entier sur le curseur" : "Curseur sur 2 s autour de la position : chaque image se place à la souris";
-    zoom.setAttribute("aria-pressed", String(zoomed.has(m.id)));
-    zoom.addEventListener("click", () => {
-      if (zoomed.has(m.id)) zoomed.delete(m.id); else zoomed.set(m.id, Number(pos.value));
-      const t = Number(pos.value);
-      renderList();
-      seekAfterRender(m, t);
-    });
-    showInfo();
-    return { nodes: [bar, nudge("«", -5, "5 images avant"), nudge("‹", -1, "Une image avant"), nudge("›", 1, "Une image après"),
-      nudge("»", 5, "5 images après"), zoom, info], value: () => snap(Number(pos.value)) };
-  }
   // Scinder ou fusionner des moments (interface locale : scripts/decoupage.py, puis la page est
   // refaite ; seuls les extraits touchés sont recalculés). La sélection en cours est d'abord
   // enregistrée ; les réglages des moments suivent (effets décalés, moments gardés).
@@ -1553,14 +1572,6 @@ ${HFAudio.voiceElements(spec)}
     const i = speech.findIndex((x) => x.id === m.id);
     return i >= 0 && i + 1 < speech.length ? speech[i + 1] : null;
   };
-  // Après un nouveau rendu de la liste : remet le curseur du moment à l'instant voulu.
-  function seekAfterRender(m, t) {
-    const el = document.getElementById(`cutpos-${m.id}`);
-    if (!el) return;
-    el.value = String(t);
-    el.dispatchEvent(new Event("input", { bubbles: true }));
-    cutDragging = false;
-  }
   $("tab-work").addEventListener("click", () => showWork(false));
   // Barre de lecture : lecture/pause, curseur, image par image, temps au centième
   // (le temps affiché est celui des réglages « départ » et des coupes).
@@ -1583,7 +1594,7 @@ ${HFAudio.voiceElements(spec)}
     $("fs-play").setAttribute("aria-label", player.paused ? "Lecture" : "Pause");
   }
   for (const ev of ["timeupdate", "play", "pause", "loadedmetadata", "seeked", "emptied"]) player.addEventListener(ev, drawTransport);
-  (function tick() { if (!player.paused) drawTransport(); requestAnimationFrame(tick); })();
+  (function tick() { if (!player.paused) { drawTransport(); drawPlayheads(); } requestAnimationFrame(tick); })();
   seek.addEventListener("input", () => { seeking = true; player.currentTime = Number(seek.value); drawTransport(); });
   seek.addEventListener("change", () => { seeking = false; });
   $("fs-seek").addEventListener("input", () => { seeking = true; player.currentTime = Number($("fs-seek").value); drawTransport(); });
@@ -1618,554 +1629,1126 @@ ${HFAudio.voiceElements(spec)}
     const seg = clip ? clip.seg : null;
     if (seg !== nowSeg) {
       nowSeg = seg;
-      document.querySelectorAll("li.now").forEach((li) => li.classList.remove("now"));
-      const li = seg === null ? null : document.querySelector(`li[data-id="${seg}"]`);
-      if (li) {
-        li.classList.add("now");
-        const r = li.getBoundingClientRect();
-        if (r.top < 140 || r.bottom > window.innerHeight) li.scrollIntoView({ block: "center", behavior: "smooth" });
-      }
+      document.querySelectorAll("#tlm-in .clip.now").forEach((b) => b.classList.remove("now"));
+      if (seg !== null) document.querySelectorAll(`#tlm-in .clip[data-id="${seg}"]`).forEach((b) => b.classList.add("now"));
     }
   });
 
-  // --- Liste -----------------------------------------------------------------
-  function renderList() {
-    const list = $("list");
-    list.replaceChildren();
-    const shown = moments.filter((m) => state.filter === "all"
-      || (state.filter === "gap" ? !!m.gap : (state.filter === "on") === isKept(m)));
-    if (!shown.length) {
-      const li = document.createElement("li");
-      li.className = "empty";
-      li.textContent = state.filter === "on" ? "Aucun moment gardé." : "Aucun moment retiré.";
-      list.append(li);
+  // --- Frises, façon logiciel de montage ----------------------------------------
+  // Frise du rush : une ligne horizontale qui défile (zoom de la barre d'outils), chaque moment à
+  // sa place avec ses images, la forme d'onde de la voix dessous. Clic : le moment s'ouvre (frise
+  // du moment, inspecteur) ; Maj + clic, Ctrl + clic : sélection de plusieurs moments.
+  // Frise du moment : ses images seulement, avec les coupes, les parties retirées hachurées et de
+  // fins repères pour ses effets.
+  const frise = { pps: 8, sel: new Set(), anchor: null, open: null, zoom: 1, at: new Map(), tab: "moment", focus: null };
+  const rushEnd = Math.max(1, Number(DATA.rushEnd) || 0, ...moments.map((m) => m.end));
+  const PPS_MIN = 0.5, PPS_MAX = 128;  // pixels par seconde de la frise du rush
+  {
+    let v = null;
+    try { v = Number(localStorage.getItem("am-tl-pps")); } catch (e) { /* stockage indisponible */ }
+    const w = $("tlm-scroll").clientWidth || 900;  // par défaut : 2 min à l'écran (1 min sur téléphone)
+    frise.pps = v >= PPS_MIN && v <= PPS_MAX ? v : Math.max(4, Math.min(20, w / (w < 600 ? 60 : 120)));
+  }
+  const el = (tag, className = "", text = null) => {
+    const e = document.createElement(tag);
+    if (className) e.className = className;
+    if (text !== null) e.textContent = text;
+    return e;
+  };
+  const btn = (text, title, onClick, className = "") => {
+    const b = el("button", className, text);
+    b.type = "button";
+    if (title) b.title = title;
+    b.addEventListener("click", onClick);
+    return b;
+  };
+  const tc = (t) => {  // minutes:secondes.images (30 images par seconde)
+    const f = Math.max(0, Math.round(t * 30));
+    return `${String(Math.floor(f / 1800)).padStart(2, "0")}:${String(Math.floor(f / 30) % 60).padStart(2, "0")}.${String(f % 30).padStart(2, "0")}`;
+  };
+  // Parties gardées d'un moment, en temps du rush (découpes et bornes d'un plan sans parole).
+  function keptRanges(m) {
+    if (m.gap) { if (!isKept(m)) return []; const tr = trimOf(m); return [[m.start + tr.in, m.start + tr.out]]; }
+    const s0 = clipStart(m);
+    return partsOf(m).filter((p) => partKept(m, p.k))
+      .map((p) => [Math.max(m.start, s0 + p.a), Math.min(m.end, s0 + p.b)]).filter(([a, b]) => b > a);
+  }
+  const momentLabel = (m) => (m.gap ? `Sans parole · ${(m.end - m.start).toFixed(1)} s` : DERUSH && !derushSubs() ? m.text
+    : noSub(m) ? `Sans sous-titres · ${m.text}` : textOf(m));
+  const openMoment = () => (frise.open !== null && frise.sel.size <= 1 ? byId.get(frise.open) || null : null);
+
+  // Images du rush (make_moments.py, timeline_strip) : une toutes les 0,5 s, en planches de 10x10.
+  // Bande d'images de « from » à « to » (temps du rush) sur « width » px de large.
+  const STRIP = DATA.strip && Array.isArray(DATA.strip.sheets) && DATA.strip.sheets.length ? DATA.strip : null;
+  function filmstrip(from, to, width, height, fallback) {
+    const film = el("div", "film");
+    if (width <= 0) return film;
+    if (!STRIP) {
+      if (fallback) { const sp = el("span"); Object.assign(sp.style, { width: "100%", backgroundImage: `url(${fallback})`, backgroundSize: "cover", backgroundPosition: "center" }); film.append(sp); }
+      return film;
     }
-    for (const m of shown) {
-      const on = isKept(m);
-      const li = document.createElement("li");
-      li.dataset.id = m.id;
-      li.className = [on ? "" : "off", m.id === nowSeg ? "now" : "", m.id === currentMoment ? "playing" : ""].join(" ").trim();
-      const box = document.createElement("input");
-      box.type = "checkbox";
-      box.id = `m-${m.id}`;
+    const tw = (height * STRIP.w) / STRIP.h, per = STRIP.tile * STRIP.tile, n = Math.max(1, Math.ceil(width / tw));
+    const last = Math.min(Math.floor((rushEnd - 0.01) / STRIP.step), STRIP.sheets.length * per - 1);
+    for (let k = 0; k < n; k++) {
+      const t = from + ((k + 0.5) * tw / width) * (to - from);
+      const i = Math.max(0, Math.min(last, Math.floor(t / STRIP.step)));
+      const c = i % STRIP.tile, r = Math.floor((i % per) / STRIP.tile);
+      const sp = el("span");
+      Object.assign(sp.style, { width: `${tw}px`, backgroundImage: `url(${STRIP.sheets[Math.floor(i / per)]})`,
+        backgroundSize: `${tw * STRIP.tile}px ${height * STRIP.tile}px`, backgroundPosition: `${-c * tw}px ${-r * height}px` });
+      film.append(sp);
+    }
+    return film;
+  }
+  // Règle d'une frise (len secondes à pps pixels par seconde) ; glisser : la tête de lecture suit.
+  function ruler(len, pps, onSeek, long) {
+    const r = el("div", "ruler");
+    const steps = [0.1, 0.25, 0.5, 1, 2, 5, 10, 15, 30, 60, 120, 300, 600];
+    const major = steps.find((x) => x * pps >= 70) || 600, minor = major / 5;
+    const label = (t) => (long ? `${Math.floor(t / 60)}:${String(Math.round(t % 60)).padStart(2, "0")}` : `${Number(t.toFixed(2))} s`);
+    for (let k = 0; k * minor <= len + 1e-6; k++) {
+      const t = k * minor, big = k % 5 === 0;
+      const i = el("i", big ? "big" : "");
+      i.style.left = `${t * pps}px`;
+      r.append(i);
+      if (big && (len - t) * pps > 30) { const b = el("b", "", label(t)); b.style.left = `${t * pps}px`; r.append(b); }
+    }
+    r.addEventListener("pointerdown", (ev) => {
+      ev.preventDefault();
+      r.setPointerCapture(ev.pointerId);
+      const at = (e) => { const b = r.getBoundingClientRect(); onSeek(Math.max(0, Math.min(len, (e.clientX - b.left) / pps))); };
+      at(ev);
+      const up = () => { r.removeEventListener("pointermove", at); r.removeEventListener("pointerup", up); };
+      r.addEventListener("pointermove", at);
+      r.addEventListener("pointerup", up);
+    });
+    return r;
+  }
+
+  // Un moment sur la frise du rush : ses images, case garder / retirer, parties retirées hachurées.
+  function clipBlock(m) {
+    const pps = frise.pps, on = isKept(m), ranges = keptRanges(m);
+    const keptLen = ranges.reduce((t, [a, b]) => t + b - a, 0), partial = on && keptLen < m.end - m.start - 0.06;
+    const b = el("div", ["clip", on ? "kept" : "", m.gap ? "gap" : "", m.reason ? "warn" : "", m.id === nowSeg ? "now" : "",
+      m.id === currentMoment ? "playing" : "", frise.sel.size > 1 && frise.sel.has(m.id) ? "sel" : ""].filter(Boolean).join(" "));
+    b.dataset.id = m.id;
+    b.tabIndex = 0;
+    b.setAttribute("role", "button");
+    const w = (m.end - m.start) * pps;
+    b.style.left = `${m.start * pps}px`;
+    b.style.width = `${Math.max(2, w - 1)}px`;
+    b.append(filmstrip(m.start, m.end, w, 56, m.thumb));
+    if (on) {  // parties retirées d'un moment gardé
+      let x = m.start;
+      for (const [a, z] of [...ranges, [m.end, m.end]]) {
+        if (a > x + 0.01) { const o = el("span", "off"); o.style.left = `${(x - m.start) * pps}px`; o.style.width = `${(a - x) * pps}px`; b.append(o); }
+        x = Math.max(x, z);
+      }
+    }
+    const label = momentLabel(m);
+    const status = on ? (partial ? "gardé en partie" : "gardé") : "retiré";
+    b.title = `${fmt(m.start)} · ${(m.end - m.start).toFixed(1)} s · ${status}${m.reason ? ` · retrait suggéré (${m.reason})` : ""}\n${label}`;
+    b.setAttribute("aria-label", `${m.gap ? "Plan sans parole" : "Moment"} à ${fmt(m.start)}, ${status} : ${label}`);
+    if (w >= 26) {
+      const ck = btn(on ? "✓" : "", on ? "Retirer de la version de travail" : "Garder dans la version de travail", (e) => { e.stopPropagation(); toggle(m.id, !on); }, `ck${partial ? " part" : ""}`);
+      ck.setAttribute("role", "checkbox");
+      ck.setAttribute("aria-checked", partial ? "mixed" : String(on));
+      ck.setAttribute("aria-label", `Garder : ${label}`);
+      ck.addEventListener("pointerdown", (e) => e.stopPropagation());
+      b.append(ck);
+    }
+    const marks = [(!DERUSH || derushSubs()) && edits[m.id] && (edits[m.id].text || edits[m.id].nosub) ? "✎" : "",
+      cutsOf(m).length ? "✂" : "", !DERUSH && (sfxOf(m).length || vfxOf(m).length) ? "✦" : ""].join("");
+    if (marks && w >= 40) b.append(el("span", "mk", marks));
+    b.addEventListener("click", (e) => pickMoment(m, e));
+    b.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); pickMoment(m, e); } });
+    return b;
+  }
+  // Poignées du moment ouvert, aux bords de sa partie gardée : glisser raccourcit le début ou la fin.
+  function addHandles(b, m) {
+    const pps = frise.pps, ranges = keptRanges(m);
+    const a0 = ranges.length ? ranges[0][0] : m.start, b0 = ranges.length ? ranges[ranges.length - 1][1] : m.end;
+    for (const side of ["a", "b"]) {
+      const h = el("span", `hd ${side}`);
+      h.title = side === "a" ? "Glisser : début de la partie gardée" : "Glisser : fin de la partie gardée";
+      const place = (t) => { h.style.left = `${(t - m.start) * pps}px`; };
+      place(side === "a" ? a0 : b0);
+      h.addEventListener("click", (e) => e.stopPropagation());
+      h.addEventListener("pointerdown", (ev) => {
+        ev.preventDefault(); ev.stopPropagation();
+        h.setPointerCapture(ev.pointerId);
+        const box = b.getBoundingClientRect();
+        let t = side === "a" ? a0 : b0;
+        const move = (e) => {
+          t = Math.max(m.start, Math.min(m.end, m.start + (e.clientX - box.left) / pps));
+          t = side === "a" ? Math.min(t, b0 - 0.2) : Math.max(t, a0 + 0.2);
+          place(t);
+          seekMoment(m, t - clipStart(m));
+        };
+        const up = () => {
+          h.removeEventListener("pointermove", move); h.removeEventListener("pointerup", up);
+          if (Math.abs(t - (side === "a" ? a0 : b0)) > 0.02) trimEdge(m, side, t - clipStart(m));
+        };
+        h.addEventListener("pointermove", move);
+        h.addEventListener("pointerup", up);
+      });
+      b.append(h);
+    }
+  }
+  // Raccourcir le début (side « a ») ou la fin (« b ») d'un moment à l'instant t de son extrait :
+  // une coupe à t, la partie d'avant (ou d'après) retirée ; les coupes devenues inutiles partent.
+  function trimEdge(m, side, t) {
+    if (m.gap) {
+      const tr = trimOf(m), v = Math.round(t * 100) / 100;
+      saveMoment(m.id, { trim: side === "a" ? { ...tr, in: Math.min(v, tr.out - 0.2) } : { ...tr, out: Math.max(v, tr.in + 0.2) } });
+      if (!isKept(m)) toggle(m.id, true);
+      return;
+    }
+    const len = clipLen(m);
+    t = snapIn(m, t);
+    if (side === "a" && t <= m.start - clipStart(m) + 0.04) t = 0;  // poignée ramenée au début du moment
+    if (side === "b" && t >= len - 0.04) t = len;
+    const old = partsOf(m).map((p) => ({ ...p, on: partKept(m, p.k) })), anyOn = old.some((p) => p.on);
+    const cuts = cutsOf(m).filter((c) => (side === "a" ? c > t + 0.05 : c < t - 0.05));
+    if (t > 0.05 && t < len - 0.05) cuts.push(t);
+    let next = [...new Set(cuts.map((c) => Math.round(c * 100) / 100))].sort((x, y) => x - y);
+    let bnd = [0, ...next, len];
+    let on = bnd.slice(0, -1).map((a, k) => {
+      const z = bnd[k + 1];
+      if (side === "a" ? z <= t + 0.01 : a >= t - 0.01) return false;
+      if (side === "a" ? Math.abs(a - t) < 0.02 : Math.abs(z - t) < 0.02) return true;
+      return !anyOn || old.some((o) => o.on && o.a < z - 0.01 && o.b > a + 0.01);
+    });
+    // Deux parties voisines dans le même état : leur coupe ne sert plus.
+    next = next.filter((_, k) => on[k] !== on[k + 1]);
+    on = on.filter((v, k) => k === 0 || v !== on[k - 1]);
+    [...state.keep].forEach((x) => { if (x === m.id || (typeof x === "string" && x.startsWith(`${m.id}/`))) state.keep.delete(x); });
+    if (!next.length) { if (on[0]) state.keep.add(m.id); }
+    else on.forEach((v, k) => { if (v) state.keep.add(`${m.id}/${k}`); });
+    saveMoment(m.id, { cuts: next.length ? next : null });
+    renderSummary();
+    scheduleSave();
+  }
+  // Forme d'onde de la voix (make_moments.py, timeline_wave : 20 crêtes par seconde) dessinée pour
+  // la partie visible de la frise : en vert ce qui est gardé, en gris le reste.
+  let keptAll = [];
+  function drawWave() {
+    const sc = $("tlm-scroll"), cv = document.querySelector("#tlm-in .strack canvas");
+    if (!cv) return;
+    const W = sc.clientWidth, H = 40, dpr = window.devicePixelRatio || 1, peaks = DATA.wave || [], rate = 20, pps = frise.pps;
+    cv.width = Math.round(W * dpr); cv.height = H * dpr; cv.style.width = `${W}px`;
+    const ctx = cv.getContext("2d");
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, W, H);
+    if (!peaks.length) return;
+    const css = getComputedStyle(document.documentElement);
+    const colors = [css.getPropertyValue("--off").trim() || "#5a5a62", css.getPropertyValue("--wave").trim() || "#25c49a"];
+    let j = 0;
+    const cols = [[], []];
+    for (let x = 0; x < W; x++) {
+      const t0 = (sc.scrollLeft + x) / pps, t1 = t0 + 1 / pps;
+      if (t0 > rushEnd) break;
+      let p = 0;
+      for (let i = Math.floor(t0 * rate), e = Math.max(i + 1, Math.ceil(t1 * rate)); i < e && i < peaks.length; i++) p = Math.max(p, peaks[i]);
+      const mid = (t0 + t1) / 2;
+      while (j < keptAll.length && keptAll[j][1] <= mid) j++;
+      const kept = j < keptAll.length && keptAll[j][0] <= mid ? 1 : 0;
+      cols[kept].push([x, Math.max(0.5, (p / 100) * (H / 2 - 3))]);
+    }
+    cols.forEach((list, k) => {
+      ctx.fillStyle = colors[k];
+      for (const [x, h] of list) ctx.fillRect(x, H / 2 - h, 1, 2 * h);
+    });
+  }
+  $("tlm-scroll").addEventListener("scroll", () => requestAnimationFrame(drawWave), { passive: true });
+
+  function renderMain() {
+    const sc = $("tlm-scroll"), inner = $("tlm-in"), keep = sc.scrollLeft, pps = frise.pps;
+    inner.style.width = `${Math.ceil(rushEnd * pps) + 60}px`;
+    const v = el("div", "vtrack"), s = el("div", "strack"), end = el("span", "tlm-end");
+    for (const m of moments) v.append(clipBlock(m));
+    s.append(document.createElement("canvas"));
+    end.style.left = `${rushEnd * pps}px`;
+    inner.replaceChildren(ruler(rushEnd, pps, scrubRush, true), v, s, end, el("span", "phead"));
+    sc.scrollLeft = keep;
+    keptAll = moments.flatMap((m) => keptRanges(m)).sort((x, y) => x[0] - y[0]);
+    syncMain();
+    drawWave();
+  }
+  // Moment ouvert, sélection, moment en lecture : classes et poignées, sans tout redessiner.
+  function syncMain() {
+    const om = openMoment();
+    document.querySelectorAll("#tlm-in .clip").forEach((b) => {
+      const id = Number(b.dataset.id);
+      b.classList.toggle("open", !!om && om.id === id);
+      b.classList.toggle("sel", frise.sel.size > 1 && frise.sel.has(id));
+      b.classList.toggle("playing", id === currentMoment);
+      b.setAttribute("aria-pressed", String(!!om && om.id === id));
+      b.querySelectorAll(".hd").forEach((h) => h.remove());
+      if (om && om.id === id) addHandles(b, om);
+    });
+  }
+  // Garder la place du rush « t » visible dans la frise (défilement horizontal).
+  function revealRush(t, always = false) {
+    const sc = $("tlm-scroll"), x = t * frise.pps;
+    if (always || x < sc.scrollLeft + 20 || x > sc.scrollLeft + sc.clientWidth - 40) sc.scrollLeft = Math.max(0, x - sc.clientWidth / 3);
+  }
+  // Tête de lecture glissée sur la règle du rush : le moment sous elle s'ouvre, l'image s'affiche.
+  function scrubRush(t) {
+    const m = moments.find((x) => t >= x.start && t < x.end)
+      || moments.reduce((best, x) => (Math.min(Math.abs(x.start - t), Math.abs(x.end - t)) < Math.min(Math.abs(best.start - t), Math.abs(best.end - t)) ? x : best), moments[0]);
+    if (!m) return;
+    if (frise.open !== m.id || frise.sel.size > 1) {
+      frise.open = m.id; frise.sel = new Set([m.id]); frise.anchor = m.id; frise.zoom = 1; editing = null; frise.focus = null;
+      $("tab-moment").dataset.last = m.id;
+      seekMoment(m, Math.max(0, t - clipStart(m)));
+      renderOpen();
+    } else seekMoment(m, Math.max(0, t - clipStart(m)));
+  }
+
+  // Clic sur un moment de la frise : il s'ouvre (frise du moment, inspecteur, lecteur) ; Maj : suite
+  // de moments depuis le dernier choisi ; Ctrl ou ⌘ : un moment de plus ou de moins dans la sélection.
+  function pickMoment(m, e = {}) {
+    if (e.shiftKey && frise.anchor !== null) {
+      const i = moments.findIndex((x) => x.id === frise.anchor), j = moments.findIndex((x) => x.id === m.id);
+      frise.sel = new Set(moments.slice(Math.min(i, j), Math.max(i, j) + 1).map((x) => x.id));
+    } else if (e.ctrlKey || e.metaKey) {
+      if (!frise.sel.size && frise.open !== null) frise.sel.add(frise.open);
+      if (frise.sel.has(m.id)) frise.sel.delete(m.id); else frise.sel.add(m.id);
+      frise.anchor = m.id;
+    } else {
+      frise.sel = new Set([m.id]);
+      frise.anchor = m.id;
+    }
+    if (frise.sel.size === 1) {
+      const id = [...frise.sel][0];
+      if (frise.open !== id) { frise.open = id; frise.zoom = 1; editing = null; frise.focus = null; }
+      frise.tab = "moment";
+      $("tab-moment").dataset.last = id;
+      if (mode !== "moment" || currentMoment !== id) { cutPending = null; showMoment(id, { autoplay: !!e.play, quiet: true }); }
+      else if (e.play) player.play().catch(() => {});
+    } else { editing = null; frise.tab = "moment"; }
+    renderOpen();
+  }
+  function stepMoment(m, d, extend = false) {
+    const next = moments[moments.findIndex((x) => x.id === m.id) + d];
+    if (!next) return;
+    pickMoment(next, extend ? { shiftKey: true } : {});
+    revealRush(next.start);
+    const b = document.querySelector(`#tlm-in .clip[data-id="${next.id}"]`);
+    if (b) b.focus({ preventScroll: true });
+  }
+  function setKept(list, on) {
+    for (const m of list) {
+      if (cutsOf(m).length) partsOf(m).forEach((p) => (on ? state.keep.add(`${m.id}/${p.k}`) : state.keep.delete(`${m.id}/${p.k}`)));
+      else if (on) state.keep.add(m.id); else state.keep.delete(m.id);
+    }
+    render();
+    scheduleSave();
+  }
+  const selected = () => moments.filter((m) => frise.sel.has(m.id));
+  // Moments de parole sélectionnés qui se suivent : ils peuvent être fusionnés.
+  function followingSpeech(list) {
+    const speech = list.filter((m) => !m.gap), all = moments.filter((m) => !m.gap);
+    const i0 = all.findIndex((m) => speech[0] && m.id === speech[0].id);
+    return speech.length >= 2 && speech.every((m, k) => all[i0 + k] && all[i0 + k].id === m.id) ? speech : null;
+  }
+  const mergeSelection = (speech) => {
+    if (confirm(`Fusionner ces ${speech.length} moments en un seul ? Leurs découpes sont retirées ; « Séparer » les remet comme avant.`))
+      momentAction("merge", speech[0], { count: speech.length - 1 });
+  };
+  const fixText = () => {
+    const om = openMoment();
+    if (!om || om.gap || (DERUSH && !derushSubs())) return;
+    frise.tab = "moment";
+    renderInspector();
+    const area = document.getElementById(`t-${om.id}`);
+    if (area) { area.focus(); area.setSelectionRange(area.value.length, area.value.length); }
+  };
+
+  // Barre d'outils : couper, scinder, fusionner, séparer, garder, retirer, corriger ; temps ; zoom.
+  function renderToolbar() {
+    const bar = $("toolbar"), om = openMoment(), list = frise.sel.size > 1 ? selected() : om ? [om] : [];
+    const local = !!window.AUTO_MONTAGE_LOCAL;
+    const tool = (text, title, onClick, ok) => { const b = btn(text, title, onClick); b.disabled = !ok; return b; };
+    const items = [
+      tool("✂ Couper", "Couper le moment ouvert à la tête de lecture : chaque partie se garde ou se retire", () => setCuts(om, [...cutsOf(om), snapIn(om, momentTime(om))]), om && !om.gap),
+    ];
+    if (local) {
+      items.push(tool("⫼ Scinder", "Faire deux moments séparés à partir du mot le plus proche de la tête de lecture", () => momentAction("split", om, { t: snapIn(om, momentTime(om)) }), om && !om.gap && om.words.length > 1));
+      const speech = frise.sel.size > 1 ? followingSpeech(list) : null, nxt = om && !om.gap ? nextSpeech(om) : null;
+      items.push(tool("⧉ Fusionner", speech ? "Réunir les moments sélectionnés en un seul (pauses comprises)"
+        : nxt ? `Réunir ce moment et le suivant (« ${nxt.text.slice(0, 40)} »)` : "Sélectionnez des moments de parole qui se suivent (Maj + clic)",
+        () => (speech ? mergeSelection(speech) : momentAction("merge", om)), !!speech || (frise.sel.size <= 1 && !!nxt)));
+      if (om && om.merged) items.push(tool("Séparer", "Défaire la fusion : les moments d'origine reviennent, avec leurs réglages", () => momentAction("unmerge", om), true));
+      if (om && om.splitFrom !== undefined && om.splitFrom !== null && !om.merged)
+        items.push(tool("Recoller", "Recoller cette partie au moment précédent (défaire la scission)", () => momentAction("unsplit", om), true));
+    }
+    items.push(el("span", "sep"),
+      tool("✓ Garder", "Garder dans la version de travail", () => setKept(list, true), list.length > 0),
+      tool("⊘ Retirer", "Retirer de la version de travail", () => setKept(list, false), list.length > 0),
+      tool("✎ Corriger", "Corriger le texte des sous-titres du moment ouvert", fixText, !!om && !om.gap && (!DERUSH || derushSubs())));
+    if (frise.sel.size > 1) {
+      const kept = list.filter((m) => isKept(m)).length;
+      items.push(el("span", "selinfo", `${list.length} sélectionnés · ${kept} gardés · ${fmt(list.reduce((t, m) => t + m.end - m.start, 0))}`),
+        tool("Désélectionner", "", () => { frise.sel.clear(); frise.anchor = null; frise.open = null; renderOpen(); }, true));
+    }
+    const time = el("span", "tc");
+    time.id = "tl-tc";
+    const zoom = el("label", "zoomer");
+    const r = Object.assign(document.createElement("input"), { type: "range", min: "0", max: "100", step: "1" });
+    r.setAttribute("aria-label", "Zoom de la frise du rush");
+    const toV = (p) => Math.round((100 * Math.log(p / PPS_MIN)) / Math.log(PPS_MAX / PPS_MIN));
+    r.value = String(toV(frise.pps));
+    r.addEventListener("input", () => {
+      const sc = $("tlm-scroll"), ph = document.querySelector("#tlm-in .phead");
+      const anchorX = ph && ph.style.display !== "none" && ph.offsetLeft >= sc.scrollLeft && ph.offsetLeft <= sc.scrollLeft + sc.clientWidth
+        ? ph.offsetLeft - sc.scrollLeft : sc.clientWidth / 2;
+      const tAnchor = (sc.scrollLeft + anchorX) / frise.pps;
+      frise.pps = PPS_MIN * Math.pow(PPS_MAX / PPS_MIN, Number(r.value) / 100);
+      try { localStorage.setItem("am-tl-pps", String(frise.pps)); } catch (e) { /* stockage indisponible */ }
+      renderMain();
+      sc.scrollLeft = Math.max(0, tAnchor * frise.pps - anchorX);
+      drawWave();
+      drawPlayheads();
+    });
+    zoom.append(document.createTextNode("−"), r, document.createTextNode("+"));
+    bar.replaceChildren(...items, time, zoom);
+    drawPlayheads();
+  }
+
+  // Frise du moment ouvert : règle et images ; parties gardées ou retirées (clic sur leur étiquette),
+  // coupes « ✂ × », repères des effets, losanges du zoom libre (clic : régler ce cadre).
+  function renderMomentTl() {
+    const box = $("tlk"), om = openMoment();
+    const old = box.querySelector(".tlk-scroll"), keep = old ? old.scrollLeft : 0;
+    box.hidden = !om;
+    if (!om) { box.replaceChildren(); return; }
+    const m = om, len = momentLen(m), cuts = cutsOf(m), s0 = clipStart(m);
+    const avail = Math.max(200, $("tlm-scroll").clientWidth - 16), kpps = (avail * frise.zoom) / len;
+    // En-tête : moment, texte, navigation, lecture image par image, couper / bornes, zoom, fermer.
+    const head = el("div", "tlk-head");
+    const i = moments.findIndex((x) => x.id === m.id);
+    const prev = btn("◀ Précédent", "Moment précédent (Maj + ←)", () => stepMoment(m, -1)), next = btn("Suivant ▶", "Moment suivant (Maj + →)", () => stepMoment(m, 1));
+    prev.disabled = i <= 0; next.disabled = i >= moments.length - 1;
+    const play = btn("▶", "Lecture / pause du moment (Espace)", () => { if (mode !== "moment" || currentMoment !== m.id) showMoment(m.id); else togglePlay(); }, "play");
+    const nudge = (text, frames, title) => btn(text, title, () => seekMoment(m, momentTime(m) + frames / 30));
+    head.append(el("span", "when", `${m.gap ? "Plan sans parole" : "Moment"} à ${fmt(m.start)}`), el("span", "txt", m.gap ? "" : momentLabel(m)),
+      prev, next, play, nudge("‹", -1, "Une image avant (←)"), nudge("›", 1, "Une image après (→)"), el("span", "at-info"));
+    if (m.gap) {
+      const bound = (key, label, title) => btn(label, title, () => { saveMoment(m.id, { trim: { ...trimOf(m), [key]: Math.round(momentTime(m) * 100) / 100 } }); if (!isKept(m)) toggle(m.id, true); });
+      head.append(bound("in", "Début ici", "Commencer la partie gardée à la tête de lecture"), bound("out", "Fin ici", "Finir la partie gardée à la tête de lecture"));
+    } else head.append(btn("✂ Couper ici", "Couper le moment à la tête de lecture : chaque partie se garde ou se retire", () => setCuts(m, [...cuts, snapIn(m, momentTime(m))]), "primary"));
+    const zoom = el("span", "zoom"), ZOOMS = [1, 2, 4, 8, 16];
+    const setZoom = (d) => {
+      const k = Math.max(0, Math.min(ZOOMS.length - 1, ZOOMS.indexOf(frise.zoom) + d));
+      if (ZOOMS[k] === frise.zoom) return;
+      const sc = box.querySelector(".tlk-scroll"), x = momentTime(m) * kpps - sc.scrollLeft;
+      frise.zoom = ZOOMS[k];
+      renderMomentTl();
+      const sc2 = box.querySelector(".tlk-scroll");
+      sc2.scrollLeft = Math.max(0, momentTime(m) * ((avail * frise.zoom) / len) - x);
+    };
+    const zo = btn("−", "Voir tout le moment", () => setZoom(-1)), zi = btn("+", "Agrandir : chaque image se place plus facilement", () => setZoom(1));
+    zo.disabled = frise.zoom === ZOOMS[0]; zi.disabled = frise.zoom === ZOOMS[ZOOMS.length - 1];
+    zoom.append(document.createTextNode("Zoom"), zo, el("span", "", `×${frise.zoom}`), zi);
+    head.append(zoom, btn("✕", "Fermer le moment (Échap)", () => { frise.open = null; frise.sel.clear(); editing = null; renderOpen(); }));
+    // Piste d'images.
+    const labels = el("div", "tlk-labels");
+    labels.append(el("span", "r"), el("span", "i", "Image"));
+    const sc = el("div", "tlk-scroll"), inner = el("div", "tlk-in");
+    inner.style.width = `${len * kpps + 16}px`;
+    const track = el("div", "itrack");
+    track.append(filmstrip(s0, s0 + len, len * kpps, 66, m.thumb));
+    const px = (t) => `${Math.max(0, Math.min(len, t)) * kpps}px`;
+    const span = (node, a, b) => { node.style.left = px(a); node.style.width = `${(Math.min(len, b) - Math.max(0, a)) * kpps}px`; return node; };
+    if (m.gap) {
+      const tr = trimOf(m);
+      if (tr.in > 0.01) track.append(span(el("span", "trim"), 0, tr.in));
+      if (tr.out < len - 0.01) track.append(span(el("span", "trim"), tr.out, len));
+    } else {
+      for (const p of partsOf(m)) {
+        const k = partKept(m, p.k);
+        const ptxt = wordsOf(m).filter((w) => w.text && (w.a + w.b) / 2 >= p.a && (w.a + w.b) / 2 < p.b).map((w) => w.text).join(" ");
+        const part = span(el("span", `part ${k ? "on" : "off"}`), p.a, p.b);
+        part.title = `${p.a.toFixed(2)}–${p.b.toFixed(2)} s · ${ptxt || "(sans parole)"}`;
+        if ((p.b - p.a) * kpps > 30) {
+          const l = btn(k ? "✓ gardée" : "✗ retirée", `Clic : ${k ? "retirer" : "garder"} cette partie`, (e) => {
+            e.stopPropagation();
+            if (!cuts.length) return toggle(m.id, !k);
+            if (k) state.keep.delete(`${m.id}/${p.k}`); else state.keep.add(`${m.id}/${p.k}`);
+            render();
+            scheduleSave();
+          }, "pl");
+          l.id = `part-${m.id}-${p.k}`;
+          l.setAttribute("aria-pressed", String(k));
+          l.addEventListener("pointerdown", (e) => e.stopPropagation());
+          if ((p.b - p.a) * kpps < 70) l.textContent = k ? "✓" : "✗";
+          part.append(l);
+        }
+        track.append(part);
+      }
+      cuts.forEach((c, k) => {
+        const mark = el("span", "cut");
+        mark.style.left = px(c);
+        const x = btn("✂ ×", `Retirer la coupe à ${c.toFixed(2)} s`, () => setCuts(m, cuts.filter((_, j) => j !== k)));
+        x.addEventListener("pointerdown", (e) => e.stopPropagation());
+        mark.append(x);
+        track.append(mark);
+      });
+    }
+    // Repères des effets (clic : leurs réglages dans l'inspecteur) et cadres du zoom libre.
+    if (!DERUSH) {
+      let row = 0;
+      const marker = (cls, a, b, title, focus) => {
+        const mk = btn("", title, (e) => { e.stopPropagation(); frise.focus = focus; frise.tab = "moment"; seekMoment(m, a); renderInspector(); }, `fxm ${cls}`);
+        span(mk, a, Math.max(b, a + 0.05));
+        mk.style.bottom = `${1 + 5 * row++}px`;
+        mk.setAttribute("aria-label", title);
+        mk.addEventListener("pointerdown", (e) => e.stopPropagation());
+        track.append(mk);
+      };
+      sfxOf(m).forEach((f, idx) => {
+        const name = (catalog.find((c) => c.id === f.kind) || { label: f.kind }).label;
+        const a = Number(f.at) || 0;
+        const b = f.kind === "voix" ? a + (Number(f.dur) || 1) : a + Math.max(1, f.repeat || 1) * soundLen(f) + (Math.max(1, f.repeat || 1) - 1) * Math.max(0, (Number(f.gap) || 0) - soundLen(f));
+        marker("s", a, b, `${name} · ${a.toFixed(2)} s`, `s${idx}`);
+      });
+      vfxOf(m).forEach((f, idx) => {
+        if (f.kind === "highlight") return;
+        const name = (VFX_CATALOG.find((c) => c.id === f.kind) || { label: f.kind }).label;
+        const a = Number(f.at) || 0, b = a + (Number(f.dur) || 0.5);
+        marker(f.kind === "zoomlibre" ? "k" : "v", a, b, `${name} · ${a.toFixed(2)} s`, `v${idx}`);
+        if (f.kind === "zoomlibre") for (const [which, t] of [["from", a], ["to", b]]) {
+          const kf = btn("", `${which === "from" ? "Cadre de début" : "Cadre de fin"} du zoom libre (${Math.round(keyFrame(f[which]).s * 100)} %) : clic pour le régler`,
+            (e) => { e.stopPropagation(); openFramer(m, idx, which); }, "kf");
+          kf.style.left = px(t);
+          kf.addEventListener("pointerdown", (e) => e.stopPropagation());
+          track.append(kf);
+        }
+      });
+    }
+    // Clic ou glisser sur les images : la tête de lecture suit.
+    track.addEventListener("pointerdown", (ev) => {
+      if (ev.button) return;
+      ev.preventDefault();
+      track.setPointerCapture(ev.pointerId);
+      const at = (e) => { const r = inner.getBoundingClientRect(); seekMoment(m, (e.clientX - r.left) / kpps); };
+      at(ev);
+      const up = () => { track.removeEventListener("pointermove", at); track.removeEventListener("pointerup", up); };
+      track.addEventListener("pointermove", at);
+      track.addEventListener("pointerup", up);
+    });
+    inner.append(ruler(len, kpps, (t) => seekMoment(m, t), false), track, el("span", "phead"));
+    inner.dataset.pps = String(kpps);
+    sc.append(inner);
+    box.replaceChildren(head, labels, sc);
+    sc.scrollLeft = keep;
+    drawPlayheads();
+  }
+
+  // Inspecteur : moment ouvert (garder, texte, fusion, effets), sélection, ou réglages de tout le montage.
+  function renderInspector() {
+    $("itab-moment").setAttribute("aria-selected", String(frise.tab === "moment"));
+    $("itab-all").setAttribute("aria-selected", String(frise.tab === "all"));
+    $("insp-moment").hidden = frise.tab !== "moment";
+    $("insp-all").hidden = frise.tab !== "all";
+    const pane = $("insp-moment"), scroll = pane.scrollTop;
+    const active = document.activeElement && pane.contains(document.activeElement) && document.activeElement.id ? document.activeElement : null;
+    const activeId = active ? active.id : null, selStart = active && "selectionStart" in active ? active.selectionStart : null;
+    const om = openMoment(), out = [];
+    if (frise.sel.size > 1) {
+      const list = selected(), kept = list.filter((m) => isKept(m)).length, speech = followingSpeech(list);
+      out.push(el("h2", "", `${list.length} moments sélectionnés`),
+        el("p", "sub", `${kept} gardés · ${fmt(list.reduce((t, m) => t + m.end - m.start, 0))} de rush. Maj + clic : une suite de moments ; Ctrl (⌘) + clic : un de plus ou de moins.`));
+      const acts = el("div", "at-acts");
+      acts.append(btn("Garder", "Garder tous les moments sélectionnés", () => setKept(list, true)), btn("Retirer", "Retirer tous les moments sélectionnés", () => setKept(list, false)));
+      if (window.AUTO_MONTAGE_LOCAL) {
+        const merge = btn("Fusionner en un seul", speech ? "Réunir ces moments de parole en un seul (pauses comprises) ; « Séparer » les remet comme avant"
+          : "Pour fusionner, sélectionnez des moments de parole qui se suivent (Maj + clic)", () => mergeSelection(speech));
+        merge.disabled = !speech;
+        acts.append(merge);
+      }
+      acts.append(btn("Désélectionner", "", () => { frise.sel.clear(); frise.anchor = null; frise.open = null; renderOpen(); }));
+      out.push(acts);
+    } else if (om) {
+      const m = om, on = isKept(m), cuts = cutsOf(m);
+      out.push(el("h2", "", `${m.gap ? "Plan sans parole" : "Moment"} à ${fmt(m.start)}`),
+        el("p", "sub", `${(m.end - m.start).toFixed(1)} s${on && (cuts.length || m.gap) ? ` · ${durOf(m).toFixed(1)} s gardées` : ""}`));
+      const badges = el("div", "insp-badges");
+      const keep = el("label", "at-keep badge" + (on ? " on" : ""));
+      const box = el("input");
+      box.type = "checkbox"; box.id = `m-${m.id}`;
       box.checked = on;
       box.indeterminate = on && partsOf(m).some((p) => !partKept(m, p.k));
-      box.setAttribute("aria-label", `Garder : ${m.text}`);
       box.addEventListener("change", () => toggle(m.id, box.checked));
-      const thumb = document.createElement("button");
-      thumb.type = "button";
-      thumb.className = "thumb";
-      thumb.setAttribute("aria-label", `Voir : ${m.text}`);
-      const img = document.createElement("img");
-      img.src = m.thumb;
-      img.alt = "";
-      img.loading = "lazy";
-      const badge = document.createElement("span");
-      badge.innerHTML = playIcon;
-      thumb.append(img, badge);
-      thumb.addEventListener("click", () => { $("tab-moment").dataset.last = m.id; showMoment(m.id); });
-      const cell = document.createElement("div");
-      cell.className = "textcell";
-      if (editing === m.id) {
-        const editor = document.createElement("div");
-        editor.className = "editor";
-        const area = document.createElement("textarea");
-        area.id = `t-${m.id}`;
-        area.value = draft;
-        area.setAttribute("aria-label", "Texte du sous-titre");
-        area.addEventListener("input", () => { draft = area.value; });
-        area.addEventListener("keydown", (e) => {
-          if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); saveText(m, draft); }
-          if (e.key === "Escape") { editing = null; renderList(); }
-        });
-        const actions = document.createElement("div");
-        actions.className = "editor-actions";
-        const ok = document.createElement("button");
-        ok.type = "button"; ok.className = "primary"; ok.textContent = "Enregistrer";
-        ok.addEventListener("click", () => saveText(m, draft));
-        const cancel = document.createElement("button");
-        cancel.type = "button"; cancel.textContent = "Annuler";
-        cancel.addEventListener("click", () => { editing = null; renderList(); });
-        actions.append(ok, cancel);
-        const del = document.createElement("button");
-        del.type = "button"; del.textContent = "Supprimer les sous-titres";
-        del.title = "Aucun sous-titre sur ce moment (la voix et l'image restent)";
-        del.addEventListener("click", () => saveText(m, ""));
-        if (!noSub(m)) actions.append(del);
-        if (edits[m.id] && (edits[m.id].text || edits[m.id].nosub)) {
-          const orig = document.createElement("button");
-          orig.type = "button"; orig.textContent = "Texte d'origine";
-          orig.addEventListener("click", () => saveMoment(m.id, { text: null, nosub: null }));
-          actions.append(orig);
-        }
-        editor.append(area, actions);
-        cell.append(editor);
-        requestAnimationFrame(() => { area.focus(); area.setSelectionRange(area.value.length, area.value.length); });
-      } else if (m.gap) {
-        const line = document.createElement("div");
-        line.className = "textline";
-        const text = document.createElement("span");
-        text.className = "text";
-        text.textContent = `Sans parole · ${(m.end - m.start).toFixed(1)} s`;
-        text.addEventListener("click", () => { $("tab-moment").dataset.last = m.id; showMoment(m.id); });
-        line.append(text);
-        cell.append(line);
-        const tr = trimOf(m);
-        const row = document.createElement("div");
-        row.className = "fxset";
-        const bound = (label, key) => {
-          const l = document.createElement("label");
-          const inp = document.createElement("input");
-          inp.type = "number"; inp.step = "0.1"; inp.min = "0"; inp.max = String(Math.round((m.end - m.start) * 100) / 100);
-          inp.id = `trim-${m.id}-${key}`;
-          inp.value = tr[key];
-          inp.addEventListener("change", () => {
-            const v = Number(inp.value);
-            if (Number.isFinite(v)) saveMoment(m.id, { trim: { ...trimOf(m), [key]: v } });
+      keep.append(box, document.createTextNode("Garder"));
+      badges.append(keep);
+      if (m.reason) badges.append(el("span", "why", `Suggéré : retirer (${m.reason})`));
+      else if (inEdit.has(m.id)) badges.append(el("span", "badge", "Dans la version de travail"));
+      out.push(badges);
+      if (!m.gap) {
+        if (!DERUSH || derushSubs()) {
+          out.push(el("h3", "", "Texte des sous-titres"));
+          const editor = el("div", "editor");
+          const area = el("textarea");
+          area.id = `t-${m.id}`;
+          area.value = editing === m.id ? draft : noSub(m) ? "" : textOf(m);
+          area.placeholder = noSub(m) ? "Sans sous-titres sur ce moment" : "";
+          area.setAttribute("aria-label", "Texte du sous-titre");
+          area.addEventListener("input", () => { editing = m.id; draft = area.value; });
+          area.addEventListener("keydown", (e) => {
+            if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); saveText(m, area.value); }
+            if (e.key === "Escape") { editing = null; renderInspector(); }
           });
-          l.append(document.createTextNode(label), inp);
-          return [l];
-        };
-        const title = document.createElement("b");
-        title.textContent = "Garder";
-        row.append(title, ...bound("de", "in"), ...bound("à", "out"), document.createTextNode(`s · ${(tr.out - tr.in).toFixed(1)} s gardées`));
-        cell.append(row);
-        // Curseur du plan : image à l'instant choisi, partie gardée en couleur ; « Début ici » et
-        // « Fin ici » placent les bornes à l'instant du curseur.
-        const glen = Math.round((m.end - m.start) * 100) / 100;
-        const sc = scrubber(m, glen, { range: [tr.in, tr.out], label: `Instant dans le plan sans parole à ${fmt(m.start)}` });
-        const srow = document.createElement("div");
-        srow.className = "fxset";
-        const stitle = document.createElement("b");
-        stitle.textContent = "Bornes";
-        const setBound = (key, label) => {
-          const b = document.createElement("button");
-          b.type = "button"; b.textContent = label;
-          b.title = key === "in" ? "Commencer la partie gardée à l'instant du curseur" : "Finir la partie gardée à l'instant du curseur";
-          b.addEventListener("click", () => saveMoment(m.id, { trim: { ...trimOf(m), [key]: Math.round(sc.value() * 100) / 100 } }));
-          return b;
-        };
-        srow.append(stitle, ...sc.nodes, setBound("in", "Début ici"), setBound("out", "Fin ici"));
-        cell.append(srow);
-      } else {
-        const line = document.createElement("div");
-        line.className = "textline";
-        const text = document.createElement("span");
-        text.className = "text";
-        const plain = DERUSH && !derushSubs();
-        text.textContent = plain ? m.text : noSub(m) ? `Sans sous-titres · ${m.text}` : textOf(m);
-        if (noSub(m) && !plain) text.style.opacity = "0.6";
-        text.addEventListener("click", () => { $("tab-moment").dataset.last = m.id; showMoment(m.id); });
-        const fix = document.createElement("button");
-        fix.type = "button"; fix.className = "fix"; fix.textContent = "Corriger";
-        fix.setAttribute("aria-label", `Corriger le texte : ${textOf(m)}`);
-        fix.addEventListener("click", () => { editing = m.id; draft = noSub(m) ? "" : textOf(m); renderList(); });
-        line.append(text);
-        if (!DERUSH || derushSubs()) line.append(fix);  // dérushage sans sous-titres : rien à corriger
+          const actions = el("div", "editor-actions");
+          actions.append(btn("Enregistrer", "Enregistrer le texte (Entrée)", () => saveText(m, area.value), "primary"));
+          if (!noSub(m)) actions.append(btn("Supprimer les sous-titres", "Aucun sous-titre sur ce moment (la voix et l'image restent)", () => saveText(m, "")));
+          if (edits[m.id] && (edits[m.id].text || edits[m.id].nosub))
+            actions.append(btn("Texte d'origine", "", () => { editing = null; saveMoment(m.id, { text: null, nosub: null }); }));
+          editor.append(area, actions);
+          out.push(editor);
+        } else out.push(el("p", "at-text", m.text));
         if (window.AUTO_MONTAGE_LOCAL) {
-          const act = (label, title, fn) => {
-            const b = document.createElement("button");
-            b.type = "button"; b.className = "fix"; b.textContent = label; b.title = title;
-            b.addEventListener("click", fn);
-            line.append(b);
-          };
-          const nxt = nextSpeech(m);
-          if (nxt) act("Fusionner ↓", `Réunir ce moment et le suivant (« ${nxt.text.slice(0, 40)} ») en un seul, pause entre les deux comprise`,
-            () => momentAction("merge", m));
-          if (m.merged) act("Séparer", "Défaire la fusion : les moments d'origine reviennent, avec leurs réglages", () => momentAction("unmerge", m));
+          const acts = el("div", "at-acts"), nxt = nextSpeech(m);
+          if (nxt) acts.append(btn("Fusionner avec le suivant", `Réunir ce moment et le suivant (« ${nxt.text.slice(0, 40)} ») en un seul, pause entre les deux comprise`, () => momentAction("merge", m)));
+          if (m.merged) acts.append(btn("Séparer", "Défaire la fusion : les moments d'origine reviennent, avec leurs réglages", () => momentAction("unmerge", m)));
           if (m.splitFrom !== undefined && m.splitFrom !== null && !m.merged)
-            act("Recoller ↑", "Recoller cette partie au moment précédent (défaire la scission)", () => momentAction("unsplit", m));
-        }
-        cell.append(line);
-        // Découpe : placer le curseur au bon instant (l'image s'affiche dans le lecteur, le mot
-        // prononcé à côté ; ‹ › pour une image de plus ou de moins), « Couper ici », puis cocher
-        // les parties à garder.
-        const cuts = cutsOf(m);
-        const len = clipLen(m);
-        const crow = document.createElement("div");
-        crow.className = "fxset";
-        const ctitle = document.createElement("b");
-        ctitle.textContent = "Découpe";
-        const words = wordsOf(m).filter((w) => w.text);
-        const sc = scrubber(m, len, {
-          marks: cuts,
-          label: `Instant de coupe dans le moment à ${fmt(m.start)}`,
-          describe: (t) => {
-            const w = words.find((x) => t >= x.a && t < x.b);
-            const prev = [...words].reverse().find((x) => x.b <= t);
-            return w ? `« ${w.text} »` : prev ? `après « ${prev.text} »` : "avant la parole";
-          },
-        });
-        const cut = document.createElement("button");
-        cut.type = "button"; cut.textContent = "Couper ici";
-        cut.title = "Couper le moment à l'instant du curseur";
-        cut.addEventListener("click", () => setCuts(m, [...cuts, sc.value()]));
-        crow.append(ctitle, ...sc.nodes, cut);
-        if (window.AUTO_MONTAGE_LOCAL && words.length > 1) {  // deux moments séparés, chacun ses réglages
-          const sp = document.createElement("button");
-          sp.type = "button"; sp.textContent = "Scinder ici";
-          sp.title = "Faire deux moments séparés à partir du mot le plus proche du curseur (chacun ses effets, son texte, sa case)";
-          sp.addEventListener("click", () => momentAction("split", m, { t: sc.value() }));
-          crow.append(sp);
-        }
-        if (cuts.length) {
-          for (const p of partsOf(m)) {
-            const lab = document.createElement("label");
-            const pc = document.createElement("input");
-            pc.type = "checkbox"; pc.id = `part-${m.id}-${p.k}`;
-            pc.checked = partKept(m, p.k);
-            pc.addEventListener("change", () => {
-              pc.checked ? state.keep.add(`${m.id}/${p.k}`) : state.keep.delete(`${m.id}/${p.k}`);
-              render(); scheduleSave();
-            });
-            const ptxt = wordsOf(m).filter((w) => w.text && (w.a + w.b) / 2 >= p.a && (w.a + w.b) / 2 < p.b).map((w) => w.text).join(" ");
-            lab.title = ptxt || "(sans parole)";
-            lab.append(pc, document.createTextNode(`${p.a.toFixed(2)}–${p.b.toFixed(2)} s`));
-            crow.append(lab);
-            if (p.k < cuts.length) {
-              const rm = document.createElement("button");
-              rm.type = "button"; rm.textContent = `✂ ${cuts[p.k].toFixed(2)} ×`;
-              rm.title = "Retirer cette coupe";
-              rm.addEventListener("click", () => setCuts(m, cuts.filter((_, i) => i !== p.k)));
-              crow.append(rm);
-            }
-          }
-        }
-        cell.append(crow);
-      }
-      const tags = document.createElement("div");
-      tags.className = "tags";
-      if (!DERUSH && catalog.some((c) => !hiddenFx.has(c.id) || sfxOf(m).some((f) => f.kind === c.id))) {
-        const title = document.createElement("span");
-        title.className = "sfx-title";
-        title.textContent = "Effets :";
-        tags.append(title);
-        const chosen = sfxOf(m);
-        for (const fx of catalog) {
-          // Effets écartés sur la page « Rushes et montages » : masqués, sauf s'ils sont cochés ici.
-          if (hiddenFx.has(fx.id) && !chosen.some((f) => f.kind === fx.id)) continue;
-          const lab = document.createElement("label");
-          lab.className = "sfx";
-          const cb = document.createElement("input");
-          cb.type = "checkbox";
-          cb.id = `fx-${m.id}-${fx.id}`;
-          cb.checked = chosen.some((f) => f.kind === fx.id);
-          cb.addEventListener("change", () => {
-            const cur = sfxOf(m).filter((f) => f.kind !== fx.id);
-            if (cb.checked) cur.push(defaultFx(m, fx.id));
-            cur.sort((x, y) => catalog.findIndex((c) => c.id === x.kind) - catalog.findIndex((c) => c.id === y.kind));
-            saveMoment(m.id, { sfx: cur });
-          });
-          lab.append(cb, document.createTextNode(fx.label));
-          tags.append(lab);
-        }
-        if (chosen.length) {
-          const sets = document.createElement("div");
-          sets.className = "fxsets";
-          chosen.forEach((f, idx) => {
-            const row = document.createElement("div");
-            row.className = "fxset";
-            const name = document.createElement("b");
-            name.textContent = (catalog.find((c) => c.id === f.kind) || { label: f.kind }).label;
-            row.append(name);
-            if (f.kind === "voix") {
-              // Type de voix (moments_lib.VOICES) : s'entend en direct si le moment est en lecture.
-              const vl = document.createElement("label");
-              vl.title = "Voix modifiée à appliquer";
-              const sel = document.createElement("select");
-              sel.id = `fx-${m.id}-voix-voice`;
-              for (const v of VOICES) sel.append(Object.assign(document.createElement("option"), { value: v.id, textContent: v.label, title: v.desc || "" }));
-              sel.value = voiceOf(f);
-              sel.addEventListener("change", () => {
-                if (fx && fx.m.id === m.id) {
-                  const win = fx.voice[chosen.slice(0, idx).filter((x) => x.kind === "voix").length];
-                  if (win) win.voice = sel.value;
-                }
-                const next = sfxOf(m);
-                next[idx] = { ...next[idx], voice: sel.value };
-                saveMoment(m.id, { sfx: next });
-              });
-              vl.append(sel);
-              row.append(vl);
-              const at0 = Number(f.at) || 0;
-              row.append(...fxBar(m, { start: at0, end: at0 + (Number(f.dur) || 1), label: "Passage de la voix modifiée",
-                commit: (a, b) => {
-                  const next = sfxOf(m);
-                  next[idx] = { ...next[idx], at: a, dur: Math.round((b - a) * 100) / 100 };
-                  saveMoment(m.id, { sfx: next });
-                } }));
-              // Force : s'entend en direct si le moment est en lecture, enregistrée au relâchement.
-              const l = document.createElement("label");
-              l.title = "Force de l'effet (100 % = réglage d'origine)";
-              const r = document.createElement("input");
-              r.type = "range"; r.min = "0"; r.max = "200"; r.step = "5";
-              r.id = `fx-${m.id}-voix-force`;
-              r.value = String(Math.round(voiceForce(f) * 100));
-              r.style.cssText = "width: 8em; accent-color: var(--accent);";
-              const out = document.createElement("span");
-              out.style.cssText = "font-variant-numeric: tabular-nums; min-width: 3.2em;";
-              out.textContent = `${r.value} %`;
-              r.addEventListener("input", () => {
-                out.textContent = `${r.value} %`;
-                if (fx && fx.m.id === m.id) {
-                  const win = fx.voice[chosen.slice(0, idx).filter((x) => x.kind === "voix").length];
-                  if (win) win.force = Number(r.value) / 100;
-                }
-              });
-              r.addEventListener("change", () => {
-                const next = sfxOf(m);
-                next[idx] = { ...next[idx], force: Number(r.value) / 100 };
-                saveMoment(m.id, { sfx: next });
-              });
-              l.append(document.createTextNode("force"), r, out);
-              row.append(l);
-            }
-            else {
-              // Calage : par défaut la durée du son ; plus long, il se répète, avec une pause
-              // éventuelle entre deux répétitions (enregistré en « repeat » et « gap »).
-              const unit = soundLen(f);
-              const pause = Math.max(0, Math.round(((f.pause ?? ((Number(f.gap) || unit) - unit)) || 0) * 100) / 100);
-              const n0 = Math.max(1, Math.round(Number(f.repeat) || 1));
-              const at0 = Number(f.at) || 0;
-              const saveTiming = (a, n, p) => {
-                const next = sfxOf(m);
-                next[idx] = { ...next[idx], at: a, repeat: Math.max(1, Math.min(40, n)), gap: Math.round((unit + p) * 1000) / 1000, pause: p };
-                saveMoment(m.id, { sfx: next });
-              };
-              row.append(...fxBar(m, { start: at0, end: at0 + n0 * unit + (n0 - 1) * pause, unit, pause, label: `Calage : ${name.textContent}`,
-                commit: (a, b) => saveTiming(a, Math.round((b - a + pause) / (unit + pause)), pause) }));
-              const pl = document.createElement("label");
-              pl.title = "Pause entre deux répétitions du son, en secondes";
-              const pi = Object.assign(document.createElement("input"), { type: "number", step: "0.05", min: "0", id: `fx-${m.id}-${f.kind}-pause` });
-              pi.value = String(pause);
-              pi.addEventListener("change", () => {
-                const v = Number(pi.value);
-                if (Number.isFinite(v)) saveTiming(at0, n0, Math.max(0, Math.round(v * 100) / 100));
-              });
-              pl.append(document.createTextNode("pause"), pi);
-              row.append(pl);
-              // Volume de cet effet sur ce moment (100 % = volume d'origine).
-              const l = document.createElement("label");
-              l.title = "Volume de ce son sur ce moment (100 % = volume d'origine)";
-              const r = document.createElement("input");
-              r.type = "range"; r.min = "0"; r.max = "200"; r.step = "10";
-              r.id = `fx-${m.id}-${f.kind}-vol`;
-              r.value = String(Math.round((f.vol ?? 1) * 100));
-              r.style.cssText = "width: 7em; accent-color: var(--accent);";
-              const out = document.createElement("span");
-              out.style.cssText = "font-variant-numeric: tabular-nums; min-width: 3.2em;";
-              out.textContent = `${r.value} %`;
-              r.addEventListener("input", () => { out.textContent = `${r.value} %`; });
-              r.addEventListener("change", () => {
-                const next = sfxOf(m);
-                next[idx] = { ...next[idx], vol: Number(r.value) / 100 };
-                saveMoment(m.id, { sfx: next });
-                const name = f.kind === "clavier" ? "key-1" : f.kind;  // écoute au nouveau volume
-                const a = sound(name).cloneNode();
-                a.volume = Math.max(0, Math.min(1, baseVol(f.kind) * Number(r.value) / 100 * sfxVolume));
-                a.play().catch(() => {});
-              });
-              l.append(document.createTextNode("volume"), r, out);
-              row.append(l);
-            }
-            const here = document.createElement("button");
-            here.type = "button";
-            here.textContent = "Ici";
-            here.title = "Placer le départ à l'instant en cours de lecture de ce moment";
-            here.disabled = currentMoment !== m.id; here.dataset.cur = m.id;
-            here.addEventListener("click", () => {
-              const next = sfxOf(m);
-              next[idx] = { ...next[idx], at: Math.round(player.currentTime * 100) / 100 };
-              saveMoment(m.id, { sfx: next });
-            });
-            row.append(here);
-            sets.append(row);
-          });
-          tags.append(sets);
+            acts.append(btn("Recoller", "Recoller cette partie au moment précédent (défaire la scission)", () => momentAction("unsplit", m)));
+          if (acts.children.length) out.push(acts);
         }
       }
       if (!DERUSH) {
-        const vtitle = document.createElement("span");
-        vtitle.className = "sfx-title";
-        vtitle.textContent = "Effets visuels :";
-        const vrow = document.createElement("div");
-        vrow.className = "tags";
-        vrow.style.width = "100%";
-        vrow.append(vtitle);
-        const chosenV = vfxOf(m);
-        for (const vf of VFX_CATALOG) {
-          if (hiddenFx.has(vf.id) && !chosenV.some((f) => f.kind === vf.id)) continue;
-          const lab = document.createElement("label");
-          lab.className = "sfx";
-          const cb = document.createElement("input");
-          cb.type = "checkbox";
-          cb.id = `vfx-${m.id}-${vf.id}`;
-          cb.checked = chosenV.some((f) => f.kind === vf.id);
-          cb.addEventListener("change", () => {
-            const cur = vfxOf(m).filter((f) => f.kind !== vf.id);
-            if (cb.checked) cur.push(newVfx(m, vf.id));
-            saveMoment(m.id, { vfx: cur });
-          });
-          lab.append(cb, document.createTextNode(vf.label));
-          vrow.append(lab);
-        }
-        if (chosenV.length) {
-          const sets = document.createElement("div");
-          sets.className = "fxsets";
-          chosenV.forEach((f, idx) => {
-            const row = document.createElement("div");
-            row.className = "fxset";
-            const name = document.createElement("b");
-            name.textContent = (VFX_CATALOG.find((c) => c.id === f.kind) || { label: f.kind }).label;
-            row.append(name);
-            const update = (patch) => {
-              const next = vfxOf(m).map((x) => ({ ...x }));
-              next[idx] = { ...next[idx], ...patch };
-              saveMoment(m.id, { vfx: next });
-            };
-            const here = document.createElement("button");
-            here.type = "button";
-            here.textContent = "Ici";
-            here.title = "Placer le départ à l'instant en cours de lecture de ce moment";
-            here.disabled = currentMoment !== m.id; here.dataset.cur = m.id;
-            here.addEventListener("click", () => update({ at: Math.round(player.currentTime * 100) / 100 }));
-            const num = (label, key, step, min, title, max = null) => {
-              const l = document.createElement("label");
-              l.title = title;
-              const inp = document.createElement("input");
-              inp.type = "number"; inp.step = step; inp.min = min; if (max !== null) inp.max = max;
-              inp.id = `vfx-${m.id}-${f.kind}-${key}`;
-              inp.value = f[key] ?? "";
-              inp.addEventListener("change", () => {
-                const v = Number(inp.value);
-                if (!Number.isFinite(v)) return;
-                update({ [key]: Math.min(max === null ? Infinity : Number(max), Math.max(Number(min), v)) });
-              });
-              l.append(document.createTextNode(label), inp);
-              return l;
-            };
-            // Effets fournis par défaut : zooms, secousse, flash, mot mis en valeur.
-            if (["zoomin", "zoomsec", "dezoom", "shake", "flash"].includes(f.kind)) {
-              const at0 = Number(f.at) || 0;
-              row.append(...fxBar(m, { start: at0, end: at0 + (Number(f.dur) || 0.5),
-                label: f.kind === "zoomin" ? "Zoom progressif (le cadre reste ensuite serré jusqu'à la fin du moment)" : `Calage : ${f.kind}`,
-                commit: (a, b) => update({ at: a, dur: Math.round((b - a) * 100) / 100 }) }));
-              if (f.kind !== "flash") row.append(num("force %", "force", "5", "5", f.kind === "shake" ? "Amplitude de la secousse" : "Grossissement (25 % = image agrandie d'un quart)", "150"));
-              row.append(here);
-              sets.append(row);
-              return;
-            }
-            if (f.kind === "highlight") {
-              const w = Object.assign(document.createElement("input"), { type: "text", value: f.text || "", id: `vfx-${m.id}-highlight-text` });
-              w.setAttribute("aria-label", "Mot à mettre en valeur");
-              w.title = "Mot (ou mots séparés par des espaces) du sous-titre à mettre en couleur et en plus gros";
-              w.style.cssText = "font: inherit; font-size: 13px; width: 12em; max-width: 100%;";
-              w.addEventListener("change", () => update({ text: w.value.trim() }));
-              const col = Object.assign(document.createElement("input"), { type: "color", value: f.color || "#ffd84d", id: `vfx-${m.id}-highlight-color` });
-              col.setAttribute("aria-label", "Couleur du mot");
-              col.addEventListener("change", () => update({ color: col.value }));
-              const lab = document.createElement("label");
-              lab.append("mot ", w);
-              row.append(lab, col);
-              sets.append(row);
-              return;
-            }
-            const txt = document.createElement(f.kind === "typed" ? "textarea" : "input");
-            txt.id = `vfx-${m.id}-${f.kind}-text`;
-            txt.value = f.text || "";
-            txt.setAttribute("aria-label", "Texte de l'effet");
-            if (f.kind === "typed") { txt.rows = 2; txt.style.cssText = "font: inherit; font-size: 13px; width: 100%; resize: vertical; color: var(--fg); background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 3px 6px;"; }
-            else { txt.type = "text"; txt.style.cssText = "font: inherit; font-size: 13px; width: 14em; max-width: 100%;"; }
-            txt.addEventListener("change", () => update({ text: txt.value }));
-            const snd = document.createElement("label");
-            const sc = document.createElement("input");
-            sc.type = "checkbox";
-            sc.id = `vfx-${m.id}-${f.kind}-sound`;
-            sc.checked = f.sound !== false;
-            sc.addEventListener("change", () => update({ sound: sc.checked }));
-            snd.append(sc, document.createTextNode(f.kind === "typed" ? "son clavier" : "son bop"));
-            const at0 = Number(f.at) || 0;
-            row.append(txt, ...fxBar(m, { start: at0, end: at0 + (Number(f.dur) || 2), label: "Affichage du texte",
-              commit: (a, b) => update({ at: a, dur: Math.round((b - a) * 100) / 100 }) }));
-            if (f.kind === "typed") row.append(num("frappe", "type", "0.1", "0.1", "Durée de la frappe, en secondes"));
-            row.append(snd, here);
-            sets.append(row);
-          });
-          vrow.append(sets);
-        }
-        if (vrow.children.length > 1) tags.append(vrow);  // aucun effet visuel proposé : pas de ligne
+        const panel = momentExtras(m);
+        if (panel) { out.push(el("h3", "", "Effets du moment")); out.push(panel); }
       }
-      // Cadrage : tout le monde (par défaut), ou une des personnes vues pendant ce moment
-      // (vignettes de detect_face.py), en plan rapproché.
-      if (!DERUSH && ((m.persons || []).length >= 2 || focusOf(m))) {
-        const row = document.createElement("div");
-        row.className = "tags framing";
-        row.style.width = "100%";
-        row.append(Object.assign(document.createElement("span"), { className: "sfx-title", textContent: "Cadrage :" }));
-        const pick = (person, content, title) => {
-          const b = Object.assign(document.createElement("button"), { type: "button", title });
-          b.className = "framing-choice" + ((focusOf(m) || null) === person ? " on" : "");
-          b.setAttribute("aria-pressed", String((focusOf(m) || null) === person));
-          b.append(content);
-          b.addEventListener("click", () => saveMoment(m.id, { focus: person }));
-          return b;
-        };
-        row.append(pick(null, "Tout le monde", "Garder tout le monde dans l'image (zooms limités)"));
-        for (const p of m.persons || []) {
-          const src = (DATA.persons || {})[String(p)];
-          if (!src) continue;
-          const img = Object.assign(document.createElement("img"), { src, alt: `Personne ${p}`, width: 40, height: 40 });
-          row.append(pick(p, img, `Cadrer sur cette personne (plan rapproché)`));
-        }
-        tags.append(row);
-      }
-      // Volume de la voix de ce moment (son d'origine du rush) : si « Volume de la voix par
-      // moment » est proposé (effets proposés), ou si ce moment a déjà un autre volume.
-      if (window.AUTO_MONTAGE_LOCAL && !DERUSH && (!hiddenFx.has("gainvoix") || voiceGainOf(m) !== 1)) {
-        const l = document.createElement("label");
-        l.className = "sfx voice-gain";
-        l.title = "Volume de la voix sur ce moment (100 % = volume d'origine) ; s'ajoute au volume de la voix de tout le montage";
-        const r = Object.assign(document.createElement("input"), { type: "range", min: "0", max: "200", step: "5", id: `gain-${m.id}` });
-        r.value = String(Math.round(voiceGainOf(m) * 100));
-        r.style.cssText = "width: 8em; accent-color: var(--accent);";
-        const out = Object.assign(document.createElement("span"), { textContent: `${r.value} %` });
-        out.style.cssText = "font-variant-numeric: tabular-nums; min-width: 3.2em;";
-        r.addEventListener("input", () => {
-          out.textContent = `${r.value} %`;
-          if (currentMoment === m.id && mode === "moment") player.volume = Math.min(1, (Number(r.value) / 100) * voiceGlobal);
-        });
-        r.addEventListener("change", () => saveMoment(m.id, { gain: Number(r.value) / 100 }));
-        l.append(Object.assign(document.createElement("span"), { className: "sfx-title", textContent: "Voix :" }), r, out);
-        const row = document.createElement("div");
-        row.className = "tags";
-        row.style.width = "100%";
-        row.append(l);
-        tags.append(row);
-      }
-      if ((!DERUSH || derushSubs()) && edits[m.id] && (edits[m.id].text || edits[m.id].nosub)) {
-        const fixed = document.createElement("span");
-        fixed.className = "fixed";
-        fixed.textContent = noSub(m) ? "Sans sous-titres" : "Texte corrigé";
-        tags.append(fixed);
-      }
-      if (m.reason) {
-        const why = document.createElement("span");
-        why.className = "why";
-        why.textContent = `Suggéré : retirer (${m.reason})`;
-        tags.append(why);
-      } else if (inEdit.has(m.id)) {
-        const tag = document.createElement("span");
-        tag.className = "inedit";
-        tag.textContent = "Dans la version de travail";
-        tags.append(tag);
-      }
-      cell.append(tags);
-      const meta = document.createElement("span");
-      meta.className = "meta";
-      meta.textContent = `${fmt(m.start)} · ${(m.end - m.start).toFixed(1)} s`;
-      li.append(box, thumb, cell, meta);
-      list.append(li);
+    } else {
+      out.push(el("p", "insp-empty", "Choisissez un moment sur la frise du rush, en bas : il s'ouvre ici (texte, découpe" + (DERUSH ? ")" : ", effets)")
+        + " et dans sa propre frise, sous celle du rush. La case de chaque moment le garde ou le retire."));
     }
+    pane.replaceChildren(...out);
+    const shown = frise.sel.size > 1 ? "sel" : om ? om.id : null;
+    pane.scrollTop = pane.dataset.shown === String(shown) ? scroll : 0;  // autre moment : en haut
+    pane.dataset.shown = String(shown);
+    if (activeId) {
+      const again = document.getElementById(activeId);
+      if (again && pane.contains(again)) { again.focus({ preventScroll: true }); if (selStart !== null && again.setSelectionRange) try { again.setSelectionRange(selStart, selStart); } catch (e) { /* pas de texte */ } }
+    }
+    if (frise.focus) {
+      const row = pane.querySelector(`[data-fx="${frise.focus}"]`);
+      if (row) { row.classList.add("focus"); row.scrollIntoView({ block: "nearest" }); }
+    }
+  }
+  $("itab-moment").addEventListener("click", () => { frise.tab = "moment"; renderInspector(); });
+  $("itab-all").addEventListener("click", () => { frise.tab = "all"; renderInspector(); });
+
+  // Tout redessiner (sélection gardée changée, réglages d'un moment) ; renderOpen : seulement ce
+  // qui dépend du moment ouvert et de la sélection.
+  function renderList() {
+    renderMain();
+    renderOpen();
+  }
+  function renderOpen() {
+    syncMain();
+    renderToolbar();
+    renderMomentTl();
+    renderInspector();
+    drawPlayheads();
+  }
+  let resizeT = null;
+  window.addEventListener("resize", () => { clearTimeout(resizeT); resizeT = setTimeout(renderList, 150); });
+
+  // Tête de lecture : dans la frise du rush (moment ou version de travail en lecture) et dans celle
+  // du moment ; le temps affiché dit le mot prononcé à cet instant.
+  function describeAt(m, t) {
+    if (m.gap) return `${t.toFixed(2)} s`;
+    const words = wordsOf(m).map((w, k) => ({ ...w, text: w.text || m.words[k].w })).filter((w) => w.text);
+    const w = words.find((x) => t >= x.a && t < x.b), prev = [...words].reverse().find((x) => x.b <= t);
+    return `${t.toFixed(2)} s · ${w ? `« ${w.text} »` : prev ? `après « ${prev.text} »` : "avant la parole"}`;
+  }
+  function drawPlayheads() {
+    const om = openMoment(), playing = !player.paused;
+    const kin = document.querySelector("#tlk .tlk-in");
+    if (om && kin) {
+      const t = momentTime(om), kpps = Number(kin.dataset.pps) || 1, ph = kin.querySelector(".phead");
+      if (ph) ph.style.left = `${t * kpps}px`;
+      const info = document.querySelector("#tlk .at-info");
+      if (info) info.textContent = describeAt(om, t);
+      const play = document.querySelector("#tlk .play"), here = mode === "moment" && currentMoment === om.id && playing;
+      if (play) { play.textContent = here ? "❚❚" : "▶"; play.setAttribute("aria-label", here ? "Pause" : "Lecture du moment"); }
+      const sc = kin.parentElement;
+      if (here && ph && (ph.offsetLeft < sc.scrollLeft || ph.offsetLeft > sc.scrollLeft + sc.clientWidth - 16)) sc.scrollLeft = ph.offsetLeft - sc.clientWidth / 4;
+    }
+    let rt = null;
+    if (mode === "moment" && currentMoment !== null) {
+      const cm = byId.get(currentMoment);
+      rt = clipStart(cm) + (cutPending ?? player.currentTime);
+    } else if (mode === "work" && working) {
+      const c = working.clips.find((x) => player.currentTime >= x.start && player.currentTime < x.end), cm = c && byId.get(c.seg);
+      if (cm) rt = Math.min(cm.end, cm.start + player.currentTime - c.start);
+    }
+    const ph = document.querySelector("#tlm-in > .phead");
+    if (ph) {
+      ph.style.display = rt === null ? "none" : "";
+      if (rt !== null) {
+        ph.style.left = `${rt * frise.pps}px`;
+        if (playing) revealRush(rt);
+      }
+    }
+    const tcEl = $("tl-tc");
+    if (tcEl) tcEl.textContent = `${tc(rt ?? 0)} / ${tc(rushEnd)}`;
+  }
+  for (const ev of ["timeupdate", "seeked", "pause", "play"]) player.addEventListener(ev, drawPlayheads);
+
+  // Clavier : Espace lecture / pause, ← → une image, Maj + ← → moment précédent ou suivant,
+  // Échap ferme le réglage du cadre ou le moment.
+  document.addEventListener("keydown", (e) => {
+    if (e.defaultPrevented || e.altKey || e.ctrlKey || e.metaKey || document.fullscreenElement) return;
+    const t = e.target;
+    if (t && t.closest && t.closest("input, textarea, select, [contenteditable], [role=slider], dialog")) return;
+    const om = openMoment();
+    if (e.key === " ") {
+      e.preventDefault();
+      if (om && (mode !== "moment" || currentMoment !== om.id)) showMoment(om.id); else togglePlay();
+    } else if (e.key === "ArrowLeft" || e.key === "ArrowRight") {
+      const d = e.key === "ArrowLeft" ? -1 : 1;
+      e.preventDefault();
+      if (e.shiftKey) { const cur = om || (currentMoment !== null ? byId.get(currentMoment) : null); if (cur) stepMoment(cur, d); else if (moments.length) pickMoment(moments[0]); }
+      else if (om) seekMoment(om, momentTime(om) + d / 30);
+      else step(d / 30);
+    } else if (e.key === "Escape") {
+      if (framer.m) closeFramer(); else if (frise.open !== null || frise.sel.size) { frise.open = null; frise.sel.clear(); editing = null; renderOpen(); }
+    }
+  });
+
+  // --- Zoom libre : zoom progressif d'un cadre à un autre ---------------------------
+  // Effet « zoomlibre » : { at, dur, from: {s, x, y}, to: {s, x, y} } ; s = grossissement (1 à 4),
+  // x, y = centre de l'image visible (0 à 1). Avant « at », le cadre de début ; après la fin, celui
+  // de fin ; entre les deux, passage progressif (même règle que render_hyperframes.py).
+  const clamp01 = (v, a, b) => Math.min(b, Math.max(a, v));
+  function keyFrame(k) {
+    const s = clamp01(Number(k && k.s) || 1, 1, 4), h = 0.5 / s;
+    const num = (v) => (Number.isFinite(Number(v)) ? Number(v) : 0.5);
+    return { s, x: clamp01(num(k && k.x), h, 1 - h), y: clamp01(num(k && k.y), h, 1 - h) };
+  }
+  const easeIO = (x) => { x = clamp01(x, 0, 1); return x < 0.5 ? 2 * x * x : 1 - Math.pow(-2 * x + 2, 2) / 2; };
+  function keyZoomAt(f, t) {
+    const a = Number(f.at) || 0, d = Math.max(0.05, Number(f.dur) || 1), p = easeIO((t - a) / d);
+    const A = keyFrame(f.from), B = keyFrame(f.to);
+    return { s: A.s + (B.s - A.s) * p, x: A.x + (B.x - A.x) * p, y: A.y + (B.y - A.y) * p };
+  }
+  // Réglage d'un cadre sur l'image du lecteur : molette ou pincement pour zoomer à l'endroit visé,
+  // glisser pour déplacer ; « Valider » l'enregistre dans l'effet.
+  let framer = { m: null, idx: -1, which: "to", k: null };
+  function openFramer(m, idx, which) {
+    const f = vfxOf(m)[idx];
+    if (!f || DERUSH) return;
+    framer = { m, idx, which, k: keyFrame(f[which]) };
+    seekMoment(m, which === "from" ? Number(f.at) || 0 : (Number(f.at) || 0) + (Number(f.dur) || 1));
+    $("framer").hidden = false;
+    $("framer-bar").hidden = false;
+    $("framer-title").textContent = which === "from" ? "Cadre du début" : "Cadre de fin";
+    showFramer();
+    requestAnimationFrame(drawOverlay);
+  }
+  function showFramer() {
+    $("framer-zoom").value = String(Math.round(framer.k.s * 100));
+    $("framer-val").textContent = `${Math.round(framer.k.s * 100)} %`;
+  }
+  function closeFramer() {
+    framer = { m: null, idx: -1, which: "to", k: null };
+    $("framer").hidden = true;
+    $("framer-bar").hidden = true;
+  }
+  function zoomAround(u, v, s2) {
+    const k = framer.k, px = k.x - 0.5 / k.s + u / k.s, py = k.y - 0.5 / k.s + v / k.s;
+    s2 = clamp01(s2, 1, 4);
+    framer.k = keyFrame({ s: s2, x: px - u / s2 + 0.5 / s2, y: py - v / s2 + 0.5 / s2 });
+    showFramer();
+  }
+  {
+    const fr = $("framer"), pts = new Map();
+    let last = null;
+    fr.addEventListener("wheel", (e) => {
+      if (!framer.k) return;
+      e.preventDefault();
+      const r = fr.getBoundingClientRect();
+      zoomAround((e.clientX - r.left) / r.width, (e.clientY - r.top) / r.height, framer.k.s * Math.exp(-e.deltaY * 0.001));
+    }, { passive: false });
+    fr.addEventListener("pointerdown", (e) => { fr.setPointerCapture(e.pointerId); pts.set(e.pointerId, [e.clientX, e.clientY]); last = null; });
+    fr.addEventListener("pointermove", (e) => {
+      if (!framer.k || !pts.has(e.pointerId)) return;
+      const r = fr.getBoundingClientRect(), prev = pts.get(e.pointerId);
+      pts.set(e.pointerId, [e.clientX, e.clientY]);
+      if (pts.size === 1) {
+        const k = framer.k;
+        framer.k = keyFrame({ s: k.s, x: k.x - (e.clientX - prev[0]) / (r.width * k.s), y: k.y - (e.clientY - prev[1]) / (r.height * k.s) });
+      } else if (pts.size === 2) {  // pincement
+        const [p, q] = [...pts.values()], dist = Math.hypot(p[0] - q[0], p[1] - q[1]);
+        if (last) zoomAround(((p[0] + q[0]) / 2 - r.left) / r.width, ((p[1] + q[1]) / 2 - r.top) / r.height, framer.k.s * (dist / Math.max(1, last)));
+        last = dist;
+      }
+    });
+    const lift = (e) => { pts.delete(e.pointerId); last = null; };
+    fr.addEventListener("pointerup", lift);
+    fr.addEventListener("pointercancel", lift);
+    $("framer-zoom").addEventListener("input", () => { if (framer.k) zoomAround(0.5, 0.5, Number($("framer-zoom").value) / 100); });
+    $("framer-reset").addEventListener("click", () => { if (framer.k) { framer.k = keyFrame({ s: 1 }); showFramer(); } });
+    $("framer-cancel").addEventListener("click", closeFramer);
+    $("framer-ok").addEventListener("click", () => {
+      const { m, idx, which, k } = framer;
+      if (!m) return;
+      const next = vfxOf(m).map((x) => ({ ...x }));
+      if (next[idx]) next[idx][which] = { s: Math.round(k.s * 1000) / 1000, x: Math.round(k.x * 10000) / 10000, y: Math.round(k.y * 10000) / 10000 };
+      closeFramer();
+      saveMoment(m.id, { vfx: next });
+    });
+  }
+
+  // Effets, cadrage et volume de la voix d'un moment (mode Auto-montage), dans l'inspecteur ; une
+  // ligne par effet choisi (data-fx : repère de la frise du moment qui la montre).
+  function momentExtras(m) {
+    const tags = document.createElement("div");
+    tags.className = "tags";
+    if (!DERUSH && catalog.some((c) => !hiddenFx.has(c.id) || sfxOf(m).some((f) => f.kind === c.id))) {
+      const title = document.createElement("span");
+      title.className = "sfx-title";
+      title.textContent = "Effets :";
+      tags.append(title);
+      const chosen = sfxOf(m);
+      for (const fx of catalog) {
+        // Effets écartés sur la page « Rushes et montages » : masqués, sauf s'ils sont cochés ici.
+        if (hiddenFx.has(fx.id) && !chosen.some((f) => f.kind === fx.id)) continue;
+        const lab = document.createElement("label");
+        lab.className = "sfx";
+        const cb = document.createElement("input");
+        cb.type = "checkbox";
+        cb.id = `fx-${m.id}-${fx.id}`;
+        cb.checked = chosen.some((f) => f.kind === fx.id);
+        cb.addEventListener("change", () => {
+          const cur = sfxOf(m).filter((f) => f.kind !== fx.id);
+          if (cb.checked) cur.push(defaultFx(m, fx.id));
+          cur.sort((x, y) => catalog.findIndex((c) => c.id === x.kind) - catalog.findIndex((c) => c.id === y.kind));
+          saveMoment(m.id, { sfx: cur });
+        });
+        lab.append(cb, document.createTextNode(fx.label));
+        tags.append(lab);
+      }
+      if (chosen.length) {
+        const sets = document.createElement("div");
+        sets.className = "fxsets";
+        chosen.forEach((f, idx) => {
+          const row = document.createElement("div");
+          row.className = "fxset";
+          row.dataset.fx = `s${idx}`;
+          const name = document.createElement("b");
+          name.textContent = (catalog.find((c) => c.id === f.kind) || { label: f.kind }).label;
+          row.append(name);
+          if (f.kind === "voix") {
+            // Type de voix (moments_lib.VOICES) : s'entend en direct si le moment est en lecture.
+            const vl = document.createElement("label");
+            vl.title = "Voix modifiée à appliquer";
+            const sel = document.createElement("select");
+            sel.id = `fx-${m.id}-voix-voice`;
+            for (const v of VOICES) sel.append(Object.assign(document.createElement("option"), { value: v.id, textContent: v.label, title: v.desc || "" }));
+            sel.value = voiceOf(f);
+            sel.addEventListener("change", () => {
+              if (fx && fx.m.id === m.id) {
+                const win = fx.voice[chosen.slice(0, idx).filter((x) => x.kind === "voix").length];
+                if (win) win.voice = sel.value;
+              }
+              const next = sfxOf(m);
+              next[idx] = { ...next[idx], voice: sel.value };
+              saveMoment(m.id, { sfx: next });
+            });
+            vl.append(sel);
+            row.append(vl);
+            const at0 = Number(f.at) || 0;
+            row.append(...fxBar(m, { start: at0, end: at0 + (Number(f.dur) || 1), label: "Passage de la voix modifiée",
+              commit: (a, b) => {
+                const next = sfxOf(m);
+                next[idx] = { ...next[idx], at: a, dur: Math.round((b - a) * 100) / 100 };
+                saveMoment(m.id, { sfx: next });
+              } }));
+            // Force : s'entend en direct si le moment est en lecture, enregistrée au relâchement.
+            const l = document.createElement("label");
+            l.title = "Force de l'effet (100 % = réglage d'origine)";
+            const r = document.createElement("input");
+            r.type = "range"; r.min = "0"; r.max = "200"; r.step = "5";
+            r.id = `fx-${m.id}-voix-force`;
+            r.value = String(Math.round(voiceForce(f) * 100));
+            r.style.cssText = "width: 8em; accent-color: var(--accent);";
+            const out = document.createElement("span");
+            out.style.cssText = "font-variant-numeric: tabular-nums; min-width: 3.2em;";
+            out.textContent = `${r.value} %`;
+            r.addEventListener("input", () => {
+              out.textContent = `${r.value} %`;
+              if (fx && fx.m.id === m.id) {
+                const win = fx.voice[chosen.slice(0, idx).filter((x) => x.kind === "voix").length];
+                if (win) win.force = Number(r.value) / 100;
+              }
+            });
+            r.addEventListener("change", () => {
+              const next = sfxOf(m);
+              next[idx] = { ...next[idx], force: Number(r.value) / 100 };
+              saveMoment(m.id, { sfx: next });
+            });
+            l.append(document.createTextNode("force"), r, out);
+            row.append(l);
+          }
+          else {
+            // Calage : par défaut la durée du son ; plus long, il se répète, avec une pause
+            // éventuelle entre deux répétitions (enregistré en « repeat » et « gap »).
+            const unit = soundLen(f);
+            const pause = Math.max(0, Math.round(((f.pause ?? ((Number(f.gap) || unit) - unit)) || 0) * 100) / 100);
+            const n0 = Math.max(1, Math.round(Number(f.repeat) || 1));
+            const at0 = Number(f.at) || 0;
+            const saveTiming = (a, n, p) => {
+              const next = sfxOf(m);
+              next[idx] = { ...next[idx], at: a, repeat: Math.max(1, Math.min(40, n)), gap: Math.round((unit + p) * 1000) / 1000, pause: p };
+              saveMoment(m.id, { sfx: next });
+            };
+            row.append(...fxBar(m, { start: at0, end: at0 + n0 * unit + (n0 - 1) * pause, unit, pause, label: `Calage : ${name.textContent}`,
+              commit: (a, b) => saveTiming(a, Math.round((b - a + pause) / (unit + pause)), pause) }));
+            const pl = document.createElement("label");
+            pl.title = "Pause entre deux répétitions du son, en secondes";
+            const pi = Object.assign(document.createElement("input"), { type: "number", step: "0.05", min: "0", id: `fx-${m.id}-${f.kind}-pause` });
+            pi.value = String(pause);
+            pi.addEventListener("change", () => {
+              const v = Number(pi.value);
+              if (Number.isFinite(v)) saveTiming(at0, n0, Math.max(0, Math.round(v * 100) / 100));
+            });
+            pl.append(document.createTextNode("pause"), pi);
+            row.append(pl);
+            // Volume de cet effet sur ce moment (100 % = volume d'origine).
+            const l = document.createElement("label");
+            l.title = "Volume de ce son sur ce moment (100 % = volume d'origine)";
+            const r = document.createElement("input");
+            r.type = "range"; r.min = "0"; r.max = "200"; r.step = "10";
+            r.id = `fx-${m.id}-${f.kind}-vol`;
+            r.value = String(Math.round((f.vol ?? 1) * 100));
+            r.style.cssText = "width: 7em; accent-color: var(--accent);";
+            const out = document.createElement("span");
+            out.style.cssText = "font-variant-numeric: tabular-nums; min-width: 3.2em;";
+            out.textContent = `${r.value} %`;
+            r.addEventListener("input", () => { out.textContent = `${r.value} %`; });
+            r.addEventListener("change", () => {
+              const next = sfxOf(m);
+              next[idx] = { ...next[idx], vol: Number(r.value) / 100 };
+              saveMoment(m.id, { sfx: next });
+              const name = f.kind === "clavier" ? "key-1" : f.kind;  // écoute au nouveau volume
+              const a = sound(name).cloneNode();
+              a.volume = Math.max(0, Math.min(1, baseVol(f.kind) * Number(r.value) / 100 * sfxVolume));
+              a.play().catch(() => {});
+            });
+            l.append(document.createTextNode("volume"), r, out);
+            row.append(l);
+          }
+          const here = document.createElement("button");
+          here.type = "button";
+          here.textContent = "Ici";
+          here.title = "Placer le départ à l'instant en cours de lecture de ce moment";
+          here.disabled = currentMoment !== m.id; here.dataset.cur = m.id;
+          here.addEventListener("click", () => {
+            const next = sfxOf(m);
+            next[idx] = { ...next[idx], at: Math.round(player.currentTime * 100) / 100 };
+            saveMoment(m.id, { sfx: next });
+          });
+          row.append(here);
+          sets.append(row);
+        });
+        tags.append(sets);
+      }
+    }
+    if (!DERUSH) {
+      const vtitle = document.createElement("span");
+      vtitle.className = "sfx-title";
+      vtitle.textContent = "Effets visuels :";
+      const vrow = document.createElement("div");
+      vrow.className = "tags";
+      vrow.style.width = "100%";
+      vrow.append(vtitle);
+      const chosenV = vfxOf(m);
+      for (const vf of VFX_CATALOG) {
+        if (hiddenFx.has(vf.id) && !chosenV.some((f) => f.kind === vf.id)) continue;
+        const lab = document.createElement("label");
+        lab.className = "sfx";
+        const cb = document.createElement("input");
+        cb.type = "checkbox";
+        cb.id = `vfx-${m.id}-${vf.id}`;
+        cb.checked = chosenV.some((f) => f.kind === vf.id);
+        cb.addEventListener("change", () => {
+          const cur = vfxOf(m).filter((f) => f.kind !== vf.id);
+          if (cb.checked) cur.push(newVfx(m, vf.id));
+          saveMoment(m.id, { vfx: cur });
+        });
+        lab.append(cb, document.createTextNode(vf.label));
+        vrow.append(lab);
+      }
+      if (chosenV.length) {
+        const sets = document.createElement("div");
+        sets.className = "fxsets";
+        chosenV.forEach((f, idx) => {
+          const row = document.createElement("div");
+          row.className = "fxset";
+          row.dataset.fx = `v${idx}`;
+          const name = document.createElement("b");
+          name.textContent = (VFX_CATALOG.find((c) => c.id === f.kind) || { label: f.kind }).label;
+          row.append(name);
+          const update = (patch) => {
+            const next = vfxOf(m).map((x) => ({ ...x }));
+            next[idx] = { ...next[idx], ...patch };
+            saveMoment(m.id, { vfx: next });
+          };
+          const here = document.createElement("button");
+          here.type = "button";
+          here.textContent = "Ici";
+          here.title = "Placer le départ à l'instant en cours de lecture de ce moment";
+          here.disabled = currentMoment !== m.id; here.dataset.cur = m.id;
+          here.addEventListener("click", () => update({ at: Math.round(player.currentTime * 100) / 100 }));
+          const num = (label, key, step, min, title, max = null) => {
+            const l = document.createElement("label");
+            l.title = title;
+            const inp = document.createElement("input");
+            inp.type = "number"; inp.step = step; inp.min = min; if (max !== null) inp.max = max;
+            inp.id = `vfx-${m.id}-${f.kind}-${key}`;
+            inp.value = f[key] ?? "";
+            inp.addEventListener("change", () => {
+              const v = Number(inp.value);
+              if (!Number.isFinite(v)) return;
+              update({ [key]: Math.min(max === null ? Infinity : Number(max), Math.max(Number(min), v)) });
+            });
+            l.append(document.createTextNode(label), inp);
+            return l;
+          };
+          // Effets fournis par défaut : zooms, secousse, flash, mot mis en valeur.
+          if (["zoomin", "zoomsec", "dezoom", "shake", "flash"].includes(f.kind)) {
+            const at0 = Number(f.at) || 0;
+            row.append(...fxBar(m, { start: at0, end: at0 + (Number(f.dur) || 0.5),
+              label: f.kind === "zoomin" ? "Zoom progressif (le cadre reste ensuite serré jusqu'à la fin du moment)" : `Calage : ${f.kind}`,
+              commit: (a, b) => update({ at: a, dur: Math.round((b - a) * 100) / 100 }) }));
+            if (f.kind !== "flash") row.append(num("force %", "force", "5", "5", f.kind === "shake" ? "Amplitude de la secousse" : "Grossissement (25 % = image agrandie d'un quart)", "150"));
+            row.append(here);
+            sets.append(row);
+            return;
+          }
+          // Zoom libre : début et fin pris à la tête de lecture ; le cadre de chacun se règle en
+          // zoomant l'image du lecteur à cet instant (molette, pincement, glisser).
+          if (f.kind === "zoomlibre") {
+            const a = Number(f.at) || 0, b = a + (Number(f.dur) || 1);
+            row.append(...fxBar(m, { start: a, end: b, label: "Zoom libre : du cadre de début au cadre de fin",
+              commit: (x, y) => update({ at: x, dur: Math.round((y - x) * 100) / 100 }) }));
+            const kz = el("div", "kz");
+            for (const which of ["from", "to"]) {
+              const k = keyFrame(f[which]), t = which === "from" ? a : b;
+              const line = el("div", "kzrow");
+              line.append(el("span", "", `${t.toFixed(2)} s · ${Math.round(k.s * 100)} %`),
+                btn("Ici", `${which === "from" ? "Début" : "Fin"} du zoom à la tête de lecture, puis réglage de son cadre`, () => {
+                  const now = Math.round(momentTime(m) * 100) / 100;
+                  if (which === "from" ? now >= b - 0.05 : now <= a + 0.05) {
+                    setStatus(which === "from" ? "Placez la tête de lecture avant la fin du zoom." : "Placez la tête de lecture après le début du zoom.", "err");
+                    return;
+                  }
+                  const next = vfxOf(m).map((x) => ({ ...x }));
+                  next[idx] = which === "from" ? { ...next[idx], at: now, dur: Math.round((b - now) * 100) / 100 } : { ...next[idx], dur: Math.round((now - a) * 100) / 100 };
+                  saveMoment(m.id, { vfx: next });
+                  openFramer(m, idx, which);
+                }),
+                btn("Régler le cadre", "Zoomer et déplacer l'image du lecteur à cet instant", () => openFramer(m, idx, which)));
+              kz.append(el("b", "", which === "from" ? "◆ Début" : "◆ Fin"), line);
+            }
+            row.append(kz);
+            sets.append(row);
+            return;
+          }
+          if (f.kind === "highlight") {
+            const w = Object.assign(document.createElement("input"), { type: "text", value: f.text || "", id: `vfx-${m.id}-highlight-text` });
+            w.setAttribute("aria-label", "Mot à mettre en valeur");
+            w.title = "Mot (ou mots séparés par des espaces) du sous-titre à mettre en couleur et en plus gros";
+            w.style.cssText = "font: inherit; font-size: 13px; width: 12em; max-width: 100%;";
+            w.addEventListener("change", () => update({ text: w.value.trim() }));
+            const col = Object.assign(document.createElement("input"), { type: "color", value: f.color || "#ffd84d", id: `vfx-${m.id}-highlight-color` });
+            col.setAttribute("aria-label", "Couleur du mot");
+            col.addEventListener("change", () => update({ color: col.value }));
+            const lab = document.createElement("label");
+            lab.append("mot ", w);
+            row.append(lab, col);
+            sets.append(row);
+            return;
+          }
+          const txt = document.createElement(f.kind === "typed" ? "textarea" : "input");
+          txt.id = `vfx-${m.id}-${f.kind}-text`;
+          txt.value = f.text || "";
+          txt.setAttribute("aria-label", "Texte de l'effet");
+          if (f.kind === "typed") { txt.rows = 2; txt.style.cssText = "font: inherit; font-size: 13px; width: 100%; resize: vertical; color: var(--fg); background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 3px 6px;"; }
+          else { txt.type = "text"; txt.style.cssText = "font: inherit; font-size: 13px; width: 14em; max-width: 100%;"; }
+          txt.addEventListener("change", () => update({ text: txt.value }));
+          const snd = document.createElement("label");
+          const sc = document.createElement("input");
+          sc.type = "checkbox";
+          sc.id = `vfx-${m.id}-${f.kind}-sound`;
+          sc.checked = f.sound !== false;
+          sc.addEventListener("change", () => update({ sound: sc.checked }));
+          snd.append(sc, document.createTextNode(f.kind === "typed" ? "son clavier" : "son bop"));
+          const at0 = Number(f.at) || 0;
+          row.append(txt, ...fxBar(m, { start: at0, end: at0 + (Number(f.dur) || 2), label: "Affichage du texte",
+            commit: (a, b) => update({ at: a, dur: Math.round((b - a) * 100) / 100 }) }));
+          if (f.kind === "typed") row.append(num("frappe", "type", "0.1", "0.1", "Durée de la frappe, en secondes"));
+          row.append(snd, here);
+          sets.append(row);
+        });
+        vrow.append(sets);
+      }
+      if (vrow.children.length > 1) tags.append(vrow);  // aucun effet visuel proposé : pas de ligne
+    }
+    // Cadrage : tout le monde (par défaut), ou une des personnes vues pendant ce moment
+    // (vignettes de detect_face.py), en plan rapproché.
+    if (!DERUSH && ((m.persons || []).length >= 2 || focusOf(m))) {
+      const row = document.createElement("div");
+      row.className = "tags framing";
+      row.style.width = "100%";
+      row.append(Object.assign(document.createElement("span"), { className: "sfx-title", textContent: "Cadrage :" }));
+      const pick = (person, content, title) => {
+        const b = Object.assign(document.createElement("button"), { type: "button", title });
+        b.className = "framing-choice" + ((focusOf(m) || null) === person ? " on" : "");
+        b.setAttribute("aria-pressed", String((focusOf(m) || null) === person));
+        b.append(content);
+        b.addEventListener("click", () => saveMoment(m.id, { focus: person }));
+        return b;
+      };
+      row.append(pick(null, "Tout le monde", "Garder tout le monde dans l'image (zooms limités)"));
+      for (const p of m.persons || []) {
+        const src = (DATA.persons || {})[String(p)];
+        if (!src) continue;
+        const img = Object.assign(document.createElement("img"), { src, alt: `Personne ${p}`, width: 40, height: 40 });
+        row.append(pick(p, img, `Cadrer sur cette personne (plan rapproché)`));
+      }
+      tags.append(row);
+    }
+    // Volume de la voix de ce moment (son d'origine du rush) : si « Volume de la voix par
+    // moment » est proposé (effets proposés), ou si ce moment a déjà un autre volume.
+    if (window.AUTO_MONTAGE_LOCAL && !DERUSH && (!hiddenFx.has("gainvoix") || voiceGainOf(m) !== 1)) {
+      const l = document.createElement("label");
+      l.className = "sfx voice-gain";
+      l.title = "Volume de la voix sur ce moment (100 % = volume d'origine) ; s'ajoute au volume de la voix de tout le montage";
+      const r = Object.assign(document.createElement("input"), { type: "range", min: "0", max: "200", step: "5", id: `gain-${m.id}` });
+      r.value = String(Math.round(voiceGainOf(m) * 100));
+      r.style.cssText = "width: 8em; accent-color: var(--accent);";
+      const out = Object.assign(document.createElement("span"), { textContent: `${r.value} %` });
+      out.style.cssText = "font-variant-numeric: tabular-nums; min-width: 3.2em;";
+      r.addEventListener("input", () => {
+        out.textContent = `${r.value} %`;
+        if (currentMoment === m.id && mode === "moment") player.volume = Math.min(1, (Number(r.value) / 100) * voiceGlobal);
+      });
+      r.addEventListener("change", () => saveMoment(m.id, { gain: Number(r.value) / 100 }));
+      l.append(Object.assign(document.createElement("span"), { className: "sfx-title", textContent: "Voix :" }), r, out);
+      const row = document.createElement("div");
+      row.className = "tags";
+      row.style.width = "100%";
+      row.append(l);
+      tags.append(row);
+    }
+    return tags.children.length ? tags : null;
   }
 
   function renderSummary() {
@@ -2182,19 +2765,7 @@ ${HFAudio.voiceElements(spec)}
 
   function render() { renderSummary(); renderList(); }
 
-  function toggle(id, on) {
-    const m = byId.get(id);
-    if (cutsOf(m).length) partsOf(m).forEach((p) => (on ? state.keep.add(`${id}/${p.k}`) : state.keep.delete(`${id}/${p.k}`)));
-    else on ? state.keep.add(id) : state.keep.delete(id);
-    render();
-    scheduleSave();
-  }
-
-  document.querySelectorAll(".chip").forEach((chip) => chip.addEventListener("click", () => {
-    state.filter = chip.dataset.filter;
-    document.querySelectorAll(".chip").forEach((c) => c.setAttribute("aria-pressed", String(c === chip)));
-    renderList();
-  }));
+  function toggle(id, on) { setKept([byId.get(id)], on); }
 
   $("reset").addEventListener("click", () => { state.keep = new Set(suggested); normKeep(); render(); scheduleSave(); });
 
@@ -2262,6 +2833,7 @@ ${HFAudio.voiceElements(spec)}
     // Effets enregistrés avant l'effet « voix » : on garde la voix proposée en réenregistrant.
     if (Array.isArray(before.sfx) && !before.fxv && !("sfx" in patch)) patch = { ...patch, sfx: sfxOf(byId.get(id)) };
     edits[id] = { ...before, ...patch, fxv: 2 };
+    if (fx && fx.m.id === id && player.paused) fx = buildOverlay(fx.m);  // aperçu à jour (zoom libre, texte…)
     renderList();
     if (!db) { setStatus("Non enregistré : ouvrez la page connecté à claude.ai", "err"); return; }
     const m = byId.get(id);
