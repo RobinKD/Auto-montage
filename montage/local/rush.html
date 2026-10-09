@@ -167,7 +167,7 @@
     </div>
   </header>
 
-  <p class="warn" id="no-claude" hidden></p>
+  <p class="warn" id="no-claude" hidden data-mode-montage></p>
   <p class="note" id="update-note" hidden></p>
 
   <section id="projects" aria-labelledby="h-projects">
@@ -195,7 +195,7 @@
     <p class="status" id="file-status" role="status"></p>
   </section>
 
-  <section id="step-instructions" aria-labelledby="h-instructions">
+  <section id="step-instructions" aria-labelledby="h-instructions" data-mode-montage>
     <h2 id="h-instructions"><span>2</span>Consignes et style <small class="note">(facultatif, avec Claude)</small></h2>
     <p class="note">Décrivez le montage voulu (moments à garder, intro, effets, sous-titres…) dans la zone de texte, ou choisissez un fichier texte. Claude l'applique pendant la préparation ; sans consignes, le premier montage garde tous les moments sauf les premières prises.</p>
     <div class="claude-zone" data-needs-claude>
@@ -266,7 +266,7 @@
   </section>
 
   <section id="step-prepare" class="off" aria-labelledby="h-prepare">
-    <h2 id="h-prepare"><span>3</span>Préparer</h2>
+    <h2 id="h-prepare"><span id="prepare-num">3</span>Préparer</h2>
     <p class="note">Compter environ la durée du rush pour la transcription, puis 3 à 5 minutes pour la première version de travail. La page peut rester ouverte ou être fermée : la préparation continue.</p>
     <p class="warn" id="replace" hidden></p>
     <p class="row note"><label for="langue">Langue parlée dans la vidéo :</label> <select id="langue"><option value="fr">Français</option></select>
@@ -295,8 +295,8 @@
     </div>
     <ol class="steps" id="steps" hidden>
       <li data-step="préparation du rush">Versions de travail, transcription, visage, montage</li>
-      <li data-step="consignes de montage (Claude)">Consignes de montage appliquées par Claude</li>
-      <li data-step="montage selon les consignes">Montage selon les consignes</li>
+      <li data-step="consignes de montage (Claude)" data-mode-montage>Consignes de montage appliquées par Claude</li>
+      <li data-step="montage selon les consignes" data-mode-montage>Montage selon les consignes</li>
       <li data-step="rendu de la version de travail">Rendu de la version de travail (1080p)</li>
       <li data-step="page des moments">Page des moments</li>
     </ol>
@@ -326,6 +326,9 @@
 
 <script>
   const $ = (id) => document.getElementById(id);
+  // Mode Dérushage (bandeau du haut) : ni consignes, ni style, ni Claude ; la section 2 est masquée.
+  const DERUSH = document.documentElement.dataset.mode === "derush";
+  if (DERUSH) $("prepare-num").textContent = "2";
   // Temps restant estimé par le serveur (durée du rush, vitesse mesurée de la machine).
   const remaining = (s) => {
     if (typeof s !== "number" || !isFinite(s)) return "";
@@ -1040,7 +1043,7 @@
   let memKey = null;
   async function showMemoryPlan() {
     const st = info && info.style;
-    const withClaude = !!(info && info.claude && $("apply-instructions").checked
+    const withClaude = !DERUSH && !!(info && info.claude && $("apply-instructions").checked
       && (info.instructions || (st && (st.sons.length || st.videos.length))));
     const key = parts.length ? JSON.stringify([parts, withClaude]) : null;
     if (key === memKey) return;
@@ -1079,7 +1082,7 @@
     // Consignes tapées mais pas encore enregistrées : enregistrées avant de préparer.
     if (!$("save-instructions").disabled && $("instructions-text").value.trim()) await saveTyped();
     const st = info && info.style;
-    const withClaude = !!(info && info.claude && $("apply-instructions").checked
+    const withClaude = !DERUSH && !!(info && info.claude && $("apply-instructions").checked
       && (info.instructions || (st && (st.sons.length || st.videos.length))));
     const res = await fetch("/api/prepare", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ rushes: parts,
       instructions: withClaude, langue: $("langue").value, abandon: !!paused && !resumes }) });

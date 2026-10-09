@@ -19,7 +19,7 @@ import imageio_ffmpeg
 import numpy as np
 
 import fonts_lib
-from moments_lib import (HF_VOICES, SOUNDS, VOICE_IDS, audio_map, batterie_warp, effective_gaps, frame_size, is_gap, load_segments, rush_duration,
+from moments_lib import (HF_VOICES, SOUNDS, VOICE_IDS, app_mode, audio_map, derush_subtitles, batterie_warp, effective_gaps, frame_size, is_gap, load_segments, rush_duration,
                          suggested_keep, voice_filter, word_map)
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
@@ -270,6 +270,20 @@ if os.path.exists(selection_path):
     EXTRA_SFX = [x for x in EXTRA_SFX if x[0] in kept_ids and x[0] not in PAGE_SFX]
     print(f"Sélection de la page : {len(KEEP)} segments, "
           f"{len(selection.get('corrections', {}))} textes corrigés, {len(PAGE_SFX)} moments avec effets choisis")
+
+# --- Mode « Dérushage » (bandeau de l'interface locale, work/mode.txt) ----------------------
+# Seulement les moments gardés, coupés comme sur la page : ni effets, ni voix modifiée, ni
+# cadrage, ni réglages du son ; plus bas, ni zooms, et les sous-titres (corrigés sur la page)
+# seulement si la case « Sous-titres » est cochée (work/derush.json). Les choix d'effets restent
+# enregistrés et reviennent en mode Auto-montage.
+DERUSH = app_mode(WORK) == "derush"
+if DERUSH:
+    FUNNY, CASH, CHIPS, EXTRA_SFX, EXTRA_VFX, INTRO_TEXT = [], [], [], [], {}, ""
+    VOICE_DEFAULTS, PAGE_GAINS, PAGE_FOCUS = {}, {}, {}
+    PAGE_SFX = {k: [] for k, _, _ in KEEP}
+    PAGE_VFX = {k: [] for k, _, _ in KEEP}
+    DERUSH_SUBS = derush_subtitles(WORK)
+    print("Mode Dérushage : moments coupés, sans effets" + ("" if DERUSH_SUBS else " ni sous-titres"))
 
 # --- Audio d'origine ----------------------------------------------------------
 SR = 48000
@@ -679,6 +693,8 @@ try:
     SOUND = json.load(open(os.path.join(WORK, "son.json")))
 except (OSError, ValueError):
     SOUND = {}
+if DERUSH:
+    SOUND = {}
 VOICE_GAIN = max(0.0, min(2.0, float(SOUND.get("voice", 1) or 0)))
 MUTE = [(float(a), float(b)) for a, b in SOUND.get("mute", []) if float(b) > float(a)]
 os.makedirs(os.path.join(ROOT, "public", "audio"), exist_ok=True)
@@ -788,6 +804,11 @@ except (OSError, ValueError):
 HABILLAGE = {"autoZoom": max(0.0, min(2.0, float(_h.get("autoZoom", 1)))), "pop": bool(_h.get("pop", False)),
              "karaoke": bool(_h.get("karaoke", False)),
              "karaokeColor": _h.get("karaokeColor") if isinstance(_h.get("karaokeColor"), str) else "#ffd84d"}
+if DERUSH:  # image du rush telle quelle ; sous-titres simples si la case est cochée
+    HABILLAGE.update(autoZoom=0.0, pop=False, karaoke=False)
+    zooms = []
+    if not DERUSH_SUBS:
+        captions = []
 
 # --- Sorties -----------------------------------------------------------------------
 caption_style = fonts_lib.copy_for_render(fonts_lib.read_style())

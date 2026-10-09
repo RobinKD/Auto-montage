@@ -93,6 +93,28 @@ def language(work_dir, name="langue.txt"):
     return code if code in LANGUAGES else "fr"
 
 
+# Mode de l'interface locale (bandeau du haut de chaque page) : « montage » (Auto-montage, tout)
+# ou « derush » (Dérushage : découper le rush en moments, sans effets, sous-titres ni Claude).
+# work/mode.txt, commun à tous les rushes ; build_edit.py en tire un montage sans habillage.
+MODES = {"montage": "Auto-montage", "derush": "Dérushage"}
+
+
+def app_mode(work_dir):
+    try:
+        code = open(os.path.join(work_dir, "mode.txt")).read().strip()
+    except OSError:
+        return "montage"
+    return code if code in MODES else "montage"
+
+
+def derush_subtitles(work_dir):
+    """Sous-titres de la version de travail en dérushage (work/derush.json, oui par défaut)."""
+    try:
+        return bool(json.load(open(os.path.join(work_dir, "derush.json"))).get("subtitles", True))
+    except (OSError, ValueError, AttributeError):
+        return True
+
+
 def audio_streams(path):
     """Pistes son lisibles d'une vidéo : (indice parmi les pistes son, description), lues dans la
     sortie de « ffmpeg -i ». Une piste que ffmpeg ne sait pas décoder (son spatial « apac » des

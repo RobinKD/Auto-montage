@@ -2,13 +2,19 @@
 // menu déroulant vers les autres pages (moments, rushes, téléchargements, Claude, mises à
 // jour, journal). Ajouté par scripts/local_server.py à toutes les pages ; les pages publiées
 // sur claude.ai ne l'ont pas. Couleurs : celles de la page (variables --bg, --accent…).
+// Choix du mode, à gauche du menu : « Dérushage » (découper le rush en moments, sans effets,
+// sous-titres ni Claude) ou « Auto-montage » (tout). Le serveur l'écrit sur <html data-mode>,
+// et masque en dérushage les parties marquées data-mode-montage.
 (() => {
+  const MODE = document.documentElement.dataset.mode === "derush" ? "derush" : "montage";
+  const DERUSH = MODE === "derush";
+  // [adresse, nom, description, description en dérushage (null : page absente en dérushage)]
   const PAGES = [
-    ["/", "Page des moments", "Choisir les moments, effets, découpe, génération"],
-    ["/rush/", "Rushes et montages", "Nouveau rush, consignes, montages enregistrés"],
+    ["/", "Page des moments", "Choisir les moments, effets, découpe, génération", "Choisir et découper les moments, générer"],
+    ["/rush/", "Rushes et montages", "Nouveau rush, consignes, montages enregistrés", "Nouveau rush, montages enregistrés"],
     ["/downloads/", "Téléchargements", "Version de travail en 720p, 1080p, 4K"],
-    ["/chat/", "Discuter avec Claude", "Changer le montage en lui écrivant"],
-    ["/claude/", "Connexion à Claude", "Relier votre compte claude.ai"],
+    ["/chat/", "Discuter avec Claude", "Changer le montage en lui écrivant", null],
+    ["/claude/", "Connexion à Claude", "Relier votre compte claude.ai", null],
     ["/updates/", "Mises à jour", "Nouvelle version d'Auto-montage"],
     ["/logs/", "Journal", "En cas de problème : ce qui s'est passé"],
     ["/tutoriel/", "Tutoriel", "Comment utiliser Auto-montage, avec ou sans Claude"],
@@ -47,6 +53,17 @@
   .am-claude-off > :not(.am-needs) { opacity: 0.45; filter: grayscale(1); }
   .am-panel a.am-off { opacity: 0.5; cursor: not-allowed; }
   .am-panel .am-badge.am-cc { color: var(--accent, #2d6a5a); background: var(--accent-soft, #dcebe5); }
+  .am-mode { display: inline-flex; flex: none; padding: 2px; gap: 2px; border-radius: 9px; background: var(--bg, #f5f3ef); border: 1px solid var(--line, #e4ded4); }
+  .am-mode button { font: inherit; font-size: 14px; font-weight: 600; color: var(--muted, #6f695f); background: none; border: 0; border-radius: 7px; padding: 5px 12px; cursor: pointer; white-space: nowrap; }
+  .am-mode button:hover { color: var(--fg, #1f1d1a); }
+  .am-mode button[aria-checked="true"] { background: var(--accent, #2d6a5a); color: #fff; cursor: default; }
+  .am-mode button:disabled:not([aria-checked="true"]) { opacity: 0.5; cursor: wait; }
+  .am-off-page { max-width: 640px; margin: 48px auto; padding: 20px 22px; border: 1px solid var(--line, #e4ded4); border-radius: 12px;
+    background: var(--surface, #fffdf9); font-family: var(--body, sans-serif); color: var(--fg, #1f1d1a); }
+  .am-off-page h1 { font-size: 20px; margin: 0 0 8px; }
+  .am-off-page p { margin: 0 0 12px; color: var(--muted, #6f695f); }
+  .am-off-page button { font: inherit; font-weight: 600; color: #fff; background: var(--accent, #2d6a5a); border: 0; border-radius: 8px; padding: 8px 14px; cursor: pointer; }
+  @media (max-width: 640px) { .am-here { display: none; } .am-brand { display: none; } .am-mode button { padding: 5px 9px; } }
   .am-bar :focus-visible { outline: 2px solid var(--accent, #2d6a5a); outline-offset: 2px; }
   @media (prefers-reduced-motion: reduce) { .am-toggle .am-chev { transition: none; } }`;
 
@@ -57,7 +74,11 @@
     const bar = document.createElement("div");
     bar.className = "am-bar";
     bar.innerHTML = `<div class="am-bar-in">
-        <a class="am-brand" href="/">Auto-montage</a><span class="am-here"></span>
+        <a class="am-brand" href="/">Auto-montage</a>
+        <div class="am-mode" role="radiogroup" aria-label="Mode">
+          <button type="button" role="radio" data-mode="derush" title="Découper le rush en moments : sans effets, sous-titres ni Claude">Dérushage</button>
+          <button type="button" role="radio" data-mode="montage" title="Toutes les fonctions : effets, sous-titres, consignes et Claude">Auto-montage</button>
+        </div><span class="am-here"></span>
         <button type="button" class="am-toggle" aria-expanded="false" aria-controls="am-panel">
           <span class="am-dot" hidden></span>Menu<span class="am-chev" aria-hidden="true">▾</span></button>
       </div>
@@ -65,7 +86,13 @@
     const toggle = bar.querySelector(".am-toggle");
     const panel = bar.querySelector(".am-panel");
     bar.querySelector(".am-here").textContent = current ? current[1] : "";
-    for (const [href, label, hint] of PAGES) {
+    for (const btn of bar.querySelectorAll(".am-mode button")) {
+      btn.setAttribute("aria-checked", String(btn.dataset.mode === MODE));
+      btn.addEventListener("click", () => setMode(btn.dataset.mode, bar));
+    }
+    for (const [href, label, montageHint, derushHint] of PAGES) {
+      if (DERUSH && derushHint === null) continue;
+      const hint = DERUSH && derushHint ? derushHint : montageHint;
       const li = document.createElement("li");
       const a = Object.assign(document.createElement("a"), { href });
       if (current && current[0] === href) a.setAttribute("aria-current", "page");
@@ -81,6 +108,7 @@
     document.addEventListener("click", (e) => { if (!bar.contains(e.target)) open(false); });
     document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !panel.hidden) { open(false); toggle.focus(); } });
     document.body.prepend(bar);
+    if (DERUSH && current && current[3] === null) offPage();
     // Bandeau de bord à bord, malgré la marge intérieure de la page.
     const pad = getComputedStyle(document.body);
     bar.style.marginLeft = `-${pad.paddingLeft}`;
@@ -103,6 +131,27 @@
       const badge = Object.assign(document.createElement("span"), { className: "am-badge", textContent: `${st.update.latest} disponible` });
       b.append(badge);
     }).catch(() => {});
+  }
+  // Changement de mode : enregistré par le serveur (work/mode.txt), puis la page est rechargée
+  // pour montrer ou masquer ses parties.
+  async function setMode(mode, bar) {
+    if (mode === MODE) return;
+    const buttons = bar.querySelectorAll(".am-mode button");
+    buttons.forEach((b) => { b.disabled = true; });
+    const r = await fetch("/api/mode", { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify({ mode }) }).catch(() => null);
+    if (r && r.ok) { location.reload(); return; }
+    buttons.forEach((b) => { b.disabled = false; });
+    alert("Le mode n'a pas pu être changé : Auto-montage ne répond pas.");
+  }
+  // Page réservée au mode Auto-montage (Claude), ouverte en dérushage : remplacée par un message.
+  function offPage() {
+    for (const el of document.body.children) if (!el.classList.contains("am-bar")) el.hidden = true;
+    const box = document.createElement("section");
+    box.className = "am-off-page";
+    box.innerHTML = "<h1></h1><p>Le mode Dérushage sert à découper le rush en moments, sans Claude ni effets. Cette page fait partie du mode Auto-montage.</p><button type=\"button\">Passer en mode Auto-montage</button>";
+    box.querySelector("h1").textContent = current[1];
+    box.querySelector("button").addEventListener("click", () => setMode("montage", document.querySelector(".am-bar")));
+    document.body.append(box);
   }
   // Claude Code : pastille « Nécessite Claude Code » sur les parties qui en ont besoin ; sans
   // connexion, elles sont grisées et rendues inutilisables (inert), et la pastille mène à la

@@ -4,6 +4,19 @@ Chaque version publiée reprend sa section dans ses notes (onglet Releases). Une
 section, le numéro dans `VERSION` et le tag `v<numéro>` poussé publient la version avec ses
 installateurs (voir `packaging/README.md`).
 
+## 0.64
+
+- **Deux modes, au choix dans le bandeau du haut** : « Dérushage » et « Auto-montage ».
+  En **Dérushage**, Auto-montage ne sert qu'à découper le rush en moments : cocher les moments
+  à garder, couper, scinder ou fusionner, puis générer la version de travail, qui les met bout à
+  bout tels quels (ni zooms, ni effets, ni réglages du son). Les sous-titres restent, avec une
+  case « Sous-titres dans la version de travail » (cochée au départ) pour les retirer, « Corriger »
+  et « Supprimer les sous-titres » sur chaque moment, et leur style. Les effets, les
+  consignes, le style et tout ce qui demande Claude disparaissent des pages, et les pages
+  « Discuter avec Claude » et « Connexion à Claude » du menu. **Auto-montage** garde toutes les
+  fonctions, comme avant. Le choix vaut pour tous les montages ; les effets déjà placés sont
+  gardés et reviennent en repassant en Auto-montage.
+
 ## 0.63
 
 - **La barre de progression ne recule plus** : elle avançait d'après le temps restant estimé, et
