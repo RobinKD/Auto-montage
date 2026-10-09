@@ -845,6 +845,7 @@
     typed: "Texte tapé au clavier en grand, au milieu de l'image (comme l'intro).", chip: "Pastille blanche avec un titre, en haut (avec son « bop »).",
     zoomin: "Zoom avant progressif sur le visage ; le cadre reste serré jusqu'à la fin du moment.",
     zoomsec: "Cadre serré d'un coup, pendant la durée choisie.", dezoom: "On part serré et on revient au cadre large.",
+    zoomlibre: "Zoom progressif d'un cadre à un autre (images clés) : début et fin à la tête de lecture, chaque cadre réglé en zoomant l'image du lecteur.",
     shake: "L'image tremble puis se calme, pour souligner un mot fort.", flash: "Éclair blanc, pour marquer un changement de partie.",
     highlight: "Un mot du sous-titre plus gros et en couleur, sur tout le moment.",
   };
@@ -918,6 +919,7 @@
       if (e.id === "zoomin") scale = 1 + 0.25 * ease((t - 0.3) / 0.8);
       if (e.id === "zoomsec") scale = t >= 0.4 && t < 1.6 ? 1.25 : 1;
       if (e.id === "dezoom") scale = 1 + 0.3 * (1 - ease((t - 0.4) / 0.8));
+      if (e.id === "zoomlibre") { scale = 1 + 0.7 * ease((t - 0.3) / 1.6); img.style.transformOrigin = "38% 30%"; }
       if (e.id === "shake" && t >= 0.3 && t < 0.8) {
         const damp = 1 - (t - 0.3) / 0.5;
         dx = 6 * damp * (Math.sin(t * 71) + 0.5 * Math.sin(t * 37)); dy = 6 * damp * (Math.cos(t * 59) + 0.5 * Math.sin(t * 43));
@@ -934,7 +936,7 @@
         typed.textContent = text.slice(0, Math.floor(Math.max(0, t - 0.2) / 1.2 * text.length)) + (Math.floor(t * 3) % 2 ? "|" : "");
       }
       if (t < 2.9) requestAnimationFrame(frame);
-      else { img.style.transform = ""; chip.hidden = true; }
+      else { img.style.transform = ""; img.style.transformOrigin = ""; chip.hidden = true; }
     };
     requestAnimationFrame(frame);
   }

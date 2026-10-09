@@ -67,7 +67,9 @@ CURRENT_RUSH = os.path.basename(open(os.path.join(WORK, "rush.txt")).read().stri
 #    "vfx": {"segment": [effet visuel, …]}}  (comme sur la page, temps depuis le début de
 #            l'extrait du moment : {"kind": "zoomin"|"zoomsec"|"dezoom"|"shake", "at", "dur",
 #            "force" (%)}, {"kind": "flash", "at", "dur"}, {"kind": "highlight", "text": "mot",
-#            "color": "#rrggbb"})
+#            "color": "#rrggbb"}, {"kind": "zoomlibre", "at", "dur", "from": {"s", "x", "y"},
+#            "to": {"s", "x", "y"}} (zoom progressif d'un cadre à l'autre : grossissement s de 1 à 4,
+#            centre x, y de l'image visible de 0 à 1))
 CHOICES_PATH = os.path.join(WORK, "edit_choices.json")
 if os.path.exists(CHOICES_PATH):
     _c = json.load(open(CHOICES_PATH))
@@ -647,6 +649,22 @@ for seg_id, _, _ in KEEP:
                 shakes.append({"start": round(start, 3), "end": round(start + dur, 3), "force": force})
             else:
                 flashes.append({"start": round(start, 3), "end": round(start + dur, 3)})
+            continue
+        if kind == "zoomlibre":
+            # Zoom libre : d'un cadre à un autre (grossissement s, centre x, y de l'image visible),
+            # entre deux instants du rush ; cadre de début avant, de fin après, sur tout le moment.
+            def frame(k):
+                k = k if isinstance(k, dict) else {}
+                s = max(1.0, min(4.0, float(k.get("s") or 1)))
+                h = 0.5 / s
+                return {"s": round(s, 3), "x": round(max(h, min(1 - h, float(k.get("x", 0.5)))), 4),
+                        "y": round(max(h, min(1 - h, float(k.get("y", 0.5)))), 4)}
+            at = float(fx.get("at", 0))
+            a = page_start(seg_id) + at
+            zoom_fx.append({"type": "key", "start": round(clips_of[seg_id][0]["from"] / FPS, 3),
+                            "end": round(clip_end(clips_of[seg_id][-1]), 3), "a": round(a, 3),
+                            "b": round(a + max(0.05, float(fx.get("dur", 1))), 3),
+                            "from": frame(fx.get("from")), "to": frame(fx.get("to"))})
             continue
         if kind == "highlight":  # mot (ou mots) du sous-titre en couleur, sur tout le moment
             word = str(fx.get("text", "")).strip()

@@ -62,15 +62,20 @@ npm i
    force (curseur de 0 à 200 %, 100 % = réglage d'origine, audible en direct dans l'aperçu) ;
    elle est pré-cochée sur les moments drôles (`FUNNY`). Les moments dont les effets ont été
    enregistrés avant cet effet (sans `fxv: 2`) gardent la voix proposée.
-   Le curseur « Découpe » d'un moment (image et mot à l'instant choisi, « ‹ › » une image,
-   « « » » » cinq images, « Zoom » sur 2 s pour placer chaque image à la souris) puis « Couper
-   ici » découpe un moment en parties à cocher une à une, par exemple pour retirer une
+   La page ressemble à un logiciel de montage : frise du rush sur une ligne qui défile (images de
+   chaque moment, forme d'onde de la voix, case garder / retirer, poignées pour raccourcir le
+   début ou la fin du moment choisi), et frise du moment choisi dessous (règle : image et mot à
+   l'instant choisi, « ‹ › » ou ← → une image, zoom jusqu'à ×16 pour placer chaque image à la
+   souris) ; puis « Couper ici » découpe un moment en parties à garder ou retirer une à une
+   (étiquette de chaque partie sur ses images), par exemple pour retirer une
    répétition que Whisper n'a pas transcrite. La coupe tombe sur l'image choisie (positions
    calées sur les images du rush, 30 i/s) ; dans la variante, la partie k du moment id s'écrit
    `"id/k"` et les instants de coupe sont dans le document du moment (`cuts`).
-   Filtre « Sans parole » : les plans entre deux phrases (id ≥ 1000), décochés par défaut,
-   à garder en entier ou en partie (« Garder de … à … », ou curseur « Bornes » avec « Début
-   ici » / « Fin ici »).
+   Plans sans parole (hachurés sur la frise) : les plans entre deux phrases (id ≥ 1000),
+   décochés par défaut, à garder en entier ou en partie (poignées sur la frise du rush, ou
+   « Début ici » / « Fin ici » à la tête de lecture).
+   « Zoom libre » : zoom progressif d'un cadre à un autre ; début et fin à la tête de lecture
+   (« Ici »), chaque cadre réglé en zoomant et en faisant glisser l'image du lecteur.
    Effets visuels par moment : « Texte tapé » (comme l'intro : texte, départ, durée de frappe,
    durée d'affichage, son clavier) et « Pastille » (comme les étapes, son bop). L'intro et les
    étapes sont ces effets, pré-cochés ; pas de sous-titre pendant un texte tapé.

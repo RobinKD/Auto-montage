@@ -112,7 +112,8 @@ lancements suivants prennent quelques secondes.
    moments argumentées, intro, effets, coupes au mot près.
 3. **Choisir** sur la page des moments : cocher les moments, corriger les sous-titres, ajouter
    des effets sonores (caisse, bop, clavier, voix modifiée) et visuels (texte tapé, pastille),
-   couper un moment (curseur « Découpe » puis « Couper ici »), garder des plans sans parole, créer des variantes.
+   couper un moment (frise du moment, sous celle du rush, puis « Couper ici »), zoomer d'un cadre à l'autre (« Zoom libre »),
+   garder des plans sans parole, créer des variantes.
    Chaque moment se lit habillé comme dans le montage.
    Préparer un autre rush met le montage en cours de côté : la page « Rushes et montages » le rouvre
    plus tard tel quel (section « Montages », sans rien recalculer).

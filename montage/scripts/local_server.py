@@ -2292,14 +2292,25 @@ class Handler(BaseHTTPRequestHandler):
             if busy():
                 return self.send_json({"error": busy_error()}, 409)
             action = route.rsplit("/", 1)[1]
+            # Fusion de plusieurs moments sélectionnés sur la frise : « count » fusions de suite
+            # (le moment fusionné garde l'id du premier).
+            done = 0
             try:
                 mid = int(body.get("id"))
                 extra = [float(body.get("t", 0))] if action == "split" else []
-                message = getattr(decoupage, action)(mid, *extra)
+                count = max(1, min(100, int(body.get("count", 1)))) if action == "merge" else 1
+                for _ in range(count):
+                    message = getattr(decoupage, action)(mid, *extra)
+                    done += 1
+                if count > 1:
+                    message = f"{count + 1} moments fusionnés en un seul."
             except decoupage.Refus as e:
-                return self.send_json({"error": str(e)}, 400)
+                if not done:
+                    return self.send_json({"error": str(e)}, 400)
+                message = f"{done + 1} moments fusionnés en un seul (pas plus : {e})"
             except (TypeError, ValueError):
-                return self.send_json({"error": "Moment invalide."}, 400)
+                if not done:
+                    return self.send_json({"error": "Moment invalide."}, 400)
             if not start_job("decoupage", [("page des moments", ["python3", "scripts/make_moments.py"])], message):
                 return self.send_json({"error": busy_error()}, 409)
             return self.send_json({"ok": True, "message": message}, 202)

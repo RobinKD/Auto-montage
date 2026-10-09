@@ -115,6 +115,10 @@ echo "$DATA" | json '[c["id"] for c in d["sfxCatalog"]]' | has "perso-bip-essai"
 for f in /montage.mp4 /out/montage_apercu.mp4 "$(echo "$DATA" | json 'd["moments"][0]["clip"]' | sed 's|^|/|')"; do
   [ "$(curl -s -o /dev/null -w '%{http_code}' -H 'Range: bytes=0-99' "$URL$f")" = 206 ] || fail "vidéo $f"
 done
+# Frises de la page : images du rush et forme d'onde.
+SHEET="$(echo "$DATA" | json 'd["strip"]["sheets"][0]')"
+curl -fsS -o /dev/null "$URL/$SHEET" || fail "images de la frise ($SHEET)"
+echo "$DATA" | json 'len(d["wave"]) > 0' | has -x True || fail "forme d'onde absente de la page"
 curl -fsS "$URL/downloads/" | has "1080p" || fail "page des téléchargements"
 curl -fsS "$URL/chat/" | has "Discuter\|Claude" || fail "page de discussion"
 curl -fsS "$URL/logs/" | has "Journal" || fail "page Journal"
