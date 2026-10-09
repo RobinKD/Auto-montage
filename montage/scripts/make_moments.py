@@ -55,6 +55,36 @@ def face_at(t):
     return [p["x"], p["y"]]
 
 
+def face_track(a, b):
+    """Cadrage pendant l'extrait [a, b] (detect_face.py) : [[temps dans l'extrait, x, y, zoom
+    maximal, visages [[personne, x, y, w, h], …]], …], suivi par l'aperçu de la page comme par le rendu."""
+    return [[round(p["t"] - a, 2), p["x"], p["y"], p.get("s", 3), p.get("faces", [])]
+            for p in face if a - 0.5 <= p["t"] <= b + 0.5]
+
+
+def persons_in(a, b):
+    """Personnes vues pendant [a, b] (au moins 2 instants), de la plus présente à la moins présente :
+    proposées pour le cadrage du moment (« Cadrage » de la page)."""
+    seen = {}
+    for p in face:
+        if a <= p["t"] <= b:
+            for f in p.get("faces", []):
+                seen[f[0]] = seen.get(f[0], 0) + 1
+    return [k for k, n in sorted(seen.items(), key=lambda x: -x[1]) if n >= 2 and k in PERSONS]
+
+
+# Vignettes des personnes (detect_face.py : work/visages/p<n>.jpg), copiées pour la page.
+PERSONS = {}
+os.makedirs(os.path.join(OUT, "visages"), exist_ok=True)
+for name in os.listdir(os.path.join(OUT, "visages")):
+    os.remove(os.path.join(OUT, "visages", name))
+if os.path.isdir(os.path.join(WORK, "visages")):
+    for name in sorted(os.listdir(os.path.join(WORK, "visages"))):
+        if name.startswith("p") and name.endswith(".jpg") and name[1:-4].isdigit():
+            shutil.copy(os.path.join(WORK, "visages", name), os.path.join(OUT, "visages", name))
+            PERSONS[int(name[1:-4])] = f"visages/{name}"
+
+
 for sub in ("clips", "thumbs"):
     os.makedirs(os.path.join(OUT, sub), exist_ok=True)
 source = os.path.join(ROOT, "public", "rushes", "rush_1080.mp4")  # H.264, lisible partout
@@ -123,6 +153,8 @@ for s in segments:
         "text": " ".join(w["w"] for w in words if w["w"]) or s["text"],
         "words": words,
         "face": face_at((s["start"] + s["end"]) / 2),
+        "faceTrack": face_track(a, b),
+        "persons": persons_in(s["start"], s["end"]),
         "cashWord": overlay.get("cashWord", {}).get(str(s["id"])),
         "chip": overlay.get("chips", {}).get(str(s["id"])),
         "vfxExtra": overlay.get("vfx", {}).get(str(s["id"]), []),  # effets visuels placés par Claude
@@ -145,7 +177,8 @@ for g in gap_list:
     extract(name, g["start"], g["end"], 30, "48k")
     moments.append({
         "id": g["id"], "gap": True, "start": g["start"], "end": g["end"], "text": "", "words": [],
-        "face": face_at((g["start"] + g["end"]) / 2), "cashWord": None, "chip": None,
+        "face": face_at((g["start"] + g["end"]) / 2), "faceTrack": face_track(g["start"], g["end"]),
+        "persons": persons_in(g["start"], g["end"]), "cashWord": None, "chip": None,
         "suggested": False, "reason": "", "clip": f"clips/{name}.mp4", "thumb": f"thumbs/{name}.jpg",
     })
     steps_done += g["end"] - g["start"]
@@ -223,6 +256,7 @@ data = {"rush": os.path.basename(rush), "width": WIDTH, "height": HEIGHT, "layou
         "intro": {"text": overlay.get("intro"), "at": overlay.get("introAt", 0.2),
                   "type": overlay.get("introType", 1.6)} if overlay.get("intro") else None,
         "captionFont": font, "captionLines": {k: caption_lines[k] for k in ("lines", "lineSizes")},
+        "persons": {str(k): v for k, v in PERSONS.items()},
         "voices": [{"id": i, "label": label, "desc": desc} for i, label, desc in VOICES]}
 # Nom du rush échappé, données sans « < » (une transcription contenant « </script> » ne
 # referme pas le script de la page).

@@ -136,7 +136,9 @@ def build(m, k=1, part=None):
     cs = m.cap
     font_ext = os.path.splitext(m.font_file)[1]
     data = {"fps": fps, "frames": n, "clips": [{k: c[k] for k in ("from", "durationInFrames", "trimBefore")} for c in e["clips"]],
-            "face": m.face, "zooms": e.get("zooms") or [], "zoomFx": e.get("zoomFx") or [], "shakes": e.get("shakes") or [],
+            "face": [{k: f.get(k, 3) for k in ("t", "x", "y", "s")} | ({"faces": f.get("faces", [])} if e.get("focus") else {})
+                     for f in m.face],
+            "focus": e.get("focus") or [], "zooms": e.get("zooms") or [], "zoomFx": e.get("zoomFx") or [], "shakes": e.get("shakes") or [],
             "flashes": e.get("flashes") or [], "typed": m.typed, "chips": e.get("chips") or [], "captions": caps,
             "hab": m.hab, "cap": {k: cs.get(k) for k in ("weight", "size", "uppercase", "color", "shadow", "blur", "ox", "oy")}}
     page = PAGE
@@ -411,10 +413,41 @@ const sourceTime = (f) => {
   const c = D.clips.find((c) => f >= c.from && f < c.from + c.durationInFrames) || D.clips[D.clips.length - 1];
   return (c.trimBefore + f - c.from) / FPS;
 };
-const faceAt = (t) => {
+const faceAt = (t, person) => {
   const F = D.face, i = Math.min(F.length - 2, Math.max(0, Math.floor(t / 0.5))), a = F[i], b = F[i + 1];
   const k = clamp((t - a.t) / ((b.t - a.t) || 1), 0, 1);
-  return { x: a.x + (b.x - a.x) * k, y: a.y + (b.y - a.y) * k };
+  const focused = person && focusFrame(a, b, k, person);
+  if (focused) return focused;
+  // s : zoom maximal qui garde tous les visages retenus dans l'image (detect_face.py).
+  return { x: a.x + (b.x - a.x) * k, y: a.y + (b.y - a.y) * k, s: Math.min(a.s, b.s) };
+};
+// Moment cadré sur une personne (page des moments) : son visage, à la taille d'un plan rapproché
+// (visage sur FOCUS_H de la hauteur, zoom jusqu'à ×2,5 au plus), centré quand c'est possible.
+// Personne dans un cadre (écran partagé, incrustation : x0, y0, x1, y1 de detect_face.py) : zoom
+// d'au moins la taille du cadre (×PANEL_MAX au plus) et image visible gardée dans le cadre.
+// Même règle dans la page des moments (faceInClip de selection/page.html).
+const FOCUS_H = 0.22, PANEL_MAX = 4;
+const focusFrame = (a, b, k, person) => {
+  const fa = (a.faces || []).find((f) => f[0] === person), fb = (b.faces || []).find((f) => f[0] === person);
+  const f = fa && fb ? fa.slice(0, 5).map((v, i) => i ? v + (fb[i] - v) * k : v) : fa || fb;
+  if (!f) return null;
+  const [, x, y, w, h] = f, near = (k < 0.5 ? fa : fb) || fa || fb;
+  const panel = near.length > 8 ? near.slice(5, 9) : null;
+  // Zoom maximal : le visage, avec un peu d'air, tient dans l'image visible (centrée sur lui).
+  let s = clamp(Math.min(1 / (1.4 * w), 1 / (1.4 * h)), 1, 2.5), base = clamp(FOCUS_H / h, 1, 2.5);
+  if (panel) {
+    const need = Math.min(PANEL_MAX, Math.max(1 / (panel[2] - panel[0]), 1 / (panel[3] - panel[1])));
+    s = Math.max(s, need);
+    base = Math.max(base, need);
+  }
+  return { x, y, s, base, center: true, panel };
+};
+// Origine du zoom qui met le point c au centre de l'image visible, bornée aux bords de l'image,
+// ou à ceux du cadre [lo, hi] de la personne (l'image visible, 1/scale, reste dedans).
+const centeredOrigin = (c, scale, lo = 0, hi = 1) => {
+  if (scale - 1 < 1e-3) return c;
+  const v = 1 / scale, left = hi - lo >= v ? clamp(c - v / 2, lo, hi - v) : (lo + hi - v) / 2;
+  return clamp(left / (1 - v), 0, 1);
 };
 const esc = (s) => s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
 // Ombre : intensité (0-100, plus ou moins sombre), diffusion du flou et décalage (ox, oy), en px sur 1080.
@@ -447,10 +480,16 @@ function draw(frame) {
     dx = 40 * sh.force * damp * (Math.sin(t * 71) + 0.5 * Math.sin(t * 37));
     dy = 40 * sh.force * damp * (Math.cos(t * 59) + 0.5 * Math.sin(t * 43));
   }
-  const f = faceAt(sourceTime(frame));
+  const fo = D.focus.find((x) => inRange(t, x));
+  const f = faceAt(sourceTime(frame), fo && fo.person);
+  // Personne ne sort de l'image (zooms automatiques et placés) ; cadrage sur une personne :
+  // zoom de base du plan rapproché, plafonné pour garder son visage entier.
+  scale = Math.min(scale * (f.base || 1), f.s);
   const z = el("zoom");
   z.style.transform = `translate(${dx}px, ${dy}px) scale(${scale})`;
-  z.style.transformOrigin = `${f.x * 100}% ${f.y * 100}%`;
+  const P = f.panel || [0, 0, 1, 1];
+  z.style.transformOrigin = f.center ? `${centeredOrigin(f.x, scale, P[0], P[2]) * 100}% ${centeredOrigin(f.y, scale, P[1], P[3]) * 100}%`
+    : `${f.x * 100}% ${f.y * 100}%`;
 
   // Texte tapé.
   const ty = D.typed.find((x) => inRange(t, x));

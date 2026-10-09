@@ -7,7 +7,8 @@ Usage : python3 scripts/use_selection.py <dossier d'export> <variante>
                               "sfx"?: ["cash", …] ou [{"kind", "at", "repeat", "gap", "dur"}, …],
                               "vfx"?: [{"kind": "typed" | "chip", "text", "at", "type", "dur", "sound"}, …],
                               "trim"?: {"in", "out"} pour un plan sans parole (id >= 1000),
-                              "cuts"?: [instants de coupe en s], "fxv"?: 2}
+                              "cuts"?: [instants de coupe en s], "fxv"?: 2,
+                              "focus"?: n (cadrage sur la personne n de detect_face.py)}
   Dans « keep », « id/k » désigne la partie k d'un moment découpé (« Couper ici »).
 Écrit work/selection.json, que build_edit.py utilise à la place de KEEP, avec les
 corrections de sous-titres et les effets sonores choisis par moment.
@@ -31,7 +32,7 @@ doc = load(os.path.join(export_dir, "variantes", f"{variant}.json"))
 if doc.get("rush") != rush:
     sys.exit(f"Cette sélection vise {doc.get('rush')!r}, le rush en cours est {rush!r}")
 
-corrections, sfx, vfx, trims, cuts, sfx_legacy, gains = {}, {}, {}, {}, {}, [], {}
+corrections, sfx, vfx, trims, cuts, sfx_legacy, gains, focus = {}, {}, {}, {}, {}, [], {}, {}
 for path in glob.glob(os.path.join(export_dir, "moments", "*.json")):
     m = load(path)
     if m.get("rush") != rush:
@@ -53,10 +54,12 @@ for path in glob.glob(os.path.join(export_dir, "moments", "*.json")):
         gains[seg] = max(0.0, min(2.0, float(m["gain"])))
     if isinstance(m.get("vfx"), list):
         vfx[seg] = [v for v in m["vfx"] if isinstance(v, dict)]
+    if isinstance(m.get("focus"), int) and not isinstance(m["focus"], bool):  # cadrage sur une personne
+        focus[seg] = m["focus"]
 
 json.dump(
     {"name": doc.get("name"), "keep": doc["keep"], "corrections": corrections, "sfx": sfx, "vfx": vfx,
-     "trims": trims, "cuts": cuts, "sfx_legacy": sfx_legacy, "gains": gains},
+     "trims": trims, "cuts": cuts, "sfx_legacy": sfx_legacy, "gains": gains, "focus": focus},
     open(os.path.join(ROOT, "work", "selection.json"), "w"),
     ensure_ascii=False,
     indent=1,

@@ -107,7 +107,7 @@ GitHub, npm et PyPI sont ouverts par défaut.
 Le plugin Claude Code HyperFrames est déclaré dans `.claude/settings.json`.
 Au démarrage de chaque session web, le hook `.claude/hooks/session-start.sh` (déclaré dans
 `.claude/settings.json`) réinstalle ce plugin si besoin, puis les paquets Node et Python, le navigateur de rendu, Whisper et ses modèles, la police
-Oliver et le modèle de détection du visage. Environ 2 min 30 la première fois, quelques secondes ensuite.
+Oliver et les modèles des visages (YuNet, SFace, et Haar en secours). Environ 2 min 30 la première fois, quelques secondes ensuite.
 
 ## Refaire la préparation
 
@@ -165,7 +165,7 @@ découpage se fait d'après la parole.
 | Version de travail 1080×1920 (MP4), par morceaux d'une minute | `version_travail.py` (via `prepare.sh`) | `public/rushes/` |
 | Source 4K des images gardées (rendu final) | `make_hd.py` via `render.sh final` | `public/rushes/rush_2160.webm` |
 | Segments de parole (VAD Silero) et transcription mot à mot par segment (Whisper large-v3-turbo, segments transcrits ensemble par morceaux de 28 s) | `setup_whisper.sh`, `transcribe_segments.py` | `work/segments.json` |
-| Position du visage | `detect_face.py` | `src/data/face.json` |
+| Visages et cadrage des zooms (YuNet, tous les visages, zoom plafonné pour que personne ne sorte de l'image ; personnes reconnues par SFace, vignettes pour le « Cadrage » par moment) | `detect_face.py`, `fetch_face_model.sh` | `src/data/face.json`, `work/visages/` |
 | Bruitages provisoires | `make_sfx.py` | `public/sfx/` |
 | Dérush, sous-titres, zooms, effets, piste voix | `build_edit.py` | `src/data/edit.json`, `public/audio/voice.wav` |
 
