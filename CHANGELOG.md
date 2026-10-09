@@ -4,6 +4,13 @@ Chaque version publiée reprend sa section dans ses notes (onglet Releases). Une
 section, le numéro dans `VERSION` et le tag `v<numéro>` poussé publient la version avec ses
 installateurs (voir `packaging/README.md`).
 
+## 0.63
+
+- **La barre de progression ne recule plus** : elle avançait d'après le temps restant estimé, et
+  reculait quand cette estimation s'allongeait. Elle suit maintenant la part du rush déjà
+  traitée par l'étape en cours (par exemple 2 min sur 6 min de vidéo transcrites) : elle ne fait
+  qu'avancer. Le temps restant affiché à côté reste une estimation.
+
 ## 0.62
 
 - **Lecteur toujours visible sur la page des moments** : la vidéo, ses onglets (version de

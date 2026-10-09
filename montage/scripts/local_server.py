@@ -703,6 +703,46 @@ def remaining_time():
     return current, rest
 
 
+def step_weights():
+    """Part de chaque étape et de ses opérations dans la barre d'ensemble, fixée au début de la
+    tâche (durées prévues sans la vitesse mesurée ensuite) : la barre ne recule pas quand le
+    temps restant s'allonge."""
+    rates = load_rates()
+    return {step: {"ops": {k: estimate(k, rates) for k in PLAN.get(step, [])},
+                   "rest": estimate(f"étape:{step}", rates)}
+            for step in job.get("steps") or []}
+
+
+def overall_progress():
+    """Avancement de la tâche (0 à 1) d'après la vidéo traitée : étapes finies, puis dans
+    l'étape en cours, temps de rush (ou de montage) traité par chacune de ses opérations. Seul
+    le reste de l'étape hors barres (Claude, installation…) suit le temps passé, sans dépasser
+    95 %. Jamais en recul."""
+    weights = job.get("weights") or {}
+    steps = job.get("steps") or []
+    if job["step"] not in steps:
+        return job.get("overallMax", 0.0)
+    i = steps.index(job["step"])
+    total = sum(sum(w["ops"].values()) + w["rest"] for w in weights.values())
+    done = sum(sum(weights[s]["ops"].values()) + weights[s]["rest"] for s in steps[:i] if s in weights)
+    w = weights.get(job["step"], {"ops": {}, "rest": 0.0})
+    p = job.get("progress")
+    for k, est in w["ops"].items():
+        o = job["ops"].get(k)
+        if not o or o.get("step") != job["step"]:
+            continue
+        running = p and p["label"] == k and not p.get("ended")
+        f = min(1.0, o["done"] / o["total"]) if o["total"] else 0.0
+        done += est * (f if running or k not in job["spent"] else 1.0)
+    if w["rest"] and job.get("stepStart"):
+        now = time.time()
+        outside = now - job["stepStart"] - job["stepPhases"] - (now - p["since"] if p and not p.get("ended") else 0)
+        done += w["rest"] * min(0.95, max(0.0, outside) / w["rest"])
+    f = done / total if total > 0 else i / max(1, len(steps))
+    job["overallMax"] = max(job.get("overallMax", 0.0), min(1.0, f))
+    return job["overallMax"]
+
+
 def run_job(steps, arg, args, first=0):
     log = job.get("logFile")
 
@@ -723,6 +763,7 @@ def run_job(steps, arg, args, first=0):
         # Plusieurs vidéos à assembler : le rush assemblé n'existe pas encore (ou va être refait).
         job["rushSeconds"] = sum(media_seconds(os.path.join(RUSHES, a)) for a in args) if len(args) > 1 \
             else style_seconds() if job["kind"] == "style" else media_seconds(rush)
+        job["weights"] = step_weights()
         # Mémoire : besoin de la tâche (son étape la plus gourmande) et de chaque étape.
         paths = [os.path.join(RUSHES, a) for a in args] if job["kind"] == "prepare" else [rush]
         try:
@@ -1245,7 +1286,7 @@ def start_job(kind, steps, arg, args=None, resume=None, reuse=False):
                    spent={}, opStart={}, stepStart=None, stepPhases=0.0, rushSeconds=0.0,
                    steps=[name for name, _ in steps], args=args or [arg], stepIndex=r.get("index", 0),
                    ops=dict(r.get("ops") or {}), resumed=bool(resume), reuse=reuse, before=float(r.get("elapsed") or 0),
-                   firstStartedAt=r.get("startedAt"), memory=None, stepMemory=None, memInfo=None,
+                   firstStartedAt=r.get("startedAt"), weights={}, overallMax=0.0, memory=None, stepMemory=None, memInfo=None,
                    langue=r.get("langue") or language(WORK),
                    startedAt=datetime.datetime.now().isoformat(), startedTs=time.time())
         try:
@@ -1259,7 +1300,7 @@ def start_job(kind, steps, arg, args=None, resume=None, reuse=False):
 
 
 def job_status():
-    status = {k: v for k, v in job.items() if k not in ("log", "spent", "proc", "cancel", "logFile", "opStart", "memInfo", "memPeaks", "memOp", "renderWorkers")} \
+    status = {k: v for k, v in job.items() if k not in ("log", "spent", "proc", "cancel", "logFile", "opStart", "memInfo", "memPeaks", "memOp", "renderWorkers", "weights")} \
         | {"log": job["log"][-30:], "now": time.time(), "paused": paused_task(),
            "plan": PLAN}
     if job["state"] == "running":
@@ -1268,9 +1309,12 @@ def job_status():
         except Exception:  # noqa: BLE001 - l'estimation ne doit jamais casser le suivi
             traceback.print_exc()
             current, rest = None, None
-        elapsed = job.get("before", 0.0) + time.time() - job["startedTs"]
         status["remaining"] = None if rest is None else round(rest)
-        status["overall"] = round(elapsed / (elapsed + rest), 4) if rest is not None and elapsed + rest > 0 else 0.0
+        try:
+            status["overall"] = round(overall_progress(), 4)
+        except Exception:  # noqa: BLE001
+            traceback.print_exc()
+            status["overall"] = job.get("overallMax", 0.0)
         if status.get("progress") and current is not None:
             status["progress"] = status["progress"] | {"remaining": round(current)}
     else:

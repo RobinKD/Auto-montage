@@ -216,7 +216,9 @@ interne : les changements attendent la prochaine version.
   `@progression <fait> <total> <libellé>` (`scripts/progress.py`, aussi pour suivre un ffmpeg) ;
   `local_server.py` les lit. Fait et total en secondes de vidéo (rush, ou montage pour le rendu :
   `UNITS`), montrés par opération sous chaque étape de /rush/ (`job.ops`). Temps restant : `PLAN` et `RATES`
-  (secondes par seconde de rush ou de montage), recalés sur la machine dans `work/timings.json`.
+  (secondes par seconde de rush ou de montage), recalés sur la machine dans `work/timings.json`. Barre d'ensemble (`overall_progress`) : part de vidéo traitée de chaque opération, pesée par les
+  durées prévues au début de la tâche (`step_weights`), jamais en recul ; seul le reste d'une étape hors
+  barres suit le temps passé (95 % au plus).
 - Connexion à Claude (/claude/) : `claude auth login` dans un pseudo-terminal (adresse
   d'autorisation renvoyée à la page, code collé transmis) ; état par `claude auth status`.
 - Mises à jour (/updates/) : `scripts/update.py` (check : versions publiées via l'API GitHub,
