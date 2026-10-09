@@ -103,6 +103,18 @@ interne : les changements attendent la prochaine version.
   `src/data/edit.json` et `face.json` du dépôt sont ceux du rush de démonstration
   (`tests/make_demo_rush.py`) : n'y jamais versionner un vrai rush ; `update.py` garde ceux de
   l'utilisateur.
+- Modes de l'interface locale (bandeau du haut, `local/menu.js`) : « Dérushage » ou
+  « Auto-montage », dans `work/mode.txt` (commun à tous les rushes, `moments_lib.app_mode`, PUT
+  `/api/mode`). Le serveur l'écrit sur `<html data-mode>` (`with_mode` de `local_server.py`) ; en
+  dérushage, les parties marquées `data-mode-montage` sont masquées (consignes, style, effets,
+  son, cadrage ; pages Claude retirées du menu), la page des moments (`DERUSH`) ne montre que le
+  choix et la découpe des moments, et les sous-titres : case « Sous-titres » (cochée par défaut,
+  `work/derush.json`, `moments_lib.derush_subtitles`, PUT `/api/derush`, `<html data-subtitles>` ;
+  « Corriger » et « Style des sous-titres », marqué `data-subtitles-only`, seulement cochée). La
+  préparation se fait sans Claude (discussion et analyse du style refusées), et `build_edit.py`
+  (`DERUSH`) ignore effets, voix, cadrage, son.json, zooms, rebond et karaoké, et les sous-titres
+  si la case est décochée (choix gardés pour le mode Auto-montage). Une nouvelle partie liée aux effets ou à Claude
+  doit recevoir `data-mode-montage`.
 - Bandeau et menu des pages de l'interface locale : `local/menu.js`, ajouté par
   `local_server.py` à toutes ses pages (liste `PAGES`) ; pas de liens de navigation dans les pages.
   Il marque aussi les parties qui ont besoin de Claude Code (attribut `data-needs-claude`) :

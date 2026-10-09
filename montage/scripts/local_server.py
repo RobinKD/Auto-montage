@@ -39,7 +39,7 @@ import decoupage  # noqa: E402
 import memoire  # noqa: E402
 import place  # noqa: E402
 import fonts_lib  # noqa: E402
-from moments_lib import SOUNDS as DEFAULT_SOUNDS, DEFAULTS_VERSION, LANGUAGES, VISUALS, VOICES, edit_size, hf_preview_files, hidden_effects, language, res_label, sound_catalog, wav_len  # noqa: E402
+from moments_lib import SOUNDS as DEFAULT_SOUNDS, DEFAULTS_VERSION, LANGUAGES, MODES, VISUALS, app_mode, derush_subtitles, VOICES, edit_size, hf_preview_files, hidden_effects, language, res_label, sound_catalog, wav_len  # noqa: E402
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 WORK = os.path.join(ROOT, "work")
@@ -70,6 +70,24 @@ SKELETON = ('<!doctype html><html lang="fr"><head><meta charset="utf-8">'
             '<style>body{margin:0}img{max-width:100%}[hidden]{display:none!important}</style>'
             + f'<script>window.AUTO_MONTAGE_VERSION = {json.dumps(VERSION)};</script>'
             + SHIM + '</head><body>')
+# Mode « Dérushage » : les parties marquées data-mode-montage (effets, sous-titres, Claude) sont
+# masquées dès le chargement ; local/menu.js montre le choix du mode dans le bandeau.
+SKELETON_STYLE = ('html[data-mode="derush"] [data-mode-montage],'
+                  'html[data-mode="derush"][data-subtitles="0"] [data-subtitles-only]{display:none!important}')
+
+
+def with_mode(skeleton):
+    mode, subs = app_mode(WORK), "1" if derush_subtitles(WORK) else "0"
+    return (skeleton.replace('<html lang="fr">', f'<html lang="fr" data-mode="{mode}" data-subtitles="{subs}">', 1)
+            .replace("</style>", SKELETON_STYLE + "</style>", 1))
+
+
+def derush_refused():
+    """Fonction réservée au mode Auto-montage (Claude, effets) : message d'erreur, sinon None."""
+    return ("Indisponible en mode Dérushage : passez en mode Auto-montage dans le bandeau du haut."
+            if app_mode(WORK) == "derush" else None)
+
+
 SAFE_ID = re.compile(r"^(?!\.)[A-Za-z0-9_.~:@+-]{1,200}$")  # ni « . » ni « .. »
 mimetypes.add_type("video/mp4", ".mp4")
 mimetypes.add_type("audio/mpeg", ".mp3")
@@ -1715,6 +1733,8 @@ class Handler(BaseHTTPRequestHandler):
         self.wfile.write(body)
 
     def send_html(self, html):
+        if html.startswith(SKELETON):  # mode choisi dans le bandeau : sur <html>, avant tout affichage
+            html = with_mode(SKELETON) + html[len(SKELETON):]
         body = html.encode()
         self.send_response(200)
         self.send_header("Content-Type", "text/html; charset=utf-8")
@@ -1865,7 +1885,7 @@ class Handler(BaseHTTPRequestHandler):
                                    "claudeInstalled": bool(shutil.which("claude")),
                                    "styleAnalysis": read_text(os.path.join(WORK, "analyse_style.md")),
                                    "update": update_summary(),
-                                   "tutorialSeen": os.path.exists(TUTORIAL_SEEN)})
+                                   "tutorialSeen": os.path.exists(TUTORIAL_SEEN), "mode": app_mode(WORK), "derushSubtitles": derush_subtitles(WORK)})
         if path.startswith("/sfx-defaut/"):  # sons fournis (écoute sur la page « Rushes et montages »)
             return self.send_file(inside(os.path.join(ROOT, "public", "sfx"), os.path.basename(path)))
         if path.startswith("/sfx/perso/"):  # sons personnels (écoute sur la page « Rushes et montages »)
@@ -1890,7 +1910,8 @@ class Handler(BaseHTTPRequestHandler):
             parts = [safe_rush_name(r) for r in q.get("rush", [])[:20]]
             if not parts or not all(parts) or not all(os.path.isfile(os.path.join(RUSHES, n)) for n in parts):
                 return self.send_json({"error": "Rush introuvable dans public/rushes."}, 400)
-            steps = [n for n, _ in (PREPARE_WITH_INSTRUCTIONS if q.get("instructions") == ["1"] else PREPARE_STEPS)]
+            with_claude = q.get("instructions") == ["1"] and app_mode(WORK) != "derush"
+            steps = [n for n, _ in (PREPARE_WITH_INSTRUCTIONS if with_claude else PREPARE_STEPS)]
             plan = memoire.summary(steps, memoire.video_info([os.path.join(RUSHES, n) for n in parts]))
             kept = kept_parts(parts)
             plan["kept"] = [label for pid, label, _ in ABANDON_PARTS if pid in kept]
@@ -2070,6 +2091,27 @@ class Handler(BaseHTTPRequestHandler):
         return self.send_json({"ok": True})
 
     def do_PUT(self):
+        if urlparse(self.path).path == "/api/mode":  # bandeau : Dérushage ou Auto-montage
+            try:
+                body = self.read_json()
+            except ValueError:
+                body = {}
+            mode = body.get("mode") if isinstance(body, dict) else None
+            if mode not in MODES:
+                return self.send_json({"error": "Mode inconnu."}, 400)
+            os.makedirs(WORK, exist_ok=True)
+            open(os.path.join(WORK, "mode.txt"), "w", encoding="utf-8").write(mode + "\n")
+            return self.send_json({"mode": mode})
+        if urlparse(self.path).path == "/api/derush":  # dérushage : sous-titres oui / non
+            try:
+                body = self.read_json()
+            except ValueError:
+                body = {}
+            if not isinstance(body, dict) or not isinstance(body.get("subtitles"), bool):
+                return self.send_json({"error": "Réglage invalide"}, 400)
+            os.makedirs(WORK, exist_ok=True)
+            json.dump({"subtitles": body["subtitles"]}, open(os.path.join(WORK, "derush.json"), "w"))
+            return self.send_json({"subtitles": body["subtitles"]})
         if urlparse(self.path).path == "/api/instructions":
             return self.upload_instructions()
         if urlparse(self.path).path in ("/api/caption-style", "/api/effects", "/api/son", "/api/habillage"):
@@ -2225,6 +2267,8 @@ class Handler(BaseHTTPRequestHandler):
             if not start_job("final", FINAL_STEPS, "4k"):
                 return self.send_json({"error": busy_error()}, 409)
             return self.send_json({"ok": True}, 202)
+        if route in ("/api/chat", "/api/style/analyse") and derush_refused():
+            return self.send_json({"error": derush_refused()}, 409)
         if route == "/api/chat":
             message = str(body.get("message") or "").strip()
             if not message:
@@ -2293,7 +2337,7 @@ class Handler(BaseHTTPRequestHandler):
             if langue not in LANGUAGES:
                 return self.send_json({"error": "Langue inconnue."}, 400)
             steps = PREPARE_STEPS
-            if body.get("instructions"):
+            if body.get("instructions") and app_mode(WORK) != "derush":  # dérushage : sans Claude
                 if not instructions_info() and not style_info()["videos"] and not style_info()["sons"]:
                     return self.send_json({"error": "Aucune consigne ni aucun élément de style choisi."}, 400)
                 if not claude_connected():

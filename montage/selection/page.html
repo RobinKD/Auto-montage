@@ -320,6 +320,10 @@
   }
   .to-top:hover { border-color: var(--accent); }
   .to-top[hidden] { display: none; }
+  .derush-subs { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; }
+  .derush-subs label { display: inline-flex; flex-direction: row; align-items: center; gap: 8px; font-weight: 600; font-size: 15px; color: var(--fg); cursor: pointer; }
+  .derush-subs input { width: 18px; height: 18px; accent-color: var(--accent); }
+  .derush-subs .sub { margin: 0; }
 </style>
 
 <main>
@@ -398,7 +402,11 @@
           <div><button type="button" id="gen-cancel">Annuler</button><span>la version précédente reste en place</span></div>
         </div>
       </section>
-      <details class="cap-style" id="cap-style" hidden>
+      <div class="cap-style derush-subs" id="derush-subs-row" hidden>
+        <label><input type="checkbox" id="derush-subs"> Sous-titres dans la version de travail</label>
+        <span class="sub" id="derush-subs-status" role="status">Texte corrigé avec « Corriger » ; appliqué à la prochaine « Générer la version de travail ».</span>
+      </div>
+      <details class="cap-style" id="cap-style" hidden data-subtitles-only>
         <summary>Style des sous-titres</summary>
         <div class="grid">
           <label>Police<select id="cs-font"></select></label>
@@ -432,7 +440,7 @@
           </div>
         </div>
       </details>
-      <details class="cap-style hab" id="hab-panel" hidden>
+      <details class="cap-style hab" id="hab-panel" hidden data-mode-montage>
         <summary>Zooms et animations</summary>
         <p class="sub" style="margin: 6px 0 0;">Pour tout le montage ; les zooms, secousses, flashs et mots mis en valeur se placent sur chaque moment (effets visuels). Visible tout de suite dans l'aperçu des moments, dans la vidéo à la prochaine génération.</p>
         <div class="son-clean">
@@ -444,7 +452,7 @@
         </div>
         <p class="sub" id="hab-status" role="status" style="margin: 6px 0 0;"></p>
       </details>
-      <details class="cap-style son" id="son-panel" hidden>
+      <details class="cap-style son" id="son-panel" hidden data-mode-montage>
         <summary>Son de la voix</summary>
         <p class="sub" style="margin: 6px 0 0;">Réglages de tout le montage (chaque moment a aussi son curseur « Voix »). Appliqués à la prochaine « Générer la version de travail ».</p>
         <label style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 10px; font-size: 14px;">
@@ -466,7 +474,7 @@
         </div>
         <div id="son-result"></div>
       </details>
-      <details class="cap-style fx-choice" id="fx-choice" hidden>
+      <details class="cap-style fx-choice" id="fx-choice" hidden data-mode-montage>
         <summary>Effets proposés sur les moments</summary>
         <p class="sub fx-default-note" style="margin: 6px 0 0;">Ces effets sont ceux fournis par défaut avec Auto-montage. Pour un montage plus personnel, ajoutez vos propres sons (« Ajouter des sons… ») et faites analyser des vidéos d'exemple par Claude (page « Rushes et montages ») pour retrouver leurs effets.</p>
         <p class="sub" style="margin: 6px 0 0;">Cochez les effets à montrer dans la liste de chaque moment ; un effet déjà placé sur un moment reste visible. Réglage commun à tous les montages (aussi sur la page « Rushes et montages »).</p>
@@ -495,6 +503,13 @@
 <script src="hf/hyperframes-player.global.js"></script>
 <script>
   const DATA = /*__DATA__*/null;
+  // Mode Dérushage de l'interface locale (bandeau du haut, local/menu.js) : seulement le choix et
+  // la découpe des moments ; ni effets, ni sous-titres, ni cadrage, ni réglages du son (masqués
+  // ici, ignorés par build_edit.py, gardés pour le mode Auto-montage).
+  const DERUSH = !!window.AUTO_MONTAGE_LOCAL && document.documentElement.dataset.mode === "derush";
+  // Dérushage : sous-titres dans la version de travail (case « Sous-titres », work/derush.json,
+  // cochée par défaut ; écrit par le serveur sur <html data-subtitles>).
+  const derushSubs = () => document.documentElement.dataset.subtitles !== "0";
   // Format de la composition, celui du rush : 1080x1920 (9:16), 1920x1080 (16:9), 1440x1080 (4:3)…
   // Positions de l'habillage : DATA.layout (moments_lib.frame_layout, comme le rendu).
   const FRAME_W = DATA.width || 1080, FRAME_H = DATA.height || 1920, PX_PER_CQW = FRAME_W / 100;
@@ -810,7 +825,9 @@
   const setStatus = (text, kind = "") => { const el = $("status"); el.textContent = text; el.className = `status ${kind}`; };
   const playIcon = '<svg viewBox="0 0 10 10" aria-hidden="true"><path d="M2 1l7 4-7 4z"/></svg>';
 
-  $("sub").textContent = `Rush ${DATA.rush} · ${moments.filter((m) => !m.gap).length} moments de parole (+ ${moments.filter((m) => m.gap).length} plans sans parole à part). Cochez ce qui reste dans la version de travail.`;
+  $("sub").textContent = `Rush ${DATA.rush} · ${moments.filter((m) => !m.gap).length} moments de parole (+ ${moments.filter((m) => m.gap).length} plans sans parole à part). `
+    + (DERUSH ? "Cochez les moments à garder et découpez-les : la version de travail les met bout à bout, sans effets."
+      : "Cochez ce qui reste dans la version de travail.");
 
   // --- Habillage des moments (calculé dans la page, à partir de l'état courant) ----
   // Mêmes règles que scripts/build_edit.py : sous-titres jusqu'à 6 mots sur 2 lignes
@@ -876,6 +893,8 @@
 
   function buildOverlay(m) {
     const words = wordsOf(m);
+    if (DERUSH) return { m, caps: derushSubs() ? captionGroups(words) : [], events: [], typed: [], chips: [], voice: [], zoomType: 0,
+                         zooms: [], shakes: [], flashes: [], hl: [] };
     const events = [], voice = [];
     for (const f of sfxOf(m)) {
       if (f.kind === "voix") { voice.push({ a: Number(f.at) || 0, b: (Number(f.at) || 0) + (Number(f.dur) || 1), force: voiceForce(f), voice: voiceOf(f) }); continue; }
@@ -1170,6 +1189,10 @@ ${HFAudio.voiceElements(spec)}
         if (nextPart) player.currentTime = nextPart.a; else player.pause();
       }
     }
+    // Dérushage : image du rush telle quelle (ni zoom, ni voix modifiée) ; sous-titres simples
+    // si la case « Sous-titres » est cochée (fx.caps vide sinon, buildOverlay).
+    if (DERUSH) player.style.transform = "";
+    else {
     hfUpdate(fx.m);
     setVoice(fx.voice.find((v) => t >= v.a && t < v.b && !isHfVoice(v)) || null);
     // Zoom : tranches de 1,8 s, alternance zoom progressif / zoom sec, centré sur le visage.
@@ -1198,6 +1221,7 @@ ${HFAudio.voiceElements(spec)}
     player.style.transformOrigin = fc.center ? `${centeredOrigin(fc.x, scale, P[0], P[2]) * 100}% ${centeredOrigin(fc.y, scale, P[1], P[3]) * 100}%`
       : `${fc.x * 100}% ${fc.y * 100}%`;
     player.style.transform = `translate(${sx}%, ${sy}%) scale(${scale})`;
+    }
     const fl = fx.flashes.find((x) => t >= x.a && t < x.b);
     const flEl = $("ov-flash");
     if (fl) { const p = (t - fl.a) / Math.max(0.01, fl.b - fl.a); flEl.style.opacity = String(0.95 * (1 - p) * Math.min(1, p * 8 + 0.4)); flEl.hidden = false; }
@@ -1217,7 +1241,7 @@ ${HFAudio.voiceElements(spec)}
     const cap = ty ? null : [...fx.caps].reverse().find((c) => t >= c.a) || null;
     const capEl = $("ov-cap");
     let cur = -1;  // mot prononcé (option « mot prononcé en couleur »)
-    if (cap && HAB.karaoke) cap.times.forEach((a, i) => { if (t >= a) cur = i; });
+    if (cap && HAB.karaoke && !DERUSH) cap.times.forEach((a, i) => { if (t >= a) cur = i; });
     const key = cap ? `${cap.a}/${cur}` : "";
     if (capEl.dataset.key !== key) {
       const isNew = !capEl.dataset.key || capEl.dataset.key.split("/")[0] !== (cap ? `${cap.a}` : "");
@@ -1229,7 +1253,7 @@ ${HFAudio.voiceElements(spec)}
           return h ? h.color : null;
         });
         fillCaption(capEl, cap.words, { colors, current: cur });
-        if (HAB.pop && isNew) { capEl.classList.remove("pop"); void capEl.offsetWidth; capEl.classList.add("pop"); }
+        if (HAB.pop && !DERUSH && isNew) { capEl.classList.remove("pop"); void capEl.offsetWidth; capEl.classList.add("pop"); }
       }
     }
     // Pastille.
@@ -1293,14 +1317,14 @@ ${HFAudio.voiceElements(spec)}
     $("tab-moment").setAttribute("aria-selected", "true");
     $("tab-work").setAttribute("aria-selected", "false");
     player.src = m.clip;
-    player.volume = Math.min(1, voiceGainOf(m) * voiceGlobal);  // aperçu du volume de la voix (100 % au plus)
-    if (sfxOf(m).some((f) => f.kind === "voix") && ensureVoiceFx()) voiceFx.ctx.resume().catch(() => {});
+    player.volume = DERUSH ? 1 : Math.min(1, voiceGainOf(m) * voiceGlobal);  // aperçu du volume de la voix (100 % au plus)
+    if (!DERUSH && sfxOf(m).some((f) => f.kind === "voix") && ensureVoiceFx()) voiceFx.ctx.resume().catch(() => {});
     if (m.gap) player.addEventListener("loadedmetadata", () => { player.currentTime = trimOf(m).in; }, { once: true });
     fx = buildOverlay(m);
     $("ov").hidden = false;
     $("caption").textContent = m.gap
       ? `Plan sans parole à ${fmt(m.start)} · partie gardée seulement`
-      : `Moment à ${fmt(m.start)} · habillé comme dans la version de travail`;
+      : `Moment à ${fmt(m.start)} · ${DERUSH ? (derushSubs() ? "image du rush, avec ses sous-titres" : "image du rush, sans sous-titres") : "habillé comme dans la version de travail"}`;
     if (autoplay) player.play().catch(() => {});
     requestAnimationFrame(drawOverlay);
     if (quiet) syncCurrent(); else renderList();
@@ -1728,14 +1752,16 @@ ${HFAudio.voiceElements(spec)}
         line.className = "textline";
         const text = document.createElement("span");
         text.className = "text";
-        text.textContent = noSub(m) ? `Sans sous-titres · ${m.text}` : textOf(m);
-        if (noSub(m)) text.style.opacity = "0.6";
+        const plain = DERUSH && !derushSubs();
+        text.textContent = plain ? m.text : noSub(m) ? `Sans sous-titres · ${m.text}` : textOf(m);
+        if (noSub(m) && !plain) text.style.opacity = "0.6";
         text.addEventListener("click", () => { $("tab-moment").dataset.last = m.id; showMoment(m.id); });
         const fix = document.createElement("button");
         fix.type = "button"; fix.className = "fix"; fix.textContent = "Corriger";
         fix.setAttribute("aria-label", `Corriger le texte : ${textOf(m)}`);
         fix.addEventListener("click", () => { editing = m.id; draft = noSub(m) ? "" : textOf(m); renderList(); });
-        line.append(text, fix);
+        line.append(text);
+        if (!DERUSH || derushSubs()) line.append(fix);  // dérushage sans sous-titres : rien à corriger
         if (window.AUTO_MONTAGE_LOCAL) {
           const act = (label, title, fn) => {
             const b = document.createElement("button");
@@ -1809,7 +1835,7 @@ ${HFAudio.voiceElements(spec)}
       }
       const tags = document.createElement("div");
       tags.className = "tags";
-      if (catalog.some((c) => !hiddenFx.has(c.id) || sfxOf(m).some((f) => f.kind === c.id))) {
+      if (!DERUSH && catalog.some((c) => !hiddenFx.has(c.id) || sfxOf(m).some((f) => f.kind === c.id))) {
         const title = document.createElement("span");
         title.className = "sfx-title";
         title.textContent = "Effets :";
@@ -1958,7 +1984,7 @@ ${HFAudio.voiceElements(spec)}
           tags.append(sets);
         }
       }
-      {
+      if (!DERUSH) {
         const vtitle = document.createElement("span");
         vtitle.className = "sfx-title";
         vtitle.textContent = "Effets visuels :";
@@ -2071,7 +2097,7 @@ ${HFAudio.voiceElements(spec)}
       }
       // Cadrage : tout le monde (par défaut), ou une des personnes vues pendant ce moment
       // (vignettes de detect_face.py), en plan rapproché.
-      if ((m.persons || []).length >= 2 || focusOf(m)) {
+      if (!DERUSH && ((m.persons || []).length >= 2 || focusOf(m))) {
         const row = document.createElement("div");
         row.className = "tags framing";
         row.style.width = "100%";
@@ -2095,7 +2121,7 @@ ${HFAudio.voiceElements(spec)}
       }
       // Volume de la voix de ce moment (son d'origine du rush) : si « Volume de la voix par
       // moment » est proposé (effets proposés), ou si ce moment a déjà un autre volume.
-      if (window.AUTO_MONTAGE_LOCAL && (!hiddenFx.has("gainvoix") || voiceGainOf(m) !== 1)) {
+      if (window.AUTO_MONTAGE_LOCAL && !DERUSH && (!hiddenFx.has("gainvoix") || voiceGainOf(m) !== 1)) {
         const l = document.createElement("label");
         l.className = "sfx voice-gain";
         l.title = "Volume de la voix sur ce moment (100 % = volume d'origine) ; s'ajoute au volume de la voix de tout le montage";
@@ -2116,7 +2142,7 @@ ${HFAudio.voiceElements(spec)}
         row.append(l);
         tags.append(row);
       }
-      if (edits[m.id] && (edits[m.id].text || edits[m.id].nosub)) {
+      if ((!DERUSH || derushSubs()) && edits[m.id] && (edits[m.id].text || edits[m.id].nosub)) {
         const fixed = document.createElement("span");
         fixed.className = "fixed";
         fixed.textContent = noSub(m) ? "Sans sous-titres" : "Texte corrigé";
@@ -2402,12 +2428,28 @@ ${HFAudio.voiceElements(spec)}
     });
   })();
 
+  // Dérushage : case « Sous-titres » (enregistrée par le serveur, sans recharger la page).
+  if (DERUSH) {
+    const box = $("derush-subs");
+    box.checked = derushSubs();
+    $("derush-subs-row").hidden = false;
+    box.addEventListener("change", async () => {
+      const r = await fetch("/api/derush", { method: "PUT", headers: { "content-type": "application/json" },
+        body: JSON.stringify({ subtitles: box.checked }) }).catch(() => null);
+      if (!r || !r.ok) { box.checked = !box.checked; $("derush-subs-status").textContent = "Réglage non enregistré : Auto-montage ne répond pas."; return; }
+      document.documentElement.dataset.subtitles = box.checked ? "1" : "0";
+      $("derush-subs-status").textContent = box.checked ? "Sous-titres ajoutés à la prochaine « Générer la version de travail »."
+        : "Pas de sous-titres à la prochaine « Générer la version de travail ».";
+      editing = null;
+      if (mode === "moment" && currentMoment !== null) showMoment(currentMoment, { autoplay: false }); else renderList();
+    });
+  }
   if (DATA.downloadsPage) { $("downloads-page").href = DATA.downloadsPage; $("downloads-page").hidden = false; }
   // Interface locale : avertissement sans Claude Code, et analyse du style faite par Claude.
   if (window.AUTO_MONTAGE_LOCAL) {
     fetch("/api/status").then((r) => r.json()).then((st) => {
       const header = document.querySelector("header");
-      if (!st.claude) {
+      if (!st.claude && !DERUSH) {
         const p = document.createElement("p");
         p.className = "local-note warn";
         p.textContent = "Claude Code n'est pas connecté : « Discuter avec Claude » et l'application des consignes et du style à la préparation ne fonctionnent pas. Le reste de cette page fonctionne (moments, effets, découpe, génération, 4K).";
@@ -2421,7 +2463,7 @@ ${HFAudio.voiceElements(spec)}
         p.querySelector("b").textContent = st.update.latest;
         header.append(p);
       }
-      if (st.styleAnalysis) {
+      if (st.styleAnalysis && !DERUSH) {
         const d = document.createElement("details");
         d.className = "local-note";
         d.innerHTML = "<summary>Analyse du style par Claude (vidéos d'exemple)</summary>";

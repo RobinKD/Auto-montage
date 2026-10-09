@@ -96,6 +96,12 @@ travail (ex. une 4K d'un montage précédent) est signalée sur la page.
 dépendances, raccourci de bureau, interface web sur <http://localhost:8080/> (page des
 moments et téléchargements, servis par `scripts/local_server.py`).
 
+Deux modes, choisis dans le bandeau du haut de chaque page (`work/mode.txt`) : **Dérushage**
+(découpe du rush en moments seulement : pas d'effets, de cadrage, de réglages du son ni de
+Claude ; `build_edit.py` met les moments bout à bout tels quels, avec des sous-titres simples
+sauf si la case « Sous-titres » est décochée, `work/derush.json`) et **Auto-montage**
+(toutes les fonctions).
+
 ## Environnement cloud
 
 Les domaines à autoriser dans l'environnement Claude Code (menu de l'environnement >

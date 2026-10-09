@@ -25,7 +25,7 @@ STORE = os.path.join(WORK, "projets")
 # Fichiers de work/ communs à tous les rushes : jamais déplacés.
 # Les consignes (work/instructions.*) et la langue (langue.txt) sont choisies avant de préparer le
 # rush suivant : elles restent (langue_rush.txt, la langue du rush, est rangée avec lui).
-SHARED = {"projets", "local_db", "timings.json", "models", "regen_trigger.txt", "instructions.md", "instructions.name", "langue.txt",
+SHARED = {"projets", "local_db", "timings.json", "models", "regen_trigger.txt", "instructions.md", "instructions.name", "langue.txt", "mode.txt", "derush.json",
           "style", "logs", "sauvegardes", "caption_style_default.json", "effets_page.json",
           "tutoriel_vu", "rendu_hyperframes", "rendu_parties", "memoire_mesures.json",
           "tache.json", "reprise"}  # préparation en cours ou en pause (local_server.py) : jamais rangée
