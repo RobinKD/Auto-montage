@@ -214,6 +214,8 @@ if os.path.exists(preview):
         "renderedAt": datetime.datetime.fromtimestamp(os.path.getmtime(preview), datetime.timezone.utc).isoformat(),
         "clips": [{"seg": c["seg"], "start": round(c["from"] / fps, 3),
                    "end": round((c["from"] + c["durationInFrames"]) / fps, 3)} for c in edit["clips"]],
+        # Sélection et réglages des moments de cette version (build_edit.py), ou None.
+        "page": edit.get("page"),
     }
 
 # Effets sonores proposés par moment (les défauts du montage, ex. la caisse sur l'argent).

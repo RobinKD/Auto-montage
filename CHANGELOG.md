@@ -4,6 +4,14 @@ Chaque version publiée reprend sa section dans ses notes (onglet Releases). Une
 section, le numéro dans `VERSION` et le tag `v<numéro>` poussé publient la version avec ses
 installateurs (voir `packaging/README.md`).
 
+## 0.67
+
+- **Moments changés depuis la version de travail** : sur la page des moments, un moment dont
+  les réglages ne sont plus ceux de la version de travail affichée porte une pastille jaune
+  (« Modifié depuis la version de travail », avec ce qui a changé : sous-titres, découpe, effets,
+  volume, cadrage…, ou « Ajouté » / « Retiré »), un point jaune sur la frise du rush, et le haut
+  de la page compte ces moments. « Générer la version de travail » les remet à jour.
+
 ## 0.66
 
 - **Frise du moment** : au lieu des images, elle montre les **effets** du moment (une bande de

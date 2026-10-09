@@ -255,6 +255,9 @@
   .insp-badges { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
   .badge { font-size: 12px; border: 1px solid var(--line); border-radius: 999px; padding: 2px 10px; color: var(--muted); }
   .badge.on { color: var(--accent); border-color: var(--accent); }
+  /* Moment changé depuis la version de travail : pastille jaune (inspecteur) et point sur la frise. */
+  .badge.chg { color: var(--key); border-color: var(--key); background: rgb(255 216 77 / 0.1); font-weight: 600; }
+  .clip .chg-dot { position: absolute; top: 5px; left: 5px; width: 9px; height: 9px; border-radius: 50%; background: var(--key); box-shadow: 0 0 0 1.5px rgb(0 0 0 / 0.6); z-index: 2; pointer-events: none; }
   .at-keep { display: inline-flex; align-items: center; gap: 8px; font-weight: 600; cursor: pointer; }
   .at-keep input { width: 18px; height: 18px; }
   .at-acts { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
@@ -807,8 +810,8 @@
   const normWord = (w) => w.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "");
   const firstKeptId = () => (moments.find((m) => isKept(m)) || {}).id;
   // Plan sans parole : partie gardée { in, out } en s depuis le début du plan (tout par défaut).
-  const trimOf = (m) => {
-    const len = m.end - m.start, t = (edits[m.id] && edits[m.id].trim) || {};
+  const trimOf = (m, e = edits[m.id]) => {
+    const len = m.end - m.start, t = (e && e.trim) || {};
     const a = Math.min(Math.max(0, Number(t.in) || 0), Math.max(0, len - 0.2));
     const b = Math.min(Math.max(a + 0.2, Number.isFinite(Number(t.out)) && t.out !== null && t.out !== undefined ? Number(t.out) : len), len);
     return { in: Math.round(a * 100) / 100, out: Math.round(b * 100) / 100 };
@@ -862,9 +865,9 @@
     scheduleSave();
     saveMoment(m.id, { cuts: next.length ? next : null });
   }
-  function vfxDefaults(m) {
+  function vfxDefaults(m, first = firstKeptId()) {
     const out = [];
-    if (DATA.intro && m.id === firstKeptId()) {
+    if (DATA.intro && m.id === first) {
       out.push({ kind: "typed", text: DATA.intro.text, at: DATA.intro.at, type: DATA.intro.type,
         dur: Math.round((clipLen(m) - DATA.intro.at) * 100) / 100, sound: true });
     }
@@ -894,15 +897,64 @@
       ? { kind, text: "Votre texte", at: t0, type: 1.2, dur: Math.round(Math.max(1, clipLen(m) - t0) * 100) / 100, sound: true }
       : { kind, text: "Votre titre", at: t0, dur: 2.2, sound: true };
   }
-  function vfxOf(m) {
-    return (edits[m.id] && Array.isArray(edits[m.id].vfx)) ? edits[m.id].vfx : vfxDefaults(m);
+  // e : réglages enregistrés du moment (ceux de la page, ou ceux de la version de travail).
+  function vfxOf(m, e = edits[m.id], first) {
+    return (e && Array.isArray(e.vfx)) ? e.vfx : vfxDefaults(m, first);
   }
-  function sfxOf(m) {
-    let list = (edits[m.id] && Array.isArray(edits[m.id].sfx)) ? edits[m.id].sfx : m.sfx;
+  function sfxOf(m, e = edits[m.id]) {
+    let list = (e && Array.isArray(e.sfx)) ? e.sfx : m.sfx;
     // Effets enregistrés avant l'effet « voix » : la voix proposée reste cochée.
-    if (list !== m.sfx && !edits[m.id].fxv) list = [...list, ...m.sfx.filter((f) => f && f.kind === "voix")];
+    if (list !== m.sfx && !e.fxv) list = [...list, ...m.sfx.filter((f) => f && f.kind === "voix")];
     return list.map((f) => (typeof f === "string" ? defaultFx(m, f) : { ...defaultFx(m, f.kind), ...f }));
   }
+  // --- Écart avec la version de travail ---------------------------------------------
+  // DATA.working.page : sélection et documents des moments copiés quand la version de travail a
+  // été générée (use_selection.py → edit.json). Sans elle (version faite sans la page) : les
+  // moments du montage, sans réglage. Un moment est signalé s'il a été ajouté, retiré, ou si un
+  // réglage qui compte au montage a changé (en dérushage : découpe, début et fin, sous-titres).
+  const WORK_PAGE = !working ? null
+    : working.page && Array.isArray(working.page.keep) ? working.page : { keep: [...inEdit], moments: {} };
+  const workEdits = {};
+  for (const [id, d] of Object.entries((WORK_PAGE && WORK_PAGE.moments) || {}))
+    if (d && typeof d === "object") workEdits[Number(id)] = readMomentDoc(d);
+  const workTokens = WORK_PAGE ? WORK_PAGE.keep.map(String) : [];
+  const tokensOf = (m, list) => list.filter((t) => t === String(m.id) || t.startsWith(`${m.id}/`)).sort();
+  const workFirst = WORK_PAGE ? (moments.find((m) => tokensOf(m, workTokens).length) || {}).id : undefined;
+  // Comparaison sans l'ordre des clés, les valeurs vides ni les écarts d'arrondi.
+  const stable = (v) => JSON.stringify(v, (k, x) => (typeof x === "number" ? Math.round(x * 1000) / 1000
+    : x && typeof x === "object" && !Array.isArray(x)
+      ? Object.fromEntries(Object.keys(x).sort().filter((y) => x[y] !== null && x[y] !== undefined).map((y) => [y, x[y]])) : x));
+  function settingsOf(m, e, first) {
+    const out = m.gap ? { trim: trimOf(m, e) } : { cuts: e && Array.isArray(e.cuts) ? e.cuts : [] };
+    if (!m.gap && (!DERUSH || derushSubs())) out.text = e && e.nosub ? "" : (e && e.text) || m.text;
+    if (!DERUSH) {
+      out.sfx = sfxOf(m, e);
+      out.vfx = vfxOf(m, e, first);
+      out.gain = e && typeof e.gain === "number" ? e.gain : 1;
+      out.focus = e && Number.isInteger(e.focus) ? e.focus : null;
+    }
+    return out;
+  }
+  const CHANGE_LABELS = { keep: "parties gardées", cuts: "découpe", trim: "début et fin", text: "sous-titres",
+    sfx: "effets sonores", vfx: "effets visuels", gain: "volume de la voix", focus: "cadrage" };
+  // null : rien à signaler (réglages pas encore chargés, ou moment absent des deux) ;
+  // { kind: "same" | "added" | "removed" | "changed", what: [réglages changés] }.
+  function workChange(m) {
+    if (!WORK_PAGE || !momentsLoaded) return null;
+    const before = tokensOf(m, workTokens);
+    const now = cutsOf(m).length ? partsOf(m).filter((p) => partKept(m, p.k)).map((p) => `${m.id}/${p.k}`)
+      : state.keep.has(m.id) ? [String(m.id)] : [];
+    if (!before.length && !now.length) return null;
+    if (!before.length) return { kind: "added", what: [] };
+    if (!now.length) return { kind: "removed", what: [] };
+    const a = settingsOf(m, workEdits[m.id], workFirst), b = settingsOf(m, edits[m.id]);
+    const what = Object.keys(b).filter((k) => stable(a[k]) !== stable(b[k]));
+    if (!what.includes("cuts") && stable(before) !== stable(now)) what.unshift("keep");
+    return { kind: what.length ? "changed" : "same", what: what.map((k) => CHANGE_LABELS[k]) };
+  }
+  const changeText = (c) => ({ added: "Ajouté depuis la version de travail", removed: "Retiré depuis la version de travail",
+    changed: `Modifié depuis la version de travail : ${c.what.join(", ")}` })[c.kind];
+
   const catalog = DATA.sfxCatalog || [];
   const hiddenFx = new Set(DATA.hiddenEffects || []);
   // Volume de base d'un son (catalogue : sons par défaut et personnels).
@@ -1733,7 +1785,8 @@ ${HFAudio.voiceElements(spec)}
   function clipBlock(m) {
     const pps = frise.pps, on = isKept(m), ranges = keptRanges(m);
     const keptLen = ranges.reduce((t, [a, b]) => t + b - a, 0), partial = on && keptLen < m.end - m.start - 0.06;
-    const b = el("div", ["clip", on ? "kept" : "", m.gap ? "gap" : "", m.reason ? "warn" : "", m.id === nowSeg ? "now" : "",
+    const change = workChange(m), changed = change && change.kind !== "same";
+    const b = el("div", ["clip", on ? "kept" : "", m.gap ? "gap" : "", m.reason ? "warn" : "", changed ? "chg" : "", m.id === nowSeg ? "now" : "",
       m.id === currentMoment ? "playing" : "", frise.sel.size > 1 && frise.sel.has(m.id) ? "sel" : ""].filter(Boolean).join(" "));
     b.dataset.id = m.id;
     b.tabIndex = 0;
@@ -1751,8 +1804,9 @@ ${HFAudio.voiceElements(spec)}
     }
     const label = momentLabel(m);
     const status = on ? (partial ? "gardé en partie" : "gardé") : "retiré";
-    b.title = `${fmt(m.start)} · ${(m.end - m.start).toFixed(1)} s · ${status}${m.reason ? ` · retrait suggéré (${m.reason})` : ""}\n${label}`;
-    b.setAttribute("aria-label", `${m.gap ? "Plan sans parole" : "Moment"} à ${fmt(m.start)}, ${status} : ${label}`);
+    b.title = `${fmt(m.start)} · ${(m.end - m.start).toFixed(1)} s · ${status}${m.reason ? ` · retrait suggéré (${m.reason})` : ""}${changed ? `\n${changeText(change)}` : ""}\n${label}`;
+    b.setAttribute("aria-label", `${m.gap ? "Plan sans parole" : "Moment"} à ${fmt(m.start)}, ${status}${changed ? `, ${changeText(change).toLowerCase()}` : ""} : ${label}`);
+    if (changed) b.append(el("span", "chg-dot"));
     if (w >= 26) {
       const ck = btn(on ? "✓" : "", on ? "Retirer de la version de travail" : "Garder dans la version de travail", (e) => { e.stopPropagation(); toggle(m.id, !on); }, `ck${partial ? " part" : ""}`);
       ck.setAttribute("role", "checkbox");
@@ -2227,7 +2281,12 @@ ${HFAudio.voiceElements(spec)}
       keep.append(box, document.createTextNode("Garder"));
       badges.append(keep);
       if (m.reason) badges.append(el("span", "why", `Suggéré : retirer (${m.reason})`));
-      else if (inEdit.has(m.id)) badges.append(el("span", "badge", "Dans la version de travail"));
+      const change = workChange(m);
+      if (change && change.kind !== "same") {
+        const tag = el("span", "badge chg", changeText(change));
+        tag.title = "Ce moment n'est plus comme dans la version de travail affichée : « Générer la version de travail » prend en compte ce changement";
+        badges.append(tag);
+      } else if (!m.reason && (change ? change.kind === "same" : inEdit.has(m.id))) badges.append(el("span", "badge", "Dans la version de travail"));
       out.push(badges);
       if (!m.gap) {
         if (!DERUSH || derushSubs()) {
@@ -2799,8 +2858,10 @@ ${HFAudio.voiceElements(spec)}
     const speech = moments.filter((m) => !m.gap);
     const total = speech.reduce((t, m) => t + m.end - m.start, 0);
     const gapsKept = kept.filter((m) => m.gap).length;
+    const changed = moments.filter((m) => { const c = workChange(m); return c && c.kind !== "same"; }).length;
     $("count").textContent = `${kept.length - gapsKept} moments de parole sur ${speech.length}`
-      + (gapsKept ? ` + ${gapsKept} plan${gapsKept > 1 ? "s" : ""} sans parole` : "") + ` · parole totale ${fmt(total)}`;
+      + (gapsKept ? ` + ${gapsKept} plan${gapsKept > 1 ? "s" : ""} sans parole` : "") + ` · parole totale ${fmt(total)}`
+      + (changed ? ` · ${changed} moment${changed > 1 ? "s" : ""} changé${changed > 1 ? "s" : ""} depuis la version de travail` : "");
     const sel = $("variant");
     sel.replaceChildren(...Object.entries(state.names).map(([id, name]) => new Option(name, id, false, id === state.variant)));
   }
@@ -2876,7 +2937,7 @@ ${HFAudio.voiceElements(spec)}
     if (Array.isArray(before.sfx) && !before.fxv && !("sfx" in patch)) patch = { ...patch, sfx: sfxOf(byId.get(id)) };
     edits[id] = { ...before, ...patch, fxv: 2 };
     if (fx && fx.m.id === id && player.paused) fx = buildOverlay(fx.m);  // aperçu à jour (zoom libre, texte…)
-    renderList();
+    render();  // frise, inspecteur et nombre de moments changés
     if (!db) { setStatus("Non enregistré : ouvrez la page connecté à claude.ai", "err"); return; }
     const m = byId.get(id);
     try {
@@ -2897,6 +2958,22 @@ ${HFAudio.voiceElements(spec)}
     } catch (e) {
       setStatus(e && e.code === "not_granted" ? "Lecture seule : vous ne pouvez pas modifier ce moment" : "Échec de l'enregistrement du moment, réessayez", "err");
     }
+  }
+
+  // Document « moments/<id> » -> réglages du moment (edits), pour la page comme pour la
+  // version de travail (DATA.working.page, copie des documents au moment de la générer).
+  function readMomentDoc(d) {
+    return {
+      text: typeof d.text === "string" && d.text ? d.text : undefined,
+      nosub: d.nosub === true || undefined,
+      sfx: Array.isArray(d.sfx) ? d.sfx : undefined,
+      vfx: Array.isArray(d.vfx) ? d.vfx : undefined,
+      trim: d.trim && typeof d.trim === "object" ? d.trim : undefined,
+      cuts: Array.isArray(d.cuts) ? d.cuts.filter(Number.isFinite) : undefined,
+      fxv: d.fxv || undefined,
+      gain: typeof d.gain === "number" ? d.gain : undefined,
+      focus: Number.isInteger(d.focus) ? d.focus : undefined,
+    };
   }
 
   // Avancement d'une génération locale (/api/job) : barre de l'opération en cours (rendu,
@@ -3024,17 +3101,7 @@ ${HFAudio.voiceElements(spec)}
       for (const doc of snap.docs) {
         const d = doc.data();
         if (!d || d.rush !== DATA.rush) continue;
-        edits[Number(doc.id)] = {
-          text: typeof d.text === "string" && d.text ? d.text : undefined,
-          nosub: d.nosub === true || undefined,
-          sfx: Array.isArray(d.sfx) ? d.sfx : undefined,
-          vfx: Array.isArray(d.vfx) ? d.vfx : undefined,
-          trim: d.trim && typeof d.trim === "object" ? d.trim : undefined,
-          cuts: Array.isArray(d.cuts) ? d.cuts.filter(Number.isFinite) : undefined,
-          fxv: d.fxv || undefined,
-          gain: typeof d.gain === "number" ? d.gain : undefined,
-          focus: Number.isInteger(d.focus) ? d.focus : undefined,
-        };
+        edits[Number(doc.id)] = readMomentDoc(d);
       }
       momentsLoaded = true;
       normKeep();

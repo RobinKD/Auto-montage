@@ -9,6 +9,8 @@ Usage : python3 scripts/use_selection.py <dossier d'export> <variante>
                               "trim"?: {"in", "out"} pour un plan sans parole (id >= 1000),
                               "cuts"?: [instants de coupe en s], "fxv"?: 2,
                               "focus"?: n (cadrage sur la personne n de detect_face.py)}
+Les documents des moments sont aussi gardés tels quels (« page » : sélection et réglages),
+repris par build_edit.py dans edit.json, pour que la page montre ce qui a changé depuis.
   Dans « keep », « id/k » désigne la partie k d'un moment découpé (« Couper ici »).
 Écrit work/selection.json, que build_edit.py utilise à la place de KEEP, avec les
 corrections de sous-titres et les effets sonores choisis par moment.
@@ -33,11 +35,16 @@ if doc.get("rush") != rush:
     sys.exit(f"Cette sélection vise {doc.get('rush')!r}, le rush en cours est {rush!r}")
 
 corrections, sfx, vfx, trims, cuts, sfx_legacy, gains, focus = {}, {}, {}, {}, {}, [], {}, {}
+# Réglages de la page tels qu'ils partent dans la version de travail : la page les compare
+# aux réglages du moment pour signaler « Modifié depuis la version de travail ».
+PAGE_FIELDS = ("text", "nosub", "sfx", "vfx", "trim", "cuts", "fxv", "gain", "focus")
+page = {}
 for path in glob.glob(os.path.join(export_dir, "moments", "*.json")):
     m = load(path)
     if m.get("rush") != rush:
         continue
     seg = os.path.splitext(os.path.basename(path))[0]
+    page[seg] = {k: m[k] for k in PAGE_FIELDS if m.get(k) is not None}
     if m.get("nosub") is True:  # sous-titres supprimés sur la page : texte vide
         corrections[seg] = ""
     elif isinstance(m.get("text"), str) and m["text"].strip():
@@ -59,7 +66,8 @@ for path in glob.glob(os.path.join(export_dir, "moments", "*.json")):
 
 json.dump(
     {"name": doc.get("name"), "keep": doc["keep"], "corrections": corrections, "sfx": sfx, "vfx": vfx,
-     "trims": trims, "cuts": cuts, "sfx_legacy": sfx_legacy, "gains": gains, "focus": focus},
+     "trims": trims, "cuts": cuts, "sfx_legacy": sfx_legacy, "gains": gains, "focus": focus,
+     "page": {"keep": doc["keep"], "moments": page}},
     open(os.path.join(ROOT, "work", "selection.json"), "w"),
     ensure_ascii=False,
     indent=1,

@@ -860,6 +860,9 @@ edit = {
     "son": {"highpass": bool(SOUND.get("highpass")), "clarity": bool(SOUND.get("clarity"))},
     "chips": chips,
     "sfx": sorted(sfx, key=lambda x: x["start"]),
+    # Sélection et réglages de la page montés ici (use_selection.py) : la page des moments
+    # signale les moments changés depuis cette version de travail.
+    "page": selection.get("page") if os.path.exists(selection_path) else None,
 }
 os.makedirs(os.path.join(ROOT, "src", "data"), exist_ok=True)
 json.dump(edit, open(os.path.join(ROOT, "src", "data", "edit.json"), "w"), ensure_ascii=False, indent=1)
