@@ -8,9 +8,9 @@ installateurs (voir `packaging/README.md`).
 
 - **Moments changés depuis la version de travail** : sur la page des moments, un moment dont
   les réglages ne sont plus ceux de la version de travail affichée porte une pastille jaune
-  (« Modifié depuis la version de travail », avec ce qui a changé : sous-titres, découpe, effets,
-  volume, cadrage…, ou « Ajouté » / « Retiré »), un point jaune sur la frise du rush, et le haut
-  de la page compte ces moments. « Générer la version de travail » les remet à jour.
+  « Modifié » ; au survol, elle dit de quelle version de travail (date du rendu) et ce qui a
+  changé (sous-titres, découpe, effets, volume, cadrage…, moment ajouté ou retiré). Un point jaune
+  le marque aussi sur la frise du rush, et le haut de la page compte ces moments. « Générer la version de travail » les remet à jour.
 
 ## 0.66
 

@@ -199,7 +199,8 @@ interne : les changements attendent la prochaine version.
   sélection et les documents des moments (`page` de selection.json), `build_edit.py` les copie
   dans edit.json, `make_moments.py` dans `DATA.working.page` ; la page compare (`workChange`,
   `settingsOf` : en dérushage, seulement découpe, début et fin, sous-titres) et montre la
-  pastille « Modifié / Ajouté / Retiré depuis la version de travail » et un point sur la frise.
+  pastille « Modifié » (au survol, `chg-tip` : version de travail datée et ce qui a changé) et un
+  point sur la frise.
 - Sous-titres supprimés pour un moment (page des moments, « Corriger » : texte vide ou
   « Supprimer les sous-titres ») : `"nosub": true` dans le document du moment, transmis par
   `use_selection.py` comme correction vide, que `build_edit.py` applique (mots sans texte).

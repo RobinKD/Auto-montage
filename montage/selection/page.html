@@ -257,6 +257,13 @@
   .badge.on { color: var(--accent); border-color: var(--accent); }
   /* Moment changé depuis la version de travail : pastille jaune (inspecteur) et point sur la frise. */
   .badge.chg { color: var(--key); border-color: var(--key); background: rgb(255 216 77 / 0.1); font-weight: 600; }
+  .badge.chg { position: relative; cursor: help; }
+  .badge.chg .chg-tip { display: none; position: absolute; top: calc(100% + 6px); left: 0; z-index: 20; width: max-content; max-width: 270px;
+    flex-direction: column; gap: 3px; padding: 8px 10px; border-radius: 8px; background: #111114; border: 1px solid var(--key);
+    color: var(--fg, #eee); font-weight: 400; font-size: 12px; line-height: 1.35; white-space: normal; box-shadow: 0 6px 18px rgb(0 0 0 / 0.5); }
+  .badge.chg .chg-tip b { color: var(--key); font-weight: 600; }
+  .badge.chg .chg-tip small { color: var(--muted); font-size: 11px; }
+  .badge.chg:hover .chg-tip, .badge.chg:focus .chg-tip { display: flex; }
   .clip .chg-dot { position: absolute; top: 5px; left: 5px; width: 9px; height: 9px; border-radius: 50%; background: var(--key); box-shadow: 0 0 0 1.5px rgb(0 0 0 / 0.6); z-index: 2; pointer-events: none; }
   .at-keep { display: inline-flex; align-items: center; gap: 8px; font-weight: 600; cursor: pointer; }
   .at-keep input { width: 18px; height: 18px; }
@@ -952,8 +959,13 @@
     if (!what.includes("cuts") && stable(before) !== stable(now)) what.unshift("keep");
     return { kind: what.length ? "changed" : "same", what: what.map((k) => CHANGE_LABELS[k]) };
   }
-  const changeText = (c) => ({ added: "Ajouté depuis la version de travail", removed: "Retiré depuis la version de travail",
-    changed: `Modifié depuis la version de travail : ${c.what.join(", ")}` })[c.kind];
+  // Version de travail comparée : celle affichée, désignée par la date de son rendu.
+  const workStamp = () => {
+    const when = working && working.renderedAt ? new Date(working.renderedAt) : null;
+    return when ? ` du ${when.toLocaleDateString("fr-FR", { day: "numeric", month: "short" })} à ${when.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}` : "";
+  };
+  const changeWhat = (c) => ({ added: "ajouté au montage", removed: "retiré du montage", changed: c.what.join(", ") })[c.kind];
+  const changeText = (c) => `Modifié depuis la version de travail${workStamp()} : ${changeWhat(c)}`;
 
   const catalog = DATA.sfxCatalog || [];
   const hiddenFx = new Set(DATA.hiddenEffects || []);
@@ -2283,8 +2295,15 @@ ${HFAudio.voiceElements(spec)}
       if (m.reason) badges.append(el("span", "why", `Suggéré : retirer (${m.reason})`));
       const change = workChange(m);
       if (change && change.kind !== "same") {
-        const tag = el("span", "badge chg", changeText(change));
-        tag.title = "Ce moment n'est plus comme dans la version de travail affichée : « Générer la version de travail » prend en compte ce changement";
+        // Pastille courte ; au survol (ou au focus) : version de travail comparée et ce qui a changé.
+        const tag = el("span", "badge chg", "Modifié");
+        tag.tabIndex = 0;
+        tag.setAttribute("aria-label", changeText(change));
+        const tip = el("span", "chg-tip");
+        tip.append(el("b", "", `Modifié depuis la version de travail${workStamp()}`),
+          el("span", "", change.kind === "changed" ? `Changé : ${changeWhat(change)}` : `Moment ${changeWhat(change)}`),
+          el("small", "", "« Générer la version de travail » prend en compte ce changement."));
+        tag.append(tip);
         badges.append(tag);
       } else if (!m.reason && (change ? change.kind === "same" : inEdit.has(m.id))) badges.append(el("span", "badge", "Dans la version de travail"));
       out.push(badges);
