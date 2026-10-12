@@ -33,6 +33,7 @@ portable-pty = "0.8"
 walkdir = "2"
 zip = { version = "2", default-features = false, features = ["deflate"] }
 woff2-patched = "0.4"
+tract-onnx = { version = "0.23", default-features = false }
 
 [target.'cfg(unix)'.dependencies]
 libc = "0.2"
