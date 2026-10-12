@@ -55,7 +55,7 @@ OPERATIONS = {
     "Assemblage des vidéos": lambda v: 120,
     "Assemblage des vidéos (réencodage)": lambda v: 150 + 140 * _mpx(v["source"]),
     # Décodage de l'image d'origine et encodage x264 (images d'avance) de la version de travail.
-    "Version de travail (MP4)": lambda v: 150 + 124 * _mpx(v["work"]) + 14 * _mpx(v["source"]),
+    "Copie du rush en 1080p": lambda v: 150 + 124 * _mpx(v["work"]) + 14 * _mpx(v["source"]),
     "Extraction du son": lambda v: 60,
     "Détection de la parole": lambda v: 60,
     # Modèle large-v3-turbo (1,6 Go) et ses calculs ; le son 16 kHz du rush entier en mémoire.
@@ -77,11 +77,11 @@ OPERATIONS = {
 }
 # Opérations de chaque étape des tâches de l'interface locale (noms de local_server.py).
 STEPS = {
-    "préparation du rush": ["Version de travail (MP4)", "Extraction du son", "Détection de la parole",
+    "préparation du rush": ["Copie du rush en 1080p", "Extraction du son", "Détection de la parole",
                             "Transcription", "Position du visage", "Bruitages et montage"],
     "consignes de montage (Claude)": ["Consignes de montage (Claude)"],
     "montage selon les consignes": ["Montage selon les consignes"],
-    "rendu de la version de travail": ["Rendu de la vidéo"], "rendu 1080p": ["Rendu de la vidéo"],
+    "rendu de la vidéo entière": ["Rendu de la vidéo"], "rendu 1080p": ["Rendu de la vidéo"],
     "montage": ["Montage selon les consignes"],
     "page des moments": ["Découpage des moments"], "mise à jour de la page": ["Découpage des moments"],
     "source 4K": ["Source 4K"], "rendu 4K": ["Rendu 4K"],

@@ -74,7 +74,7 @@
   <header>
     <div>
       <h1>Claude</h1>
-      <p class="sub">Demandez à Claude Code de changer le montage : moments à garder, sous-titres, intro, effets… Il peut lire le projet, modifier les choix de montage et générer la version de travail.</p>
+      <p class="sub">Demandez à Claude Code de changer le montage : moments à garder, sous-titres, intro, effets… Il peut lire le projet, modifier les choix de montage et générer la vidéo entière.</p>
     </div>
   </header>
   <p class="warn" id="not-ready" hidden></p>
@@ -147,7 +147,7 @@
       log.innerHTML = `<div class="empty">Quelques idées :<ul>
         <li>Quels moments as-tu retirés, et pourquoi ?</li>
         <li>Corrige le sous-titre « … » en « … ».</li>
-        <li>Ajoute le bruit de caisse quand je dis « argent », puis génère la version de travail.</li></ul></div>`;
+        <li>Ajoute le bruit de caisse quand je dis « argent », puis génère la vidéo entière.</li></ul></div>`;
     }
     for (const m of state.messages) {
       const el = document.createElement("div");

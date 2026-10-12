@@ -1,16 +1,16 @@
-"""Interface web locale (Docker ou poste) : page des moments, version de travail et téléchargements.
+"""Interface web locale (Docker ou poste) : page des moments, vidéo entière et téléchargements.
 
 Usage : python3 scripts/local_server.py [--host 0.0.0.0] [--port 8080]
   /              page des moments (work/moments/index.html, générée par make_moments.py)
   /rush/         nouveau rush : choix du fichier (envoyé dans public/rushes/) et préparation
-                 (prepare.sh, rendu de la version de travail, make_moments.py) par boutons
+                 (prepare.sh, rendu de la vidéo entière, make_moments.py) par boutons
   /downloads/    versions 720p, 1080p et 4K à télécharger (out/)
   /chat/         discussion avec Claude Code sur le montage (claude -p, outils limités au
                  projet, conversation reprise d'un message à l'autre, historique dans work/chat/)
 Les pages sont les mêmes que sur claude.ai ; local/shim.js leur fournit en local ce que
 claude.ai leur donne : enregistrement des sélections, corrections et effets dans
 work/local_db/<collection>/<id>.json (même forme que l'export ArtifactData, lu tel quel par
-use_selection.py), et téléchargement direct. « Générer la version de travail » lance ici
+use_selection.py), et téléchargement direct. « Générer la vidéo entière » lance ici
 use_selection.py, build_edit.py, render.sh apercu et make_moments.py, sans passer par Claude.
 """
 import argparse
@@ -360,7 +360,7 @@ REGEN_STEPS = [
 ]
 PREPARE_STEPS = [
     ("préparation du rush", ["bash", "scripts/prepare.sh", "{args}"]),  # une ou plusieurs vidéos
-    ("rendu de la version de travail", ["bash", "scripts/render.sh", "apercu"]),
+    ("rendu de la vidéo entière", ["bash", "scripts/render.sh", "apercu"]),
     ("page des moments", ["python3", "scripts/make_moments.py"]),
 ]
 # Version 4K (bouton des pages) : source 4K des seules images gardées, puis rendu final.
@@ -380,19 +380,19 @@ INSTRUCTIONS = os.path.join(WORK, "instructions.md")
 # poste, rush de 26 s sur 2 cœurs) ; elles sont recalées après chaque tâche réussie sur les
 # durées réelles de la machine (work/timings.json), et l'opération en cours suit sa propre
 # vitesse dès qu'elle a avancé.
-PLAN = {"préparation du rush": ["Version de travail (MP4)", "Extraction du son", "Transcription", "Position du visage"],
-        "rendu de la version de travail": ["Rendu de la vidéo"], "rendu 1080p": ["Rendu de la vidéo"],
+PLAN = {"préparation du rush": ["Copie du rush en 1080p", "Extraction du son", "Transcription", "Position du visage"],
+        "rendu de la vidéo entière": ["Rendu de la vidéo"], "rendu 1080p": ["Rendu de la vidéo"],
         "page des moments": ["Découpage des moments"], "mise à jour de la page": ["Découpage des moments"],
         "source 4K": ["Source 4K"], "rendu 4K": ["Rendu 4K"],
         "mesures des vidéos d'exemple": ["Analyse des vidéos d'exemple"]}
 RATES = {  # clé : (échelle, secondes par seconde d'échelle)
-    "Version de travail (MP4)": ("rush", 0.3), "Extraction du son": ("rush", 0.01),
+    "Copie du rush en 1080p": ("rush", 0.3), "Extraction du son": ("rush", 0.01),
     "Transcription": ("rush", 0.3), "Position du visage": ("rush", 0.1),
     # Plusieurs vidéos pour un rush : mises bout à bout (copie) ou réencodées (réglages différents).
     "Assemblage des vidéos": ("rush", 0.03), "Assemblage des vidéos (réencodage)": ("rush", 1.2),
     "Rendu de la vidéo": ("montage", 3.7), "Découpage des moments": ("rush", 0.5),
     "étape:préparation du rush": ("rush", 0.15), "étape:consignes de montage (Claude)": ("fixe", 120),
-    "étape:rendu de la version de travail": ("fixe", 20), "étape:rendu 1080p": ("fixe", 20),
+    "étape:rendu de la vidéo entière": ("fixe", 20), "étape:rendu 1080p": ("fixe", 20),
     # 4K, mesuré sur 4 cœurs (rush de 5 min, montage de 39 s) : la source 4K relit tout le rush
     # (décodage 4K, ~1,9 s par seconde de rush) ; rendu 4K HyperFrames (2 navigateurs) ~13 à 30 s
     # par seconde de montage (montage de 18 s en 4 à 9 min sur 4 cœurs).
@@ -947,7 +947,7 @@ def remove_task():
 REPRISE = os.path.join(WORK, "reprise")
 KEPT = os.path.join(REPRISE, "garde.json")
 ABANDON_PARTS = [
-    ("travail", "Version de travail", [os.path.join(RUSHES, "rush_1080.mp4"), os.path.join(REPRISE, "travail")]),
+    ("travail", "Copie du rush en 1080p", [os.path.join(RUSHES, "rush_1080.mp4"), os.path.join(REPRISE, "travail")]),
     ("son", "Son et transcription", [os.path.join(WORK, n) for n in ("rush_16k.wav", "vad.txt", "seg", "segments.json")]),
     ("visage", "Position du visage", [os.path.join(REPRISE, "visage.json")]),
     ("moments", "Extraits de la page des moments", [os.path.join(WORK, "moments", n) for n in ("clips", "thumbs")]),
@@ -1068,7 +1068,7 @@ def check_memory(step, write):
     if not job.get("memInfo"):
         return
     try:
-        if step in ("rendu de la version de travail", "rendu 1080p", "rendu 4K", "source 4K"):
+        if step in ("rendu de la vidéo entière", "rendu 1080p", "rendu 4K", "source 4K"):
             job["memInfo"]["montage"] = montage_seconds()  # montage fait entre-temps
         ops = memoire.operations([step], job["memInfo"])
         if not ops:
@@ -1373,7 +1373,7 @@ Tout autre outil ou commande est refusé : dans ce cas, dis à l'utilisateur d'o
 « Claude Code » (terminal où il valide chaque action). Pas de page claude.ai à publier, pas
 d'ArtifactData ni de routine : la page des moments (http://localhost:8080/) est servie depuis
 montage/work/moments/, les choix de la page sont dans montage/work/local_db/, et son bouton
-« Générer la version de travail » fait use_selection, build_edit, render.sh apercu et
+« Générer la vidéo entière » fait use_selection, build_edit, render.sh apercu et
 make_moments. Tu ne peux pas poser de question à choix : demande en texte. Réponds en
 français, simplement : l'utilisateur n'est pas développeur."""
 chat = {"running": False, "messages": [], "proc": None}
@@ -1629,7 +1629,7 @@ def downloads_data():
         return res_label(*SIZE, w)
     sources = [
         ("720p", "Légère", res(720, 1280), os.path.join(MOMENTS, "montage.mp4"), "/montage.mp4",
-         "Copie compressée de la version de travail, pour la partager ou la regarder sur téléphone."),
+         "Copie compressée de la vidéo entière, pour la partager ou la regarder sur téléphone."),
         ("1080p", "1080p", res(1080, 1920), apercu, "/out/montage_apercu.mp4",
          "Rendu de l'aperçu, à la résolution de la composition."),
         ("4k", "4K", res(2160, 3840), os.path.join(OUT, "montage_4k.mp4"), "/out/montage_4k.mp4",
@@ -2263,7 +2263,7 @@ class Handler(BaseHTTPRequestHandler):
             return self.send_json({"ok": True, "deleted": done, "freed": max(0, shutil.disk_usage(ROOT).free - before)})
         if route == "/api/final":
             if not final_info()["available"]:
-                return self.send_json({"error": "Pas encore de version de travail : générez-la d'abord."}, 400)
+                return self.send_json({"error": "Pas encore de vidéo entière générée : générez-la d'abord."}, 400)
             if not start_job("final", FINAL_STEPS, "4k"):
                 return self.send_json({"error": busy_error()}, 409)
             return self.send_json({"ok": True}, 202)
@@ -2320,7 +2320,7 @@ class Handler(BaseHTTPRequestHandler):
             return self.send_json({"ok": True})
         if route == "/api/son/analyse":  # quelques secondes : faite tout de suite
             if not os.path.exists(os.path.join(ROOT, "src", "data", "edit.json")) or not read_text(os.path.join(WORK, "rush.txt")):
-                return self.send_json({"error": "Pas encore de version de travail."}, 400)
+                return self.send_json({"error": "Pas encore de vidéo entière générée."}, 400)
             proc = subprocess.run(["python3", "scripts/analyze_sound.py"], cwd=ROOT, capture_output=True, text=True, timeout=600)
             if proc.returncode:
                 return self.send_json({"error": (proc.stderr.strip().splitlines() or ["échec"])[-1]}, 500)

@@ -1,6 +1,6 @@
 #!/bin/bash
 # macOS : crée l'application « Auto-montage » (dans ~/Applications, avec un alias sur le
-# bureau). Elle propose : moments et version de travail, téléchargements, Claude Code,
+# bureau). Elle propose : moments et vidéo entière, téléchargements, Claude Code,
 # terminal du conteneur, arrêt. Chaque choix s'ouvre dans le Terminal.
 # Usage : ./docker/install-macos.sh      (Docker Desktop doit être installé)
 set -euo pipefail
@@ -12,7 +12,7 @@ mkdir -p "$HOME/Applications"
 SCRIPT="$(mktemp -t auto-montage).applescript"
 cat > "$SCRIPT" <<APPLESCRIPT
 set repo to "$DIR"
-set choix to choose from list {"Moments et version de travail", "Téléchargements (720p, 1080p, 4K)", "Claude Code", "Terminal du conteneur", "Nettoyer Docker (place disque)", "Arrêter Auto-montage"} with title "Auto-montage" with prompt "Que voulez-vous ouvrir ?" default items {"Moments et version de travail"} OK button name "Ouvrir" cancel button name "Annuler"
+set choix to choose from list {"Moments et vidéo entière", "Téléchargements (720p, 1080p, 4K)", "Claude Code", "Terminal du conteneur", "Nettoyer Docker (place disque)", "Arrêter Auto-montage"} with title "Auto-montage" with prompt "Que voulez-vous ouvrir ?" default items {"Moments et vidéo entière"} OK button name "Ouvrir" cancel button name "Annuler"
 if choix is false then return
 set c to item 1 of choix
 if c starts with "Moments" then

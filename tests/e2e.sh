@@ -1,7 +1,7 @@
 #!/bin/bash
 # Test de bout en bout de l'interface locale, par la même API que les boutons des pages :
 # envoi d'un rush et d'un fichier de consignes, préparation, vérification des pages et des
-# vidéos, puis « Générer la version de travail » avec une sélection modifiée.
+# vidéos, puis « Générer la vidéo entière » avec une sélection modifiée.
 # Usage : tests/e2e.sh <url de l'interface> <rush .mov> [--consignes-claude]
 #   --consignes-claude : la préparation applique aussi les consignes avec Claude.
 set -euo pipefail
@@ -147,9 +147,9 @@ echo "  police des sous-titres : $FONT"
 curl -fsS -X PUT --data-binary "@$RUSH" "$URL/api/style/videos/exemple.mov" >/dev/null || fail "envoi d'une vidéo d'exemple"
 curl -fsS "$URL/api/style/analyse" | json 'd["videos"], d["estimate"] > 0' | has "exemple.mov" || fail "analyse du style (estimation)"
 D1="$(echo "$DATA" | json 'd["working"]["duration"]')"
-echo "  version de travail : $D1 s"
+echo "  vidéo entière : $D1 s"
 
-echo "5. Générer la version de travail avec un moment de moins"
+echo "5. Générer la vidéo entière avec un moment de moins"
 KEEP="$(echo "$DATA" | json 'json.dumps([m["id"] for m in d["moments"] if m["suggested"]][1:])')"
 curl -fsS -X POST -H "content-type: application/json" \
   -d "{\"variant\": \"travail\", \"name\": \"Travail\", \"keep\": $KEEP}" "$URL/api/regen" >/dev/null || fail "lancement de la génération"

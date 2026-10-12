@@ -26,7 +26,7 @@ ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 OUT = os.path.join(ROOT, "public", "rushes", "rush_1080.mp4")
 DIR = os.path.join(ROOT, "work", "reprise", "travail")
 FFMPEG = imageio_ffmpeg.get_ffmpeg_exe()
-LABEL = "Version de travail (MP4)"
+LABEL = "Copie du rush en 1080p"
 CHUNK = 60  # secondes par morceau (arrondi à un nombre entier d'images)
 NTSC = {"23.98": Fraction(24000, 1001), "23.976": Fraction(24000, 1001), "29.97": Fraction(30000, 1001),
         "47.95": Fraction(48000, 1001), "59.94": Fraction(60000, 1001), "119.88": Fraction(120000, 1001)}
@@ -71,8 +71,8 @@ def main(rush):
         open(key_file, "w").write(key)
     done = sum(os.path.exists(os.path.join(DIR, f"{i:04d}.mkv")) for i in range(count))
     if done:
-        print(f"Reprise de la version de travail : {done} morceau(x) sur {count} déjà faits", flush=True)
-    print(f"Version de travail {w}x{h}, {float(fps):.3f} images/s, {count} morceau(x)", flush=True)
+        print(f"Reprise de la copie du rush : {done} morceau(x) sur {count} déjà faits", flush=True)
+    print(f"Copie du rush {w}x{h}, {float(fps):.3f} images/s, {count} morceau(x)", flush=True)
     sound = os.path.join(DIR, "son.flac")
     if not os.path.exists(sound):
         if subprocess.run([FFMPEG, "-v", "error", "-y", "-i", rush, *amap, "-c:a", "flac", sound[:-5] + ".part.flac"]).returncode:
@@ -90,7 +90,7 @@ def main(rush):
             "-map", "0:v:0", "-an", "-vf", f"scale={w}:{h},setsar=1", "-fps_mode", "cfr", "-r", str(fps),
             "-c:v", "libx264", "-preset", "veryfast", "-crf", "18", "-g", "15", "-pix_fmt", "yuv420p", part], total=min(length, max(0.1, duration - start)), offset=start, whole=duration)
         if code:
-            sys.exit(f"Échec de la version de travail (morceau {i + 1} sur {count})")
+            sys.exit(f"Échec de la copie du rush (morceau {i + 1} sur {count})")
         os.replace(part, chunk)
     # Morceaux bout à bout (chacun dure exactement « step » secondes), son encodé en AAC.
     listing = os.path.join(DIR, "liste.txt")
@@ -101,11 +101,11 @@ def main(rush):
     code = subprocess.run([FFMPEG, "-v", "error", "-y", "-f", "concat", "-safe", "0", "-i", listing, "-i", sound,
                            "-map", "0:v:0", "-map", "1:a:0", "-c:v", "copy", "-c:a", "aac", "-b:a", "192k", part]).returncode
     if code:
-        sys.exit("Échec de l'assemblage de la version de travail")
+        sys.exit("Échec de l'assemblage de la copie du rush")
     os.replace(part, OUT)
     shutil.rmtree(DIR, ignore_errors=True)
     progress.report(LABEL, duration, duration, every=0)
-    print(f"Version de travail prête : {os.path.relpath(OUT, ROOT)}", flush=True)
+    print(f"Copie du rush prête : {os.path.relpath(OUT, ROOT)}", flush=True)
 
 
 if __name__ == "__main__":

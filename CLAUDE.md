@@ -19,7 +19,7 @@ détail est dans `montage/README.md` ; les consignes de montage viennent de l'ut
    l'utilisateur.
    Republier au même lien (même chemin de fichier) après chaque nouvel aperçu, avec
    `capabilities: {db: {}, downloads: true, mcp: {servers: [{server: "Claude Code Remote", tools: ["update_trigger"]}]}}`.
-5. Quand il a choisi (bouton « Générer la version de travail » de la page, qui écrit la
+5. Quand il a choisi (bouton « Générer la vidéo entière » de la page, qui écrit la
    variante dans `demandes/regen` et programme la routine dans ~1 min, ou demande dans le
    chat) : exporter `variantes/<variante>` et la
    collection `moments` avec ArtifactData (`out_dir` = `work/page_export`), puis
@@ -175,6 +175,12 @@ interne : les changements attendent la prochaine version.
   `/api/moments/merge` avec `count`) ; clavier : Espace, ← →, Maj + ← →, Échap. Effets réglés dans
   l'inspecteur (`momentExtras`, absent en dérushage) ; `renderList` redessine tout,
   `renderOpen` seulement ce qui dépend du moment ouvert.
+- Onglet « Vidéo entière » de la page des moments (mode `live`) : les parties gardées des moments
+  jouées bout à bout en direct depuis leurs extraits (`livePlan`, mêmes règles que `build_edit.py` :
+  parole seule, parties contiguës réunies, plans sans parole réduits), chacune avec l'habillage de
+  l'aperçu du moment (`buildOverlay`, `drawOverlay` → `liveFollow` passe à la partie suivante) ;
+  recalculé à chaque image, donc à jour dès qu'un moment change. « Vidéo générée » (`showWork`)
+  montre le MP4 de la dernière vidéo entière générée.
 - Calage des effets sur la page des moments : `fxBar` (bande déplaçable, poignées début/fin,
   clavier image par image), dans la ligne de l'effet de l'inspecteur. Sons : durée d'une répétition = `len` du catalogue
   (`moments_lib.sound_catalog`, `wav_len`), répétitions = `repeat`, `gap` = durée + `pause` ;

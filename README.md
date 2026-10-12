@@ -5,7 +5,7 @@ Utilisation de Claude Code avec HyperFrames pour monter des vidéos face caméra
 À partir d'un rush, le projet fait le dérush (blancs, ratés, doublons), les zooms, les
 sous-titres, l'intro tapée au clavier, les bruitages et la voix modifiée. Une page web sert
 à choisir les moments à garder, corriger les sous-titres, ajouter des effets, découper un
-moment, puis à regarder et télécharger la version de travail (1080p) et la version finale (4K).
+moment, puis à regarder et télécharger la vidéo entière (1080p) et la version finale (4K).
  
 ## Deux façons de l'utiliser
  
@@ -13,7 +13,7 @@ moment, puis à regarder et télécharger la version de travail (1080p) et la ve
 | --- | --- | --- |
 | Installation | télécharger l'installateur de votre système (ci-dessous) | rien à installer : votre copie (fork) du dépôt sur GitHub, ouverte dans Claude Code ([pas à pas](#sur-claudeai-claude-code-sur-le-web)) |
 | Page des moments | <http://localhost:8080/> | page claude.ai privée, lien donné par Claude |
-| « Générer la version de travail » | le serveur local monte la version lui-même | réveille la session Claude (environ 1 min de délai) |
+| « Générer la vidéo entière » | le serveur local monte la version lui-même | réveille la session Claude (environ 1 min de délai) |
 | Téléchargements | <http://localhost:8080/downloads/>, fichiers complets | page claude.ai (fichiers découpés en morceaux de 14 Mo) |
 | Fichiers (rushes, rendus) | sur votre machine | dans la session cloud, perdus quand elle se ferme |
  
@@ -50,7 +50,7 @@ fichiers et cassé quelque chose, « Réinitialiser Auto-montage » les retélé
 rushes, rendus et sélections sont gardés.
  
 Les actions (clic droit sur le raccourci sous Linux, menu de l'application sous macOS, menu
-Démarrer > Auto-montage sous Windows) : moments et version de travail, téléchargements,
+Démarrer > Auto-montage sous Windows) : moments et vidéo entière, téléchargements,
 dossier des rushes, Claude Code, terminal du conteneur, arrêt.
  
 ### Sur claude.ai (Claude Code sur le web)
@@ -99,7 +99,7 @@ lancements suivants prennent quelques secondes.
    (<http://localhost:8080/rush/>, ouverte d'office tant qu'aucun rush n'est prêt, ou lien
    « Rushes et montages… » de la page des moments). « Choisir un fichier… » ouvre l'explorateur de
    fichiers et copie la vidéo dans `montage/public/rushes/` ; « Préparer ce rush » lance la
-   transcription, la découpe en moments et une première version de travail (environ la durée
+   transcription, la découpe en moments et une première vidéo entière (environ la durée
    du rush, plus 3 à 5 min), avec l'avancement à l'écran, puis ouvre la page des moments.
    Sans consignes particulières, le premier montage garde tous les moments sauf les 1res prises.
    Consignes et style (facultatif) : écrire le montage voulu dans la zone de texte (ou choisir
@@ -117,7 +117,7 @@ lancements suivants prennent quelques secondes.
    Chaque moment se lit habillé comme dans le montage.
    Préparer un autre rush met le montage en cours de côté : la page « Rushes et montages » le rouvre
    plus tard tel quel (section « Montages », sans rien recalculer).
-4. **Générer la version de travail** (bouton de la page), la regarder sur la page.
+4. **Générer la vidéo entière** (bouton de la page), la regarder sur la page.
    En local, « Discuter avec Claude » (<http://localhost:8080/chat/>) permet aussi de lui
    demander les changements en français, sans terminal (Claude Code connecté une fois).
 5. **Rendu final 4K** une fois validé : en local, « Télécharger » > « Créer la version 4K » (sur

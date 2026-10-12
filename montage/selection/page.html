@@ -165,7 +165,7 @@
   button { cursor: pointer; }
   button:hover { border-color: var(--muted); }
   :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-  .chip[aria-pressed="true"], .tab[aria-selected="true"] { background: var(--fg); color: var(--bg); border-color: var(--fg); }
+  .chip[aria-pressed="true"], .tab[aria-selected="true"], #work-gen[aria-pressed="true"] { background: var(--fg); color: var(--bg); border-color: var(--fg); }
   .tab:disabled { opacity: 0.45; cursor: default; }
   .row2 { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
   .status { margin-left: auto; font-size: 13px; color: var(--muted); }
@@ -255,7 +255,7 @@
   .insp-badges { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
   .badge { font-size: 12px; border: 1px solid var(--line); border-radius: 999px; padding: 2px 10px; color: var(--muted); }
   .badge.on { color: var(--accent); border-color: var(--accent); }
-  /* Moment changé depuis la version de travail : pastille jaune (inspecteur) et point sur la frise. */
+  /* Moment changé depuis la vidéo entière : pastille jaune (inspecteur) et point sur la frise. */
   .badge.chg { color: var(--key); border-color: var(--key); background: rgb(255 216 77 / 0.1); font-weight: 600; }
   .badge.chg { position: relative; cursor: help; }
   .badge.chg .chg-tip { display: none; position: absolute; top: calc(100% + 6px); left: 0; z-index: 20; width: max-content; max-width: 270px;
@@ -423,7 +423,7 @@
         </div>
         <div class="row2">
           <button type="button" id="reset">Revenir aux suggestions</button>
-          <button type="button" id="regen" class="regen" hidden>Générer la version de travail</button>
+          <button type="button" id="regen" class="regen" hidden>Générer la vidéo entière</button>
           <span class="status" id="status" role="status">Chargement de la sélection…</span>
         </div>
         <div class="gen-progress" id="gen-progress" hidden>
@@ -439,10 +439,11 @@
   <div class="stage">
     <section class="viewer" aria-label="Lecteur">
       <div class="tabs" role="tablist">
-        <button type="button" class="tab" role="tab" id="tab-work" aria-selected="true">Version de travail</button>
+        <button type="button" class="tab" role="tab" id="tab-work" aria-selected="true">Vidéo entière</button>
+        <button type="button" id="work-gen" class="fs-btn" hidden aria-pressed="false" title="Voir la vidéo générée (dernière « Générer la vidéo entière ») au lieu des moments mis bout à bout en direct">Vidéo générée</button>
         <button type="button" class="tab" role="tab" id="tab-moment" aria-selected="false" disabled>Moment</button>
         <button type="button" id="fullscreen" class="fs-btn" style="margin-left: auto;" hidden title="Voir la vidéo en plein écran (Échap pour sortir ; clic ou Espace : lecture / pause)"><span aria-hidden="true">⛶</span> Plein écran</button>
-        <button type="button" id="download" hidden title="Télécharger la version de travail (MP4 720x1280, compressée pour la page)">Télécharger</button>
+        <button type="button" id="download" hidden title="Télécharger la vidéo entière (MP4 720x1280, compressée pour la page)">Télécharger</button>
       </div>
       <div class="dl-menu" id="dl-menu" hidden role="region" aria-label="Télécharger"></div>
       <a id="downloads-page" hidden target="_blank" rel="noopener" style="font-size: 13px; color: var(--accent); align-self: flex-end;">Toutes les qualités (1080p, 4K)</a>
@@ -489,8 +490,8 @@
       <div class="insp-pane" id="insp-moment" role="tabpanel" aria-labelledby="itab-moment"></div>
       <div class="insp-pane" id="insp-all" role="tabpanel" aria-labelledby="itab-all" hidden>
       <div class="cap-style derush-subs" id="derush-subs-row" hidden>
-        <label><input type="checkbox" id="derush-subs"> Sous-titres dans la version de travail</label>
-        <span class="sub" id="derush-subs-status" role="status">Texte corrigé avec « Corriger » ; appliqué à la prochaine « Générer la version de travail ».</span>
+        <label><input type="checkbox" id="derush-subs"> Sous-titres dans la vidéo entière</label>
+        <span class="sub" id="derush-subs-status" role="status">Texte corrigé avec « Corriger » ; appliqué à la prochaine « Générer la vidéo entière ».</span>
       </div>
       <details class="cap-style" id="cap-style" hidden data-subtitles-only>
         <summary>Style des sous-titres</summary>
@@ -522,7 +523,7 @@
             <button type="button" id="cs-add-font">Ajouter une police…</button>
             <input type="file" id="cs-font-file" accept=".ttf,.otf,.woff,.woff2" hidden>
             <button type="button" id="cs-reset">Style d'origine</button>
-            <span id="cs-status" role="status">Visible tout de suite dans l'aperçu des moments ; dans la vidéo à la prochaine « Générer la version de travail ».</span>
+            <span id="cs-status" role="status">Visible tout de suite dans l'aperçu des moments ; dans la vidéo à la prochaine « Générer la vidéo entière ».</span>
           </div>
         </div>
       </details>
@@ -540,7 +541,7 @@
       </details>
       <details class="cap-style son" id="son-panel" hidden data-mode-montage>
         <summary>Son de la voix</summary>
-        <p class="sub" style="margin: 6px 0 0;">Réglages de tout le montage (chaque moment a aussi son curseur « Voix »). Appliqués à la prochaine « Générer la version de travail ».</p>
+        <p class="sub" style="margin: 6px 0 0;">Réglages de tout le montage (chaque moment a aussi son curseur « Voix »). Appliqués à la prochaine « Générer la vidéo entière ».</p>
         <label style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 10px; font-size: 14px;">
           Volume de la voix
           <input type="range" id="son-voice" min="0" max="200" step="5" value="100" style="width: 12em; accent-color: var(--accent);">
@@ -604,7 +605,7 @@
   // la découpe des moments ; ni effets, ni sous-titres, ni cadrage, ni réglages du son (masqués
   // ici, ignorés par build_edit.py, gardés pour le mode Auto-montage).
   const DERUSH = !!window.AUTO_MONTAGE_LOCAL && document.documentElement.dataset.mode === "derush";
-  // Dérushage : sous-titres dans la version de travail (case « Sous-titres », work/derush.json,
+  // Dérushage : sous-titres dans la vidéo entière (case « Sous-titres », work/derush.json,
   // cochée par défaut ; écrit par le serveur sur <html data-subtitles>).
   const derushSubs = () => document.documentElement.dataset.subtitles !== "0";
   // Format de la composition, celui du rush : 1080x1920 (9:16), 1920x1080 (16:9), 1440x1080 (4:3)…
@@ -655,7 +656,7 @@
   const focusOf = (m) => (edits[m.id] && Number.isInteger(edits[m.id].focus) ? edits[m.id].focus : null);
   if (FRAME_W !== 1080 || FRAME_H !== 1920) {  // version pour la page : petit côté de 720 (make_moments.py)
     const k = 720 / Math.min(FRAME_W, FRAME_H), even = (x) => Math.round((x * k) / 2) * 2;
-    document.getElementById("download").title = `Télécharger la version de travail (MP4 ${even(FRAME_W)}x${even(FRAME_H)}, compressée pour la page)`;
+    document.getElementById("download").title = `Télécharger la vidéo entière (MP4 ${even(FRAME_W)}x${even(FRAME_H)}, compressée pour la page)`;
   }
   if (DATA.captionFont) {
     const face = new FontFace("Oliver", `url(${DATA.captionFont})`, { weight: "400" });
@@ -772,7 +773,7 @@
   let saveTimer = null;
   let dirty = false; // modification locale pas encore enregistrée
   let docUnsub = null;
-  let mode = "work"; // lecteur : version de travail ou moment
+  let mode = "work"; // lecteur : vidéo entière ou moment
   let currentMoment = null;
   let nowSeg = null;
   const edits = {}; // corrections et effets par moment, communs à toutes les variantes
@@ -904,7 +905,7 @@
       ? { kind, text: "Votre texte", at: t0, type: 1.2, dur: Math.round(Math.max(1, clipLen(m) - t0) * 100) / 100, sound: true }
       : { kind, text: "Votre titre", at: t0, dur: 2.2, sound: true };
   }
-  // e : réglages enregistrés du moment (ceux de la page, ou ceux de la version de travail).
+  // e : réglages enregistrés du moment (ceux de la page, ou ceux de la vidéo entière).
   function vfxOf(m, e = edits[m.id], first) {
     return (e && Array.isArray(e.vfx)) ? e.vfx : vfxDefaults(m, first);
   }
@@ -914,8 +915,8 @@
     if (list !== m.sfx && !e.fxv) list = [...list, ...m.sfx.filter((f) => f && f.kind === "voix")];
     return list.map((f) => (typeof f === "string" ? defaultFx(m, f) : { ...defaultFx(m, f.kind), ...f }));
   }
-  // --- Écart avec la version de travail ---------------------------------------------
-  // DATA.working.page : sélection et documents des moments copiés quand la version de travail a
+  // --- Écart avec la vidéo entière ---------------------------------------------
+  // DATA.working.page : sélection et documents des moments copiés quand la vidéo entière a
   // été générée (use_selection.py → edit.json). Sans elle (version faite sans la page) : les
   // moments du montage, sans réglage. Un moment est signalé s'il a été ajouté, retiré, ou si un
   // réglage qui compte au montage a changé (en dérushage : découpe, début et fin, sous-titres).
@@ -959,13 +960,13 @@
     if (!what.includes("cuts") && stable(before) !== stable(now)) what.unshift("keep");
     return { kind: what.length ? "changed" : "same", what: what.map((k) => CHANGE_LABELS[k]) };
   }
-  // Version de travail comparée : celle affichée, désignée par la date de son rendu.
+  // Vidéo entière comparée : celle affichée, désignée par la date de son rendu.
   const workStamp = () => {
     const when = working && working.renderedAt ? new Date(working.renderedAt) : null;
     return when ? ` du ${when.toLocaleDateString("fr-FR", { day: "numeric", month: "short" })} à ${when.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}` : "";
   };
   const changeWhat = (c) => ({ added: "ajouté au montage", removed: "retiré du montage", changed: c.what.join(", ") })[c.kind];
-  const changeText = (c) => `Modifié depuis la version de travail${workStamp()} : ${changeWhat(c)}`;
+  const changeText = (c) => `Modifié depuis la vidéo entière générée${workStamp()} : ${changeWhat(c)}`;
 
   const catalog = DATA.sfxCatalog || [];
   const hiddenFx = new Set(DATA.hiddenEffects || []);
@@ -982,8 +983,8 @@
   const playIcon = '<svg viewBox="0 0 10 10" aria-hidden="true"><path d="M2 1l7 4-7 4z"/></svg>';
 
   $("sub").title = $("sub").textContent = `Rush ${DATA.rush} · ${moments.filter((m) => !m.gap).length} moments de parole (+ ${moments.filter((m) => m.gap).length} plans sans parole à part). `
-    + (DERUSH ? "Sur la frise du bas, cochez les moments à garder et ouvrez-en un pour le découper : la version de travail les met bout à bout, sans effets."
-      : "Sur la frise du bas, cochez ce qui reste dans la version de travail ; ouvrez un moment pour le corriger, le découper et placer ses effets.");
+    + (DERUSH ? "Sur la frise du bas, cochez les moments à garder et ouvrez-en un pour le découper : la vidéo entière les met bout à bout, sans effets."
+      : "Sur la frise du bas, cochez ce qui reste dans la vidéo entière ; ouvrez un moment pour le corriger, le découper et placer ses effets.");
 
   // --- Habillage des moments (calculé dans la page, à partir de l'état courant) ----
   // Mêmes règles que scripts/build_edit.py : sous-titres jusqu'à 6 mots sur 2 lignes
@@ -1101,7 +1102,7 @@
   ];
   const voiceOf = (f) => (VOICES.some((v) => v.id === f.voice) ? f.voice : "tremblement");
   // Voix modifiée dans l'aperçu : imitation en direct (Web Audio) des filtres ffmpeg de
-  // moments_lib.voice_filter, que la version de travail utilise. Branché au premier moment qui
+  // moments_lib.voice_filter, que la vidéo entière utilise. Branché au premier moment qui
   // en a ; la chaîne de la voix et de la force en cours est refaite quand elles changent.
   let voiceFx = null;
   function ensureVoiceFx() {
@@ -1269,7 +1270,7 @@
 
   // Voix faites par HyperFrames (hf/hf_audio.js, moments_lib.HF_VOICES) : dans l'aperçu d'un
   // moment qui en a, le son vient d'un lecteur HyperFrames caché, avec les mêmes éléments audio
-  // et les mêmes effets que la version de travail (scripts/render_hyperframes.py). La vidéo ne
+  // et les mêmes effets que la vidéo entière (scripts/render_hyperframes.py). La vidéo ne
   // donne plus que l'image, et les voix faites par ffmpeg (imitées comme avant). Tant que le
   // lecteur n'est pas prêt, ou sans lui (fichiers hf/ absents), l'imitation Web Audio reste.
   let hfSon = {};  // nettoyage de la voix (panneau « Son de la voix »)
@@ -1334,12 +1335,14 @@ ${HFAudio.voiceElements(spec)}
     hfFollow();
   }
 
+  let ovFrame = 0;  // une seule boucle d'images à la fois, quel que soit le nombre d'appels
   function drawOverlay() {
-    if (mode !== "moment" || !fx) return;
+    if ((mode !== "moment" && mode !== "live") || !fx) return;
+    if (mode === "live" && liveFollow()) { cancelAnimationFrame(ovFrame); ovFrame = requestAnimationFrame(drawOverlay); return; }
     const t = player.currentTime;
-    if (fx.m.gap && !player.paused && t >= trimOf(fx.m).out) player.pause();
+    if (mode === "moment" && fx.m.gap && !player.paused && t >= trimOf(fx.m).out) player.pause();
     // Moment découpé : les parties décochées sont sautées (sauf si tout est décoché).
-    if (!player.paused && cutsOf(fx.m).length && isKept(fx.m)) {
+    if (mode === "moment" && !player.paused && cutsOf(fx.m).length && isKept(fx.m)) {
       const part = partsOf(fx.m).find((p) => t >= p.a && t < p.b);
       if (part && !partKept(fx.m, part.k)) {
         const nextPart = partsOf(fx.m).find((p) => p.k > part.k && partKept(fx.m, p.k));
@@ -1437,7 +1440,8 @@ ${HFAudio.voiceElements(spec)}
         }
       }
     }
-    requestAnimationFrame(drawOverlay);
+    cancelAnimationFrame(ovFrame);
+    ovFrame = requestAnimationFrame(drawOverlay);
   }
   function resetOverlay() {
     setVoice(null);
@@ -1448,25 +1452,170 @@ ${HFAudio.voiceElements(spec)}
 
   // --- Lecteur ---------------------------------------------------------------
   const player = $("player");
+  // Vidéo entière en direct : les parties gardées des moments, dans l'ordre du rush, jouées
+  // l'une après l'autre depuis leurs extraits, chacune avec son habillage du moment (mêmes
+  // règles que build_edit.py : parole seule, parties découpées contiguës réunies, plans sans
+  // parole réduits à leur partie gardée). Recalculée à chaque image : un moment coché, retiré,
+  // découpé ou réglé se voit tout de suite. live.id : moment en cours (le temps est celui du
+  // lecteur, dans son extrait).
+  const live = { id: null, ended: false, pending: null, T: 0 };  // T : position gardée en quittant l'onglet
+  function liveSpans(m) {
+    if (m.gap) { const tr = trimOf(m); return [[tr.in, tr.out]]; }
+    const s0 = clipStart(m), a0 = m.start - s0, b0 = m.end - s0;
+    if (!cutsOf(m).length) return isKept(m) ? [[a0, b0]] : [];
+    const out = [];
+    for (const p of partsOf(m)) {
+      const a = Math.max(a0, p.a), b = Math.min(b0, p.b);
+      if (!partKept(m, p.k) || b - a < 0.1) continue;
+      if (out.length && Math.abs(out[out.length - 1][1] - a) < 1e-6) out[out.length - 1][1] = b;
+      else out.push([a, b]);
+    }
+    return out;
+  }
+  function livePlan() {
+    const list = [];
+    let T = 0;
+    for (const m of moments.filter(isKept)) for (const [a, b] of liveSpans(m)) list.push({ m, a, b, r: clipStart(m) + a });
+    list.sort((x, y) => x.r - y.r);
+    for (const e of list) { e.T = T; T += e.b - e.a; }
+    return { list, total: T };
+  }
+  // Partie en cours : celle du moment joué qui contient l'instant, sinon la première qui suit
+  // dans le rush (moment retiré ou partie décochée pendant la lecture) ; -1 après la dernière.
+  function liveIndex(plan) {
+    const t = live.pending ?? player.currentTime;
+    const k = plan.list.findIndex((e) => e.m.id === live.id && t >= e.a - 0.05 && t < e.b);
+    if (k >= 0) return k;
+    const cur = live.id !== null && byId.has(live.id) ? clipStart(byId.get(live.id)) + t : -Infinity;
+    return plan.list.findIndex((e) => e.r >= cur - 0.05);
+  }
+  const liveTime = (plan = livePlan()) => {
+    const k = liveIndex(plan);
+    if (k < 0) return plan.total;
+    const e = plan.list[k], t = live.pending ?? player.currentTime;
+    return e.T + Math.max(0, Math.min(e.b - e.a, t - e.a));
+  };
+  function liveGo(e, t, play) {
+    const m = e.m, same = live.id === m.id && player.src.endsWith(m.clip);
+    live.ended = false;
+    if (!same || !fx || fx.m !== m) {
+      live.id = m.id;
+      fx = buildOverlay(m);
+      player.volume = DERUSH ? 1 : Math.min(1, voiceGainOf(m) * voiceGlobal);
+      if (!DERUSH && sfxOf(m).some((f) => f.kind === "voix") && ensureVoiceFx()) voiceFx.ctx.resume().catch(() => {});
+      liveNow(m.id);
+    }
+    if (same) {
+      live.pending = null;
+      player.currentTime = t;
+      if (!play) player.pause(); else if (player.paused) player.play().catch(() => {});
+      return;
+    }
+    live.pending = t;
+    player.src = m.clip;
+    player.addEventListener("loadedmetadata", () => {
+      if (mode !== "live" || live.id !== m.id) return;
+      player.currentTime = live.pending ?? t;
+      live.pending = null;
+      if (play) player.play().catch(() => {});
+    }, { once: true });
+    // Extrait suivant chargé d'avance : le passage d'un moment à l'autre attend moins.
+    const plan = livePlan(), k = plan.list.indexOf(plan.list.find((x) => x.m === m && x.a === e.a));
+    const next = plan.list.slice(k + 1).find((x) => x.m !== m);
+    if (next) { const v = $("live-next") || Object.assign(document.createElement("video"), { id: "live-next", preload: "auto", muted: true, hidden: true }); if (!v.isConnected) document.body.append(v); if (!v.src.endsWith(next.m.clip)) v.src = next.m.clip; }
+  }
+  function liveNow(id) {  // moment joué encadré sur la frise du rush
+    nowSeg = id;
+    document.querySelectorAll("#tlm-in .clip.now").forEach((b) => b.classList.remove("now"));
+    if (id !== null) document.querySelectorAll(`#tlm-in .clip[data-id="${id}"]`).forEach((b) => b.classList.add("now"));
+  }
+  function liveSeek(T, play = !player.paused) {
+    const plan = livePlan();
+    if (!plan.list.length) return;
+    T = Math.max(0, Math.min(plan.total - 0.01, T));
+    const e = [...plan.list].reverse().find((x) => x.T <= T) || plan.list[0];
+    liveGo(e, e.a + (T - e.T), play);
+  }
+  // À chaque image : saut à la partie suivante (même extrait ou moment suivant), arrêt après la
+  // dernière. Vrai si un autre extrait se charge (rien à dessiner pour cette image).
+  function liveFollow() {
+    if (live.ended) return false;
+    if (live.pending !== null || (player.paused && !player.ended)) return live.pending !== null;
+    const plan = livePlan(), k = liveIndex(plan), t = player.currentTime;
+    const stop = () => { player.pause(); live.ended = true; return false; };
+    if (k < 0) return stop();
+    const e = plan.list[k];
+    if (e.m.id !== live.id) { liveGo(e, e.a, true); return true; }
+    if (t < e.a - 0.05) { player.currentTime = e.a; return false; }
+    if (t < e.b - 1 / 60 && !player.ended) return false;
+    const next = plan.list[k + 1];
+    if (!next) return stop();
+    liveGo(next, next.a, true);
+    return next.m.id !== e.m.id;
+  }
+  player.addEventListener("ended", () => { if (mode === "live" && !live.ended) liveFollow(); });
+  function showLive(autoplay) {
+    mode = "live";
+    currentMoment = null;
+    hfStop();
+    resetOverlay();
+    $("tab-work").setAttribute("aria-selected", "true");
+    $("tab-moment").setAttribute("aria-selected", "false");
+    $("work-gen").hidden = !working;
+    $("work-gen").setAttribute("aria-pressed", "false");
+    const plan = livePlan();
+    if (!plan.list.length) {
+      fx = null; live.id = null;
+      player.removeAttribute("src"); player.load();
+      liveCaption(plan);
+      renderList();
+      return;
+    }
+    $("ov").hidden = false;
+    fx = null;
+    liveSeek(live.ended ? 0 : live.T, autoplay);
+    liveCaption(plan);
+    ovFrame = requestAnimationFrame(drawOverlay);
+    renderList();
+  }
+  // Sélection changée : premier moment chargé s'il n'y en avait pas, arrêt s'il n'en reste aucun.
+  function liveRefresh() {
+    const plan = livePlan();
+    if (plan.list.length && !player.getAttribute("src")) { showLive(false); return; }
+    if (!plan.list.length && player.getAttribute("src")) {
+      player.pause(); player.removeAttribute("src"); player.load(); fx = null; live.id = null; resetOverlay();
+    }
+    liveCaption(plan);
+  }
+  function liveCaption(plan = livePlan()) {
+    if (mode !== "live") return;
+    if (!plan.list.length) { $("caption").textContent = "Aucun moment gardé : cochez des moments sur la frise pour les voir bout à bout ici."; return; }
+    const n = new Set(plan.list.map((e) => e.m.id)).size;
+    $("caption").textContent = `Vidéo entière en direct · ${n} moment${n > 1 ? "s" : ""} · ${fmt(plan.total)} · les moments gardés bout à bout, avec leurs réglages actuels`
+      + (DERUSH ? "" : " (aperçu : le rendu peut différer un peu)");
+  }
   function showWork(autoplay) {
+    if (mode === "live") live.T = liveTime();
     mode = "work";
     currentMoment = null;
     fx = null;
     hfStop();
-    player.volume = 1;  // la version de travail a déjà ses volumes
+    player.volume = 1;  // la vidéo entière a déjà ses volumes
     resetOverlay();
     $("tab-work").setAttribute("aria-selected", "true");
     $("tab-moment").setAttribute("aria-selected", "false");
+    $("work-gen").hidden = !working;
+    $("work-gen").setAttribute("aria-pressed", "true");
     if (!working) {
       player.removeAttribute("src");
-      $("caption").textContent = "Pas encore de version de travail : elle apparaîtra après le premier montage.";
+      $("caption").textContent = "Pas encore de vidéo entière générée : elle apparaîtra après le premier montage.";
       renderList();
       return;
     }
     if (!player.src.endsWith(working.src)) player.src = working.src;
     const when = working.renderedAt ? new Date(working.renderedAt) : null;
     const stamp = when ? ` du ${when.toLocaleDateString("fr-FR", { day: "numeric", month: "short" })} à ${when.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}` : "";
-    $("caption").textContent = `Version de travail${stamp} · ${fmt(working.duration)} · le moment en cours est encadré sur la frise du rush`;
+    $("caption").textContent = `Vidéo générée${stamp} · ${fmt(working.duration)} · le moment en cours est encadré sur la frise du rush`;
     if (autoplay) player.play().catch(() => {});
     renderList();
   }
@@ -1474,6 +1623,7 @@ ${HFAudio.voiceElements(spec)}
   // de glissement), seuls le moment surligné et les boutons « Ici » sont mis à jour.
   function showMoment(id, { autoplay = true, quiet = false } = {}) {
     const m = byId.get(id);
+    if (mode === "live") live.T = liveTime();
     mode = "moment";
     currentMoment = id;
     nowSeg = null;
@@ -1488,7 +1638,7 @@ ${HFAudio.voiceElements(spec)}
     $("ov").hidden = false;
     $("caption").textContent = m.gap
       ? `Plan sans parole à ${fmt(m.start)} · partie gardée seulement`
-      : `Moment à ${fmt(m.start)} · ${DERUSH ? (derushSubs() ? "image du rush, avec ses sous-titres" : "image du rush, sans sous-titres") : "habillé comme dans la version de travail"}`;
+      : `Moment à ${fmt(m.start)} · ${DERUSH ? (derushSubs() ? "image du rush, avec ses sous-titres" : "image du rush, sans sous-titres") : "habillé comme dans la vidéo entière"}`;
     if (autoplay) player.play().catch(() => {});
     requestAnimationFrame(drawOverlay);
     if (quiet) syncCurrent(); else renderList();
@@ -1640,42 +1790,65 @@ ${HFAudio.voiceElements(spec)}
     const i = speech.findIndex((x) => x.id === m.id);
     return i >= 0 && i + 1 < speech.length ? speech[i + 1] : null;
   };
-  $("tab-work").addEventListener("click", () => showWork(false));
+  $("tab-work").addEventListener("click", () => { if (mode !== "live" && mode !== "work") showLive(false); });
+  $("work-gen").addEventListener("click", () => { if (mode === "work") showLive(false); else showWork(false); });
   // Barre de lecture : lecture/pause, curseur, image par image, temps au centième
   // (le temps affiché est celui des réglages « départ » et des coupes).
   const seek = $("t-seek");
   let seeking = false;
-  const togglePlay = () => (player.paused ? player.play().catch(() => {}) : player.pause());
+  const togglePlay = () => {
+    if (mode === "live" && (live.ended || !player.getAttribute("src"))) { if (live.ended) live.T = 0; live.ended = false; showLive(true); return; }
+    return player.paused ? player.play().catch(() => {}) : player.pause();
+  };
+  // Temps du lecteur : celui de la vidéo, ou de la vidéo entière en direct (moments bout à bout).
+  const curTime = () => (mode === "live" ? liveTime() : player.currentTime);
+  const curDur = () => (mode === "live" ? livePlan().total : Number.isFinite(player.duration) ? player.duration : 0);
+  const setTime = (x) => { if (mode === "live") liveSeek(x); else player.currentTime = x; };
   function drawTransport() {
-    const d = Number.isFinite(player.duration) ? player.duration : 0;
+    const d = curDur(), now = curTime();
     seek.max = String(d || 1);
-    if (!seeking) seek.value = String(player.currentTime);
-    $("t-time").textContent = `${player.currentTime.toFixed(2)} / ${d.toFixed(2)} s`;
+    if (!seeking) seek.value = String(now);
+    $("t-time").textContent = `${now.toFixed(2)} / ${d.toFixed(2)} s`;
     $("t-play").textContent = player.paused ? "▶" : "❚❚";
     $("t-play").setAttribute("aria-label", player.paused ? "Lecture" : "Pause");
     // Barre du plein écran.
     const clock = (x) => `${Math.floor(x / 60)}:${String(Math.floor(x % 60)).padStart(2, "0")}`;
     $("fs-seek").max = String(d || 1);
-    if (!seeking) $("fs-seek").value = String(player.currentTime);
-    $("fs-time").textContent = `${clock(player.currentTime)} / ${clock(d)}`;
+    if (!seeking) $("fs-seek").value = String(now);
+    $("fs-time").textContent = `${clock(now)} / ${clock(d)}`;
     $("fs-play").textContent = player.paused ? "▶" : "❚❚";
     $("fs-play").setAttribute("aria-label", player.paused ? "Lecture" : "Pause");
   }
   for (const ev of ["timeupdate", "play", "pause", "loadedmetadata", "seeked", "emptied"]) player.addEventListener(ev, drawTransport);
   (function tick() { if (!player.paused) { drawTransport(); drawPlayheads(); } requestAnimationFrame(tick); })();
-  seek.addEventListener("input", () => { seeking = true; player.currentTime = Number(seek.value); drawTransport(); });
+  seek.addEventListener("input", () => { seeking = true; setTime(Number(seek.value)); drawTransport(); });
   seek.addEventListener("change", () => { seeking = false; });
-  $("fs-seek").addEventListener("input", () => { seeking = true; player.currentTime = Number($("fs-seek").value); drawTransport(); });
+  $("fs-seek").addEventListener("input", () => { seeking = true; setTime(Number($("fs-seek").value)); drawTransport(); });
   $("fs-seek").addEventListener("change", () => { seeking = false; });
   $("fs-play").addEventListener("click", togglePlay);
   $("fs-exit").addEventListener("click", () => document.exitFullscreen().catch(() => {}));
   $("t-play").addEventListener("click", togglePlay);
   player.addEventListener("click", togglePlay);
-  const step = (dt) => { player.pause(); player.currentTime = Math.max(0, Math.min(player.duration || 0, player.currentTime + dt)); };
+  const step = (dt) => {
+    player.pause();
+    if (mode === "live") liveSeek(liveTime() + dt, false);
+    else player.currentTime = Math.max(0, Math.min(player.duration || 0, player.currentTime + dt));
+  };
   $("t-back").addEventListener("click", () => step(-1 / 30));
   $("t-fwd").addEventListener("click", () => step(1 / 30));
   // Relancer la lecture d'un moment recalcule son habillage (corrections et effets à jour).
   player.addEventListener("play", () => {
+    if (mode === "live" && fx) {  // vidéo entière en direct : habillage du moment joué à jour
+      const m = fx.m;
+      fx = buildOverlay(m);
+      for (const e of fx.events) e.done = e.t < player.currentTime;
+      player.volume = DERUSH ? 1 : Math.min(1, voiceGainOf(m) * voiceGlobal);
+      if (!DERUSH && sfxOf(m).some((f) => f.kind === "voix")) ensureVoiceFx();
+      if (voiceFx) voiceFx.ctx.resume().catch(() => {});
+      liveCaption();
+      requestAnimationFrame(drawOverlay);
+      return;
+    }
     if (mode !== "moment" || currentMoment === null) return;
     const cm = byId.get(currentMoment);
     if (sfxOf(cm).some((f) => f.kind === "voix")) ensureVoiceFx();
@@ -1820,7 +1993,7 @@ ${HFAudio.voiceElements(spec)}
     b.setAttribute("aria-label", `${m.gap ? "Plan sans parole" : "Moment"} à ${fmt(m.start)}, ${status}${changed ? `, ${changeText(change).toLowerCase()}` : ""} : ${label}`);
     if (changed) b.append(el("span", "chg-dot"));
     if (w >= 26) {
-      const ck = btn(on ? "✓" : "", on ? "Retirer de la version de travail" : "Garder dans la version de travail", (e) => { e.stopPropagation(); toggle(m.id, !on); }, `ck${partial ? " part" : ""}`);
+      const ck = btn(on ? "✓" : "", on ? "Retirer de la vidéo entière" : "Garder dans la vidéo entière", (e) => { e.stopPropagation(); toggle(m.id, !on); }, `ck${partial ? " part" : ""}`);
       ck.setAttribute("role", "checkbox");
       ck.setAttribute("aria-checked", partial ? "mixed" : String(on));
       ck.setAttribute("aria-label", `Garder : ${label}`);
@@ -2055,8 +2228,8 @@ ${HFAudio.voiceElements(spec)}
         items.push(tool("Recoller", "Recoller cette partie au moment précédent (défaire la scission)", () => momentAction("unsplit", om), true));
     }
     items.push(el("span", "sep"),
-      tool("✓ Garder", "Garder dans la version de travail", () => setKept(list, true), list.length > 0),
-      tool("⊘ Retirer", "Retirer de la version de travail", () => setKept(list, false), list.length > 0),
+      tool("✓ Garder", "Garder dans la vidéo entière", () => setKept(list, true), list.length > 0),
+      tool("⊘ Retirer", "Retirer de la vidéo entière", () => setKept(list, false), list.length > 0),
       tool("✎ Corriger", "Corriger le texte des sous-titres du moment ouvert", fixText, !!om && !om.gap && (!DERUSH || derushSubs())));
     if (frise.sel.size > 1) {
       const kept = list.filter((m) => isKept(m)).length;
@@ -2295,17 +2468,17 @@ ${HFAudio.voiceElements(spec)}
       if (m.reason) badges.append(el("span", "why", `Suggéré : retirer (${m.reason})`));
       const change = workChange(m);
       if (change && change.kind !== "same") {
-        // Pastille courte ; au survol (ou au focus) : version de travail comparée et ce qui a changé.
+        // Pastille courte ; au survol (ou au focus) : vidéo entière comparée et ce qui a changé.
         const tag = el("span", "badge chg", "Modifié");
         tag.tabIndex = 0;
         tag.setAttribute("aria-label", changeText(change));
         const tip = el("span", "chg-tip");
-        tip.append(el("b", "", `Modifié depuis la version de travail${workStamp()}`),
+        tip.append(el("b", "", `Modifié depuis la vidéo entière générée${workStamp()}`),
           el("span", "", change.kind === "changed" ? `Changé : ${changeWhat(change)}` : `Moment ${changeWhat(change)}`),
-          el("small", "", "« Générer la version de travail » prend en compte ce changement."));
+          el("small", "", "« Générer la vidéo entière » prend en compte ce changement."));
         tag.append(tip);
         badges.append(tag);
-      } else if (!m.reason && (change ? change.kind === "same" : inEdit.has(m.id))) badges.append(el("span", "badge", "Dans la version de travail"));
+      } else if (!m.reason && (change ? change.kind === "same" : inEdit.has(m.id))) badges.append(el("span", "badge", "Dans la vidéo générée"));
       out.push(badges);
       if (!m.gap) {
         if (!DERUSH || derushSubs()) {
@@ -2369,6 +2542,7 @@ ${HFAudio.voiceElements(spec)}
     renderOpen();
   }
   function renderOpen() {
+    if (mode === "live") liveRefresh();
     syncMain();
     renderToolbar();
     renderMomentTl();
@@ -2378,7 +2552,7 @@ ${HFAudio.voiceElements(spec)}
   let resizeT = null;
   window.addEventListener("resize", () => { clearTimeout(resizeT); resizeT = setTimeout(renderList, 150); });
 
-  // Tête de lecture : dans la frise du rush (moment ou version de travail en lecture) et dans celle
+  // Tête de lecture : dans la frise du rush (moment ou vidéo entière en lecture) et dans celle
   // du moment ; le temps affiché dit le mot prononcé à cet instant.
   function describeAt(m, t) {
     if (m.gap) return `${t.toFixed(2)} s`;
@@ -2406,7 +2580,7 @@ ${HFAudio.voiceElements(spec)}
     } else if (mode === "work" && working) {
       const c = working.clips.find((x) => player.currentTime >= x.start && player.currentTime < x.end), cm = c && byId.get(c.seg);
       if (cm) rt = Math.min(cm.end, cm.start + player.currentTime - c.start);
-    }
+    } else if (mode === "live" && live.id !== null && byId.has(live.id)) rt = clipStart(byId.get(live.id)) + (live.pending ?? player.currentTime);
     const ph = document.querySelector("#tlm-in > .phead");
     if (ph) {
       ph.style.display = rt === null ? "none" : "";
@@ -2858,7 +3032,7 @@ ${HFAudio.voiceElements(spec)}
       out.style.cssText = "font-variant-numeric: tabular-nums; min-width: 3.2em;";
       r.addEventListener("input", () => {
         out.textContent = `${r.value} %`;
-        if (currentMoment === m.id && mode === "moment") player.volume = Math.min(1, (Number(r.value) / 100) * voiceGlobal);
+        if ((currentMoment === m.id && mode === "moment") || (mode === "live" && live.id === m.id)) player.volume = Math.min(1, (Number(r.value) / 100) * voiceGlobal);
       });
       r.addEventListener("change", () => saveMoment(m.id, { gain: Number(r.value) / 100 }));
       l.append(Object.assign(document.createElement("span"), { className: "sfx-title", textContent: "Voix :" }), r, out);
@@ -2880,7 +3054,7 @@ ${HFAudio.voiceElements(spec)}
     const changed = moments.filter((m) => { const c = workChange(m); return c && c.kind !== "same"; }).length;
     $("count").textContent = `${kept.length - gapsKept} moments de parole sur ${speech.length}`
       + (gapsKept ? ` + ${gapsKept} plan${gapsKept > 1 ? "s" : ""} sans parole` : "") + ` · parole totale ${fmt(total)}`
-      + (changed ? ` · ${changed} moment${changed > 1 ? "s" : ""} changé${changed > 1 ? "s" : ""} depuis la version de travail` : "");
+      + (changed ? ` · ${changed} moment${changed > 1 ? "s" : ""} changé${changed > 1 ? "s" : ""} depuis la vidéo entière générée` : "");
     const sel = $("variant");
     sel.replaceChildren(...Object.entries(state.names).map(([id, name]) => new Option(name, id, false, id === state.variant)));
   }
@@ -2980,7 +3154,7 @@ ${HFAudio.voiceElements(spec)}
   }
 
   // Document « moments/<id> » -> réglages du moment (edits), pour la page comme pour la
-  // version de travail (DATA.working.page, copie des documents au moment de la générer).
+  // vidéo entière (DATA.working.page, copie des documents au moment de la générer).
   function readMomentDoc(d) {
     return {
       text: typeof d.text === "string" && d.text ? d.text : undefined,
@@ -3103,7 +3277,7 @@ ${HFAudio.voiceElements(spec)}
   }
 
   render();
-  showWork(false);
+  showLive(false);
 
   (async () => {
     db = await window.claude?.use?.("db") ?? null;
@@ -3138,8 +3312,8 @@ ${HFAudio.voiceElements(spec)}
         body: JSON.stringify({ subtitles: box.checked }) }).catch(() => null);
       if (!r || !r.ok) { box.checked = !box.checked; $("derush-subs-status").textContent = "Réglage non enregistré : Auto-montage ne répond pas."; return; }
       document.documentElement.dataset.subtitles = box.checked ? "1" : "0";
-      $("derush-subs-status").textContent = box.checked ? "Sous-titres ajoutés à la prochaine « Générer la version de travail »."
-        : "Pas de sous-titres à la prochaine « Générer la version de travail ».";
+      $("derush-subs-status").textContent = box.checked ? "Sous-titres ajoutés à la prochaine « Générer la vidéo entière »."
+        : "Pas de sous-titres à la prochaine « Générer la vidéo entière ».";
       editing = null;
       if (mode === "moment" && currentMoment !== null) showMoment(currentMoment, { autoplay: false }); else renderList();
     });
@@ -3175,7 +3349,7 @@ ${HFAudio.voiceElements(spec)}
       }
     }).catch(() => {});
   }
-  // Plein écran du lecteur (version de travail ou moment, avec son habillage). Clic ou
+  // Plein écran du lecteur (vidéo entière ou moment, avec son habillage). Clic ou
   // Espace : lecture / pause ; Échap : sortie. iPhone : plein écran de la vidéo seule.
   {
     const screen = document.querySelector(".screen");
@@ -3315,7 +3489,7 @@ ${HFAudio.voiceElements(spec)}
       clearTimeout(saveT);
       saveT = setTimeout(async () => {
         const r = await fetch("/api/caption-style", { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify(st) }).catch(() => null);
-        csStatus(r && r.ok ? "Enregistré : visible dans l'aperçu des moments, et dans la vidéo à la prochaine « Générer la version de travail »." : "Le style n'a pas pu être enregistré.");
+        csStatus(r && r.ok ? "Enregistré : visible dans l'aperçu des moments, et dans la vidéo à la prochaine « Générer la vidéo entière »." : "Le style n'a pas pu être enregistré.");
       }, 400);
     }
     $("cs-font").addEventListener("change", () => { fillWeights(Number($("cs-weight").value)); changed(); });
@@ -3366,7 +3540,7 @@ ${HFAudio.voiceElements(spec)}
         const r = await fetch("/api/son", { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify(patch) }).catch(() => null);
         if (r && r.ok) son = (await r.json()).settings || son;
         hfSon = son;
-        $("son-status").textContent = r && r.ok ? "Enregistré : appliqué à la prochaine génération de la version de travail." : "Le réglage n'a pas pu être enregistré.";
+        $("son-status").textContent = r && r.ok ? "Enregistré : appliqué à la prochaine génération de la vidéo entière." : "Le réglage n'a pas pu être enregistré.";
       };
       const LEVELS = ["aucune", "légère", "moyenne", "forte"];
       const showResult = (an) => {
@@ -3385,7 +3559,7 @@ ${HFAudio.voiceElements(spec)}
         box.append(p);
         if (!an.events.length) { box.append(Object.assign(document.createElement("p"), { className: "sub", textContent: "Aucun bruit parasite net repéré." })); return; }
         box.append(Object.assign(document.createElement("p"), { className: "sub", textContent:
-          `${an.events.length} bruit${an.events.length > 1 ? "s" : ""} bref${an.events.length > 1 ? "s" : ""} repéré${an.events.length > 1 ? "s" : ""}, aux instants de la version de travail. Écoutez-les : certains peuvent être des consonnes (p, t, k) ; cochez « Atténuer » pour ceux qui gênent (−15 dB sur ce court instant).` }));
+          `${an.events.length} bruit${an.events.length > 1 ? "s" : ""} bref${an.events.length > 1 ? "s" : ""} repéré${an.events.length > 1 ? "s" : ""}, aux instants de la vidéo entière générée (bouton « Vidéo générée »). Écoutez-les : certains peuvent être des consonnes (p, t, k) ; cochez « Atténuer » pour ceux qui gênent (−15 dB sur ce court instant).` }));
         const ul = Object.assign(document.createElement("ul"), { className: "son-list" });
         const muted = (e) => (son.mute || []).some(([a, b]) => Math.abs(a - e.src[0]) < 0.02 && Math.abs(b - e.src[1]) < 0.02);
         for (const e of an.events) {
@@ -3423,6 +3597,7 @@ ${HFAudio.voiceElements(spec)}
         $("son-voice-val").textContent = `${$("son-voice").value} %`;
         voiceGlobal = Number($("son-voice").value) / 100;
         if (mode === "moment" && currentMoment !== null) player.volume = Math.min(1, voiceGainOf(byId.get(currentMoment)) * voiceGlobal);
+        else if (mode === "live" && fx) player.volume = Math.min(1, voiceGainOf(fx.m) * voiceGlobal);
       });
       $("son-voice").addEventListener("change", () => putSon({ voice: Number($("son-voice").value) / 100 }));
       $("son-denoise").addEventListener("change", () => putSon({ denoise: Number($("son-denoise").value) }));
@@ -3545,7 +3720,7 @@ ${HFAudio.voiceElements(spec)}
     if (!data) { menu.textContent = "Le serveur Auto-montage ne répond pas."; menu.hidden = false; return; }
     const mb = (n) => `${(n / 1048576).toFixed(n < 10485760 ? 1 : 0)} Mo`;
     const byId = Object.fromEntries(data.versions.map((v) => [v.id, v]));
-    for (const [id, label, what] of [["720p", "720p", "légère, pour le téléphone"], ["1080p", "1080p", "version de travail"], ["4k", "4K", "pour la publication"]]) {
+    for (const [id, label, what] of [["720p", "720p", "légère, pour le téléphone"], ["1080p", "1080p", "vidéo entière"], ["4k", "4K", "pour la publication"]]) {
       const v = byId[id];
       const row = document.createElement("div");
       row.className = "row";
@@ -3573,7 +3748,7 @@ ${HFAudio.voiceElements(spec)}
         hint.style.flexBasis = "100%";
         hint.textContent = f.available
           ? `La création de la 4K prend du temps (${minutes(f.estimate || 0)} sur cet ordinateur) : l'avancement s'affiche sous la sélection, et la page reste utilisable.`
-          : "Générez d'abord la version de travail.";
+          : "Générez d'abord la vidéo entière.";
         row.append(hint);
       } else {
         info.textContent = "pas encore rendue";
@@ -3607,11 +3782,11 @@ ${HFAudio.voiceElements(spec)}
   }
   if (window.AUTO_MONTAGE_LOCAL) {
     $("download").hidden = false;
-    $("download").title = "Télécharger la version de travail (720p, 1080p) ou créer la version 4K";
+    $("download").title = "Télécharger la vidéo entière (720p, 1080p) ou créer la version 4K";
     $("download").addEventListener("click", () => ($("dl-menu").hidden ? openDownloadMenu() : ($("dl-menu").hidden = true)));
   }
 
-  // Téléchargement de la version de travail (MP4 de la page).
+  // Téléchargement de la vidéo entière (MP4 de la page).
   (async () => {
     if (!working || window.AUTO_MONTAGE_LOCAL) return;
     const downloads = await window.claude?.use?.("downloads") ?? null;
@@ -3627,7 +3802,7 @@ ${HFAudio.voiceElements(spec)}
         const when = working.renderedAt ? new Date(working.renderedAt) : new Date();
         const stamp = `${when.getFullYear()}-${String(when.getMonth() + 1).padStart(2, "0")}-${String(when.getDate()).padStart(2, "0")}_${String(when.getHours()).padStart(2, "0")}h${String(when.getMinutes()).padStart(2, "0")}`;
         await downloads.save({ filename: `${DATA.rush.replace(/\.[^.]+$/, "")}_version_de_travail_${stamp}.mp4`, data: blob });
-        setStatus("Version de travail téléchargée", "ok");
+        setStatus("Vidéo entière téléchargée", "ok");
       } catch (e) {
         const code = e && e.code;
         if (code === "unavailable" || code === "not_granted" || code === "capability_disabled" || code === "capability_removed") btn.hidden = true;

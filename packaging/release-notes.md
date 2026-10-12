@@ -68,4 +68,4 @@ conservés.
 ## Utilisation
 
 Voir le [README](https://github.com/RobinKD/Auto-montage#readme) : préparation d'un rush,
-choix des moments, génération de la version de travail, rendu 4K et téléchargements.
+choix des moments, génération de la vidéo entière, rendu 4K et téléchargements.

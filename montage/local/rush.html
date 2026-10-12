@@ -163,7 +163,7 @@
   <header>
     <div>
       <h1>Rushes et montages</h1>
-      <p class="sub">Reprenez un montage commencé, ou choisissez une nouvelle vidéo et lancez sa préparation : transcription, découpe en moments et première version de travail.</p>
+      <p class="sub">Reprenez un montage commencé, ou choisissez une nouvelle vidéo et lancez sa préparation : transcription, découpe en moments et première vidéo entière.</p>
     </div>
   </header>
 
@@ -172,7 +172,7 @@
 
   <section id="projects" aria-labelledby="h-projects">
     <h2 id="h-projects">Montages</h2>
-    <p class="note">Chaque rush préparé garde son montage (moments, choix, versions de travail, rendus). Préparer un autre rush met le montage en cours de côté ; « Rouvrir » le reprend tel quel, sans rien recalculer.</p>
+    <p class="note">Chaque rush préparé garde son montage (moments, choix, copie du rush, vidéos entières, rendus). Préparer un autre rush met le montage en cours de côté ; « Rouvrir » le reprend tel quel, sans rien recalculer.</p>
     <ul class="projects" id="project-list"></ul>
     <p class="status" id="projects-status" role="status"></p>
   </section>
@@ -233,7 +233,7 @@
     <ul class="style-list" id="style-list"></ul>
     <p class="status" id="style-status" role="status"></p>
     <h3 class="sub3">Lignes des sous-titres</h3>
-    <p class="note">Nombre de lignes de chaque sous-titre et taille des lignes entre elles (par exemple une deuxième ligne plus grosse pour faire ressortir la fin de la phrase). Réglage commun à tous les montages, aussi dans « Style des sous-titres » de la page des moments ; appliqué à la prochaine « Générer la version de travail ».</p>
+    <p class="note">Nombre de lignes de chaque sous-titre et taille des lignes entre elles (par exemple une deuxième ligne plus grosse pour faire ressortir la fin de la phrase). Réglage commun à tous les montages, aussi dans « Style des sous-titres » de la page des moments ; appliqué à la prochaine « Générer la vidéo entière ».</p>
     <div class="cap-lines">
       <div class="cap-lines-form">
         <label>Lignes au plus<select id="cl-lines"><option value="1">1 ligne (3 mots au plus)</option><option value="2">2 lignes (6 mots au plus)</option><option value="3">3 lignes (9 mots au plus)</option></select></label>
@@ -267,7 +267,7 @@
 
   <section id="step-prepare" class="off" aria-labelledby="h-prepare">
     <h2 id="h-prepare"><span id="prepare-num">3</span>Préparer</h2>
-    <p class="note">Compter environ la durée du rush pour la transcription, puis 3 à 5 minutes pour la première version de travail. La page peut rester ouverte ou être fermée : la préparation continue.</p>
+    <p class="note">Compter environ la durée du rush pour la transcription, puis 3 à 5 minutes pour la première vidéo entière. La page peut rester ouverte ou être fermée : la préparation continue.</p>
     <p class="warn" id="replace" hidden></p>
     <p class="row note"><label for="langue">Langue parlée dans la vidéo :</label> <select id="langue"><option value="fr">Français</option></select>
       <span>(la transcription suit cette langue ; une vidéo dans une autre langue serait mal transcrite)</span></p>
@@ -294,10 +294,10 @@
       <span class="file" id="chosen"></span>
     </div>
     <ol class="steps" id="steps" hidden>
-      <li data-step="préparation du rush">Versions de travail, transcription, visage, montage</li>
+      <li data-step="préparation du rush">Copie du rush en 1080p, transcription, visage, montage</li>
       <li data-step="consignes de montage (Claude)" data-mode-montage>Consignes de montage appliquées par Claude</li>
       <li data-step="montage selon les consignes" data-mode-montage>Montage selon les consignes</li>
-      <li data-step="rendu de la version de travail">Rendu de la version de travail (1080p)</li>
+      <li data-step="rendu de la vidéo entière">Rendu de la vidéo entière (1080p)</li>
       <li data-step="page des moments">Page des moments</li>
     </ol>
     <div class="progress" id="progress" hidden>
@@ -367,7 +367,7 @@
     if (o.unit === "segments") return `${pct} · ${Math.round(o.done)} sur ${Math.round(o.total)}`;
     return pct;
   }
-  const OP_NAMES = { "Version de travail (MP4)": "Version de travail", "Segments transcrits seuls": "Hésitations isolées (transcrites seules)", "Rendu de la vidéo": "Rendu", "Découpage des moments": "Extraits des moments" };
+  const OP_NAMES = { "Segments transcrits seuls": "Hésitations isolées (transcrites seules)", "Rendu de la vidéo": "Rendu", "Découpage des moments": "Extraits des moments" };
   // Étapes de la tâche (en cours, ou en pause : t = work/tache.json) : faites, en cours, à faire,
   // avec l'avancement de chacune de leurs opérations.
   function showSteps(t, running) {
@@ -511,7 +511,7 @@
   async function act(action, p, btn) {
     const msg = action === "open"
       ? (projects.current && projects.currentPrepared ? `Rouvrir le montage de ${p.rush} ? Le montage en cours (${projects.current}) sera mis de côté et pourra être rouvert à son tour.` : null)
-      : `Supprimer le montage enregistré de ${p.rush} (${mb(p.size || 0)}) ? Ses choix, versions de travail et rendus seront effacés ; la vidéo d'origine reste dans les rushes.`;
+      : `Supprimer le montage enregistré de ${p.rush} (${mb(p.size || 0)}) ? Ses choix, sa copie du rush et ses rendus seront effacés ; la vidéo d'origine reste dans les rushes.`;
     if (msg && !confirm(msg)) return;
     btn.disabled = true;
     setStatus("projects-status", action === "open" ? `Ouverture de ${p.rush}…` : "Suppression…");
@@ -1097,7 +1097,7 @@
     poll();
   });
 
-  const JOB_NAMES = { prepare: "La préparation", regen: "La génération de la version de travail", final: "La création de la 4K", update: "La mise à jour d'Auto-montage", style: "L'analyse des vidéos d'exemple" };
+  const JOB_NAMES = { prepare: "La préparation", regen: "La génération de la vidéo entière", final: "La création de la 4K", update: "La mise à jour d'Auto-montage", style: "L'analyse des vidéos d'exemple" };
   function showJob(job) {
     if (job && job.kind === "style") { showAnalyseJob(job); if (job.state !== "running") return; }
     $("an-progress").hidden = !(job && job.kind === "style" && job.state === "running");

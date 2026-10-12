@@ -106,7 +106,7 @@
   const BASE = [
     { title: "Préparer un rush", where: "Menu > Rushes et montages",
       html: `<p>Choisissez la vidéo filmée (ou plusieurs, si la caméra s'est coupée : elles sont assemblées dans l'ordre), puis <b>Préparer ce rush</b>.</p>
-        <p>Auto-montage crée des versions de travail, écrit ce qui est dit (transcription), repère le visage, découpe la vidéo en <b>moments</b> (une phrase chacun) et fait une première version de travail. Comptez à peu près la durée du rush ; la barre montre l'avancement et le temps restant, et « Annuler » arrête tout.</p>`,
+        <p>Auto-montage prépare une copie du rush en 1080p, écrit ce qui est dit (transcription), repère le visage, découpe la vidéo en <b>moments</b> (une phrase chacun) et fait une première vidéo entière. Comptez à peu près la durée du rush ; la barre montre l'avancement et le temps restant, et « Annuler » arrête tout.</p>`,
       media: [{ img: "rush-video.jpg", caption: "Choisir une ou plusieurs vidéos" }, { img: "rush-preparation.jpg", caption: "La préparation en cours" }] },
     { title: "Choisir les moments", where: "Menu > Page des moments",
       html: `<p>Chaque moment est une phrase. Les moments cochés forment la vidéo ; Auto-montage décoche déjà les <b>premières prises</b> (une phrase redite juste après) et les ratés.</p>
@@ -127,8 +127,8 @@
       html: `<p>Volume de la voix (pour tout le montage, et sur chaque moment), réduction du bruit de fond, retrait des clics de bouche, coupure des graves, voix plus claire.</p>
         <p>« Rechercher les bruits parasites » mesure le bruit de fond et liste les bruits brefs : écoutez-les, et cochez « Atténuer » pour ceux qui gênent.</p>`,
       media: [{ img: "son.jpg", caption: "Le panneau « Son de la voix »" }] },
-    { title: "Générer, regarder, télécharger", where: "Page des moments > Générer la version de travail ; menu > Téléchargements",
-      html: `<p><b>Générer la version de travail</b> monte la vidéo avec vos choix (barre d'avancement, annulable). Regardez-la en <b>plein écran</b> (barre de lecture en bas), puis <b>Télécharger</b> : 720p pour partager vite, 1080p, ou la <b>4K</b> finale (plus longue à créer).</p>
+    { title: "Générer, regarder, télécharger", where: "Page des moments > Générer la vidéo entière ; menu > Téléchargements",
+      html: `<p><b>Générer la vidéo entière</b> monte la vidéo avec vos choix (barre d'avancement, annulable). Regardez-la en <b>plein écran</b> (barre de lecture en bas), puis <b>Télécharger</b> : 720p pour partager vite, 1080p, ou la <b>4K</b> finale (plus longue à créer).</p>
         <p>Les <b>variantes</b> gardent plusieurs sélections du même rush (une courte, une longue…).</p>`,
       media: [{ video: "demo-montage.mp4", caption: "Le début du montage : intro tapée, puis sous-titres" }, { img: "telecharger.jpg", caption: "Téléchargements" }] },
     { title: "Retrouver ses montages, et en cas de souci", where: "Rushes et montages > Montages ; menu > Journal, Mises à jour",
@@ -150,7 +150,7 @@
         <p>Pour aller plus loin que les effets fournis, ajoutez aussi vos propres sons.</p>`,
       media: [{ img: "analyse.jpg", caption: "Le résultat d'une analyse" }] },
     { title: "Discuter avec Claude", where: "Menu > Discuter avec Claude",
-      html: `<p>Demandez des changements en français, Claude modifie les choix de montage et génère la version de travail :</p>
+      html: `<p>Demandez des changements en français, Claude modifie les choix de montage et génère la vidéo entière :</p>
         <p class="quote">Retire la phrase sur les smartwatches, et mets « Wikipédia » en valeur en vert.</p>
         <p class="quote">Quels moments as-tu retirés, et pourquoi ?</p>`,
       media: [{ img: "chat.jpg", caption: "Discuter avec Claude" }] },
@@ -207,7 +207,7 @@
         <li>Un moment écarté d'office a un trait orange en haut, et l'inspecteur dit pourquoi : « Suggéré : retirer (doublon 1re prise) », « raté », « aparté »… Vous pouvez le recocher.</li>
         <li>Petits signes sur les moments : ✎ texte corrigé, ✂ découpé, ✦ effets.</li>
         <li><b>Revenir aux suggestions</b> annule vos choix de cases et revient à la sélection proposée.</li>
-        <li>Pendant la lecture de la version de travail, le moment en cours est encadré de jaune sur la frise, avec la tête de lecture ; « Dans la version de travail » marque, dans l'inspecteur, les moments présents dans la dernière vidéo générée.</li>
+        <li>Pendant la lecture de la vidéo entière, le moment en cours est encadré de jaune sur la frise, avec la tête de lecture ; « Dans la vidéo générée » marque, dans l'inspecteur, les moments présents dans la dernière vidéo générée.</li>
         <li><b>Variante</b> : <b>Nouvelle variante</b> garde une autre sélection du même rush (une courte, une longue…). On passe de l'une à l'autre par la liste, et « Générer » monte celle qui est affichée.</li></ul>` },
     { id: "decoupe", title: "Couper à l'image près", where: "Page des moments, frise du moment",
       html: `<p>La frise du moment, sous celle du rush, montre ses effets et ses sous-titres mot à mot (s'il en a) au-dessus d'une ligne de coupe. Glissez sur la règle ou sur la frise pour placer la tête de lecture (un clic sur un mot la met à son début) : l'image s'affiche dans le lecteur et le mot prononcé est écrit en haut (« après “courses” », « avant la parole »). ‹ et › (ou <kbd>←</kbd> <kbd>→</kbd>) avancent ou reculent d'une image (1/30 s) ; <b>Zoom +</b> agrandit la frise jusqu'à ×16 pour placer chaque image à la souris.</p>
@@ -235,7 +235,7 @@
         <p>La bande donne le début et la durée ; <b>force</b> règle l'ampleur (zooms, secousse, voix modifiée). Le texte tapé, la pastille et le mot mis en valeur ont leur champ de texte (et une couleur pour le mot).</p>
         <h3>Zoom libre</h3>
         <p>Deux cadres, losanges jaunes sur la frise du moment : <b>Ici</b> place le début ou la fin à la tête de lecture, puis le cadre s'ouvre sur l'image du lecteur. Zoomez à la molette (ou en pinçant, ou au curseur) à l'endroit visé, faites glisser l'image pour la cadrer, puis <b>Valider</b>. <b>Régler le cadre</b> (ou un clic sur un losange) le reprend. Entre les deux, le zoom passe progressivement d'un cadre à l'autre.</p>
-        <p>Tout se voit et s'entend tout de suite dans l'aperçu du moment, et dans la vidéo à la prochaine « Générer la version de travail ».</p>` },
+        <p>Tout se voit et s'entend tout de suite dans l'aperçu du moment, et dans la vidéo à la prochaine « Générer la vidéo entière ».</p>` },
     { id: "sons", title: "Sons fournis", where: "Page des moments, « Effets : » de chaque moment",
       html: `<p>Ils sont créés par Auto-montage (aucun son téléchargé). Cliquez sur ▶ pour écouter.</p>`, catalog: SOUNDS },
     { id: "visuels", title: "Effets visuels", where: "Page des moments, « Effets visuels : » de chaque moment",
@@ -264,9 +264,9 @@
         <li><b>Rechercher les bruits parasites</b> mesure le bruit de fond (et conseille une réduction : « Appliquer le conseil ») et liste les bruits brefs avec leur instant. Écoutez-les, et cochez <b>Atténuer</b> pour les baisser de 15 dB.</li>
         <li>Un limiteur évite que le son sature.</li></ul>` },
     { id: "lecture", title: "Lecture, génération et téléchargement", where: "Page des moments ; menu > Téléchargements",
-      html: `<ul><li>Onglets du lecteur : <b>Version de travail</b> (la dernière vidéo générée) et <b>Moment</b> (l'aperçu habillé du moment choisi). Les boutons <b>−</b> et <b>+</b> reculent et avancent d'une image.</li>
+      html: `<ul><li>Onglets du lecteur : <b>Vidéo entière</b> (les moments gardés bout à bout, en direct, avec leurs réglages actuels ; « Vidéo générée » montre la dernière vidéo entière rendue) et <b>Moment</b> (l'aperçu habillé du moment choisi). Les boutons <b>−</b> et <b>+</b> reculent et avancent d'une image.</li>
         <li><b>Plein écran</b> : <kbd>Espace</kbd> ou un clic pour lecture et pause, barre de lecture en bas, <kbd>Échap</kbd> pour sortir.</li>
-        <li><b>Générer la version de travail</b> monte la vidéo avec vos choix. Deux barres montrent l'étape en cours et l'ensemble, avec le temps restant. <b>Annuler</b> garde la version précédente.</li>
+        <li><b>Générer la vidéo entière</b> monte la vidéo avec vos choix. Deux barres montrent l'étape en cours et l'ensemble, avec le temps restant. <b>Annuler</b> garde la version précédente.</li>
         <li><b>Télécharger</b> : 720p (léger, pour partager), 1080p, ou <b>création de la 4K</b> finale, plus longue à créer.</li></ul>` },
     { id: "montages", title: "Montages, journal et mises à jour", where: "Rushes et montages > Montages ; menu > Journal, Mises à jour",
       html: `<ul><li>Préparer un nouveau rush range le montage en cours, avec ses variantes, ses réglages et ses vidéos. <b>Rouvrir ce montage</b> le reprend tel quel, sans rien recalculer.</li>

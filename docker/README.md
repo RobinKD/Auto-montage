@@ -3,7 +3,7 @@
 Le conteneur contient tout ce qu'il faut pour monter les rushes sur sa propre machine :
 Claude Code (avec le plugin HyperFrames du projet), HyperFrames et son navigateur de
 rendu, Python (ffmpeg, OpenCV), Whisper et ses modèles, la police Oliver, et une
-interface web locale : la page des moments (version de travail, moments, corrections de
+interface web locale : la page des moments (vidéo entière, moments, corrections de
 sous-titres, effets, découpes, variantes) et la page des téléchargements.
 
 ## Installation
@@ -79,7 +79,7 @@ Notes par système :
    sur la machine sans les outils se relancent d'eux-mêmes dans le conteneur.
 3. **Choisir les moments** sur <http://localhost:8080/> : mêmes fonctions que la page
    claude.ai. Les choix sont enregistrés dans `montage/work/local_db/`.
-4. **« Générer la version de travail »** : le serveur local monte la variante affichée
+4. **« Générer la vidéo entière »** : le serveur local monte la variante affichée
    (sélection, montage, rendu 1080p, mise à jour de la page, environ 4 min) et la page se
    recharge toute seule. Pas besoin de Claude pour cette étape.
 5. **Discuter avec Claude** (<http://localhost:8080/chat/>, lien sur les pages) : demander un

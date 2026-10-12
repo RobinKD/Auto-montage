@@ -1,4 +1,4 @@
-"""Prépare la page « Téléchargements » : la version de travail en 720p, 1080p et 4K.
+"""Prépare la page « Téléchargements » : la vidéo entière en 720p, 1080p et 4K.
 
 Sources (celles qui existent) :
   720p   work/moments/montage.mp4   (copie légère de la page des moments, make_moments.py)
@@ -48,7 +48,7 @@ def res(w, h):  # « 720x1280 » en 9:16 : petit côté de w, au format du rush
 
 SOURCES = [
     ("720p", "Légère", res(720, 1280), os.path.join(WORK, "moments", "montage.mp4"),
-     "Copie compressée de la version de travail, pour la partager ou la regarder sur téléphone."),
+     "Copie compressée de la vidéo entière, pour la partager ou la regarder sur téléphone."),
     ("1080p", "1080p", res(1080, 1920), os.path.join(ROOT, "out", "montage_apercu.mp4"),
      "Rendu de l'aperçu, à la résolution de la composition."),
     ("4k", "4K", res(2160, 3840), os.path.join(ROOT, "out", "montage_4k.mp4"),

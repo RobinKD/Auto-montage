@@ -4,6 +4,17 @@ Chaque version publiée reprend sa section dans ses notes (onglet Releases). Une
 section, le numéro dans `VERSION` et le tag `v<numéro>` poussé publient la version avec ses
 installateurs (voir `packaging/README.md`).
 
+## 0.68
+
+- **Vidéo entière en direct** : sur la page des moments, l'onglet « Version de travail » devient
+  « Vidéo entière » et montre les moments gardés bout à bout, joués directement depuis le rush avec
+  leurs réglages du moment (découpe, sous-titres, effets, zooms, sons, volume) : cocher, retirer,
+  découper ou régler un moment se voit tout de suite, sans « Générer la version de travail ». Le
+  bouton « Vidéo générée » montre toujours la dernière vidéo rendue, celle qu'on télécharge.
+- **« Vidéo entière » partout** : « version de travail » devient « vidéo entière » dans toutes les
+  pages (« Générer la vidéo entière », téléchargements, tutoriel). La copie du rush faite au début de
+  la préparation s'appelle maintenant « Copie du rush en 1080p ».
+
 ## 0.67
 
 - **Moments changés depuis la version de travail** : sur la page des moments, un moment dont

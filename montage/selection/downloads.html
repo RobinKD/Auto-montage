@@ -97,7 +97,7 @@
   if (!DATA.versions.length) {
     const li = document.createElement("li");
     li.className = "empty";
-    li.textContent = "Aucune version rendue pour l'instant : elles apparaîtront après la génération de la version de travail.";
+    li.textContent = "Aucune version rendue pour l'instant : elles apparaîtront après la génération de la vidéo entière.";
     list.append(li);
   }
   const buttons = [];
@@ -124,7 +124,7 @@
     if (v.stale) {
       const f = document.createElement("span");
       f.className = "flag old";
-      f.textContent = "Montage précédent : plus ancien que la version de travail actuelle";
+      f.textContent = "Montage précédent : plus ancien que la vidéo entière actuelle";
       flags.append(f);
     }
     if (v.reencoded) {

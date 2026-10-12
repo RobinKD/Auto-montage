@@ -39,7 +39,7 @@ npm i
    Claude la publie comme page claude.ai avec le stockage `db` et les fichiers
    (`clips/*.mp4`, `thumbs/*.jpg`, `hf/*.js`, `montage.mp4` ; `hf/` : aperçu des voix faites par
    HyperFrames).
-4. Sur la page : regarder la version de travail (le moment en cours est surligné), voir chaque
+4. Sur la page : regarder la vidéo entière (le moment en cours est surligné), voir chaque
    prise en vidéo, cocher ou décocher, créer des variantes nommées (collection `variantes`),
    corriger le texte d'un moment et cocher ses effets sonores (collection `moments`,
    commune à toutes les variantes).
@@ -47,7 +47,7 @@ npm i
    intro, effets cochés, voix modifiée) : la page calcule cet habillage elle-même à chaque
    lecture, donc une correction ou un effet modifié se voit en relançant le moment, sans nouveau
    rendu.
-5. « Générer la version de travail » (ou une demande dans le chat) réveille la session
+5. « Générer la vidéo entière » (ou une demande dans le chat) réveille la session
    Claude : la page écrit la variante dans le document `demandes/regen` et programme dans
    ~1 min la routine dont l'id est dans `work/regen_trigger.txt` (connecteur
    Claude Code Remote, outil `update_trigger` avec `run_once_at`). Une exécution programmée

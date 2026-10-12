@@ -18,7 +18,7 @@ function New-Shortcut([string]$Path, [string]$Script, [string]$Arguments, [strin
 }
 
 $items = @(
-    @('Auto-montage', 'open.ps1', '', 'Version de travail, moments, corrections et effets'),
+    @('Auto-montage', 'open.ps1', '', 'Vidéo entière, moments, corrections et effets'),
     @('Téléchargements', 'open.ps1', 'downloads/', 'Versions 720p, 1080p et 4K'),
     @('Dossier des rushes', 'rushes.ps1', '', 'Dossier où déposer les rushes'),
     @('Claude Code', 'claude.ps1', '', 'Claude Code dans le conteneur'),
@@ -29,5 +29,5 @@ $items = @(
 foreach ($i in $items) {
     New-Shortcut (Join-Path $Menu "$($i[0]).lnk") $i[1] $i[2] $i[3]
 }
-New-Shortcut (Join-Path ([Environment]::GetFolderPath('Desktop')) 'Auto-montage.lnk') 'open.ps1' '' 'Version de travail, moments, corrections et effets'
+New-Shortcut (Join-Path ([Environment]::GetFolderPath('Desktop')) 'Auto-montage.lnk') 'open.ps1' '' 'Vidéo entière, moments, corrections et effets'
 Write-Host "Raccourcis installés : bureau et menu Démarrer > Auto-montage."

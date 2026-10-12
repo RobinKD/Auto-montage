@@ -12,7 +12,7 @@
   const PAGES = [
     ["/", "Page des moments", "Choisir les moments, effets, découpe, génération", "Choisir et découper les moments, générer"],
     ["/rush/", "Rushes et montages", "Nouveau rush, consignes, montages enregistrés", "Nouveau rush, montages enregistrés"],
-    ["/downloads/", "Téléchargements", "Version de travail en 720p, 1080p, 4K"],
+    ["/downloads/", "Téléchargements", "Vidéo entière en 720p, 1080p, 4K"],
     ["/chat/", "Discuter avec Claude", "Changer le montage en lui écrivant", null],
     ["/claude/", "Connexion à Claude", "Relier votre compte claude.ai", null],
     ["/updates/", "Mises à jour", "Nouvelle version d'Auto-montage"],

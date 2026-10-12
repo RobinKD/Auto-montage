@@ -80,7 +80,7 @@ LANGUE="$(python3 -c "import sys; sys.path.insert(0, 'scripts'); import moments_
 echo "$LANGUE" > work/langue_rush.txt
 
 
-echo "Étape 1/4 : version de travail 1080p (quelques minutes)"
+echo "Étape 1/4 : copie du rush en 1080p (quelques minutes)"
 # 1. Version de travail 1080p en MP4 (analyse du visage, extraits, rendu HyperFrames), au format
 #    du rush, petit côté à 1080 : 1080x1920 en 9:16, 1920x1080 en 16:9, 1440x1080 en 4:3…
 #    (moments_lib.work_size ; repris par tout le montage).
