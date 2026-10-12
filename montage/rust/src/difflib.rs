@@ -21,6 +21,18 @@ pub enum Tag {
     Equal,
 }
 
+#[cfg(test)]
+impl Tag {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Tag::Replace => "replace",
+            Tag::Delete => "delete",
+            Tag::Insert => "insert",
+            Tag::Equal => "equal",
+        }
+    }
+}
+
 impl Tag {
 }
 
