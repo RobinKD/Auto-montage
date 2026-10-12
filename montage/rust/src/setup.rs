@@ -125,6 +125,11 @@ pub fn main(_args: &[String]) -> i32 {
         }
     }
 
+    // ffmpeg livré avec Auto-montage (celui d'imageio-ffmpeg, comme la version Python).
+    if sub("fetch_ffmpeg") != 0 {
+        println!("ffmpeg non installé (réessayé au prochain démarrage) : celui de la machine sera utilisé.");
+    }
+
     // Navigateur de rendu de HyperFrames (Chromium de Playwright sur Linux ARM64 : Mac Apple Silicon).
     let browser = Command::new(paths::self_exe()).arg("ensure_browser").current_dir(root).stdout(Stdio::null()).status();
     if !browser.map(|s| s.success()).unwrap_or(false) {
@@ -372,4 +377,89 @@ pub fn check_network(_args: &[String]) -> i32 {
         return 1;
     }
     0
+}
+
+/// Version d'imageio-ffmpeg dont le ffmpeg est repris (celui de la version Python d'Auto-montage).
+const IMAGEIO_FFMPEG: &str = "0.6.0";
+
+/// ffmpeg livré avec Auto-montage (montage/bin/ffmpeg) : le ffmpeg statique que le paquet Python
+/// imageio-ffmpeg fournit pour chaque système (le même que la version Python utilisait, avec les
+/// filtres des voix modifiées : rubberband…), pris dans son archive sur PyPI. Rien à faire s'il est
+/// déjà là ou si AM_FFMPEG en désigne un autre ; système sans archive : celui du PATH.
+pub fn fetch_ffmpeg(_args: &[String]) -> i32 {
+    let exe = if cfg!(windows) { "ffmpeg.exe" } else { "ffmpeg" };
+    let bin = paths::root().join("bin");
+    let target = bin.join(exe);
+    if target.is_file() || std::env::var_os("AM_FFMPEG").is_some() {
+        return 0;
+    }
+    let tag = match (std::env::consts::OS, std::env::consts::ARCH) {
+        ("linux", "x86_64") => "manylinux2014_x86_64",
+        ("linux", "aarch64") => "manylinux2014_aarch64",
+        ("macos", "aarch64") => "macosx_11_0_arm64",
+        ("macos", "x86_64") => "macosx_10_9_x86_64",
+        ("windows", "x86_64") => "win_amd64",
+        ("windows", "x86") => "win32",
+        _ => {
+            println!("Pas de ffmpeg fourni pour ce système : celui de la machine sera utilisé.");
+            return 0;
+        }
+    };
+    let api = format!("https://pypi.org/pypi/imageio-ffmpeg/{IMAGEIO_FFMPEG}/json");
+    let info: serde_json::Value = match net::get(&api, &[], Duration::from_secs(60)) {
+        Ok((200, body)) => serde_json::from_slice(&body).unwrap_or_default(),
+        Ok((code, _)) => {
+            eprintln!("ffmpeg : PyPI répond {code} ; celui de la machine sera utilisé s'il existe.");
+            return 1;
+        }
+        Err(e) => {
+            eprintln!("ffmpeg : pas de connexion à PyPI ({e}) ; celui de la machine sera utilisé s'il existe.");
+            return 1;
+        }
+    };
+    let Some(url) = util::arr(&info, "urls")
+        .iter()
+        .find(|u| util::s(u, "filename").map(|f| f.ends_with(".whl") && f.contains(tag)).unwrap_or(false))
+        .and_then(|u| util::s(u, "url"))
+    else {
+        eprintln!("ffmpeg : archive introuvable pour ce système ({tag}).");
+        return 1;
+    };
+    println!("Téléchargement de ffmpeg ({tag})…");
+    util::mkdirs(&bin);
+    let wheel = bin.join(".ffmpeg.whl");
+    if let Err(e) = net::download(url, &wheel, Duration::from_secs(600)) {
+        eprintln!("ffmpeg : téléchargement impossible ({e}).");
+        return 1;
+    }
+    let result = (|| -> Result<(), String> {
+        let mut zip = zip::ZipArchive::new(fs::File::open(&wheel).map_err(|e| e.to_string())?).map_err(|e| e.to_string())?;
+        let name = zip
+            .file_names()
+            .find(|n| n.starts_with("imageio_ffmpeg/binaries/ffmpeg-"))
+            .map(String::from)
+            .ok_or("ffmpeg absent de l'archive")?;
+        let mut entry = zip.by_name(&name).map_err(|e| e.to_string())?;
+        let part = bin.join(format!("{exe}.part"));
+        let mut out = fs::File::create(&part).map_err(|e| e.to_string())?;
+        std::io::copy(&mut entry, &mut out).map_err(|e| e.to_string())?;
+        drop(out);
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            fs::set_permissions(&part, fs::Permissions::from_mode(0o755)).map_err(|e| e.to_string())?;
+        }
+        fs::rename(&part, &target).map_err(|e| e.to_string())
+    })();
+    let _ = fs::remove_file(&wheel);
+    match result {
+        Ok(()) => {
+            println!("ffmpeg installé dans {}", target.display());
+            0
+        }
+        Err(e) => {
+            eprintln!("ffmpeg : {e}");
+            1
+        }
+    }
 }

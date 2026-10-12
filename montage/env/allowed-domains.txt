@@ -8,3 +8,5 @@ huggingface.co                         https://huggingface.co/                  
 *.hf.co                                https://cas-bridge.xethub.hf.co/                                                    modèles : fichiers servis par Hugging Face
 www.dafont.com                         https://www.dafont.com/                                                             police Oliver : page
 dl.dafont.com                          https://dl.dafont.com/                                                              police Oliver : téléchargement
+pypi.org                               https://pypi.org/                                                                   ffmpeg (archive imageio-ffmpeg) : liste
+files.pythonhosted.org                 https://files.pythonhosted.org/                                                     ffmpeg (archive imageio-ffmpeg) : téléchargement

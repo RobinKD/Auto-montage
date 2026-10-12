@@ -39,15 +39,21 @@ pub fn get(url: &str, headers: &[(&str, &str)], timeout: Duration) -> Result<(u1
     Ok((code, body))
 }
 
-/// Télécharge dans un fichier (écrit sous un nom provisoire puis renommé). Erreur si le code
-/// HTTP n'est pas 2xx.
+/// Télécharge dans un fichier, au fil de l'eau (écrit sous un nom provisoire puis renommé).
+/// Erreur si le code HTTP n'est pas 2xx.
 pub fn download(url: &str, out: &Path, timeout: Duration) -> Result<u64, String> {
-    let (code, body) = get(url, &[], timeout)?;
-    if !(200..300).contains(&code) {
-        return Err(format!("HTTP {code} pour {url}"));
-    }
+    let resp = match agent(timeout).get(url).call() {
+        Ok(r) => r,
+        Err(ureq::Error::Status(code, _)) => return Err(format!("HTTP {code} pour {url}")),
+        Err(e) => return Err(e.to_string()),
+    };
     let part = out.with_file_name(format!("{}.part", out.file_name().unwrap().to_string_lossy()));
-    std::fs::write(&part, &body).map_err(|e| e.to_string())?;
+    let mut file = std::fs::File::create(&part).map_err(|e| e.to_string())?;
+    let n = std::io::copy(&mut resp.into_reader(), &mut file).map_err(|e| {
+        let _ = std::fs::remove_file(&part);
+        e.to_string()
+    })?;
+    drop(file);
     std::fs::rename(&part, out).map_err(|e| e.to_string())?;
-    Ok(body.len() as u64)
+    Ok(n)
 }

@@ -21,3 +21,5 @@ public/fonts/choisie
 public/fonts/perso
 # Programme Rust compilé (cargo build)
 rust/target
+# Programmes livrés à côté de la version native (ffmpeg : auto-montage fetch_ffmpeg)
+bin

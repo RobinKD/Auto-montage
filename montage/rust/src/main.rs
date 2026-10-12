@@ -72,6 +72,7 @@ const COMMANDS: &[(&str, Cmd, &str)] = &[
     ("setup", setup::main, "installe ce qui manque (paquets Node, Whisper, police, modèles)"),
     ("setup_whisper", setup::setup_whisper, "whisper.cpp et ses modèles"),
     ("fetch_fonts", setup::fetch_fonts, "police Oliver"),
+    ("fetch_ffmpeg", setup::fetch_ffmpeg, "ffmpeg livré avec Auto-montage (montage/bin/)"),
     ("fetch_face_model", setup::fetch_face_model, "modèles des visages"),
     ("ensure_browser", setup::ensure_browser, "navigateur de rendu"),
     ("check_network", setup::check_network, "domaines réseau nécessaires"),
