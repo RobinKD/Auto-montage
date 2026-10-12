@@ -19,3 +19,5 @@ public/sfx/perso
 # Police des sous-titres choisie (copie, peut être une police personnelle) et polices ajoutées
 public/fonts/choisie
 public/fonts/perso
+# Programme Rust compilé (cargo build)
+rust/target
