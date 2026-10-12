@@ -1,4 +1,280 @@
-//! (à porter)
+//! Travaux confiés à Claude Code sans interaction (« claude -p »), lancés par l'interface locale.
+//!
+//! `auto-montage apply_instructions` : applique les consignes de montage (work/instructions.md)
+//! au rush en cours. Claude lit la transcription et écrit work/suggestions.json (moments à
+//! garder, avec raisons) et work/edit_choices.json (coupes, corrections, voix modifiée, caisse,
+//! pastilles, intro), que make_moments et build_edit utilisent ensuite. Claude Code connecté :
+//! « claude » une fois, ou ANTHROPIC_API_KEY. Lancé par la préparation de la page « Rushes et
+//! montages » quand on le demande. Éléments de style : sons personnels (public/sfx/perso/) et
+//! planches des vidéos d'exemple (work/style/videos/*.planche.jpg) ; analyse écrite dans
+//! work/analyse_style.md.
+//!
+//! `auto-montage style_claude` : analyse des vidéos d'exemple, seconde étape. Claude regarde les
+//! planches datées et les mesures d'analyze_style (work/style/analyse/faits.json) et écrit ce
+//! qu'il a repéré, et ce qu'Auto-montage peut en reproduire, dans work/style/analyse/resultat.json
+//! (affiché sur la page « Rushes et montages ») et work/analyse_style.md (résumé lu à la
+//! préparation et montré sur la page des moments).
+//!
+//! Écriture limitée à montage/work/ (pas de mode acceptEdits, qui accepterait toute
+//! modification du projet) : un texte piégé dans le rush ou les consignes ne peut pas faire
+//! réécrire un script que Claude lancerait ensuite. Les seules commandes permises sont des
+//! commandes d'auto-montage (build_edit, fonts_lib) : le dossier de ce programme est mis en tête
+//! du PATH de Claude pour qu'il les trouve sous le nom « auto-montage ».
 
-pub fn apply_instructions(_args: &[String]) -> i32 { 1 }
-pub fn style_claude(_args: &[String]) -> i32 { 1 }
+use crate::moments_lib::{hidden_effects, language_from, language_label};
+use crate::paths;
+use crate::procs;
+use crate::util;
+use serde_json::Value;
+use std::path::{Path, PathBuf};
+use std::process::Command;
+
+/// Interdits d'écriture, comme CHAT_DENIED (local_server) : conversation et pages servies.
+const DENIED: [&str; 6] = [
+    "Edit(montage/work/chat/**)",
+    "Edit(montage/work/**/*.html)",
+    "Edit(montage/work/**/*.js)",
+    "Write(montage/work/chat/**)",
+    "Write(montage/work/**/*.html)",
+    "Write(montage/work/**/*.js)",
+];
+
+/// Fichiers d'un dossier dont le nom finit par `suffix` (comme `ls dossier/*suffix`, sans les
+/// fichiers cachés), triés.
+fn listing(dir: &Path, suffix: &str) -> Vec<String> {
+    util::list_dir(dir).into_iter().filter(|n| !n.starts_with('.') && n.ends_with(suffix) && dir.join(n).is_file()).collect()
+}
+
+/// Où est décrit le format d'un fichier de réglages : en tête du code de la commande (version
+/// native : montage/rust/src/<nom>.rs s'il est là et le décrit (il contient `marker`), sinon
+/// montage/scripts/<nom>.py).
+fn described_in(name: &str, marker: &str) -> String {
+    let rs = paths::root().join("rust").join("src").join(format!("{name}.rs"));
+    if std::fs::read_to_string(rs).map(|t| t.contains(marker)).unwrap_or(false) {
+        format!("montage/rust/src/{name}.rs")
+    } else {
+        format!("montage/scripts/{name}.py")
+    }
+}
+
+/// Lance « claude -p » depuis le dossier qui contient montage/, avec auto-montage dans le PATH ;
+/// renvoie son code de sortie.
+fn run_claude(prompt: &str, allowed: &[&str]) -> i32 {
+    let Some(claude) = paths::which("claude") else {
+        eprintln!("Claude Code n'est pas installé.");
+        return 1;
+    };
+    let mut path_dirs: Vec<PathBuf> = vec![];
+    if let Some(d) = paths::self_exe().parent() {
+        path_dirs.push(d.to_path_buf());
+    }
+    if let Some(p) = std::env::var_os("PATH") {
+        path_dirs.extend(std::env::split_paths(&p));
+    }
+    let mut cmd = Command::new(claude);
+    cmd.arg("-p").arg(prompt).arg("--allowedTools").args(allowed).arg("--disallowedTools").args(DENIED);
+    if let Ok(p) = std::env::join_paths(path_dirs) {
+        cmd.env("PATH", p);
+    }
+    let parent = paths::root().parent().map(Path::to_path_buf).unwrap_or_else(|| paths::root().to_path_buf());
+    match cmd.current_dir(parent).status() {
+        Ok(s) => {
+            let c = procs::py_code(&s);
+            if c < 0 {
+                128 - c
+            } else {
+                c
+            }
+        }
+        Err(e) => {
+            eprintln!("Claude Code ne se lance pas : {e}");
+            127
+        }
+    }
+}
+
+fn fail(msg: &str) -> i32 {
+    eprintln!("{msg}");
+    1
+}
+
+/// `auto-montage apply_instructions`
+pub fn apply_instructions(_args: &[String]) -> i32 {
+    let work = paths::work();
+    let has_text = std::fs::metadata(work.join("instructions.md")).map(|m| m.len() > 0).unwrap_or(false);
+    let sounds: Vec<String> =
+        listing(&paths::public().join("sfx").join("perso"), ".wav").iter().map(|n| format!("perso-{}", &n[..n.len() - 4])).collect();
+    let sounds = sounds.join(" ");
+    let sheets: Vec<String> =
+        listing(&work.join("style").join("videos"), ".planche.jpg").iter().map(|n| format!("montage/work/style/videos/{n}")).collect();
+    let sheets = sheets.join(" ");
+    if !has_text && sounds.is_empty() && sheets.is_empty() {
+        return fail("Pas de consignes (work/instructions.md) ni d'éléments de style (work/style/).");
+    }
+    if std::fs::metadata(work.join("segments.json")).map(|m| m.len() == 0).unwrap_or(true) {
+        return fail("Rush pas encore transcrit (work/segments.json).");
+    }
+    if paths::which("claude").is_none() {
+        return fail("Claude Code n'est pas installé.");
+    }
+    let rush_txt = std::fs::read_to_string(work.join("rush.txt")).unwrap_or_default();
+    let rush_txt = rush_txt.trim_end_matches('\n');
+    let rush = rush_txt.rsplit(['/', '\\']).find(|s| !s.is_empty()).unwrap_or("").to_string();
+    let langue = language_label(&language_from(&work, "langue_rush.txt")).unwrap_or("Français").to_lowercase();
+
+    let consignes = if has_text {
+        "Applique les consignes de montage de montage/work/instructions.md"
+    } else {
+        "Il n'y a pas de consignes écrites : fais un montage soigné (doublons et ratés retirés) en t'inspirant des éléments de style ci-dessous"
+    };
+    let mut style = String::new();
+    if !sounds.is_empty() {
+        style += &format!(
+            "\nSons personnels fournis par l'utilisateur (effets utilisables) : {sounds}. Place-les là où ils servent le propos ou imitent le style des exemples, avec \"sfx\": [[segment, mot, \"perso-<nom>\"], …] dans edit_choices.json (le son part au début du mot)."
+        );
+    }
+    let resultat = work.join("style").join("analyse").join("resultat.json");
+    if std::fs::metadata(&resultat).map(|m| m.len() > 0).unwrap_or(false) {
+        // Analyse détaillée déjà faite (bouton « Analyser les vidéos d'exemple ») : elle sert de guide.
+        style += "\nLes vidéos d'exemple ont déjà été analysées : lis montage/work/style/analyse/resultat.json (éléments repérés, reproductibles ou non, style de sous-titres proposé) et applique ce qui est reproductible (coupes, intro, pastilles, sons, et le style de sous-titres proposé dans montage/work/caption_style.json s'il n'existe pas encore).";
+    } else if !sheets.is_empty() {
+        style += &format!(
+            "\nVidéos d'exemple fournies pour le style : regarde leurs planches (12 images chacune, lis-les avec Read) : {sheets}. Repère le rythme des coupes, les textes à l'écran (intro tapée, pastilles), la place et le style des sous-titres, les effets. Reproduis ce que le montage sait faire (coupes, intro, pastilles, caisse, voix modifiée, sons personnels) et écris dans montage/work/analyse_style.md, en quelques lignes, ce que tu as vu et ce qui n'a pas pu être reproduit automatiquement (police, effet visuel particulier…), pour que l'utilisateur le voie."
+        );
+    }
+    let hidden = hidden_effects(&work.join("effets_page.json")).join(", ");
+    if !hidden.is_empty() {
+        style += &format!(
+            "\nEffets écartés par l'utilisateur (page « Rushes et montages ») : {hidden}. Ne les utilise pas, sauf si les consignes les demandent explicitement (cash = caisse, bop = pastille sonore, clavier, voix = voix modifiée, gainvoix = volume de la voix par moment (sans effet sur toi), typed = texte tapé, chip = pastille)."
+        );
+    }
+    let build_doc = described_in("build_edit", "CHOICES_PATH");
+    let fonts_doc = described_in("fonts_lib", "caption_style.json");
+    let prompt = format!(
+        "Tu travailles dans le projet Auto-montage (interface locale : ne publie aucune page claude.ai, ne lance aucun rendu).
+Le rush « {rush} » vient d'être préparé ; sa transcription par segment est dans montage/work/segments.json. On y parle {langue} : les sous-titres corrigés, l'intro et les pastilles sont dans cette langue, sauf si les consignes en demandent une autre.
+{consignes}, comme aux étapes 3 et 5 de CLAUDE.md pour un nouveau rush :{style}
+1. Écris montage/work/suggestions.json : {{\"keep\": [ids des segments à garder], \"reasons\": {{\"id\": \"raison du retrait\"}}}} (doublon : garder la 2e prise ; ratés, apartés retirés).
+2. Écris montage/work/edit_choices.json au format décrit en tête de {build_doc} (près de CHOICES_PATH), avec \"rush\": \"{rush}\" : coupes au mot près (keep), corrections de sous-titres (fixes), voix modifiée (funny : [segment, premier mot, dernier mot, voix] avec voix = tremblement, robot, ecureuil, lutin, geant, megaphone, telephone, salle, batterie, radio ou choeur), bruit de caisse (cash), pastilles (chips), texte de l'intro (intro), sons (sfx : sons par défaut whoosh, pop, ding, boum, montee, glitch, photo, faux, juste, bop, cash, ou personnels), effets visuels (vfx : zoom avant, zoom sec, dézoom, secousse, flash, mot mis en valeur), selon les consignes, avec mesure (quelques effets bien placés, pas sur chaque phrase). Les réglages de tout le montage (zooms automatiques, sous-titres qui rebondissent, mot prononcé en couleur) vont dans montage/work/habillage.json : {{\"autoZoom\": 0 à 1.6, \"pop\": vrai/faux, \"karaoke\": vrai/faux, \"karaokeColor\": \"#rrggbb\"}}.
+3. Si les consignes parlent du style des sous-titres (police, taille, gras, couleur, majuscules, nombre de lignes, taille des lignes entre elles), écris montage/work/caption_style.json au format décrit en tête de {fonts_doc} ; « cd montage && auto-montage fonts_lib » liste les polices utilisables (identifiants) et le style actuel.
+4. Vérifie que « cd montage && auto-montage build_edit » passe ; corrige tes fichiers sinon.
+Ne modifie aucun autre fichier (sauf montage/work/analyse_style.md, montage/work/caption_style.json et montage/work/habillage.json). Termine par un résumé de deux ou trois lignes."
+    );
+    run_claude(
+        &prompt,
+        &[
+            "Read",
+            "Write(montage/work/**)",
+            "Edit(montage/work/**)",
+            "Glob",
+            "Grep",
+            "Bash(cd montage && auto-montage build_edit)",
+            "Bash(auto-montage build_edit)",
+            "Bash(cd montage && auto-montage fonts_lib)",
+            "Bash(auto-montage fonts_lib)",
+        ],
+    )
+}
+
+/// `auto-montage style_claude`
+pub fn style_claude(_args: &[String]) -> i32 {
+    let analyse = paths::work().join("style").join("analyse");
+    if std::fs::metadata(analyse.join("faits.json")).map(|m| m.len() == 0).unwrap_or(true) {
+        return fail("Mesures absentes : lancer d'abord auto-montage analyze_style.");
+    }
+    if paths::which("claude").is_none() {
+        return fail("Claude Code n'est pas installé.");
+    }
+    // work/style/analyse/*/planche-*.jpg, dans l'ordre de « ls ».
+    let mut sheets: Vec<String> = vec![];
+    for d in util::list_dir(&analyse) {
+        if d.starts_with('.') || !analyse.join(&d).is_dir() {
+            continue;
+        }
+        for n in listing(&analyse.join(&d), ".jpg") {
+            if n.starts_with("planche-") {
+                sheets.push(format!("montage/work/style/analyse/{d}/{n}"));
+            }
+        }
+    }
+    sheets.sort();
+    let sheets = sheets.join(" ");
+    let resultat = analyse.join("resultat.json");
+    let _ = std::fs::remove_file(&resultat);
+
+    let prompt = format!(
+        "Tu travailles dans le projet Auto-montage (montage automatique de vidéos face caméra, format vertical).
+L'utilisateur a fourni des vidéos d'exemple dont il aime le style. Leurs mesures sont dans montage/work/style/analyse/faits.json (durée, instants des coupes, durée moyenne des plans, attaques sonores = bruitages probables, planches). Regarde toutes les planches (Read) : {sheets}
+Chaque image porte son instant dans la vidéo (« (coupe) » = juste après un changement de plan).
+
+Repère tout ce qui fait le style : rythme des coupes, sous-titres (police, graisse, taille, couleur, majuscules, contour ou ombre, position, nombre de mots, animation mot par mot…), textes à l'écran (titres, intro, pastilles, listes), zooms et cadrage, transitions, effets visuels (couleurs, filtres, emojis, images ajoutées), sons (bruitages aux instants des attaques sonores, musique).
+
+Ce qu'Auto-montage sait faire :
+- coupes au mot près, rythme du montage (retirer blancs et hésitations) ;
+- sous-titres sur 2 lignes équilibrées, en bas du visage : police (liste : « cd montage && auto-montage fonts_lib »), graisse, taille (36-120 px sur 1080), majuscules, couleur, ombre (intensité 0-100, diffusion du flou 0-60 px, décalage ox vers la droite et oy vers le bas en px, 40 px au plus) ; apparition avec rebond, mot prononcé en couleur (karaoké), mots mis en valeur (plus gros, en couleur) ; pas de contour, position fixe ;
+- intro en texte tapé au clavier, pastilles (bulle blanche avec texte, son « bop ») ;
+- zooms automatiques alternés sur le visage (aucun, légers, normaux, marqués), et sur un moment : zoom avant, zoom sec, dézoom, secousse, flash blanc ;
+- sons fournis : caisse enregistreuse, bop, clavier, whoosh, pop, ding, boum, montée, glitch, déclencheur photo, faux (buzzer), juste (carillon) ; sons personnels ajoutés par l'utilisateur ; voix modifiée (tremblante) ;
+- pas de transitions élaborées (glissés, volets), filtres de couleur, emojis, images ajoutées, musique de fond.
+
+Écris montage/work/style/analyse/resultat.json, en français, exactement sous cette forme (JSON valide) :
+{{\"resume\": \"2 ou 3 phrases sur le style\",
+ \"rythme\": \"le rythme mesuré (un plan toutes les X s, coupes…), en mots simples\",
+ \"elements\": [{{\"categorie\": \"Sous-titres|Rythme|Texte à l'écran|Zoom et cadrage|Transitions|Effets visuels|Sons\", \"observe\": \"ce que tu vois, précis\", \"ou\": \"vidéo et instants\", \"reproductible\": \"oui|en partie|non\", \"comment\": \"le réglage d'Auto-montage à utiliser, ou ce qui manque et ce que l'utilisateur peut faire (ex. ajouter un son « whoosh » comme son personnel)\"}}],
+ \"sousTitres\": null ou {{\"font\": \"identifiant de police de fonts_lib\", \"weight\": 700, \"size\": 64, \"uppercase\": true, \"color\": \"#rrggbb\", \"shadow\": 50, \"blur\": 14, \"ox\": 0, \"oy\": 0, \"lines\": 2, \"lineSizes\": [100, 100, 100]}} (le style de sous-titres le plus proche possible des exemples ; lines : lignes au plus par sous-titre, de 1 à 3 ; lineSizes : taille de chaque ligne en % de la première, de 50 à 200),
+ \"aFaire\": [\"conseils concrets à l'utilisateur pour s'en approcher\"]}}
+Puis écris montage/work/analyse_style.md : quelques lignes, le résumé et ce qui ne peut pas être reproduit automatiquement.
+L'utilisateur n'est pas développeur : dans « comment » et « aFaire », parle des boutons de l'interface (« Ajouter des effets sonores… » ou « Ajouter des sons… » pour un bruitage, « Style des sous-titres » sur la page des moments, les consignes de montage pour le rythme, l'intro et les pastilles), jamais de chemins de fichiers.
+Ne modifie aucun autre fichier. Termine par une phrase de résumé."
+    );
+    let code = run_claude(
+        &prompt,
+        &[
+            "Read",
+            "Glob",
+            "Write(montage/work/**)",
+            "Edit(montage/work/**)",
+            "Bash(cd montage && auto-montage fonts_lib)",
+            "Bash(auto-montage fonts_lib)",
+        ],
+    );
+    if code != 0 {
+        return code;
+    }
+    match check_result(&resultat) {
+        Ok(n) => {
+            crate::progress::say(&format!("Analyse écrite : {n} éléments repérés"));
+            0
+        }
+        Err(e) => fail(&format!("Claude n'a pas écrit une analyse lisible (work/style/analyse/resultat.json) : {e}")),
+    }
+}
+
+/// Nombre d'éléments de l'analyse écrite par Claude (objet JSON avec une liste « elements »).
+fn check_result(path: &Path) -> Result<usize, String> {
+    let text = std::fs::read_to_string(path).map_err(|e| e.to_string())?;
+    let data: Value = serde_json::from_str(&text).map_err(|e| e.to_string())?;
+    match data.get("elements") {
+        Some(Value::Array(a)) => Ok(a.len()),
+        _ => Err("pas de liste « elements »".into()),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn result_check() {
+        let dir = std::env::temp_dir().join(format!("am-claude-test-{}", std::process::id()));
+        util::mkdirs(&dir);
+        let p = dir.join("r.json");
+        std::fs::write(&p, r#"{"elements": [{}, {}]}"#).unwrap();
+        assert_eq!(check_result(&p), Ok(2));
+        std::fs::write(&p, r#"{"elements": 3}"#).unwrap();
+        assert!(check_result(&p).is_err());
+        std::fs::write(&p, "pas du json").unwrap();
+        assert!(check_result(&p).is_err());
+        let _ = std::fs::remove_dir_all(dir);
+    }
+}
