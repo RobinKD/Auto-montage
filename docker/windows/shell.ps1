@@ -1,5 +1,5 @@
 ﻿# Ouvre un terminal dans le conteneur (dossier montage/).
-# Ex. : ./scripts/prepare.sh MonRush.mov, ./scripts/render.sh final
+# Ex. : auto-montage prepare MonRush.mov, auto-montage render final
 . "$PSScriptRoot\common.ps1"
 Wait-Docker
 docker compose up -d --build

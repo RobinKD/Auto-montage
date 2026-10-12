@@ -21,17 +21,17 @@ export AM_UID AM_GID
 # l'utilisateur de la machine, puis continue sous son identité. Les fichiers créés dans le
 # dépôt lui appartiennent (Linux ; sous macOS et Windows, Docker Desktop s'en charge).
 if [ "$(id -u)" = 0 ] && [ "$AM_UID" != 0 ]; then
-  for d in /home/app /app/montage/node_modules /opt/whisper; do
+  for d in /home/app /app/montage/node_modules /opt/whisper /opt/auto-montage; do
     mkdir -p "$d"
     [ "$(stat -c %u "$d")" = "$AM_UID" ] || chown "$AM_UID:$AM_GID" "$d"
   done
-  # Clone sous Windows : le bit exécutable des scripts peut manquer.
-  chmod +x /app/montage/scripts/*.sh /app/docker/*.sh 2>/dev/null || true
+  # Clone sous Windows : le bit exécutable des lanceurs peut manquer.
+  chmod +x /app/montage/am /app/docker/*.sh 2>/dev/null || true
   exec setpriv --reuid="$AM_UID" --regid="$AM_GID" --clear-groups "$0" "$@"
 fi
 
 # Dépôt illisible pour cet utilisateur : expliquer plutôt qu'échouer sur « Permission denied ».
-if ! cd /app 2>/dev/null || [ ! -r /app/montage/scripts/setup.sh ]; then
+if ! cd /app 2>/dev/null || [ ! -r /app/montage/rust/Cargo.toml ]; then
   echo "Le conteneur (utilisateur $AM_UID:$AM_GID) ne peut pas lire le dépôt monté dans /app." >&2
   echo "- Propriétaire du dépôt : $(stat -c '%u:%g' /app 2>/dev/null || echo inconnu). Lancez avec" >&2
   echo "  docker/open.sh, ou AM_UID=\$(id -u) AM_GID=\$(id -g) docker compose up -d." >&2
@@ -47,9 +47,9 @@ if [ "${1:-serve}" != "serve" ]; then
   exec "$@"
 fi
 
-# Clone sous Windows sans .gitattributes (ancienne copie) : scripts en CRLF, illisibles ici.
-if grep -lq $'\r' /app/montage/scripts/*.sh 2>/dev/null; then
-  echo "Les scripts de montage/scripts ont des fins de ligne Windows (CRLF)." >&2
+# Clone sous Windows sans .gitattributes (ancienne copie) : lanceurs en CRLF, illisibles ici.
+if grep -lq $'\r' /app/montage/am /app/docker/*.sh 2>/dev/null; then
+  echo "Les lanceurs (montage/am, docker/*.sh) ont des fins de ligne Windows (CRLF)." >&2
   echo "Dans le dépôt : git rm --cached -r . && git reset --hard, puis relancer." >&2
   exit 1
 fi
@@ -63,10 +63,14 @@ if [ -f "$LOG_DIR/demarrage.log" ] && [ "$(stat -c %s "$LOG_DIR/demarrage.log")"
 fi
 exec > >(tee -a "$LOG_DIR/demarrage.log") 2>&1
 echo "== Démarrage du conteneur le $(date '+%d/%m/%Y à %H:%M:%S') — Auto-montage $(cat /app/VERSION 2>/dev/null || echo ?)"
-export PYTHONUNBUFFERED=1
+
+# Programme Auto-montage (Rust) : compilé depuis le dépôt (la première fois : quelques minutes ;
+# ensuite seulement ce qui a changé, ex. après une mise à jour).
+echo "Compilation d'Auto-montage…"
+cargo build --release --manifest-path /app/montage/rust/Cargo.toml
 
 echo "Préparation de l'environnement (la première fois : 10 à 20 min)…"
-bash /app/montage/scripts/setup.sh
+auto-montage setup
 
 # Plugin Claude Code du projet (skills HyperFrames), déclaré dans .claude/settings.json :
 # installé une fois dans le dossier personnel (volume).
@@ -76,4 +80,4 @@ if [ ! -f "$HOME/.auto-montage-plugins-2" ]; then
 fi
 
 cd /app/montage
-exec python3 scripts/local_server.py --host 0.0.0.0 --port 8080
+exec auto-montage local_server --host 0.0.0.0 --port 8080

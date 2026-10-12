@@ -1,0 +1,25 @@
+#!/bin/sh
+# Lance une commande d'Auto-montage (programme Rust de montage/rust/), depuis n'importe où :
+#   ./am prepare MonRush.mov      ./am render apercu      ./am local_server      ./am aide
+# Programme : montage/bin/auto-montage s'il a été livré (version installée), sinon celui compilé
+# ici, recompilé au besoin (cargo ne refait que ce qui a changé). Sans Rust sur la machine mais
+# avec le conteneur Auto-montage (Docker ou Podman) : la commande tourne dans le conteneur.
+set -e
+cd "$(dirname "$0")"
+if [ -x bin/auto-montage ]; then
+  exec bin/auto-montage "$@"
+fi
+if command -v cargo >/dev/null 2>&1; then
+  cargo build --release --quiet --manifest-path rust/Cargo.toml
+  exec "${CARGO_TARGET_DIR:-rust/target}/release/auto-montage" "$@"
+fi
+if [ -z "${AM_IN_CONTAINER:-}" ] && [ -f ../docker/lib.sh ]; then
+  echo "Rust absent sur cette machine : lancement dans le conteneur Auto-montage…" >&2
+  . ../docker/lib.sh
+  am_up >&2
+  tty=-i
+  [ -t 0 ] && [ -t 1 ] && tty=-it
+  exec "$AM_ENGINE" exec $tty -u "$AM_UID:$AM_GID" -w /app/montage "$AM_CONTAINER" auto-montage "$@"
+fi
+echo "Rust (cargo) est nécessaire pour compiler Auto-montage : https://rustup.rs" >&2
+exit 1

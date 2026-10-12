@@ -14,9 +14,12 @@ claude plugin install hyperframes@hyperframes || echo "Plugin hyperframes non in
 
 cd "$CLAUDE_PROJECT_DIR/montage"
 
-# Domaines réseau : signale ceux à autoriser, sans bloquer le démarrage.
-./scripts/check_network.sh || echo "Certains domaines sont bloqués : voir env/allowed-domains.txt"
+# Programme Auto-montage (Rust), compilé une fois puis lancé par ./am.
+cargo build --release --quiet --manifest-path rust/Cargo.toml
 
-# Paquets Node et Python, navigateur de rendu, Whisper et ses modèles, police Oliver,
-# modèle de détection du visage : script commun avec le conteneur Docker.
-./scripts/setup.sh
+# Domaines réseau : signale ceux à autoriser, sans bloquer le démarrage.
+./am check_network || echo "Certains domaines sont bloqués : voir env/allowed-domains.txt"
+
+# ffmpeg, paquets Node, navigateur de rendu, Whisper et ses modèles, police Oliver, modèles des
+# visages : étape commune avec le conteneur Docker.
+./am setup

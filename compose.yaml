@@ -16,6 +16,7 @@ services:
       # Hors du dépôt : plus rapide sous macOS et Windows (le dépôt y est un partage lent).
       - node-modules:/app/montage/node_modules
       - whisper:/opt/whisper  # WHISPER_DIR=/opt/whisper/whisper.cpp (image)
+      - programme:/opt/auto-montage  # Auto-montage compilé (Rust) et cache de compilation
       - claude-home:/home/app
     environment:
       # Le conteneur démarre en root puis passe à cet utilisateur (celui de la machine sous
@@ -39,4 +40,5 @@ services:
 volumes:
   node-modules:
   whisper:
+  programme:
   claude-home:
