@@ -6,11 +6,16 @@ Usage : python3 scripts/update.py check          dernière version publiée (JSO
         python3 scripts/update.py reset [vX.Y]   réinitialisation : retélécharge la version
                                                  installée (par défaut) et remet les fichiers
                                                  du programme modifiés ou effacés comme publiés
+        python3 scripts/update.py branches       mode développeur : branches du dépôt (JSON)
+        python3 scripts/update.py branch <nom>   mode développeur : installe le dernier état
+                                                 de cette branche au lieu d'une version publiée
 Le code de la version (archive du tag) remplace celui du dossier d'installation ; ce qui
 appartient à l'utilisateur reste : montage/work (montages, réglages), montage/out (rendus),
 rushes, sons personnels, police Oliver, paquets Node. Les fichiers retirés d'une version à
 l'autre sont effacés (liste .auto-montage-files). La réinitialisation garde une copie des
 fichiers qu'elle remplace dans montage/work/sauvegardes/reinitialisation-<date>/.
+Une branche installée (mode développeur) est notée dans .auto-montage-branch (nom, commit) ;
+installer une version publiée ou réinitialiser l'efface.
 """
 import datetime
 import io
@@ -32,6 +37,8 @@ PROJECT = os.path.dirname(MONTAGE)  # dossier d'installation (/app dans le conte
 REPO = os.environ.get("AM_UPDATE_REPO", "RobinKD/Auto-montage")
 BACKUPS = os.path.join(MONTAGE, "work", "sauvegardes")
 MANIFEST = os.path.join(PROJECT, ".auto-montage-files")
+BRANCH_FILE = os.path.join(PROJECT, ".auto-montage-branch")
+BRANCH_NAME = re.compile(r"[A-Za-z0-9._/-]{1,200}")
 # Jamais remplacés ni effacés : les données de l'utilisateur et ce qui est installé à part.
 KEEP = ("montage/work/", "montage/out/", "montage/public/rushes/", "montage/public/sfx/perso/",
         "montage/node_modules/", "montage/whisper.cpp/", "montage/public/audio/",
@@ -49,6 +56,15 @@ def current_version():
     return open(path).read().strip() if os.path.exists(path) else "0"
 
 
+def installed_branch():
+    """Branche installée en mode développeur ({"branch", "sha", "date", "message"}), sinon None."""
+    try:
+        info = json.load(open(BRANCH_FILE))
+        return info if isinstance(info, dict) and info.get("branch") else None
+    except (OSError, ValueError):
+        return None
+
+
 def api(url, accept="application/vnd.github+json"):
     req = urllib.request.Request(url, headers={"Accept": accept, "User-Agent": "auto-montage-updater",
                                                "X-GitHub-Api-Version": "2022-11-28"})
@@ -57,7 +73,8 @@ def api(url, accept="application/vnd.github+json"):
 
 def check():
     """{"current", "latest", "tag", "newer", "notes", "error"}."""
-    out = {"current": current_version(), "latest": None, "tag": None, "newer": False, "notes": "", "error": None}
+    out = {"current": current_version(), "latest": None, "tag": None, "newer": False, "notes": "", "error": None,
+           "branch": installed_branch()}
     try:
         releases = json.load(api(f"https://api.github.com/repos/{REPO}/releases?per_page=20"))
     except urllib.error.HTTPError as e:
@@ -88,9 +105,9 @@ def protected(rel):
     return rel.startswith(KEEP) or rel.startswith("montage/public/fonts/Oliver")
 
 
-def download(tag):
-    """Archive .tar.gz de la version, lue en entier (barre « Téléchargement »)."""
-    print(f"Téléchargement d'Auto-montage {tag[1:]}…", flush=True)
+def download(tag, label=None):
+    """Archive .tar.gz de la version (tag) ou d'un commit, lue en entier (barre « Téléchargement »)."""
+    print(f"Téléchargement d'Auto-montage {label or tag[1:]}…", flush=True)
     local = os.environ.get("AM_UPDATE_ARCHIVE")  # essais : archive .tar.gz locale au lieu de GitHub
     resp = open(local, "rb") if local else api(f"https://api.github.com/repos/{REPO}/tarball/{tag}")
     total = int(resp.headers.get("Content-Length") or 0) if hasattr(resp, "headers") else os.path.getsize(local)
@@ -143,7 +160,14 @@ def install(src, rel):
 def apply(tag):
     if not re.fullmatch(r"v\d+(\.\d+)*", tag):
         sys.exit(f"Version invalide : {tag}")
-    buf = download(tag)
+    install_all(download(tag), tag[1:])
+    if os.path.exists(BRANCH_FILE):
+        os.remove(BRANCH_FILE)
+        print("Retour aux versions publiées (mode développeur : plus de branche installée).", flush=True)
+
+
+def install_all(buf, label):
+    """Installe tous les fichiers du programme de l'archive et efface ceux qu'elle n'a plus."""
     print("Installation…", flush=True)
     with tempfile.TemporaryDirectory() as tmp:
         src, files = unpack(buf, tmp)
@@ -160,8 +184,53 @@ def apply(tag):
                 os.remove(path)
                 removed += 1
         open(MANIFEST, "w").write("\n".join(files))
-        open(os.path.join(PROJECT, ".auto-montage-version"), "w").write(tag[1:] + "\n")
-    print(f"Auto-montage {tag[1:]} installé : {len(files)} fichiers remplacés, {removed} retirés.", flush=True)
+        version = open(os.path.join(src, "VERSION")).read().strip()
+        open(os.path.join(PROJECT, ".auto-montage-version"), "w").write(version + "\n")
+    print(f"Auto-montage {label} installé : {len(files)} fichiers remplacés, {removed} retirés.", flush=True)
+
+
+def gh_error(e):
+    if isinstance(e, urllib.error.HTTPError):
+        return ("GitHub limite les vérifications depuis cette connexion : réessayez dans une heure."
+                if e.code in (403, 429) else f"GitHub ne répond pas correctement (erreur {e.code}).")
+    return f"Pas de connexion à GitHub ({getattr(e, 'reason', e)})."
+
+
+def branches():
+    """Mode développeur : {"branches": [{"name", "sha"}], "installed", "error"} (500 au plus)."""
+    out = {"branches": [], "installed": installed_branch(), "error": None}
+    try:
+        for page in range(1, 6):
+            got = json.load(api(f"https://api.github.com/repos/{REPO}/branches?per_page=100&page={page}"))
+            out["branches"] += [{"name": b["name"], "sha": b["commit"]["sha"]} for b in got]
+            if len(got) < 100:
+                break
+    except (urllib.error.URLError, OSError, ValueError, KeyError, TypeError) as e:
+        out["error"] = gh_error(e)
+    # Les branches de travail (dev, puis les autres) avant main, dont les versions sont publiées.
+    out["branches"].sort(key=lambda b: (b["name"] == "main", b["name"] != "dev", b["name"].lower()))
+    return out
+
+
+def branch(name):
+    """Mode développeur : installe le dernier commit de la branche, comme une mise à jour."""
+    if not BRANCH_NAME.fullmatch(name) or ".." in name:
+        sys.exit(f"Nom de branche invalide : {name}")
+    found = branches()
+    if found["error"]:
+        sys.exit(found["error"])
+    sha = next((b["sha"] for b in found["branches"] if b["name"] == name), None)
+    if not sha:
+        sys.exit(f"La branche « {name} » n'existe pas (ou plus) sur GitHub.")
+    info = {"branch": name, "sha": sha, "date": None, "message": ""}
+    try:
+        commit = json.load(api(f"https://api.github.com/repos/{REPO}/commits/{sha}"))["commit"]
+        info.update(date=commit["committer"]["date"], message=commit["message"].split("\n")[0][:200])
+    except (urllib.error.URLError, OSError, ValueError, KeyError, TypeError):
+        pass  # détail du commit facultatif
+    install_all(download(sha, f"branche {name} ({sha[:7]})"), f"branche {name} ({sha[:7]})")
+    info["installedAt"] = datetime.datetime.now().isoformat(timespec="seconds")
+    json.dump(info, open(BRANCH_FILE, "w"), ensure_ascii=False)
 
 
 def same(a, b):
@@ -217,6 +286,8 @@ def reset(tag=None):
             report("Réinitialisation", i + 1, len(todo))
         open(MANIFEST, "w").write("\n".join(files))
         open(os.path.join(PROJECT, ".auto-montage-version"), "w").write(tag[1:] + "\n")
+    if os.path.exists(BRANCH_FILE):  # fichiers de la version publiée : plus ceux de la branche
+        os.remove(BRANCH_FILE)
     for rel in changed:
         print(f"  remis comme publié : {rel}", flush=True)
     for rel in missing:
@@ -233,6 +304,10 @@ if __name__ == "__main__":
         print(json.dumps(check(), ensure_ascii=False))
     elif len(sys.argv) == 3 and sys.argv[1] == "apply":
         apply(sys.argv[2])
+    elif len(sys.argv) == 2 and sys.argv[1] == "branches":
+        print(json.dumps(branches(), ensure_ascii=False))
+    elif len(sys.argv) == 3 and sys.argv[1] == "branch":
+        branch(sys.argv[2])
     elif len(sys.argv) in (2, 3) and sys.argv[1] == "reset":
         reset(sys.argv[2] if len(sys.argv) == 3 else None)
     else:

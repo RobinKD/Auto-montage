@@ -125,9 +125,12 @@
       markClaude(!!st.claude);
       // Premier lancement : le tutoriel d'abord (une seule fois, il le note en s'ouvrant).
       if (st.tutorialSeen === false && here !== "/tutoriel/") { location.href = "/tutoriel/?bienvenue=1"; return; }
-      if (!st.update || !st.update.newer) return;
-      bar.querySelector(".am-dot").hidden = false;
+      if (!st.update) return;
       const b = panel.querySelector('a[data-href="/updates/"] b');
+      // Mode développeur : code d'une branche installé au lieu d'une version publiée.
+      if (st.update.branch) b.append(Object.assign(document.createElement("span"), { className: "am-badge", textContent: `branche ${st.update.branch}` }));
+      if (!st.update.newer) return;
+      bar.querySelector(".am-dot").hidden = false;
       const badge = Object.assign(document.createElement("span"), { className: "am-badge", textContent: `${st.update.latest} disponible` });
       b.append(badge);
     }).catch(() => {});

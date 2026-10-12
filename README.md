@@ -46,7 +46,9 @@ Mises à jour : depuis la 0.20, la page « Mises à jour » de l'interface les d
 installe en un clic (montages et réglages gardés, rien à réautoriser sur Mac). Depuis la 0.51,
 elle peut aussi réinitialiser le programme : si Claude Code lancé dans le dossier a modifié des
 fichiers et cassé quelque chose, « Réinitialiser Auto-montage » les retélécharge depuis GitHub
-(données de l'utilisateur gardées). On peut aussi installer une nouvelle version par-dessus :
+(données de l'utilisateur gardées). Depuis la 0.69, son « Mode développeur » installe le dernier
+état d'une branche GitHub (par exemple `dev`) pour essayer du code pas encore publié, et en revient.
+On peut aussi installer une nouvelle version par-dessus :
 rushes, rendus et sélections sont gardés.
  
 Les actions (clic droit sur le raccourci sous Linux, menu de l'application sous macOS, menu

@@ -2,3 +2,6 @@
 # (dist/, build/ : .github/workflows/installateurs.yml).
 /dist/
 /build/
+
+# Mode développeur : branche installée par la page « Mises à jour » (montage/scripts/update.py).
+/.auto-montage-branch

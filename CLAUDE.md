@@ -271,7 +271,12 @@ interne : les changements attendent la prochaine version.
   l'utilisateur gardées (`KEEP`), fichiers retirés d'après `.auto-montage-files` ; reset, bouton
   « Réinitialiser Auto-montage » après confirmation : archive de la version installée, sinon la
   dernière publiée, fichiers du programme modifiés ou effacés remis, copie des remplacés dans
-  `work/sauvegardes/reinitialisation-<date>/`), puis le serveur s'arrête et le conteneur redémarre. Fichiers changés
+  `work/sauvegardes/reinitialisation-<date>/`), puis le serveur s'arrête et le conteneur redémarre.
+  Mode développeur (caché ; 7 appuis sur le numéro de version de /updates/, comme Android, gardé
+  dans localStorage, bouton pour le désactiver) : `update.py branches` /
+  `branch <nom>` installe le dernier commit d'une branche (`/api/update/branches`,
+  `/api/update/branch`), noté dans `.auto-montage-branch` (effacé par apply et reset) ; « Revenir à
+  la version publiée » (`/api/update/release`) réinstalle la dernière version même sans numéro plus grand. Fichiers changés
   sur le disque sans mise à jour (git pull dans le dossier d'installation) : la page le dit et
   propose « Redémarrer » (`/api/restart`, `disk_version()`). Les installateurs
   ne recopient leur projet que s'il est plus récent (`version_gt`).

@@ -4,6 +4,16 @@ Chaque version publiée reprend sa section dans ses notes (onglet Releases). Une
 section, le numéro dans `VERSION` et le tag `v<numéro>` poussé publient la version avec ses
 installateurs (voir `packaging/README.md`).
 
+## 0.69
+
+- **Mode développeur** : caché par défaut ; comme sur Android, toucher 7 fois de suite le numéro
+  de version de la page « Mises à jour » le fait apparaître. Il permet de choisir une branche du
+  dépôt GitHub (par exemple `dev`) et d'installer son dernier état pour essayer du code pas encore
+  publié. Montages, rushes, rendus et réglages sont gardés comme pour
+  une mise à jour. La page dit quelle branche et quel commit sont installés, propose « Mettre à jour
+  depuis la branche » quand elle a changé, et « Revenir à la version publiée ». Le menu montre
+  « branche … » à côté de « Mises à jour » tant qu'une branche est installée.
+
 ## 0.68
 
 - **Vidéo entière en direct** : sur la page des moments, l'onglet « Version de travail » devient

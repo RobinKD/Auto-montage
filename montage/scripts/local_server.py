@@ -443,6 +443,9 @@ def claude_connected(fresh=False):
 # conteneur redémarre tout seul (restart: unless-stopped) avec la nouvelle version.
 # « Réinitialiser » (tâche « reset ») retélécharge la version installée et remet les fichiers
 # du programme modifiés ou effacés, puis redémarre de la même façon.
+# Mode développeur (même page) : « branche » (tâche « update ») installe le dernier état d'une
+# branche du dépôt au lieu d'une version publiée ; « Revenir à la version publiée » réinstalle
+# la dernière version publiée, même si son numéro n'est pas plus grand.
 update_state = {"checkedAt": 0.0, "result": None}
 
 
@@ -466,7 +469,8 @@ def update_loop():
 
 def update_summary():
     r = update_state["result"] or {}
-    return {"newer": bool(r.get("newer")), "latest": r.get("latest")}
+    return {"newer": bool(r.get("newer")), "latest": r.get("latest"),
+            "branch": (r.get("branch") or {}).get("branch")}
 
 
 # --- Connexion à Claude Code depuis l'interface (page /claude/) -----------------------
@@ -1825,6 +1829,13 @@ class Handler(BaseHTTPRequestHandler):
             if not update_state["result"]:
                 update_check()
             return self.send_json(update_state | {"version": VERSION, "onDisk": disk_version()})
+        if path == "/api/update/branches":  # mode développeur : branches du dépôt sur GitHub
+            try:
+                out = json.loads(subprocess.run(["python3", "scripts/update.py", "branches"], cwd=ROOT,
+                                                capture_output=True, text=True, timeout=90).stdout)
+            except (subprocess.SubprocessError, ValueError, OSError) as e:
+                out = {"branches": [], "error": f"Liste des branches impossible ({e})."}
+            return self.send_json(out)
         if path in ("/claude", "/claude/"):
             return self.send_html(SKELETON + open(os.path.join(ROOT, "local", "claude.html"), encoding="utf-8").read())
         if path == "/api/claude":
@@ -2168,7 +2179,8 @@ class Handler(BaseHTTPRequestHandler):
                          "/api/projects/open", "/api/projects/delete", "/api/projects/save", "/api/job/cancel", "/api/job/pause",
                          "/api/job/resume", "/api/job/abandon", "/api/place/delete",
                          "/api/claude/login", "/api/claude/code", "/api/claude/logout",
-                         "/api/update/check", "/api/update/apply", "/api/update/reset", "/api/restart", "/api/style/analyse", "/api/son/analyse", "/api/tutorial/seen",
+                         "/api/update/check", "/api/update/apply", "/api/update/reset", "/api/update/branch",
+                         "/api/update/release", "/api/restart", "/api/style/analyse", "/api/son/analyse", "/api/tutorial/seen",
                          "/api/moments/merge", "/api/moments/split", "/api/moments/unmerge", "/api/moments/unsplit"):
             return self.send_error(404)
         try:
@@ -2189,6 +2201,20 @@ class Handler(BaseHTTPRequestHandler):
                     return self.send_json({"error": f"Les fichiers d'Auto-montage sont déjà en version {disk_version()}, mais "
                                                     f"il tourne encore en {VERSION} : redémarrez-le.", "restart": True}, 400)
                 return self.send_json({"error": r.get("error") or "Vous avez déjà la dernière version."}, 400)
+            if not start_job("update", [("mise à jour", ["python3", "scripts/update.py", "apply", r["tag"]])], r["tag"]):
+                return self.send_json({"error": busy_error()}, 409)
+            return self.send_json({"ok": True, "tag": r["tag"]}, 202)
+        if route == "/api/update/branch":  # mode développeur
+            name = str(body.get("branch") or "")
+            if not re.fullmatch(r"[A-Za-z0-9._/-]{1,200}", name) or ".." in name:
+                return self.send_json({"error": "Nom de branche invalide."}, 400)
+            if not start_job("update", [("installation de la branche", ["python3", "scripts/update.py", "branch", name])], name):
+                return self.send_json({"error": busy_error()}, 409)
+            return self.send_json({"ok": True, "branch": name}, 202)
+        if route == "/api/update/release":  # mode développeur : retour à la dernière version publiée
+            r = update_check()
+            if not r.get("tag"):
+                return self.send_json({"error": r.get("error") or "Aucune version publiée trouvée."}, 400)
             if not start_job("update", [("mise à jour", ["python3", "scripts/update.py", "apply", r["tag"]])], r["tag"]):
                 return self.send_json({"error": busy_error()}, 409)
             return self.send_json({"ok": True, "tag": r["tag"]}, 202)
