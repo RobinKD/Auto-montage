@@ -9,31 +9,31 @@ sur les moments drôles (l'effet visuel sur le visage est fait à la main), brui
 
 ```bash
 npm i
-./scripts/render.sh apercu       # 1080x1920, ~3 s de rendu par seconde de montage : pour valider
-./scripts/render.sh final        # 4K 2160x3840, une fois le montage validé
+./am render apercu       # 1080x1920, ~3 s de rendu par seconde de montage : pour valider
+./am render final        # 4K 2160x3840, une fois le montage validé
 ```
 
-- **Rendu** : `scripts/render_hyperframes.py` écrit le montage (`src/data/edit.json`,
+- **Rendu** : `rust/src/render_hyperframes.rs` écrit le montage (`src/data/edit.json`,
   `face.json`) en page HTML + GSAP dans `work/rendu_hyperframes/`, puis `hyperframes render`
   la filme image par image. Les effets (zooms centrés sur le visage, secousses, flashs, textes
   tapés, pastilles, sous-titres, mot prononcé en couleur, rebond) sont dessinés dans cette page ;
   la page des moments les imite en direct.
 - **Aperçu** : lit la version 1080 du rush (`rush_1080.mp4`) → `out/montage_apercu.mp4`.
-- **Final** : `scripts/make_hd.py` encode en 4K les seules images gardées au montage
+- **Final** : `rust/src/make_hd.rs` encode en 4K les seules images gardées au montage
   (`rush_2160.webm`, ~8 min pour 40 s d'images, refait seulement si le dérush change),
   puis la même page est rendue en 4K (2 navigateurs au plus, pour la mémoire) → `out/montage_4k.mp4`. Le texte reste
   net et l'image est en 4K native. Les positions de chaque clip dans la source 4K
-  (`trimBeforeHd`) sont calculées par `build_edit.py`.
+  (`trimBeforeHd`) sont calculées par `build_edit`.
 - Les deux modes vérifient ensuite la durée, les dimensions et la saturation du son.
 
 ## Choisir les moments (cases à cocher)
 
-1. `./scripts/prepare.sh MonRush.mov` fait le travail lourd : parole détectée, blancs retirés,
+1. `./am prepare MonRush.mov` fait le travail lourd : parole détectée, blancs retirés,
    transcription par segment (`work/segments.json`).
 2. Claude peut écrire ses suggestions dans `work/suggestions.json`
    (`{"keep": [ids], "reasons": {"id": "aparté"}}`). Sans elles, la pré-sélection est
    automatique : une phrase reprise juste après est une 1re prise, décochée.
-3. `python3 scripts/make_moments.py` génère la page `work/moments/index.html` (gabarit
+3. `./am make_moments` génère la page `work/moments/index.html` (gabarit
    `selection/page.html`), un extrait vidéo et une vignette par moment, et une copie compressée
    de la version de travail (`out/montage_apercu.mp4`) avec la correspondance clip → moment.
    Claude la publie comme page claude.ai avec le stockage `db` et les fichiers
@@ -53,8 +53,8 @@ npm i
    Claude Code Remote, outil `update_trigger` avec `run_once_at`). Une exécution programmée
    arrive dans la session qui a le rush ; `fire_trigger` ouvrirait une session vide. Claude exporte la
    variante et les moments (ArtifactData avec `out_dir`), puis
-   `python3 scripts/use_selection.py <export> <variante>` écrit `work/selection.json`, que
-   `build_edit.py` utilise à la place de `KEEP`. Les textes corrigés sont réalignés mot à mot
+   `./am use_selection <export> <variante>` écrit `work/selection.json`, que
+   `build_edit` utilise à la place de `KEEP`. Les textes corrigés sont réalignés mot à mot
    sur les horodatages d'origine. Chaque effet coché a ses réglages : départ (en s depuis le
    début de l'extrait du moment, bouton « Ici » pendant la lecture), répétitions, intervalle et
    durée ; par défaut la caisse reste sur son mot et le clavier fait 6 frappes.
@@ -80,13 +80,13 @@ npm i
    Effets visuels par moment : « Texte tapé » (comme l'intro : texte, départ, durée de frappe,
    durée d'affichage, son clavier) et « Pastille » (comme les étapes, son bop). L'intro et les
    étapes sont ces effets, pré-cochés ; pas de sous-titre pendant un texte tapé.
-6. `python3 scripts/build_edit.py`, puis `./scripts/render.sh apercu` pour valider,
-   et `./scripts/render.sh final` pour la 4K. Relancer `make_moments.py` et republier la page
+6. `./am build_edit`, puis `./am render apercu` pour valider,
+   et `./am render final` pour la 4K. Relancer `make_moments` et republier la page
    pour y mettre la nouvelle version de travail.
 
 ## Télécharger les versions
 
-`python3 scripts/make_downloads.py` prépare la page « Téléchargements » (gabarit
+`./am make_downloads` prépare la page « Téléchargements » (gabarit
 `selection/downloads.html`) avec les versions qui existent : légère (720p, celle de la page des
 moments), 1080p (`out/montage_apercu.mp4`) et 4K (`out/montage_4k.mp4`). Un fichier publié est
 limité à 15 Mo : au-delà, la version est découpée en morceaux de 14 Mo que la page rassemble en
@@ -100,26 +100,37 @@ travail (ex. une 4K d'un montage précédent) est signalée sur la page.
 
 `docker/README.md` à la racine du dépôt : conteneur avec Claude Code et toutes les
 dépendances, raccourci de bureau, interface web sur <http://localhost:8080/> (page des
-moments et téléchargements, servis par `scripts/local_server.py`).
+moments et téléchargements, servis par `rust/src/local_server.rs`).
 
 Deux modes, choisis dans le bandeau du haut de chaque page (`work/mode.txt`) : **Dérushage**
 (découpe du rush en moments seulement : pas d'effets, de cadrage, de réglages du son ni de
-Claude ; `build_edit.py` met les moments bout à bout tels quels, avec des sous-titres simples
+Claude ; `build_edit` met les moments bout à bout tels quels, avec des sous-titres simples
 sauf si la case « Sous-titres » est décochée, `work/derush.json`) et **Auto-montage**
 (toutes les fonctions).
+
+## Programme (Rust)
+
+Tout le traitement (préparation, montage, rendu, interface locale) est un seul programme Rust,
+`rust/` : `./am <commande>` (Windows : `am <commande>`) le compile au premier lancement
+(`cargo build --release`, Rust de <https://rustup.rs>) puis le lance ; `./am aide` liste les
+commandes, qui reprennent le nom des anciens scripts (`./am prepare`, `./am build_edit`,
+`./am render apercu`…). Règles du portage : [`rust/PORTAGE.md`](rust/PORTAGE.md). Il faut
+encore Node (HyperFrames et son navigateur) et whisper.cpp, installés par `./am setup`, et
+ffmpeg, livré dans `bin/` par `./am fetch_ffmpeg`.
 
 ## Environnement cloud
 
 Les domaines à autoriser dans l'environnement Claude Code (menu de l'environnement >
 Edit > Network access) sont listés dans `env/allowed-domains.txt` :
 Hugging Face et dafont. Le dépôt ne peut pas appliquer ce réglage lui-même.
-`./scripts/check_network.sh` vérifie qu'ils répondent et nomme ceux qui manquent.
-GitHub, npm et PyPI sont ouverts par défaut.
+`./am check_network` vérifie qu'ils répondent et nomme ceux qui manquent.
+GitHub et npm sont ouverts par défaut ; PyPI (ffmpeg livré, `./am fetch_ffmpeg`) et crates.io (paquets Rust) sont dans la liste.
 
 Le plugin Claude Code HyperFrames est déclaré dans `.claude/settings.json`.
 Au démarrage de chaque session web, le hook `.claude/hooks/session-start.sh` (déclaré dans
-`.claude/settings.json`) réinstalle ce plugin si besoin, puis les paquets Node et Python, le navigateur de rendu, Whisper et ses modèles, la police
-Oliver et les modèles des visages (YuNet, SFace, et Haar en secours). Environ 2 min 30 la première fois, quelques secondes ensuite.
+`.claude/settings.json`) réinstalle ce plugin si besoin, compile le programme Rust (`rust/`, `cargo build --release`), puis installe
+les paquets Node, ffmpeg, le navigateur de rendu, Whisper et ses modèles, la police Oliver et les
+modèles des visages (YuNet, SFace). Environ 2 min 30 la première fois, quelques secondes ensuite.
 
 ## Refaire la préparation
 
@@ -127,22 +138,21 @@ Les rushes ne sont pas dans git. Déposer le rush dans `public/rushes/`, puis la
 avec son nom de fichier :
 
 ```bash
-pip install -r scripts/requirements.txt
-./scripts/prepare.sh MonRush.mov
+./am prepare MonRush.mov
 ```
 
 Plusieurs vidéos pour un même rush (caméra coupée en cours de tournage…) : les donner dans
-l'ordre, `./scripts/prepare.sh Partie1.mov Partie2.mov`. `scripts/join_rushes.py` les assemble
+l'ordre, `./am prepare Partie1.mov Partie2.mov`. `rust/src/join_rushes.rs` les assemble
 en « Partie1 (assemblage de 2).mov » (sans réencodage si les réglages sont identiques, sinon
 réencodées aux réglages de la première), puis la préparation continue sur ce rush assemblé.
 
-Langue parlée : français par défaut ; `./scripts/prepare.sh --langue en MonRush.mov` pour un rush
+Langue parlée : français par défaut ; `./am prepare --langue en MonRush.mov` pour un rush
 en anglais (sur l'interface locale : « Langue parlée dans la vidéo », page « Rushes et montages »).
 Le choix est gardé pour les préparations suivantes (`work/langue.txt`), la langue du rush en cours
 est dans `work/langue_rush.txt` (`moments_lib.LANGUAGES`). La langue est fixée plutôt que détectée
 pour ne pas ralentir la transcription.
 
-Mémoire : au début, `scripts/memoire.py` estime d'après la vidéo (taille de l'image, durée) la
+Mémoire : au début, `rust/src/memoire.rs` estime d'après la vidéo (taille de l'image, durée) la
 mémoire de chaque étape (la transcription, environ 2,3 Go, et le rendu, plus de 1 Go par
 navigateur, sont les plus gourmandes) et la compare à la mémoire libre du conteneur : avertissement
 si elle est juste ou insuffisante. Le rendu ouvre autant de navigateurs (un par cœur au plus) que 80 % de la mémoire libre le permet. Un montage de plus de 3 minutes est rendu par parties d'environ 2 minutes, mises bout à bout ensuite : la mémoire du rendu ne grandit plus avec la longueur du montage, et un rendu interrompu reprend après la dernière partie finie (`work/rendu_parties/`).
@@ -152,10 +162,10 @@ mesure la mémoire vraiment utilisée par chaque étape (`work/memoire_mesures.j
 suivantes partent de ces mesures, rapportées à la taille de la nouvelle vidéo.
 
 Pause et reprise : une préparation interrompue (pause, arrêt d'Auto-montage ou de l'ordinateur,
-erreur) reprend là où elle en était avec `./scripts/prepare.sh --reprendre MonRush.mov` (ou
+erreur) reprend là où elle en était avec `./am prepare --reprendre MonRush.mov` (ou
 « Reprendre la préparation » sur la page « Rushes et montages » ; la tâche est décrite dans
 `work/tache.json`). La version de travail est encodée par morceaux d'une minute
-(`scripts/version_travail.py`, morceaux dans `work/reprise/travail/`), Whisper ne transcrit que
+(`rust/src/version_travail.rs`, morceaux dans `work/reprise/travail/`), Whisper ne transcrit que
 les morceaux qui n'ont pas encore de texte (`work/seg/`), la détection du visage repart de sa
 dernière position enregistrée (`work/reprise/visage.json`) et la page des moments ne refait que
 les extraits manquants. Le rendu et l'application des consignes par Claude reprennent au début de
@@ -164,40 +174,40 @@ chaque partie déjà faite ; celles qui sont gardées resservent à la prochaine
 rush.
 
 Avancement : chaque opération longue écrit des lignes `@progression <fait> <total> <libellé>`
-(`scripts/progress.py`) en secondes de vidéo traitées (du rush, ou du montage pour le rendu) ;
+(`rust/src/progress.rs`) en secondes de vidéo traitées (du rush, ou du montage pour le rendu) ;
 l'interface locale les affiche en pourcentage par étape (« 2 min 41 s sur 6 min 17 s de vidéo »).
 
 Son : une vidéo à plusieurs pistes son (un micro par personne, enregistreur à part, caméra à deux
-entrées) a toutes ses pistes lisibles mélangées (`moments_lib.audio_map`, dans `prepare.sh`,
-`build_edit.py` et `join_rushes.py`). Une vidéo sans son est refusée avec un message : le
+entrées) a toutes ses pistes lisibles mélangées (`moments_lib.audio_map`, dans `prepare`,
+`build_edit` et `join_rushes`). Une vidéo sans son est refusée avec un message : le
 découpage se fait d'après la parole.
 
 | Étape | Script | Sortie |
 | --- | --- | --- |
-| Version de travail 1080×1920 (MP4), par morceaux d'une minute | `version_travail.py` (via `prepare.sh`) | `public/rushes/` |
-| Source 4K des images gardées (rendu final) | `make_hd.py` via `render.sh final` | `public/rushes/rush_2160.webm` |
-| Segments de parole (VAD Silero) et transcription mot à mot par segment (Whisper large-v3-turbo, segments transcrits ensemble par morceaux de 28 s) | `setup_whisper.sh`, `transcribe_segments.py` | `work/segments.json` |
-| Visages et cadrage des zooms (YuNet, tous les visages, zoom plafonné pour que personne ne sorte de l'image ; personnes reconnues par SFace, vignettes pour le « Cadrage » par moment) | `detect_face.py`, `fetch_face_model.sh` | `src/data/face.json`, `work/visages/` |
-| Bruitages provisoires | `make_sfx.py` | `public/sfx/` |
-| Dérush, sous-titres, zooms, effets, piste voix | `build_edit.py` | `src/data/edit.json`, `public/audio/voice.wav` |
+| Version de travail 1080×1920 (MP4), par morceaux d'une minute | `version_travail` (via `prepare`) | `public/rushes/` |
+| Source 4K des images gardées (rendu final) | `make_hd` via `render final` | `public/rushes/rush_2160.webm` |
+| Segments de parole (VAD Silero) et transcription mot à mot par segment (Whisper large-v3-turbo, segments transcrits ensemble par morceaux de 28 s) | `setup_whisper`, `transcribe_segments` | `work/segments.json` |
+| Visages et cadrage des zooms (YuNet, tous les visages, zoom plafonné pour que personne ne sorte de l'image ; personnes reconnues par SFace, vignettes pour le « Cadrage » par moment) | `detect_face`, `fetch_face_model` | `src/data/face.json`, `work/visages/` |
+| Bruitages provisoires | `make_sfx` | `public/sfx/` |
+| Dérush, sous-titres, zooms, effets, piste voix | `build_edit` | `src/data/edit.json`, `public/audio/voice.wav` |
 
-Les choix de montage sont en tête de `scripts/build_edit.py` : `KEEP` (segments gardés),
+Les choix de montage sont en tête de `rust/src/build_edit.rs` : `KEEP` (segments gardés),
 `FIXES` (corrections des sous-titres), `FUNNY` (voix qui tremble), `CASH`, `CHIPS` et `INTRO_TEXT`.
 Ces listes désignent des segments de la transcription du rush en cours (`work/segments.json`) :
-elles sont à refaire pour chaque nouveau rush. Relancer `python3 scripts/build_edit.py` après modification.
+elles sont à refaire pour chaque nouveau rush. Relancer `./am build_edit` après modification.
 
 ## À remplacer
 
 - **Police Oliver** (Iva Florina, dafont) : gratuite pour un usage personnel uniquement,
-  donc non versionnée. `scripts/fetch_fonts.sh` la télécharge dans `public/fonts/`
-  (appelé par `prepare.sh`). Pour une vidéo commerciale, acheter une licence auprès de
+  donc non versionnée. `./am fetch_fonts` la télécharge dans `public/fonts/`
+  (appelé par `prepare`). Pour une vidéo commerciale, acheter une licence auprès de
   l'autrice. Sans le fichier, Patrick Hand sert de remplaçant.
 - **Bruitages** : `public/sfx/bop.wav`, `cash.wav`, `key-1.wav` à `key-4.wav` sont synthétisés.
   Les remplacer par de vrais sons en gardant les mêmes noms.
 
 ## Notes techniques
 
-- Navigateur de rendu (`scripts/ensure_browser.sh`) : le Chromium de l'environnement cloud
+- Navigateur de rendu (`./am ensure_browser`) : le Chromium de l'environnement cloud
   (`/opt/pw-browsers`) s'il existe ; sur Linux ARM64 (conteneur sur un Mac Apple Silicon, où
   Google ne publie pas de Chrome sans écran), celui de Playwright dans `~/.cache/ms-playwright` ;
   ailleurs celui de HyperFrames (`hyperframes browser ensure`). Téléchargé une fois.

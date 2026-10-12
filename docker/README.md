@@ -2,7 +2,7 @@
 
 Le conteneur contient tout ce qu'il faut pour monter les rushes sur sa propre machine :
 Claude Code (avec le plugin HyperFrames du projet), HyperFrames et son navigateur de
-rendu, Python (ffmpeg, OpenCV), Whisper et ses modèles, la police Oliver, et une
+rendu, Rust (le programme Auto-montage, compilé au démarrage), ffmpeg, Whisper et ses modèles, la police Oliver, et une
 interface web locale : la page des moments (vidéo entière, moments, corrections de
 sous-titres, effets, découpes, variantes) et la page des téléchargements.
 
@@ -75,7 +75,7 @@ Notes par système :
    lancer. La connexion est gardée dans le volume `claude-home`.
 2. **Nouveau rush** : page <http://localhost:8080/rush/> (lien « Rushes et montages… » de la page
    des moments) : choisir la vidéo dans l'explorateur de fichiers, puis « Préparer ce rush ».
-   Ou demander à Claude de suivre `CLAUDE.md`. Les scripts (`prepare.sh`, `render.sh`) lancés
+   Ou demander à Claude de suivre `CLAUDE.md`. Les scripts (`prepare`, `render`) lancés
    sur la machine sans les outils se relancent d'eux-mêmes dans le conteneur.
 3. **Choisir les moments** sur <http://localhost:8080/> : mêmes fonctions que la page
    claude.ai. Les choix sont enregistrés dans `montage/work/local_db/`.
@@ -88,8 +88,8 @@ Notes par système :
    Sans personne pour valider ses actions, il n'a pas d'autres outils : pour le reste, lanceur
    « Claude Code ». Conversation gardée dans `montage/work/chat/`.
 6. **Rendu 4K** une fois validé : « Télécharger » > « Créer la version 4K » (page des moments ou
-   des téléchargements : `make_hd.py` puis `render.sh final`, avec barre d'avancement), ou
-   `./scripts/render.sh final` dans le terminal du conteneur.
+   des téléchargements : `make_hd` puis `render final`, avec barre d'avancement), ou
+   `./am render final` dans le terminal du conteneur.
 
 ## Fonctionnement
 
@@ -100,9 +100,10 @@ Notes par système :
 - Le conteneur démarre en root, donne les volumes à l'utilisateur `AM_UID`/`AM_GID` (celui de
   la machine sous Linux, fourni par les lanceurs) et continue sous son identité : les fichiers
   créés dans le dépôt lui appartiennent.
-- Au démarrage, `docker/entrypoint.sh` lance `montage/scripts/setup.sh` (le même script que
-  les sessions Claude Code sur le web ; chaque étape saute ce qui existe déjà), installe les
-  plugins Claude Code, puis `montage/scripts/local_server.py` sur le port 8080.
+- Au démarrage, `docker/entrypoint.sh` compile le programme Rust (`montage/rust/`, dans le
+  volume `programme`, seulement ce qui a changé), lance `auto-montage setup` (comme les
+  sessions Claude Code sur le web ; chaque étape saute ce qui existe déjà), installe les
+  plugins Claude Code, puis `auto-montage local_server` sur le port 8080.
 - Les pages sont celles publiées sur claude.ai ; `montage/local/shim.js` leur fournit en local
   l'enregistrement (`window.claude.use("db")`) et le téléchargement.
 - L'interface n'écoute que sur la machine (`127.0.0.1`). Autre port : variable `AM_PORT`.

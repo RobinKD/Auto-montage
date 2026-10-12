@@ -1,9 +1,9 @@
 // Voix modifiées et nettoyage de la voix faits par HyperFrames (effets audio data-fx-chain),
-// partagés par le rendu (scripts/render_hyperframes.py, lancé avec node) et l'aperçu de la
+// partagés par le rendu (rust/src/render_hyperframes.rs, lancé avec node) et l'aperçu de la
 // page des moments (lecteur HyperFrames) : les deux construisent les mêmes éléments audio,
 // donc l'aperçu sonne comme la version de travail.
 // Les autres voix (moments_lib.FFMPEG_VOICES : tremblement, robot, radio, batterie) restent
-// faites par ffmpeg dans build_edit.py : HyperFrames n'a ni modulation en anneau, ni bruit,
+// faites par ffmpeg dans build_edit : HyperFrames n'a ni modulation en anneau, ni bruit,
 // ni ralentissement progressif.
 (function (root) {
   "use strict";
@@ -51,7 +51,7 @@
   const force = (f) => clamp(Number.isFinite(Number(f)) && f !== null ? Number(f) : 1, 0, 2);
 
   // Nettoyage de toute la voix (panneau « Son de la voix », work/son.json) : graves parasites
-  // et clarté ; le bruit de fond et les clics restent faits par ffmpeg (build_edit.py).
+  // et clarté ; le bruit de fond et les clics restent faits par ffmpeg (build_edit).
   function cleanNodes(son) {
     const out = [];
     if (son && son.highpass) out.push(["highpass", { frequency: 80 }]);

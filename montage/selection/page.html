@@ -603,7 +603,7 @@
   const DATA = /*__DATA__*/null;
   // Mode Dérushage de l'interface locale (bandeau du haut, local/menu.js) : seulement le choix et
   // la découpe des moments ; ni effets, ni sous-titres, ni cadrage, ni réglages du son (masqués
-  // ici, ignorés par build_edit.py, gardés pour le mode Auto-montage).
+  // ici, ignorés par build_edit, gardés pour le mode Auto-montage).
   const DERUSH = !!window.AUTO_MONTAGE_LOCAL && document.documentElement.dataset.mode === "derush";
   // Dérushage : sous-titres dans la vidéo entière (case « Sous-titres », work/derush.json,
   // cochée par défaut ; écrit par le serveur sur <html data-subtitles>).
@@ -618,10 +618,10 @@
     document.documentElement.style.setProperty(k, v);
   if (FRAME_W > FRAME_H) document.querySelectorAll(".layout, .screen").forEach((e) => e.classList.add("paysage"));
   // Point de cadrage et zoom maximal à l'instant t de l'extrait d'un moment (même règle que faceAt
-  // dans render_hyperframes.py) ; ancienne page sans faceTrack : point fixe du moment.
+  // dans render_hyperframes) ; ancienne page sans faceTrack : point fixe du moment.
   // Moment cadré sur une personne (« Cadrage ») : son visage, en plan rapproché, centré quand c'est
   // possible, gardé dans son cadre (écran partagé, incrustation) quand elle en a un (même règle que
-  // focusFrame dans render_hyperframes.py).
+  // focusFrame dans render_hyperframes).
   function faceInClip(m, t) {
     const F = m.faceTrack;
     if (!F || !F.length) return { x: m.face[0], y: m.face[1], s: 3 };
@@ -654,7 +654,7 @@
     return cl(left / (1 - v), 0, 1);
   };
   const focusOf = (m) => (edits[m.id] && Number.isInteger(edits[m.id].focus) ? edits[m.id].focus : null);
-  if (FRAME_W !== 1080 || FRAME_H !== 1920) {  // version pour la page : petit côté de 720 (make_moments.py)
+  if (FRAME_W !== 1080 || FRAME_H !== 1920) {  // version pour la page : petit côté de 720 (make_moments)
     const k = 720 / Math.min(FRAME_W, FRAME_H), even = (x) => Math.round((x * k) / 2) * 2;
     document.getElementById("download").title = `Télécharger la vidéo entière (MP4 ${even(FRAME_W)}x${even(FRAME_H)}, compressée pour la page)`;
   }
@@ -662,7 +662,7 @@
     const face = new FontFace("Oliver", `url(${DATA.captionFont})`, { weight: "400" });
     face.load().then((f) => document.fonts.add(f)).catch(() => {});
   }
-  // Style des sous-titres (interface locale : choisi sur cette page, scripts/fonts_lib.py).
+  // Style des sous-titres (interface locale : choisi sur cette page, rust/src/fonts_lib.rs).
   // Sans style choisi : Oliver (ou Patrick Hand) en gras, crème, en majuscules, 64 px.
   let CAP = DATA.captionStyle || { family: "Oliver", weight: 700, size: 64, uppercase: true, color: "#f4e2c2", files: [] };
   const capLayouts = new Map();  // coupures déjà mesurées (texte -> lignes, réduction)
@@ -682,7 +682,7 @@
     }
     refreshCaption();
   }
-  // Ombre : même formule que le rendu (captionShadow de render_hyperframes.py), en cqw (1cqw = 1 % de la largeur).
+  // Ombre : même formule que le rendu (captionShadow de render_hyperframes), en cqw (1cqw = 1 % de la largeur).
   function captionShadow(shadow, blur, ox, oy) {
     if (shadow <= 0) return "none";
     const s = shadow / 100, u = (px) => `${(px / PX_PER_CQW).toFixed(3)}cqw`;
@@ -917,7 +917,7 @@
   }
   // --- Écart avec la vidéo entière ---------------------------------------------
   // DATA.working.page : sélection et documents des moments copiés quand la vidéo entière a
-  // été générée (use_selection.py → edit.json). Sans elle (version faite sans la page) : les
+  // été générée (use_selection → edit.json). Sans elle (version faite sans la page) : les
   // moments du montage, sans réglage. Un moment est signalé s'il a été ajouté, retiré, ou si un
   // réglage qui compte au montage a changé (en dérushage : découpe, début et fin, sous-titres).
   const WORK_PAGE = !working ? null
@@ -987,7 +987,7 @@
       : "Sur la frise du bas, cochez ce qui reste dans la vidéo entière ; ouvrez un moment pour le corriger, le découper et placer ses effets.");
 
   // --- Habillage des moments (calculé dans la page, à partir de l'état courant) ----
-  // Mêmes règles que scripts/build_edit.py : sous-titres jusqu'à 6 mots sur 2 lignes
+  // Mêmes règles que rust/src/build_edit.rs : sous-titres jusqu'à 6 mots sur 2 lignes
   // équilibrées de même taille, zooms alternés toutes les ~1,8 s centrés sur le visage, étapes avec « bop »,
   // effets cochés au début du moment, intro tapée sur le premier moment gardé.
   const norm = (w) => w.toLowerCase().replace(/[^\p{L}\p{N}]/gu, "");
@@ -1077,7 +1077,7 @@
         if (f.sound !== false) events.push({ t: a, name: "bop", vol: 0.7 });
       }
     }
-    // Zooms, secousses, flashs, mots mis en valeur (mêmes règles que build_edit.py).
+    // Zooms, secousses, flashs, mots mis en valeur (mêmes règles que build_edit).
     const zooms = [], shakes = [], flashes = [], hl = [];
     for (const f of vfxOf(m)) {
       const a = Number(f.at) || 0, d = Math.max(0.05, Number(f.dur) || 0.8), force = (Number(f.force) || 0) / 100;
@@ -1270,7 +1270,7 @@
 
   // Voix faites par HyperFrames (hf/hf_audio.js, moments_lib.HF_VOICES) : dans l'aperçu d'un
   // moment qui en a, le son vient d'un lecteur HyperFrames caché, avec les mêmes éléments audio
-  // et les mêmes effets que la vidéo entière (scripts/render_hyperframes.py). La vidéo ne
+  // et les mêmes effets que la vidéo entière (rust/src/render_hyperframes.rs). La vidéo ne
   // donne plus que l'image, et les voix faites par ffmpeg (imitées comme avant). Tant que le
   // lecteur n'est pas prêt, ou sans lui (fichiers hf/ absents), l'imitation Web Audio reste.
   let hfSon = {};  // nettoyage de la voix (panneau « Son de la voix »)
@@ -1374,7 +1374,7 @@ ${HFAudio.voiceElements(spec)}
       sy = (4000 / FRAME_H) * sh.force * damp * (Math.cos(t * 59) + 0.5 * Math.sin(t * 43));
     }
     // Zoom libre (ou cadre en cours de réglage) : grossissement et centre choisis, sans le plafond
-    // des visages ; sinon cadrage suivi dans le temps (make_moments.py, faceTrack), comme le rendu :
+    // des visages ; sinon cadrage suivi dans le temps (make_moments, faceTrack), comme le rendu :
     // zoom centré sur les visages retenus et plafonné pour qu'aucun ne sorte de l'image.
     const K = framer.m && framer.m.id === fx.m.id ? framer.k : fx.key ? keyZoomAt(fx.key, t) : null;
     if (K) {
@@ -1454,7 +1454,7 @@ ${HFAudio.voiceElements(spec)}
   const player = $("player");
   // Vidéo entière en direct : les parties gardées des moments, dans l'ordre du rush, jouées
   // l'une après l'autre depuis leurs extraits, chacune avec son habillage du moment (mêmes
-  // règles que build_edit.py : parole seule, parties découpées contiguës réunies, plans sans
+  // règles que build_edit : parole seule, parties découpées contiguës réunies, plans sans
   // parole réduits à leur partie gardée). Recalculée à chaque image : un moment coché, retiré,
   // découpé ou réglé se voit tout de suite. live.id : moment en cours (le temps est celui du
   // lecteur, dans son extrait).
@@ -1765,7 +1765,7 @@ ${HFAudio.voiceElements(spec)}
   }
   player.addEventListener("timeupdate", () => document.querySelectorAll(".fxbar").forEach((x) => x._draw && x._draw()));
 
-  // Scinder ou fusionner des moments (interface locale : scripts/decoupage.py, puis la page est
+  // Scinder ou fusionner des moments (interface locale : rust/src/decoupage.rs, puis la page est
   // refaite ; seuls les extraits touchés sont recalculés). La sélection en cours est d'abord
   // enregistrée ; les réglages des moments suivent (effets décalés, moments gardés).
   async function momentAction(action, m, extra = {}) {
@@ -1918,7 +1918,7 @@ ${HFAudio.voiceElements(spec)}
     : noSub(m) ? `Sans sous-titres · ${m.text}` : textOf(m));
   const openMoment = () => (frise.open !== null && frise.sel.size <= 1 ? byId.get(frise.open) || null : null);
 
-  // Images du rush (make_moments.py, timeline_strip) : une toutes les 0,5 s, en planches de 10x10.
+  // Images du rush (make_moments, timeline_strip) : une toutes les 0,5 s, en planches de 10x10.
   // Bande d'images de « from » à « to » (temps du rush) sur « width » px de large.
   const STRIP = DATA.strip && Array.isArray(DATA.strip.sheets) && DATA.strip.sheets.length ? DATA.strip : null;
   function filmstrip(from, to, width, height, fallback) {
@@ -2072,7 +2072,7 @@ ${HFAudio.voiceElements(spec)}
     renderSummary();
     scheduleSave();
   }
-  // Forme d'onde de la voix (make_moments.py, timeline_wave : 20 crêtes par seconde) dessinée pour
+  // Forme d'onde de la voix (make_moments, timeline_wave : 20 crêtes par seconde) dessinée pour
   // la partie visible de la frise : en vert ce qui est gardé, en gris le reste.
   let keptAll = [];
   function drawWave() {
@@ -2618,7 +2618,7 @@ ${HFAudio.voiceElements(spec)}
   // --- Zoom libre : zoom progressif d'un cadre à un autre ---------------------------
   // Effet « zoomlibre » : { at, dur, from: {s, x, y}, to: {s, x, y} } ; s = grossissement (1 à 4),
   // x, y = centre de l'image visible (0 à 1). Avant « at », le cadre de début ; après la fin, celui
-  // de fin ; entre les deux, passage progressif (même règle que render_hyperframes.py).
+  // de fin ; entre les deux, passage progressif (même règle que render_hyperframes).
   const clamp01 = (v, a, b) => Math.min(b, Math.max(a, v));
   function keyFrame(k) {
     const s = clamp01(Number(k && k.s) || 1, 1, 4), h = 0.5 / s;
@@ -2996,7 +2996,7 @@ ${HFAudio.voiceElements(spec)}
       if (vrow.children.length > 1) tags.append(vrow);  // aucun effet visuel proposé : pas de ligne
     }
     // Cadrage : tout le monde (par défaut), ou une des personnes vues pendant ce moment
-    // (vignettes de detect_face.py), en plan rapproché.
+    // (vignettes de detect_face), en plan rapproché.
     if (!DERUSH && ((m.persons || []).length >= 2 || focusOf(m))) {
       const row = document.createElement("div");
       row.className = "tags framing";
@@ -3186,7 +3186,7 @@ ${HFAudio.voiceElements(spec)}
     $("gen-bar").hidden = frac === null;
     if (frac !== null) $("gen-bar").value = frac;
     $("gen-facts").textContent = frac === null ? "" : `${Math.floor(frac * 100)} %${remaining(p.remaining)}`;
-    // Mémoire juste ou insuffisante pour l'étape en cours (scripts/memoire.py) : dit sous la barre.
+    // Mémoire juste ou insuffisante pour l'étape en cours (rust/src/memoire.rs) : dit sous la barre.
     const mem = job.stepMemory && job.stepMemory.level !== "ok" ? job.stepMemory.message : "";
     if (mem) $("gen-label").textContent += ` · ${mem}`;
     $("gen-all-label").textContent = job.kind === "final" ? "Ensemble de la création 4K" : "Ensemble de la génération";
@@ -3232,7 +3232,7 @@ ${HFAudio.voiceElements(spec)}
         rush: DATA.rush, variant: state.variant, name: state.names[state.variant] || state.variant,
         requestedAt: new Date().toISOString(),
       });
-      // Version locale (Docker, scripts/local_server.py) : le serveur monte lui-même la
+      // Version locale (Docker, rust/src/local_server.rs) : le serveur monte lui-même la
       // variante, puis la page se recharge.
       if (window.AUTO_MONTAGE_LOCAL) { await regenLocal(btn); return; }
       await mcp.callTool("Claude Code Remote", "update_trigger", {
@@ -3381,7 +3381,7 @@ ${HFAudio.voiceElements(spec)}
   applyCaptionStyle(CAP);
 
   // Style des sous-titres (interface locale) : police, graisse, taille, majuscules, couleur.
-  // Enregistré dans work/caption_style.json, repris par build_edit.py à la génération.
+  // Enregistré dans work/caption_style.json, repris par build_edit à la génération.
   if (window.AUTO_MONTAGE_LOCAL) {
     let info = null;
     const WEIGHTS = { 100: "Très fine", 200: "Extra-fine", 300: "Fine", 400: "Normale", 500: "Moyenne", 600: "Demi-grasse", 700: "Grasse", 800: "Extra-grasse", 900: "Noire" };
@@ -3533,7 +3533,7 @@ ${HFAudio.voiceElements(spec)}
       for (const id of ["hab-zoom", "hab-pop", "hab-karaoke", "hab-karaoke-color"]) $(id).addEventListener("change", putHab);
       $("hab-panel").hidden = false;
     }
-    // Son de la voix : volume, nettoyage, bruits parasites (work/son.json, analyze_sound.py).
+    // Son de la voix : volume, nettoyage, bruits parasites (work/son.json, analyze_sound).
     {
       let son = {};
       const putSon = async (patch) => {

@@ -1,7 +1,7 @@
 # Domaines à autoriser dans l'environnement cloud Claude Code
 # (menu de l'environnement dans la barre de titre > Edit > Network access > domaines autorisés).
 # Le dépôt ne peut pas appliquer ce réglage lui-même : copier la 1re colonne.
-# scripts/check_network.sh teste chaque ligne avec l'URL de la 2e colonne.
+# rust/src/setup.rs teste chaque ligne avec l'URL de la 2e colonne.
 #
 # domaine                              URL de test                                                                         usage
 huggingface.co                         https://huggingface.co/                                                             modèles Whisper et VAD

@@ -1,6 +1,6 @@
 // Bandeau commun aux pages de l'interface locale : nom d'Auto-montage, page en cours, et un
 // menu déroulant vers les autres pages (moments, rushes, téléchargements, Claude, mises à
-// jour, journal). Ajouté par scripts/local_server.py à toutes les pages ; les pages publiées
+// jour, journal). Ajouté par rust/src/local_server.rs à toutes les pages ; les pages publiées
 // sur claude.ai ne l'ont pas. Couleurs : celles de la page (variables --bg, --accent…).
 // Choix du mode, à gauche du menu : « Dérushage » (découper le rush en moments, sans effets,
 // sous-titres ni Claude) ou « Auto-montage » (tout). Le serveur l'écrit sur <html data-mode>,

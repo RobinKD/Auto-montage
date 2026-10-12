@@ -1,6 +1,6 @@
 # Portage en Rust (branche `rust`)
 
-Un seul programme, `auto-montage`, remplace les scripts Python et bash de `montage/scripts/`.
+Un seul programme, `auto-montage`, remplace les scripts Python et bash de l'ancien `montage/scripts/` (supprimé sur cette branche).
 Chaque script devient une commande du même nom : `python3 scripts/build_edit.py` devient
 `auto-montage build_edit` (`auto-montage scripts/build_edit.py` marche aussi), `./scripts/prepare.sh`
 devient `auto-montage prepare`. Les pages (`selection/`, `local/`), le rendu HyperFrames (Node,

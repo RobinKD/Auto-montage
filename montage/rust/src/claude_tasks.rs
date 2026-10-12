@@ -45,16 +45,9 @@ fn listing(dir: &Path, suffix: &str) -> Vec<String> {
     util::list_dir(dir).into_iter().filter(|n| !n.starts_with('.') && n.ends_with(suffix) && dir.join(n).is_file()).collect()
 }
 
-/// Où est décrit le format d'un fichier de réglages : en tête du code de la commande (version
-/// native : montage/rust/src/<nom>.rs s'il est là et le décrit (il contient `marker`), sinon
-/// montage/scripts/<nom>.py).
-fn described_in(name: &str, marker: &str) -> String {
-    let rs = paths::root().join("rust").join("src").join(format!("{name}.rs"));
-    if std::fs::read_to_string(rs).map(|t| t.contains(marker)).unwrap_or(false) {
-        format!("montage/rust/src/{name}.rs")
-    } else {
-        format!("montage/scripts/{name}.py")
-    }
+/// Où est décrit le format d'un fichier de réglages : en tête du code de la commande.
+fn described_in(name: &str) -> String {
+    format!("montage/rust/src/{name}.rs")
 }
 
 /// Lance « claude -p » depuis le dossier qui contient montage/, avec auto-montage dans le PATH ;
@@ -148,8 +141,8 @@ pub fn apply_instructions(_args: &[String]) -> i32 {
             "\nEffets écartés par l'utilisateur (page « Rushes et montages ») : {hidden}. Ne les utilise pas, sauf si les consignes les demandent explicitement (cash = caisse, bop = pastille sonore, clavier, voix = voix modifiée, gainvoix = volume de la voix par moment (sans effet sur toi), typed = texte tapé, chip = pastille)."
         );
     }
-    let build_doc = described_in("build_edit", "CHOICES_PATH");
-    let fonts_doc = described_in("fonts_lib", "caption_style.json");
+    let build_doc = described_in("build_edit");
+    let fonts_doc = described_in("fonts_lib");
     let prompt = format!(
         "Tu travailles dans le projet Auto-montage (interface locale : ne publie aucune page claude.ai, ne lance aucun rendu).
 Le rush « {rush} » vient d'être préparé ; sa transcription par segment est dans montage/work/segments.json. On y parle {langue} : les sous-titres corrigés, l'intro et les pastilles sont dans cette langue, sauf si les consignes en demandent une autre.

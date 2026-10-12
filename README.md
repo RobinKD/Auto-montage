@@ -127,11 +127,11 @@ lancements suivants prennent quelques secondes.
 ## Fonctionnement
  
 ```
-rush ──prepare.sh──> transcription par segment (Whisper) + visage + bruitages
-     ──make_moments.py──> page des moments (extraits vidéo, habillage calculé dans la page)
-page ──choix (sélection, corrections, effets, découpes)──> use_selection.py
-     ──build_edit.py──> montage (clips, sous-titres, zooms, effets, voix : src/data/edit.json)
-     ──render.sh apercu | final──> rendu HyperFrames : out/montage_apercu.mp4 (1080x1920), out/montage_4k.mp4
+rush ──prepare──> transcription par segment (Whisper) + visage + bruitages
+     ──make_moments──> page des moments (extraits vidéo, habillage calculé dans la page)
+page ──choix (sélection, corrections, effets, découpes)──> use_selection
+     ──build_edit──> montage (clips, sous-titres, zooms, effets, voix : src/data/edit.json)
+     ──render apercu | final──> rendu HyperFrames : out/montage_apercu.mp4 (1080x1920), out/montage_4k.mp4
 ```
  
 - `montage/` : scripts du montage et du rendu HyperFrames, gabarits des pages ; le détail de chaque étape
@@ -147,7 +147,7 @@ page ──choix (sélection, corrections, effets, découpes)──> use_selecti
   [`packaging/README.md`](packaging/README.md).
 - Non versionnés : rushes (`montage/public/rushes/`), fichiers de travail (`montage/work/`),
   rendus (`montage/out/`) et la police Oliver (usage personnel, téléchargée par
-  `scripts/fetch_fonts.sh`).
+  `./am fetch_fonts`).
 ## Licence
  
 Auto-montage est distribué sous licence [GNU GPL version 3](LICENSE). La police Oliver n'est
