@@ -53,7 +53,7 @@ fn manifest() -> PathBuf {
     project().join(".auto-montage-files")
 }
 /// Jamais remplacés ni effacés : les données de l'utilisateur et ce qui est installé à part.
-const KEEP: [&str; 10] = [
+const KEEP: [&str; 12] = [
     "montage/work/",
     "montage/out/",
     "montage/public/rushes/",
@@ -61,6 +61,9 @@ const KEEP: [&str; 10] = [
     "montage/node_modules/",
     "montage/whisper.cpp/",
     "montage/public/audio/",
+    // Programme compilé et ffmpeg livré (pas dans l'archive).
+    "montage/bin/",
+    "montage/rust/target/",
     // Montage en cours (réécrits par build_edit) : pas remplacés par ceux du dépôt.
     "montage/src/data/edit.json",
     "montage/src/data/face.json",
@@ -290,7 +293,7 @@ fn unpack(buf: &[u8], tmp: &Path) -> Result<(PathBuf, Vec<String>), String> {
         }
         files.push(rel);
     }
-    if !files.iter().any(|f| f == "VERSION") || !src.join("montage").join("scripts").join("local_server.py").exists() {
+    if !files.iter().any(|f| f == "VERSION") || !(src.join("montage").join("rust").join("Cargo.toml").exists() || src.join("montage").join("scripts").join("local_server.py").exists()) {
         return Err("L'archive ne ressemble pas à Auto-montage : rien n'est remplacé.".into());
     }
     files.sort();

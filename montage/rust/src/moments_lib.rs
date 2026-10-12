@@ -809,6 +809,43 @@ pub fn sound_catalog() -> Vec<Value> {
     out
 }
 
+/// `auto-montage voix` : les voix modifiées et leur filtre ffmpeg à 100 % (JSON), pour
+/// tests/make_voice_demo.py ; `auto-montage voix batterie <entrée.wav> <sortie.wav> [force]` écrit
+/// la voix ralentie de « Batterie faible » (mono, 16 bits) et donne le rapport de durée.
+pub fn voix_main(args: &[String]) -> i32 {
+    if args.first().map(String::as_str) == Some("batterie") {
+        let (Some(src), Some(dst)) = (args.get(1), args.get(2)) else {
+            eprintln!("Usage : auto-montage voix batterie <entrée.wav> <sortie.wav> [force]");
+            return 2;
+        };
+        let force: f64 = args.get(3).and_then(|f| f.parse().ok()).unwrap_or(1.0);
+        let r = match hound::WavReader::open(src) {
+            Ok(r) => r,
+            Err(e) => {
+                eprintln!("{src} : {e}");
+                return 1;
+            }
+        };
+        let spec = r.spec();
+        let dry: Vec<f64> = r.into_samples::<i16>().flatten().map(|x| x as f64 / 32768.0).collect();
+        let slow = batterie_warp(&dry, force);
+        let out = hound::WavSpec { channels: 1, bits_per_sample: 16, sample_format: hound::SampleFormat::Int, ..spec };
+        let Ok(mut w) = hound::WavWriter::create(dst, out) else {
+            eprintln!("{dst} : écriture impossible");
+            return 1;
+        };
+        for v in &slow {
+            let _ = w.write_sample((v.clamp(-1.0, 1.0) * 32767.0) as i16);
+        }
+        let _ = w.finalize();
+        println!("{:.4}", slow.len() as f64 / dry.len().max(1) as f64);
+        return 0;
+    }
+    let list: Vec<Value> = VOICES.iter().map(|(v, label, _)| json!([v, label, voice_filter(v, 1.0)])).collect();
+    println!("{}", crate::pyjson::dumps_utf8(&Value::Array(list)));
+    0
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

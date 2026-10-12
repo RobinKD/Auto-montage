@@ -106,6 +106,7 @@ pub struct Montage {
     pub frames: i64,
     pub width: i64,
     pub height: i64,
+    #[allow(dead_code)]
     pub landscape: bool,
     pub hab: Map<String, Value>,
     pub typed: Vec<Value>,
@@ -174,18 +175,6 @@ impl Montage {
         } else {
             (paths::rushes().join("rush_1080.mp4"), "trimBefore")
         }
-    }
-
-    /// Bruitages : (fichier, début en s calé sur l'image, durée jouée, volume).
-    pub fn sfx(&self) -> Vec<(PathBuf, f64, f64, f64)> {
-        util::arr(&self.edit, "sfx")
-            .iter()
-            .map(|s| {
-                let start = util::round_int(util::fd(s, "start", 0.0) * self.fps) as f64 / self.fps;
-                let dur = util::round_int(self.fps * util::fd(s, "dur", 1.5)).max(1) as f64 / self.fps;
-                (paths::public().join(util::s(s, "src").unwrap_or("")), start, dur, util::fd(s, "volume", 1.0))
-            })
-            .collect()
     }
 
     fn cap_size(&self) -> f64 {

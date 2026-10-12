@@ -60,6 +60,7 @@ const COMMANDS: &[(&str, Cmd, &str)] = &[
     ("memoire", memoire::main, "mémoire nécessaire à la préparation"),
     ("progress", progress::main, "ffmpeg suivi en barre de progression"),
     ("fonts_lib", fonts_lib::main, "polices des sous-titres"),
+    ("voix", moments_lib::voix_main, "voix modifiées (exemples de tests/make_voice_demo.py)"),
     ("version_travail", version_travail::main, "version de travail 1080p"),
     ("join_rushes", join_rushes::main, "assemble plusieurs vidéos d'un rush"),
     ("transcribe_segments", transcribe_segments::main, "transcription Whisper par segment"),

@@ -131,30 +131,10 @@ pub fn now_secs() -> f64 {
     std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs_f64()).unwrap_or(0.0)
 }
 
-/// Copie récursive d'un dossier (`shutil.copytree`).
-pub fn copy_tree(src: &Path, dst: &Path) -> io::Result<()> {
-    fs::create_dir_all(dst)?;
-    for e in fs::read_dir(src)? {
-        let e = e?;
-        let to = dst.join(e.file_name());
-        if e.file_type()?.is_dir() {
-            copy_tree(&e.path(), &to)?;
-        } else {
-            fs::copy(e.path(), to)?;
-        }
-    }
-    Ok(())
-}
-
 /// Lien physique, sinon copie (`os.link` avec repli sur `shutil.copy`).
 pub fn link_or_copy(src: &Path, dst: &Path) -> io::Result<()> {
     let _ = fs::remove_file(dst);
     fs::hard_link(src, dst).or_else(|_| fs::copy(src, dst).map(|_| ()))
-}
-
-/// Recherche à la façon de `re.search(...).group(n)`.
-pub fn re_group(re: &regex::Regex, text: &str, n: usize) -> Option<String> {
-    re.captures(text).and_then(|c| c.get(n)).map(|m| m.as_str().to_string())
 }
 
 /// Texte français d'un nombre à virgule (« 1,5 »), comme les `str.replace(".", ",")` du Python.

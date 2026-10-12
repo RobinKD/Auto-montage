@@ -80,6 +80,7 @@ pub fn new_group(cmd: &mut Command) -> &mut Command {
 
 /// Signaux envoyés à un groupe.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
+#[allow(dead_code)] // tous les signaux de procs::kill_group, même ceux pas encore employés
 pub enum Sig {
     Term,
     Kill,
@@ -112,20 +113,6 @@ pub fn kill_group(pid: u32, sig: Sig) -> bool {
                 .unwrap_or(false),
             _ => false,
         }
-    }
-}
-
-/// Le processus existe-t-il encore ?
-pub fn alive(pid: u32) -> bool {
-    #[cfg(unix)]
-    {
-        unsafe { libc::kill(pid as libc::pid_t, 0) == 0 }
-    }
-    #[cfg(windows)]
-    {
-        let mut sys = sysinfo::System::new();
-        sys.refresh_processes(sysinfo::ProcessesToUpdate::Some(&[sysinfo::Pid::from_u32(pid)]), true);
-        sys.process(sysinfo::Pid::from_u32(pid)).is_some()
     }
 }
 

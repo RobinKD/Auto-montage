@@ -31,7 +31,7 @@ install_project() {
   if [ -z "$installed" ] || version_gt "$VERSION" "$installed"; then
     mkdir -p "$DEST"
     cp -a "$HERE/payload/." "$DEST/"
-    chmod +x "$DEST"/docker/*.sh "$DEST"/montage/scripts/*.sh
+    chmod +x "$DEST"/docker/*.sh "$DEST"/montage/am
     mkdir -p "$DEST/montage/public/rushes"
     echo "$VERSION" > "$DEST/.auto-montage-version"
     echo "Auto-montage $VERSION installé dans $DEST"

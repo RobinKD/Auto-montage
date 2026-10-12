@@ -18,7 +18,7 @@ if [ -z "$INSTALLED" ] || version_gt "$VERSION" "$INSTALLED"; then
   mkdir -p "$DEST"
   cp -R "$PAYLOAD/." "$DEST/"
   chmod -R u+w "$DEST" 2>/dev/null || true
-  chmod +x "$DEST"/docker/*.sh "$DEST"/montage/scripts/*.sh
+  chmod +x "$DEST"/docker/*.sh "$DEST"/montage/am
   mkdir -p "$DEST/montage/public/rushes"
   echo "$VERSION" > "$DEST/.auto-montage-version"
 fi

@@ -30,6 +30,7 @@ pub fn dumps_utf8(v: &Value) -> String {
 }
 
 /// `json.dumps(v, indent=n)`.
+#[cfg_attr(not(test), allow(dead_code))]
 pub fn dumps_indent(v: &Value, indent: usize) -> String {
     dumps_with(v, Opts { indent: Some(indent), ..Opts::default() })
 }

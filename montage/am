@@ -4,18 +4,19 @@
 # Programme : montage/bin/auto-montage s'il a été livré (version installée), sinon celui compilé
 # ici, recompilé au besoin (cargo ne refait que ce qui a changé). Sans Rust sur la machine mais
 # avec le conteneur Auto-montage (Docker ou Podman) : la commande tourne dans le conteneur.
+# Les chemins donnés gardent leur sens : la commande tourne dans le dossier d'où elle est lancée.
 set -e
-cd "$(dirname "$0")"
-if [ -x bin/auto-montage ]; then
-  exec bin/auto-montage "$@"
+D="$(cd "$(dirname "$0")" && pwd)"
+if [ -x "$D/bin/auto-montage" ]; then
+  exec "$D/bin/auto-montage" "$@"
 fi
 if command -v cargo >/dev/null 2>&1; then
-  cargo build --release --quiet --manifest-path rust/Cargo.toml
-  exec "${CARGO_TARGET_DIR:-rust/target}/release/auto-montage" "$@"
+  cargo build --release --quiet --manifest-path "$D/rust/Cargo.toml"
+  exec "${CARGO_TARGET_DIR:-$D/rust/target}/release/auto-montage" "$@"
 fi
-if [ -z "${AM_IN_CONTAINER:-}" ] && [ -f ../docker/lib.sh ]; then
+if [ -z "${AM_IN_CONTAINER:-}" ] && [ -f "$D/../docker/lib.sh" ]; then
   echo "Rust absent sur cette machine : lancement dans le conteneur Auto-montage…" >&2
-  . ../docker/lib.sh
+  . "$D/../docker/lib.sh"
   am_up >&2
   tty=-i
   [ -t 0 ] && [ -t 1 ] && tty=-it

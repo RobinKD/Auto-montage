@@ -55,13 +55,16 @@ pub fn out() -> PathBuf {
 pub fn data() -> PathBuf {
     root().join("src").join("data")
 }
-pub fn scripts() -> PathBuf {
-    root().join("scripts")
-}
 
 /// Ce programme (pour lancer ses propres sous-commandes).
+/// Ce programme, pour lancer ses autres commandes. Sous Linux, un programme recompilé (ou mis à
+/// jour) pendant qu'il tourne est vu comme « … (deleted) » : on relance alors le nouveau fichier.
 pub fn self_exe() -> PathBuf {
-    env::current_exe().unwrap_or_else(|_| PathBuf::from("auto-montage"))
+    let exe = env::current_exe().unwrap_or_else(|_| PathBuf::from("auto-montage"));
+    match exe.to_str().and_then(|s| s.strip_suffix(" (deleted)")) {
+        Some(path) if Path::new(path).exists() => PathBuf::from(path),
+        _ => exe,
+    }
 }
 
 fn exe_name(name: &str) -> String {

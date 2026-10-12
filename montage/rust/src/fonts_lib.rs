@@ -74,11 +74,6 @@ pub const BLUR_RANGE: (i64, i64) = (0, 60);
 pub const OFFSET_MAX: f64 = 40.0;
 pub const SIZE_RANGE: (i64, i64) = (36, 120);
 
-/// Limites en JSON, pour la page (CAPTION_LIMITS de la version Python).
-pub fn caption_limits_json() -> Value {
-    json!({"1": [3, 14], "2": [6, 26], "3": [9, 38]})
-}
-
 fn has_font_ext(name: &str) -> bool {
     let l = name.to_lowercase();
     FONT_EXT.iter().any(|e| l.ends_with(e))
@@ -226,10 +221,6 @@ pub struct Family {
 }
 
 impl Family {
-    pub fn to_json(&self) -> Value {
-        let faces: Map<String, Value> = self.faces.iter().map(|(w, p)| (w.to_string(), json!(p.to_string_lossy()))).collect();
-        json!({"id": self.id, "family": self.family, "source": self.source, "faces": faces})
-    }
 }
 
 fn add(families: &mut Vec<Family>, source: &str, label: &str, path: &Path, family: &str, weight: i64) {

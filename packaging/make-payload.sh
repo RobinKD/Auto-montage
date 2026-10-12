@@ -11,5 +11,5 @@ mkdir -p "$OUT"
 git archive --format=tar HEAD | tar -x -C "$OUT"
 rm -rf "$OUT/packaging" "$OUT/.github"
 echo "$VERSION" > "$OUT/VERSION"
-chmod +x "$OUT"/docker/*.sh "$OUT"/montage/scripts/*.sh
+chmod +x "$OUT"/docker/*.sh "$OUT"/montage/am
 echo "Projet $VERSION prêt dans $OUT ($(du -sh "$OUT" | cut -f1))"
