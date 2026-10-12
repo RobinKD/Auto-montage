@@ -332,9 +332,11 @@ mod measure_tests {
     #[test]
     fn like_pillow() {
         let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap().join("public/fonts");
-        let m = Measure::new(&root.join("Oliver-Regular.ttf"), 64.0).unwrap();
-        for (w, px) in [("BONJOUR", 254.515625), ("AVANT", 188.15625), ("Wa", 84.734375), ("TOUS,", 159.875), (" ", 16.0), ("économies", 312.515625)] {
-            assert_eq!(m.width(w), px, "{w}");
+        // Oliver n'est pas versionnée (scripts de téléchargement) : vérifiée seulement si présente.
+        if let Some(m) = Measure::new(&root.join("Oliver-Regular.ttf"), 64.0) {
+            for (w, px) in [("BONJOUR", 254.515625), ("AVANT", 188.15625), ("Wa", 84.734375), ("TOUS,", 159.875), (" ", 16.0), ("économies", 312.515625)] {
+                assert_eq!(m.width(w), px, "{w}");
+            }
         }
         let m = Measure::new(&root.join("PatrickHand-latin.woff2"), 64.0).unwrap();
         for (w, px) in [("BONJOUR", 225.609375), ("AVANT", 162.4375), (" ", 14.71875)] {

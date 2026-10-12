@@ -1,0 +1,49 @@
+# Version native en Rust (branche rust) : le programme auto-montage compilé et ses tests sur les
+# trois systèmes, à chaque envoi sur la branche rust (ou à la main : Actions > Rust > Run workflow).
+# Les programmes compilés sont gardés 14 jours dans les « artifacts » de chaque exécution.
+name: Rust
+
+on:
+  push:
+    branches: [rust]
+    paths:
+      - "montage/rust/**"
+      - ".github/workflows/rust.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  compilation:
+    name: Compilation (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-22.04, macos-latest, windows-latest]
+    defaults:
+      run:
+        working-directory: montage/rust
+    steps:
+      - uses: actions/checkout@v4
+      - name: Rust
+        run: rustup toolchain install stable --profile minimal && rustup default stable
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            montage/rust/target
+          key: rust-${{ matrix.os }}-${{ hashFiles('montage/rust/Cargo.lock') }}
+      - name: Tests
+        run: cargo test --release
+      - name: Programme
+        run: cargo build --release
+      - uses: actions/upload-artifact@v4
+        with:
+          name: auto-montage-${{ runner.os }}-${{ runner.arch }}
+          path: |
+            montage/rust/target/release/auto-montage
+            montage/rust/target/release/auto-montage.exe
+          retention-days: 14
