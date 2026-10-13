@@ -18,6 +18,7 @@ mod ffmpeg_limite;
 mod fonts_lib;
 mod join_rushes;
 mod local_server;
+mod loudness;
 mod make_downloads;
 mod make_hd;
 mod make_moments;
@@ -38,6 +39,7 @@ mod render;
 mod render_hyperframes;
 mod render_lib;
 mod setup;
+mod subtitles;
 mod transcribe_segments;
 mod update;
 mod use_selection;
@@ -57,6 +59,8 @@ const COMMANDS: &[(&str, Cmd, &str)] = &[
     ("build_edit", build_edit::main, "montage : src/data/edit.json"),
     ("use_selection", use_selection::main, "choix de la page -> work/selection.json"),
     ("decoupage", decoupage::main, "scinder ou fusionner des moments"),
+    ("loudness", loudness::main, "volume perçu d'un fichier (LUFS), normalisation"),
+    ("subtitles", subtitles::main, "sous-titres du montage en fichiers .srt et .vtt (out/)"),
     ("make_downloads", make_downloads::main, "page des téléchargements"),
     ("make_hd", make_hd::main, "source 4K des images gardées"),
     ("project", project::main, "montages enregistrés (save, open, delete)"),

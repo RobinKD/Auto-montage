@@ -554,6 +554,16 @@
           <label class="inline"><input type="checkbox" id="son-declick"> Retirer les clics et claquements de bouche</label>
           <label class="inline"><input type="checkbox" id="son-highpass"> Couper les graves parasites (ronflement, chocs sourds)</label>
           <label class="inline"><input type="checkbox" id="son-clarity"> Voix plus claire et plus régulière</label>
+          <label>Volume normalisé du montage (sonie EBU R128, crête sous −1 dBTP)
+            <select id="son-loudness">
+              <option value="-14">−14 LUFS : YouTube, TikTok, Instagram, Spotify (conseillé)</option>
+              <option value="-16">−16 LUFS : podcast, Apple</option>
+              <option value="-18">−18 LUFS : plus de dynamique</option>
+              <option value="-23">−23 LUFS : télévision (EBU R128)</option>
+              <option value="off">Désactivé (volume du rush)</option>
+            </select>
+          </label>
+          <span class="sub" id="son-measured" style="margin: 0;"></span>
         </div>
         <div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 10px;">
           <button type="button" id="son-analyse">Rechercher les bruits parasites</button>
@@ -3583,13 +3593,17 @@ ${HFAudio.voiceElements(spec)}
         }
         box.append(ul);
       };
-      fetch("/api/son").then((r) => r.json()).then(({ settings, analyse }) => {
+      fetch("/api/son").then((r) => r.json()).then(({ settings, analyse, volume }) => {
         son = settings || {};
         hfSon = son;
         voiceGlobal = typeof son.voice === "number" ? son.voice : 1;
         $("son-voice").value = String(Math.round(voiceGlobal * 100)); $("son-voice-val").textContent = `${$("son-voice").value} %`;
         $("son-denoise").value = String(son.denoise || 0);
         $("son-declick").checked = !!son.declick; $("son-highpass").checked = !!son.highpass; $("son-clarity").checked = !!son.clarity;
+        $("son-loudness").value = son.loudness === false ? "off" : String(typeof son.loudness === "number" ? son.loudness : -14);
+        if (!$("son-loudness").value) $("son-loudness").value = "-14";
+        if (volume && volume.apres !== undefined && volume.apres !== null)
+          $("son-measured").textContent = `Dernière vidéo entière générée : ${String(volume.apres).replace(".", ",")} LUFS (rush monté : ${String(volume.avant).replace(".", ",")} LUFS), crête ${String(volume.crete).replace(".", ",")} dBTP.`;
         showResult(analyse);
         $("son-panel").hidden = false;
       }).catch(() => {});
@@ -3601,6 +3615,7 @@ ${HFAudio.voiceElements(spec)}
       });
       $("son-voice").addEventListener("change", () => putSon({ voice: Number($("son-voice").value) / 100 }));
       $("son-denoise").addEventListener("change", () => putSon({ denoise: Number($("son-denoise").value) }));
+      $("son-loudness").addEventListener("change", () => putSon({ loudness: $("son-loudness").value === "off" ? false : Number($("son-loudness").value) }));
       for (const k of ["declick", "highpass", "clarity"]) $(`son-${k}`).addEventListener("change", () => putSon({ [k]: $(`son-${k}`).checked }));
       $("son-analyse").addEventListener("click", async () => {
         $("son-analyse").disabled = true;
@@ -3752,6 +3767,18 @@ ${HFAudio.voiceElements(spec)}
         row.append(hint);
       } else {
         info.textContent = "pas encore rendue";
+      }
+      menu.append(row);
+    }
+    // Sous-titres en fichiers (subtitles.rs), écrits à chaque génération de la vidéo entière.
+    if ((data.subtitles || []).length) {
+      const row = document.createElement("div");
+      row.className = "row";
+      const b = Object.assign(document.createElement("b"), { textContent: "Sous-titres" });
+      row.append(b, Object.assign(document.createElement("span"), { textContent: `${data.subtitles[0].count} sous-titres` }));
+      for (const t of data.subtitles) {
+        const a = Object.assign(document.createElement("a"), { href: t.parts[0], download: t.filename, textContent: t.label, title: t.note });
+        row.append(a);
       }
       menu.append(row);
     }

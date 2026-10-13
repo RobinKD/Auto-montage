@@ -3,6 +3,7 @@
 //!   auto-montage render final    4K une fois le montage validé
 //! Le mode final encode d'abord la source 4K des seules images gardées (make_hd), puis rend la
 //! même page à l'échelle 2 : texte net et image 4K native.
+//! Puis le son de la vidéo rendue est amené au volume voulu (loudness.rs, work/son.json « loudness »).
 //! Contrôle à la fin : dimensions, durée et saturation du son de la vidéo rendue.
 
 use crate::paths;
@@ -44,6 +45,16 @@ pub fn main(args: &[String]) -> i32 {
         return 1;
     }
     say(&format!("Rendu en {} s", start.elapsed().as_secs()));
+    // Volume normalisé (son.json « loudness ») : son de la vidéo rendue mesuré puis corrigé.
+    if let Err(e) = crate::loudness::after_render(&out_path) {
+        say(&format!("Attention : volume non normalisé ({e})"));
+    }
+    // Sous-titres en fichiers (out/montage.srt, .vtt), à côté de la vidéo.
+    match crate::subtitles::write_all() {
+        Ok(f) if !f.is_empty() => say("Sous-titres : out/montage.srt, out/montage.vtt"),
+        Ok(_) => {}
+        Err(e) => say(&format!("Attention : sous-titres non exportés ({e})")),
+    }
     check(out)
 }
 

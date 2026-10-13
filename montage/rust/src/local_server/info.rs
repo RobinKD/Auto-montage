@@ -277,6 +277,14 @@ pub fn save_sound(body: &Map<String, Value>) -> Option<Map<String, Value>> {
     if let Some(v) = body.get("denoise") {
         s.insert("denoise".into(), json!(py_int(v)?.clamp(0, 3)));
     }
+    if let Some(v) = body.get("loudness") {
+        // volume normalisé du montage (loudness.rs) : cible en LUFS, ou false (désactivé)
+        let t = match v {
+            Value::Bool(false) => json!(false),
+            v => util::num(py_float(v)?.clamp(-30.0, -8.0).round()),
+        };
+        s.insert("loudness".into(), t);
+    }
     for key in ["highpass", "declick", "clarity"] {
         if let Some(v) = body.get(key) {
             s.insert(key.into(), json!(util::truthy(Some(v))));
@@ -536,7 +544,16 @@ pub fn downloads_data() -> Value {
             "stale": stale,
         }));
     }
-    json!({"rush": rush, "versions": versions, "momentsPage": "/", "final": final_info()})
+    // sous-titres en fichiers (subtitles.rs), servis depuis out/
+    let mut subtitles = vec![];
+    for (ext, label, kind, note) in crate::subtitles::FORMATS {
+        let path = out().join(format!("montage.{ext}"));
+        let Ok(meta) = fs::metadata(&path) else { continue };
+        let mt = util::mtime(&path).unwrap_or(0.0);
+        subtitles.push(json!({"label": label, "note": note, "type": kind, "size": meta.len(), "parts": [format!("/out/montage.{ext}")],
+                              "count": crate::subtitles::count(&path), "renderedAt": iso_utc(mt), "filename": format!("{rush}_sous-titres.{ext}")}));
+    }
+    json!({"rush": rush, "versions": versions, "subtitles": subtitles, "momentsPage": "/", "final": final_info()})
 }
 
 /// Création de la version 4K depuis les pages : possible, et durée estimée sur cette machine.

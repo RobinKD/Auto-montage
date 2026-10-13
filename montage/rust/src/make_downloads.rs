@@ -1,4 +1,5 @@
-//! Prépare la page « Téléchargements » : la vidéo entière en 720p, 1080p et 4K.
+//! Prépare la page « Téléchargements » : la vidéo entière en 720p, 1080p et 4K, et ses sous-titres
+//! (out/montage.srt et .vtt, subtitles.rs).
 //!
 //! Sources (celles qui existent) :
 //!   720p   work/moments/montage.mp4   (copie légère de la page des moments, make_moments)
@@ -204,10 +205,24 @@ fn run() -> Result<(), String> {
         }));
     }
 
+    // Sous-titres en fichiers (subtitles.rs, écrits après le rendu) : publiés tels quels.
+    let mut subtitles: Vec<Value> = vec![];
+    for (ext, label, kind, note) in crate::subtitles::FORMATS {
+        let src = paths::out().join(format!("montage.{ext}"));
+        let Ok(meta) = fs::metadata(&src) else { continue };
+        let rendered = utc_of(py_mtime(&src).unwrap_or(0.0));
+        let name = format!("files/{rush}_sous-titres_{}.{ext}", rendered.format("%Y%m%d-%H%M%S"));
+        fs::copy(&src, out.join(&name)).map_err(|e| e.to_string())?;
+        current.push(name.clone());
+        subtitles.push(json!({"label": label, "note": note, "type": kind, "size": meta.len(), "parts": [name],
+                              "count": crate::subtitles::count(&src), "renderedAt": iso(&rendered),
+                              "filename": format!("{rush}_sous-titres.{ext}")}));
+    }
+
     let moments_url = util::read_text(work.join("moments_url.txt")).map(Value::String).unwrap_or(Value::Null);
     let page = fs::read_to_string(root.join("selection").join("downloads.html")).map_err(|e| e.to_string())?;
     let page = page.replace("__RUSH__", &html_escape(&rush));
-    let data = json!({"rush": rush, "versions": versions, "momentsPage": moments_url});
+    let data = json!({"rush": rush, "versions": versions, "subtitles": subtitles, "momentsPage": moments_url});
     let page = page.replace("/*__DATA__*/null", &pyjson::dumps_utf8(&data).replace('<', "\\u003c"));
     fs::write(out.join("index.html"), page).map_err(|e| e.to_string())?;
 

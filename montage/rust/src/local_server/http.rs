@@ -273,7 +273,9 @@ fn do_get(req: &Req) -> Reply {
         "/api/son" => {
             let analyse = work().join("son_analyse.json");
             let a = if analyse.exists() { util::read_json(&analyse).unwrap_or(Value::Null) } else { Value::Null };
-            return send_json(&json!({"settings": sound_settings(), "analyse": a}), 200);
+            // volume mesuré de la dernière vidéo entière (loudness.rs, work/volume.json)
+            let volume = util::read_obj(work().join("volume.json")).get("montage_apercu.mp4").cloned().unwrap_or(Value::Null);
+            return send_json(&json!({"settings": sound_settings(), "analyse": a, "volume": volume}), 200);
         }
         "/api/effects" => return send_json(&effects_info(), 200),
         "/api/status" => {

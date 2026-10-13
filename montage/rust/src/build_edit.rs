@@ -1528,6 +1528,18 @@ fn run() -> Result<(), String> {
         let _ = fs::remove_file(&seg_in);
         let _ = fs::remove_file(&seg_out);
     }
+    // 3. Volume normalisé (son.json « loudness », −14 LUFS par défaut ; loudness.rs, mesure
+    //    EBU R128 reprise de FilmCraft) : la voix, seule à ce stade, est amenée près de la cible
+    //    (mono : 3 dB sous la cible du montage stéréo), crête vraie sous −1,5 dBTP. Les bruitages
+    //    et effets du rendu s'y ajoutent : render corrige ensuite la vidéo rendue au dixième de LU.
+    if let Some(target) = (!derush).then(crate::loudness::target).flatten() {
+        let (before, after) = crate::loudness::normalize(&mut track, SR as f64, 1, target - 3.01, -1.5);
+        println!(
+            "Volume de la voix : {} → {} (cible du montage {target:.0} LUFS)",
+            crate::loudness::fmt_lufs(before.integrated + 3.01),
+            crate::loudness::fmt_lufs(after.integrated + 3.01)
+        );
+    }
     // Limiteur (-1,5 dB) : au rendu, par HyperFrames, après les voix modifiées.
     write_wav(&root.join("public").join("audio").join("voice.wav"), &to_i16_f32(&track))?;
     let _ = fs::remove_file(&clean_path);
