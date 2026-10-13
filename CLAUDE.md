@@ -166,9 +166,33 @@ interne : les changements attendent la prochaine version.
   atténuées de 15 dB) et `gain` par moment, appliqués par `build_edit` (filtres ffmpeg sur la
   piste voix), sauf `highpass` et `clarity`, faits au rendu par HyperFrames (`selection/hf_audio.js`,
   avec le limiteur à -1,5 dB) ; `rust/src/analyze_sound.rs` (bruit de fond, clics et chocs) → `work/son_analyse.json`.
+- Volume normalisé (repris de FilmCraft, `rust/src/loudness.rs` : compteur EBU R128 / BS.1770-4, plage,
+  crête vraie ×4, limiteur à anticipation) : `loudness` de `work/son.json` (−14 LUFS par défaut, `false` :
+  désactivé, rien en dérushage). `build_edit` amène la voix à la cible −3 dB, puis `render` mesure la vidéo
+  rendue et la corrige si elle s'écarte de plus de 0,5 LU ou dépasse −1 dBTP (`after_render`, mesures dans
+  `work/volume.json`, montrées dans « Son de la voix ») ; `./am loudness <fichier> [--cible]`.
+- Sous-titres en fichiers (`rust/src/subtitles.rs`) : `out/montage.srt` et `.vtt` écrits après chaque rendu
+  d'après les sous-titres d'edit.json (fin au plus 1,2 s après le dernier mot, sans chevauchement),
+  copiés par `make_downloads` et proposés dans le menu « Télécharger » ; `./am subtitles`.
+- Annuler / Rétablir sur la page des moments (boutons du haut, Ctrl+Z, Ctrl+Maj+Z / Ctrl+Y ; 50 pas,
+  `sessionStorage` `am-historique:<rush>`) : `remember` note chaque changement (moment : document avant /
+  après ; sélection ; réglage global : PUT de l'URL de `GLOBAL` avec l'ancienne valeur, `rememberGlobal`) ;
+  scission et fusion : instantané pris par le serveur avant l'action (`work/historique/`, 40 gardés,
+  `POST /api/moments` `restore`). Un nouveau réglage de la page doit appeler `remember` / `rememberGlobal`.
+- Couleurs, effets d'image et transitions (repris de FilmCraft) : `selection/hf_look.js`, le même code pour
+  le rendu (`render_hyperframes` : chaque plan dans `box<i>` / `zb<i>` dans `#look`) et l'aperçu de la page
+  (lecteur ; transitions dans « Vidéo entière » avec deux canevas, image du moment précédent figée).
+  Couleurs de tout le montage : `work/couleur.json` (température, teinte, exposition, contraste, hautes,
+  ombres, blancs, noirs, saturation, vibrance, look et intensité, vignette ; filtre SVG `am-couleur`),
+  panneau « Couleurs », `/api/couleur`. Effet d'image d'un moment : effet visuel `filtre` (`effect` de
+  `EFFECTS`, `at`, `dur`, `force`) → `looks` d'edit.json. Transitions entre moments (pas dans un moment) :
+  `work/transitions.json` (`kind`, `dur`), panneau « Transitions », `/api/transitions`, ou `transition`
+  du document d'un moment (coupe avant lui) ; `build_edit` → `transitions` (`clip` entrant, `at`, `frames`) :
+  le plan entrant reste à sa place, le sortant est prolongé dessous. Listes et réglages : `rust/src/look.rs`
+  (vérifiées contre hf_look.js par un test).
 - Effets fournis par défaut : liste unique dans `rust/src/moments_lib.rs` (`SOUNDS` : sons de
   `public/sfx/`, synthétisés par `make_sfx` ; `VISUALS` : texte tapé, pastille, zoom avant,
-  zoom sec, dézoom, secousse, flash, mot mis en valeur, zoom libre). `build_edit` en tire `zoomFx`,
+  zoom sec, dézoom, secousse, flash, mot mis en valeur, zoom libre, effet d'image). `build_edit` en tire `zoomFx`,
   `shakes`, `flashes`, `highlights` (edit.json, rendus par `render_hyperframes` et l'aperçu de la page) ;
   habillage de tout le montage dans `work/habillage.json` (`autoZoom`, `pop`, `karaoke`).
   Tous les effets par défaut (sons, « voix », effets visuels) et « gainvoix » (curseur de
