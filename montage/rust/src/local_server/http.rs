@@ -244,7 +244,7 @@ fn do_get(req: &Req) -> Reply {
         "/api/claude" => {
             let connected = claude::claude_connected(true);
             return send_json(
-                &json!({"connected": connected, "installed": paths::which("claude").is_some(),
+                &json!({"connected": connected, "installed": paths::claude().is_some(),
                         "account": if connected { claude::claude_account() } else { String::new() },
                         "apiKey": std::env::var("ANTHROPIC_API_KEY").map(|k| !k.is_empty()).unwrap_or(false),
                         "pending": claude::login_pending()}),
@@ -279,7 +279,7 @@ fn do_get(req: &Req) -> Reply {
         "/api/status" => {
             return send_json(
                 &json!({"version": *VERSION, "claude": claude::claude_connected(false),
-                        "claudeInstalled": paths::which("claude").is_some(),
+                        "claudeInstalled": paths::claude().is_some(),
                         "styleAnalysis": read_text(work().join("analyse_style.md")),
                         "update": claude::update_summary(),
                         "tutorialSeen": tutorial_seen_path().exists(), "mode": app_mode(&work()),
@@ -697,7 +697,7 @@ const POST_ROUTES: &[&str] = &[
     "/api/projects/open", "/api/projects/delete", "/api/projects/save", "/api/job/cancel", "/api/job/pause",
     "/api/job/resume", "/api/job/abandon", "/api/place/delete",
     "/api/claude/login", "/api/claude/code", "/api/claude/logout",
-    "/api/update/check", "/api/update/apply", "/api/update/reset", "/api/restart", "/api/style/analyse", "/api/son/analyse",
+    "/api/update/check", "/api/update/apply", "/api/update/reset", "/api/restart", "/api/quit", "/api/style/analyse", "/api/son/analyse",
     "/api/tutorial/seen",
     "/api/moments/merge", "/api/moments/split", "/api/moments/unmerge", "/api/moments/unsplit",
 ];
@@ -726,6 +726,18 @@ fn do_post(req: &Req, body_reader: &mut dyn Read) -> Reply {
             std::thread::spawn(|| {
                 std::thread::sleep(std::time::Duration::from_secs(1));
                 crate::relance::relaunch();
+            });
+            return ok_json(202);
+        }
+        "/api/quit" => {
+            // « auto-montage stop » (menu « Arrêter Auto-montage ») : une préparation en cours est
+            // mise en pause (reprise au prochain lancement), une autre tâche arrêtée.
+            if jobs::is_running() && !cancel_job(true) {
+                cancel_job(false);
+            }
+            std::thread::spawn(|| {
+                std::thread::sleep(std::time::Duration::from_secs(2));
+                std::process::exit(0);
             });
             return ok_json(202);
         }
@@ -762,7 +774,7 @@ fn do_post(req: &Req, body_reader: &mut dyn Read) -> Reply {
             return send_json(&json!({"ok": true, "tag": tag}), 202);
         }
         "/api/claude/login" => {
-            if paths::which("claude").is_none() {
+            if paths::claude().is_none() {
                 return err_json("Claude Code n'est pas installé dans ce conteneur.", 400);
             }
             let out = claude::login_start(util::truthy(body.get("console")));
@@ -880,7 +892,7 @@ fn do_post(req: &Req, body_reader: &mut dyn Read) -> Reply {
             if message.is_empty() {
                 return err_json("Message vide.", 400);
             }
-            if paths::which("claude").is_none() {
+            if paths::claude().is_none() {
                 return err_json("Claude Code n'est pas installé dans ce conteneur.", 400);
             }
             if !claude::claude_connected(false) {

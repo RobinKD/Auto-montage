@@ -8,7 +8,9 @@
 //!   visages). Appelé par le hook de session Claude Code sur le web et au démarrage du conteneur.
 //!   (Plus de paquets Python à installer, ni de modèle Haar : les visages passent par YuNet.)
 //! - `setup_whisper` : whisper.cpp compilé pour le CPU (sauf s'il est déjà là, compilé ou livré
-//!   dans `montage/bin/`) et ses modèles.
+//!   dans `montage/bin/` ; version publiée : téléchargé déjà compilé) et ses modèles.
+//! - `fetch_node` : Node.js autonome dans `montage/node/` si la machine n'a pas Node 20 ou plus.
+//! - `claude_code` : Claude Code dans `montage/claude/` s'il manque, et le plugin HyperFrames.
 //! - `fetch_fonts` : police Oliver (usage personnel, non versionnée).
 //! - `fetch_face_model` : modèles des visages YuNet et SFace.
 //! - `ensure_browser` : navigateur de rendu de HyperFrames, chemin affiché en dernière ligne.
@@ -111,6 +113,11 @@ fn download_file(url: &str, out: &Path, retries: u32) -> Result<u64, String> {
 /// (.claude/hooks/session-start.sh) et au démarrage du conteneur Docker (docker/entrypoint.sh).
 pub fn main(_args: &[String]) -> i32 {
     let root = paths::root();
+    // Node.js autonome si la machine n'en a pas (version native sans Docker).
+    let code = sub("fetch_node");
+    if code != 0 {
+        return code;
+    }
     // Paquets Node (HyperFrames, GSAP).
     let stamp = root.join("node_modules").join(".package-lock.json");
     let newer = match (util::mtime(root.join("package.json")), util::mtime(&stamp)) {
@@ -119,7 +126,13 @@ pub fn main(_args: &[String]) -> i32 {
         _ => false,
     };
     if !root.join("node_modules").join("hyperframes").is_dir() || newer {
-        let code = call_in(root, tool("npm"), &["install", "--no-audit", "--no-fund"]);
+        let code = match paths::npm("npm").args(["install", "--no-audit", "--no-fund"]).current_dir(root).status() {
+            Ok(s) => procs::py_code(&s),
+            Err(e) => {
+                eprintln!("Impossible de lancer npm : {e}");
+                127
+            }
+        };
         if code != 0 {
             return code;
         }
@@ -151,6 +164,11 @@ pub fn main(_args: &[String]) -> i32 {
     // Modèles de détection et de reconnaissance des visages (cadrage des zooms).
     let _ = sub("fetch_face_model");
 
+    // Claude Code (mode Auto-montage : consignes, discussion, analyse du style) et son plugin.
+    if sub("claude_code") != 0 {
+        println!("Claude Code non installé (réessayé au prochain démarrage) : le mode Dérushage marche sans lui.");
+    }
+
     println!("Environnement Auto-montage prêt.");
     0
 }
@@ -161,8 +179,15 @@ pub fn main(_args: &[String]) -> i32 {
 pub fn setup_whisper(_args: &[String]) -> i32 {
     // WHISPER_DIR : autre emplacement (conteneur Docker : volume /opt/whisper/whisper.cpp).
     let whisper = paths::whisper_dir();
-    let ready = ["whisper-cli", "vad-speech-segments"].iter().all(|n| paths::whisper_bin(n).is_file());
-    if !ready {
+    let ready = || ["whisper-cli", "vad-speech-segments"].iter().all(|n| paths::whisper_bin(n).is_file());
+    if !ready() {
+        // Version publiée : whisper.cpp déjà compilé pour ce système, joint à la version
+        // (whisper-<système>.tar.gz, .github/workflows/programme.yml) : rien à compiler ici.
+        if let Err(e) = fetch_whisper() {
+            eprintln!("{e}");
+        }
+    }
+    if !ready() {
         if !whisper.join(".git").is_dir() {
             util::remove_all(&whisper);
             let code = procs::call(
@@ -212,6 +237,150 @@ pub fn setup_whisper(_args: &[String]) -> i32 {
         }
     }
     println!("whisper.cpp prêt dans {}", paths::display(&whisper));
+    0
+}
+
+/// Programmes de whisper.cpp compilés pour ce système, joints à la version installée sur GitHub
+/// (`whisper-<système>.tar.gz`), extraits dans `montage/bin/`. Ok(()) aussi quand la version n'en
+/// a pas (version de travail) : setup_whisper les compile alors.
+fn fetch_whisper() -> Result<(), String> {
+    let Some(system) = crate::relance::system_name() else { return Ok(()) };
+    let name = format!("whisper-{system}.tar.gz");
+    let tag = format!("v{}", crate::update::current_version());
+    let Some(url) = crate::update::release_asset(&tag, &name)? else { return Ok(()) };
+    println!("Téléchargement de whisper.cpp compilé pour ce système ({name})…");
+    let bin = paths::root().join("bin");
+    util::mkdirs(&bin);
+    let archive = bin.join(format!("{name}.dl"));
+    download_file(&url, &archive, 4).map_err(|e| format!("whisper.cpp : {e}"))?;
+    let result = (|| -> Result<(), String> {
+        let f = fs::File::open(&archive).map_err(|e| e.to_string())?;
+        let mut tar = tar::Archive::new(flate2::read::GzDecoder::new(f));
+        for entry in tar.entries().map_err(|e| e.to_string())? {
+            let mut entry = entry.map_err(|e| e.to_string())?;
+            let path = entry.path().map_err(|e| e.to_string())?.into_owned();
+            // fichiers seuls, sans dossier : rien hors de bin/
+            let Some(file) = path.file_name().map(PathBuf::from) else { continue };
+            if !entry.header().entry_type().is_file() {
+                continue;
+            }
+            let out = bin.join(&file);
+            entry.unpack(&out).map_err(|e| format!("{} : {e}", out.display()))?;
+            #[cfg(unix)]
+            {
+                use std::os::unix::fs::PermissionsExt;
+                let _ = fs::set_permissions(&out, fs::Permissions::from_mode(0o755));
+            }
+        }
+        Ok(())
+    })();
+    let _ = fs::remove_file(&archive);
+    result
+}
+
+/// Version de Node.js téléchargée quand la machine n'en a pas (ou une trop ancienne).
+const NODE_VERSION: &str = "22.12.0";
+
+/// Version majeure du Node du PATH (`node --version` : « v22.12.0 »).
+fn system_node_major() -> Option<u32> {
+    let node = paths::which(if cfg!(windows) { "node.exe" } else { "node" })?;
+    let out = Command::new(node).arg("--version").output().ok()?;
+    let v = String::from_utf8_lossy(&out.stdout);
+    v.trim().trim_start_matches('v').split('.').next()?.parse().ok()
+}
+
+/// Node.js autonome dans `montage/node/` (HyperFrames, Claude Code), depuis nodejs.org, si la
+/// machine n'a pas Node 20 ou plus récent.
+pub fn fetch_node(_args: &[String]) -> i32 {
+    let own = paths::node_home_bin().join(if cfg!(windows) { "node.exe" } else { "node" });
+    if own.is_file() || system_node_major().is_some_and(|m| m >= 20) {
+        return 0;
+    }
+    let os = match std::env::consts::OS {
+        "linux" => "linux",
+        "macos" => "darwin",
+        "windows" => "win",
+        other => {
+            eprintln!("Node.js : système non pris en charge ({other}), installez Node 22 : https://nodejs.org");
+            return 1;
+        }
+    };
+    let arch = match std::env::consts::ARCH {
+        "x86_64" => "x64",
+        "aarch64" => "arm64",
+        other => {
+            eprintln!("Node.js : processeur non pris en charge ({other}), installez Node 22 : https://nodejs.org");
+            return 1;
+        }
+    };
+    let ext = if os == "win" { "zip" } else { "tar.gz" };
+    let base = format!("node-v{NODE_VERSION}-{os}-{arch}");
+    let url = format!("https://nodejs.org/dist/v{NODE_VERSION}/{base}.{ext}");
+    println!("Téléchargement de Node.js {NODE_VERSION} ({base})…");
+    let home = paths::node_home();
+    let tmp = paths::root().join(format!("node.{ext}.dl"));
+    if let Err(e) = download_file(&url, &tmp, 4) {
+        eprintln!("Node.js : téléchargement impossible ({e})");
+        return 1;
+    }
+    let staging = paths::root().join("node.installation");
+    util::remove_all(&staging);
+    let result = (|| -> Result<(), String> {
+        let f = fs::File::open(&tmp).map_err(|e| e.to_string())?;
+        if ext == "zip" {
+            zip::ZipArchive::new(f).and_then(|mut z| z.extract(&staging)).map_err(|e| e.to_string())?;
+        } else {
+            tar::Archive::new(flate2::read::GzDecoder::new(f)).unpack(&staging).map_err(|e| e.to_string())?;
+        }
+        util::remove_all(&home);
+        fs::rename(staging.join(&base), &home).map_err(|e| e.to_string())
+    })();
+    let _ = fs::remove_file(&tmp);
+    util::remove_all(&staging);
+    match result {
+        Ok(()) => {
+            println!("Node.js installé dans {}", paths::display(&home));
+            0
+        }
+        Err(e) => {
+            eprintln!("Node.js : archive illisible ({e})");
+            1
+        }
+    }
+}
+
+/// Claude Code (dans `montage/claude/` s'il n'est pas sur la machine) et le plugin HyperFrames du
+/// projet, installé une fois par utilisateur.
+pub fn claude_code(_args: &[String]) -> i32 {
+    if paths::claude().is_none() {
+        println!("Installation de Claude Code…");
+        let home = paths::claude_home();
+        util::mkdirs(&home);
+        let st = paths::npm("npm")
+            .args(["install", "--no-audit", "--no-fund", "--prefix"])
+            .arg(&home)
+            .arg("@anthropic-ai/claude-code")
+            .current_dir(paths::root())
+            .status();
+        if !st.map(|s| s.success()).unwrap_or(false) || paths::claude().is_none() {
+            eprintln!("Claude Code : installation impossible (npm).");
+            return 1;
+        }
+    }
+    let Some(claude) = paths::claude() else { return 1 };
+    let home = std::env::var_os("HOME").or_else(|| std::env::var_os("USERPROFILE")).map(PathBuf::from);
+    let Some(flag) = home.map(|h| h.join(".auto-montage-plugins-2")) else { return 0 };
+    if flag.exists() {
+        return 0;
+    }
+    let quiet = |args: &[&str]| {
+        Command::new(&claude).args(args).stdout(Stdio::null()).stderr(Stdio::null()).status().map(|s| s.success()).unwrap_or(false)
+    };
+    if quiet(&["plugin", "marketplace", "add", "heygen-com/hyperframes"]) && quiet(&["plugin", "install", "hyperframes@hyperframes"]) {
+        let _ = fs::write(&flag, "");
+    } else {
+        println!("Plugin HyperFrames de Claude Code non installé (réessayé au prochain démarrage).");
+    }
     0
 }
 
@@ -323,7 +492,7 @@ pub fn ensure_browser(_args: &[String]) -> i32 {
         }
         if cfg!(target_arch = "aarch64") {
             eprintln!("Navigateur de rendu pour Linux ARM64 : téléchargement du Chromium de Playwright…");
-            let status = Command::new(tool("npx"))
+            let status = paths::npm("npx")
                 .args(["-y", &format!("playwright@{PLAYWRIGHT_VERSION}"), "install", "--only-shell", "chromium"])
                 .env("PLAYWRIGHT_BROWSERS_PATH", &pw_dir)
                 .env("PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD", "")

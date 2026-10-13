@@ -1,22 +1,21 @@
-# Test de bout en bout d'Auto-montage dans son conteneur (Docker et Podman, sur Linux) : un
-# rush de synthèse est envoyé par l'interface locale, préparé (transcription, montage, rendu,
-# page des moments), puis une version de travail est générée (tests/e2e.sh).
-# - quand une modification du projet arrive sur main (push ou fusion de dev) ;
-# - chaque lundi (sur main), pour repérer une dépendance qui casse (ex. OpenCV 5) avant les utilisateurs ;
+# Test de bout en bout d'Auto-montage installé directement sur la machine (sans Docker), sur
+# Linux, macOS et Windows : le programme est compilé, « auto-montage start » installe ce qui
+# manque (Node, paquets, navigateur de rendu, Whisper, modèles) et lance l'interface, puis un rush
+# de synthèse est envoyé, préparé (transcription, montage, rendu, page des moments) et une
+# version de travail est générée (tests/e2e.sh).
+# - quand une modification du projet arrive sur main ou sur rust ;
+# - chaque lundi (sur main), pour repérer une dépendance qui casse avant les utilisateurs ;
 # - à la main (onglet Actions > Tests > Run workflow). On peut aussi lancer tests/e2e.sh sur
 #   sa machine.
-# Windows et macOS : les machines de GitHub ne font pas tourner de conteneurs Linux ; leurs
-# installateurs et lanceurs sont vérifiés par installateurs.yml.
 name: Tests
 
 on:
   push:
-    branches: [main]
+    branches: [main, rust]
     paths:
       - "montage/**"
-      - "docker/**"
-      - "compose.yaml"
       - "tests/**"
+      - "VERSION"
       - ".github/workflows/tests.yml"
   schedule:
     - cron: "17 5 * * 1"
@@ -27,30 +26,83 @@ permissions:
   contents: read
 
 jobs:
-  bout-en-bout:
-    name: Bout en bout (${{ matrix.moteur }})
+  rush:
+    name: Rush de synthèse
     runs-on: ubuntu-24.04
-    timeout-minutes: 90
-    strategy:
-      fail-fast: false
-      matrix:
-        moteur: [docker, podman]
-    env:
-      AM_ENGINE: ${{ matrix.moteur }}
     steps:
       - uses: actions/checkout@v4
-      - name: Outils du test
+      - name: Rush de synthèse (voix espeak-ng)
         run: |
           sudo apt-get update -q
           sudo apt-get install -y -q espeak-ng ffmpeg
-          if [ "$AM_ENGINE" = podman ]; then pip3 install --user podman-compose; fi
-      - name: Rush de synthèse
-        run: tests/make_sample_rush.sh "$RUNNER_TEMP/essai.mov"
-      - name: Démarrage d'Auto-montage (image, installation de Whisper…)
-        timeout-minutes: 45
-        run: docker/open.sh < /dev/null
+          tests/make_sample_rush.sh "$RUNNER_TEMP/essai.mov"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: rush-essai
+          path: ${{ runner.temp }}/essai.mov
+          retention-days: 3
+
+  bout-en-bout:
+    name: Bout en bout (${{ matrix.os }})
+    needs: rush
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-22.04, macos-latest, windows-latest]
+    defaults:
+      run:
+        shell: bash
+    env:
+      # pas de Claude Code ici (pas de compte) : le test n'en a pas besoin
+      AM_PORT: "8080"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: rush-essai
+          path: ${{ runner.temp }}/rush
+      - name: Rust
+        run: rustup toolchain install stable --profile minimal && rustup default stable
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            montage/rust/target
+          key: tests-${{ matrix.os }}-${{ hashFiles('montage/rust/Cargo.lock') }}
+      - name: Programme
+        run: |
+          cargo build --release --manifest-path montage/rust/Cargo.toml
+          mkdir -p montage/bin
+          EXT=""; [ "$RUNNER_OS" = Windows ] && EXT=.exe
+          cp "montage/rust/target/release/auto-montage$EXT" "montage/bin/auto-montage$EXT"
+      - name: python3 (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          mkdir -p "$RUNNER_TEMP/shim"
+          printf '#!/bin/sh\nexec python "$@"\n' > "$RUNNER_TEMP/shim/python3"
+          chmod +x "$RUNNER_TEMP/shim/python3"
+          echo "$RUNNER_TEMP/shim" >> "$GITHUB_PATH"
+      - name: Démarrage (installation de Node, Whisper, modèles…)
+        timeout-minutes: 60
+        run: |
+          montage/bin/auto-montage start --sans-navigateur > "$RUNNER_TEMP/serveur.log" 2>&1 &
+          for i in $(seq 1 720); do
+            if curl -fsS http://localhost:8080/api/version >/dev/null 2>&1; then echo "Interface prête"; exit 0; fi
+            sleep 5
+          done
+          tail -50 "$RUNNER_TEMP/serveur.log"; exit 1
       - name: Rush, préparation, génération (tests/e2e.sh)
-        run: tests/e2e.sh http://localhost:8080 "$RUNNER_TEMP/essai.mov"
-      - name: Journal du conteneur
-        if: failure()
-        run: $AM_ENGINE logs --tail 200 auto-montage || true
+        run: tests/e2e.sh http://localhost:8080 "$RUNNER_TEMP/rush/essai.mov"
+      - name: Arrêt (auto-montage stop)
+        run: |
+          montage/bin/auto-montage stop
+          sleep 4
+          if curl -fsS http://localhost:8080/api/version >/dev/null 2>&1; then echo "toujours lancé"; exit 1; fi
+      - name: Journal
+        if: always()
+        run: |
+          tail -100 "$RUNNER_TEMP/serveur.log" || true
+          tail -60 montage/work/logs/*.log 2>/dev/null | tail -200 || true

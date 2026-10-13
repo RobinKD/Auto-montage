@@ -28,7 +28,7 @@ pub fn claude_path_env() -> OsString {
 
 /// Commande « claude … » avec ce PATH.
 pub fn claude_command() -> Command {
-    let mut c = Command::new(paths::which("claude").unwrap_or_else(|| PathBuf::from("claude")));
+    let mut c = Command::new(paths::claude().unwrap_or_else(|| PathBuf::from("claude")));
     c.env("PATH", claude_path_env());
     c
 }
@@ -82,7 +82,7 @@ pub fn claude_connected(fresh: bool) -> bool {
         }
     }
     let mut value = std::env::var("ANTHROPIC_API_KEY").map(|k| !k.is_empty()).unwrap_or(false);
-    if !value && paths::which("claude").is_some() {
+    if !value && paths::claude().is_some() {
         let mut c = claude_command();
         c.args(["auth", "status", "--json"]);
         value = match run_timeout(c, Duration::from_secs(20)) {
@@ -107,7 +107,7 @@ fn credentials_exist() -> bool {
 
 /// Compte connecté (« claude auth status --text »), pour la page /claude/.
 pub fn claude_account() -> String {
-    if paths::which("claude").is_none() {
+    if paths::claude().is_none() {
         return String::new();
     }
     let mut c = claude_command();
@@ -243,7 +243,7 @@ pub fn login_start(console: bool) -> Value {
         Ok(p) => p,
         Err(e) => return json!({"error": format!("Claude Code n'a pas donné d'adresse de connexion. ({e})"), "output": ""}),
     };
-    let mut cmd = CommandBuilder::new(paths::which("claude").unwrap_or_else(|| PathBuf::from("claude")));
+    let mut cmd = CommandBuilder::new(paths::claude().unwrap_or_else(|| PathBuf::from("claude")));
     cmd.args(["auth", "login"]);
     if console {
         cmd.arg("--console");
@@ -672,7 +672,7 @@ pub fn chat_status() -> Value {
     let c = chat_lock();
     let start = c.messages.len().saturating_sub(200);
     json!({"running": c.running, "messages": c.messages[start..], "claude": connected,
-           "installed": paths::which("claude").is_some()})
+           "installed": paths::claude().is_some()})
 }
 
 #[cfg(test)]

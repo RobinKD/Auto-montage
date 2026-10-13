@@ -32,6 +32,7 @@ mod procs;
 mod progress;
 mod project;
 mod pyjson;
+mod lanceur;
 mod relance;
 mod render;
 mod render_hyperframes;
@@ -47,6 +48,8 @@ type Cmd = fn(&[String]) -> i32;
 
 /// (commande, fonction, description)
 const COMMANDS: &[(&str, Cmd, &str)] = &[
+    ("start", lanceur::start, "installe ce qui manque, lance l'interface et l'ouvre dans le navigateur"),
+    ("stop", lanceur::stop, "arrête l'interface"),
     ("prepare", prepare::main, "prépare un rush (remplace prepare.sh)"),
     ("render", render::main, "rendu apercu|final (remplace render.sh)"),
     ("local_server", local_server::main, "interface web locale (port 8080)"),
@@ -76,6 +79,8 @@ const COMMANDS: &[(&str, Cmd, &str)] = &[
     ("fetch_fonts", setup::fetch_fonts, "police Oliver"),
     ("fetch_ffmpeg", setup::fetch_ffmpeg, "ffmpeg livré avec Auto-montage (montage/bin/)"),
     ("fetch_face_model", setup::fetch_face_model, "modèles des visages"),
+    ("fetch_node", setup::fetch_node, "Node.js autonome si la machine n'en a pas"),
+    ("claude_code", setup::claude_code, "Claude Code et son plugin HyperFrames"),
     ("ensure_browser", setup::ensure_browser, "navigateur de rendu"),
     ("check_network", setup::check_network, "domaines réseau nécessaires"),
     ("apply_instructions", claude_tasks::apply_instructions, "consignes de montage appliquées par Claude"),
@@ -102,6 +107,7 @@ fn usage() -> i32 {
 
 fn main() {
     let args: Vec<String> = std::env::args().collect();
+    paths::extend_path();
     // Lancé sous un autre nom (copie ou lien « ffmpeg_limite ») : cette commande-là.
     let stem = std::path::Path::new(&args[0]).file_stem().map(|s| s.to_string_lossy().into_owned()).unwrap_or_default();
     if stem == "ffmpeg_limite" {

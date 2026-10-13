@@ -23,3 +23,8 @@ public/fonts/perso
 rust/target
 # Programmes livrés à côté de la version native (ffmpeg : auto-montage fetch_ffmpeg)
 bin
+
+# Node.js autonome et Claude Code installés par auto-montage setup
+node/
+node.installation/
+claude/

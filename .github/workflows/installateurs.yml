@@ -244,9 +244,9 @@ jobs:
           ls -la dist
           if gh release view "v$V" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
             # Publiée sans installateurs (packaging/publish-release.sh) : on les ajoute.
-            gh release upload "v$V" dist/*.AppImage dist/*.exe dist/*.dmg dist/auto-montage-* --repo "$GITHUB_REPOSITORY"
+            gh release upload "v$V" dist/Auto-montage-* dist/auto-montage-* dist/whisper-* --repo "$GITHUB_REPOSITORY"
             exit 0
           fi
           packaging/notes-version.sh --installateurs "$V" > /dev/null
-          gh release create "v$V" dist/*.AppImage dist/*.exe dist/*.dmg dist/auto-montage-* --repo "$GITHUB_REPOSITORY" \
+          gh release create "v$V" dist/Auto-montage-* dist/auto-montage-* dist/whisper-* --repo "$GITHUB_REPOSITORY" \
             --verify-tag --title "Auto-montage $V" --notes-file "dist/notes-v$V.md" --prerelease

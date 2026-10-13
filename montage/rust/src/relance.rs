@@ -45,8 +45,9 @@ pub fn in_container() -> bool {
     env::var_os("AM_IN_CONTAINER").is_some_and(|v| !v.is_empty())
 }
 
-/// Nom du programme publié pour ce système (fichier joint aux versions GitHub).
-pub fn asset_name() -> Option<String> {
+/// Nom de ce système dans les fichiers joints aux versions : linux-x86_64, linux-aarch64,
+/// macos-arm64, macos-x86_64, windows-x86_64.
+pub fn system_name() -> Option<String> {
     let os = match env::consts::OS {
         "linux" => "linux",
         "macos" => "macos",
@@ -59,7 +60,12 @@ pub fn asset_name() -> Option<String> {
         ("linux", "aarch64") => "aarch64",
         _ => return None,
     };
-    Some(format!("auto-montage-{os}-{arch}{}", if os == "windows" { ".exe" } else { "" }))
+    Some(format!("{os}-{arch}"))
+}
+
+/// Nom du programme publié pour ce système (fichier joint aux versions GitHub).
+pub fn asset_name() -> Option<String> {
+    system_name().map(|s| format!("auto-montage-{s}{}", if cfg!(windows) { ".exe" } else { "" }))
 }
 
 /// Numéro de version que donne un programme (`<programme> version`), s'il se lance.
@@ -189,14 +195,14 @@ pub fn relaunch() -> ! {
     {
         use std::os::unix::process::CommandExt;
         // même processus (le lanceur et le terminal le suivent) ; le port est libéré par exec
-        let err = Command::new(&program).args(&args).exec();
+        let err = Command::new(&program).args(&args).env("AM_RELANCE", "1").exec();
         eprintln!("Relance impossible : {err}");
         std::process::exit(1);
     }
     #[cfg(not(unix))]
     {
         // nouveau processus dans la même console ; il attend que ce serveur libère le port
-        match Command::new(&program).args(&args).spawn() {
+        match Command::new(&program).args(&args).env("AM_RELANCE", "1").spawn() {
             Ok(_) => std::process::exit(0),
             Err(e) => {
                 eprintln!("Relance impossible : {e}");

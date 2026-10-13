@@ -56,7 +56,6 @@ pub fn data() -> PathBuf {
     root().join("src").join("data")
 }
 
-/// Ce programme (pour lancer ses propres sous-commandes).
 /// Ce programme, pour lancer ses autres commandes. Sous Linux, un programme recompilé (ou mis à
 /// jour) pendant qu'il tourne est vu comme « … (deleted) » : on relance alors le nouveau fichier.
 pub fn self_exe() -> PathBuf {
@@ -127,9 +126,83 @@ pub fn ffprobe() -> PathBuf {
     which("ffprobe").unwrap_or_else(|| PathBuf::from("ffprobe"))
 }
 
-/// Node.js : livré (`montage/bin/node`) ou celui du PATH.
+/// Node.js autonome téléchargé par `auto-montage setup` (`montage/node/`) quand la machine n'a
+/// pas de Node assez récent (version native sans Docker).
+pub fn node_home() -> PathBuf {
+    root().join("node")
+}
+
+/// Dossier des programmes de ce Node (`node`, `npm`, `npx`).
+pub fn node_home_bin() -> PathBuf {
+    if cfg!(windows) {
+        node_home()
+    } else {
+        node_home().join("bin")
+    }
+}
+
+/// Node.js : celui de `montage/node/`, livré (`montage/bin/node`), ou celui du PATH.
 pub fn node() -> PathBuf {
+    let own = node_home_bin().join(exe_name("node"));
+    if own.is_file() {
+        return own;
+    }
     bundled("node").or_else(|| which("node")).unwrap_or_else(|| PathBuf::from("node"))
+}
+
+/// Commande npm ou npx (`tool` = « npm » ou « npx ») : celle du Node de `montage/node/`
+/// (lancée par ce node), sinon celle du PATH (`npm.cmd` sous Windows).
+pub fn npm(tool: &str) -> std::process::Command {
+    let cli = if cfg!(windows) { node_home().join("node_modules") } else { node_home().join("lib").join("node_modules") }
+        .join("npm")
+        .join("bin")
+        .join(format!("{tool}-cli.js"));
+    let own = node_home_bin().join(exe_name("node"));
+    if own.is_file() && cli.is_file() {
+        let mut c = std::process::Command::new(own);
+        c.arg(cli);
+        return c;
+    }
+    let mut found = None;
+    if cfg!(windows) {
+        found = ["cmd", "exe", "bat"].iter().find_map(|ext| which(&format!("{tool}.{ext}")));
+    }
+    std::process::Command::new(found.or_else(|| which(tool)).unwrap_or_else(|| PathBuf::from(tool)))
+}
+
+/// Dossier où `auto-montage setup` installe Claude Code quand il n'est pas sur la machine.
+pub fn claude_home() -> PathBuf {
+    root().join("claude")
+}
+
+/// Claude Code : celui de la machine (PATH), sinon celui installé par setup (`montage/claude/`).
+pub fn claude() -> Option<PathBuf> {
+    which("claude").or_else(|| {
+        let bin = claude_home().join("node_modules").join(".bin");
+        let names: &[&str] = if cfg!(windows) { &["claude.cmd", "claude.exe"] } else { &["claude"] };
+        names.iter().map(|n| bin.join(n)).find(|p| p.is_file())
+    })
+}
+
+/// Ajoute au PATH de ce programme (et des programmes qu'il lance : HyperFrames, Claude Code) les
+/// programmes livrés : `montage/bin/` (ffmpeg, Whisper), Node de `montage/node/`, Claude Code de
+/// `montage/claude/`.
+pub fn extend_path() {
+    let extra = [root().join("bin"), node_home_bin(), claude_home().join("node_modules").join(".bin")];
+    let extra: Vec<PathBuf> = extra.into_iter().filter(|d| d.is_dir()).collect();
+    if extra.is_empty() {
+        return;
+    }
+    let current: Vec<PathBuf> = env::var_os("PATH").map(|p| env::split_paths(&p).collect()).unwrap_or_default();
+    let mut all: Vec<PathBuf> = extra.into_iter().filter(|d| !current.contains(d)).collect();
+    if all.is_empty() {
+        return;
+    }
+    all.extend(current);
+    if let Ok(joined) = env::join_paths(all) {
+        // un seul fil d'exécution à ce moment (début de main)
+        env::set_var("PATH", joined);
+    }
 }
 
 /// Dossier de whisper.cpp (`WHISPER_DIR`, sinon `montage/whisper.cpp`).
@@ -138,11 +211,16 @@ pub fn whisper_dir() -> PathBuf {
 }
 
 /// Programme de whisper.cpp (`whisper-cli`, `vad-speech-segments`) : compilé dans
-/// `whisper.cpp/build/bin/`, sinon livré (`montage/bin/`), sinon le PATH.
+/// `whisper.cpp/build/bin/` (`build/bin/Release/` sous Windows), sinon livré (`montage/bin/`), sinon le PATH.
 pub fn whisper_bin(name: &str) -> PathBuf {
     let built = whisper_dir().join("build").join("bin").join(exe_name(name));
     if built.is_file() {
         return built;
+    }
+    // Windows (Visual Studio) : un dossier par configuration
+    let release = whisper_dir().join("build").join("bin").join("Release").join(exe_name(name));
+    if release.is_file() {
+        return release;
     }
     bundled(name).or_else(|| which(name)).unwrap_or(built)
 }

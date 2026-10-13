@@ -87,7 +87,7 @@ fn version_tuple(v: &str) -> Vec<u128> {
     DIGITS.find_iter(v).map(|m| m.as_str().parse().unwrap_or(u128::MAX)).collect()
 }
 
-fn current_version() -> String {
+pub fn current_version() -> String {
     fs::read_to_string(project().join("VERSION")).map(|s| s.trim().to_string()).unwrap_or_else(|_| "0".into())
 }
 
@@ -351,8 +351,9 @@ enum Program {
 
 /// Programme publié pour ce système avec la version `tag`, téléchargé (barre « Téléchargement
 /// du programme ») et vérifié ; None s'il n'est pas publié.
-fn fetch_program(tag: &str) -> Result<Option<PathBuf>, String> {
-    let Some(name) = relance::asset_name() else { return Ok(None) };
+/// Adresse de téléchargement du fichier `name` joint à la version `tag` sur GitHub ; None si
+/// la version ou le fichier n'existe pas.
+pub fn release_asset(tag: &str, name: &str) -> Result<Option<String>, String> {
     let release = match api(&format!("{}/repos/{}/releases/tags/{tag}", api_base(), repo())) {
         Ok(r) => {
             let mut body = String::new();
@@ -363,11 +364,15 @@ fn fetch_program(tag: &str) -> Result<Option<PathBuf>, String> {
         Err(e) => return Err(format!("Téléchargement impossible : {e}")),
     };
     let asset = release.get("assets").and_then(Value::as_array).and_then(|a| {
-        a.iter().find(|x| x.get("name").and_then(Value::as_str) == Some(name.as_str()))
+        a.iter().find(|x| x.get("name").and_then(Value::as_str) == Some(name))
     });
-    let Some(url) = asset.and_then(|a| a.get("browser_download_url")).and_then(Value::as_str) else {
-        return Ok(None);
-    };
+    Ok(asset.and_then(|a| a.get("browser_download_url")).and_then(Value::as_str).map(String::from))
+}
+
+fn fetch_program(tag: &str) -> Result<Option<PathBuf>, String> {
+    let Some(name) = relance::asset_name() else { return Ok(None) };
+    let Some(url) = release_asset(tag, &name)? else { return Ok(None) };
+    let url = url.as_str();
     say(&format!("Téléchargement du programme ({name})…"));
     let resp = match net::agent(Duration::from_secs(600)).get(url).call() {
         Ok(r) => r,

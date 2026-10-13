@@ -1267,7 +1267,7 @@ pub fn report_text() -> String {
     lines.push(format!(
         "Claude Code : {}{}",
         if super::claude::claude_connected(false) { "connecté" } else { "non connecté" },
-        if paths::which("claude").is_some() { "" } else { " (non installé)" }
+        if paths::claude().is_some() { "" } else { " (non installé)" }
     ));
     lines.push(format!(
         "Rush en cours : {} ; page des moments : {}",

@@ -53,7 +53,7 @@ fn described_in(name: &str) -> String {
 /// Lance « claude -p » depuis le dossier qui contient montage/, avec auto-montage dans le PATH ;
 /// renvoie son code de sortie.
 fn run_claude(prompt: &str, allowed: &[&str]) -> i32 {
-    let Some(claude) = paths::which("claude") else {
+    let Some(claude) = paths::claude() else {
         eprintln!("Claude Code n'est pas installé.");
         return 1;
     };
@@ -107,7 +107,7 @@ pub fn apply_instructions(_args: &[String]) -> i32 {
     if std::fs::metadata(work.join("segments.json")).map(|m| m.len() == 0).unwrap_or(true) {
         return fail("Rush pas encore transcrit (work/segments.json).");
     }
-    if paths::which("claude").is_none() {
+    if paths::claude().is_none() {
         return fail("Claude Code n'est pas installé.");
     }
     let rush_txt = std::fs::read_to_string(work.join("rush.txt")).unwrap_or_default();
@@ -175,7 +175,7 @@ pub fn style_claude(_args: &[String]) -> i32 {
     if std::fs::metadata(analyse.join("faits.json")).map(|m| m.len() == 0).unwrap_or(true) {
         return fail("Mesures absentes : lancer d'abord auto-montage analyze_style.");
     }
-    if paths::which("claude").is_none() {
+    if paths::claude().is_none() {
         return fail("Claude Code n'est pas installé.");
     }
     // work/style/analyse/*/planche-*.jpg, dans l'ordre de « ls ».
