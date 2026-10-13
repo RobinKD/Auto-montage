@@ -28,8 +28,8 @@ DisableProgramGroupPage=yes
 PrivilegesRequired=lowest
 OutputDir={#OutDir}
 OutputBaseFilename=Auto-montage-{#AppVersion}-Windows-installateur
-SetupIconFile={#Payload}\docker\icon.ico
-UninstallDisplayIcon={app}\docker\icon.ico
+SetupIconFile={#Payload}\icons\icon.ico
+UninstallDisplayIcon={app}\icons\icon.ico
 WizardStyle=modern
 Compression=lzma2
 SolidCompression=yes
@@ -45,15 +45,15 @@ Source: "{#Payload}\*"; DestDir: "{app}"; Flags: recursesubdirs createallsubdirs
 Name: "{app}\montage\public\rushes"; Flags: uninsneveruninstall
 
 [Icons]
-Name: "{group}\Auto-montage"; Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -File ""{app}\docker\windows\open.ps1"""; WorkingDir: "{app}"; IconFilename: "{app}\docker\icon.ico"; Comment: "Version de travail, moments, corrections et effets"
-Name: "{group}\Téléchargements"; Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -File ""{app}\docker\windows\open.ps1"" downloads/"; WorkingDir: "{app}"; IconFilename: "{app}\docker\icon.ico"; Comment: "Versions 720p, 1080p et 4K"
-Name: "{group}\Dossier des rushes"; Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File ""{app}\docker\windows\rushes.ps1"""; WorkingDir: "{app}"; IconFilename: "{app}\docker\icon.ico"; Comment: "Dossier où déposer les rushes"
-Name: "{group}\Claude Code"; Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -File ""{app}\docker\windows\claude.ps1"""; WorkingDir: "{app}"; IconFilename: "{app}\docker\icon.ico"; Comment: "Claude Code dans le conteneur"
-Name: "{group}\Terminal du conteneur"; Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -File ""{app}\docker\windows\shell.ps1"""; WorkingDir: "{app}"; IconFilename: "{app}\docker\icon.ico"; Comment: "Terminal dans le conteneur (dossier montage)"
-Name: "{group}\Nettoyer Docker"; Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -File ""{app}\docker\windows\clean.ps1"""; WorkingDir: "{app}"; IconFilename: "{app}\docker\icon.ico"; Comment: "Libère la place prise par les anciennes images de Docker"
-Name: "{group}\Arrêter Auto-montage"; Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -File ""{app}\docker\windows\stop.ps1"""; WorkingDir: "{app}"; IconFilename: "{app}\docker\icon.ico"; Comment: "Arrête le conteneur"
+Name: "{group}\Auto-montage"; Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -File ""{app}\docker\windows\open.ps1"""; WorkingDir: "{app}"; IconFilename: "{app}\icons\icon.ico"; Comment: "Version de travail, moments, corrections et effets"
+Name: "{group}\Téléchargements"; Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -File ""{app}\docker\windows\open.ps1"" downloads/"; WorkingDir: "{app}"; IconFilename: "{app}\icons\icon.ico"; Comment: "Versions 720p, 1080p et 4K"
+Name: "{group}\Dossier des rushes"; Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File ""{app}\docker\windows\rushes.ps1"""; WorkingDir: "{app}"; IconFilename: "{app}\icons\icon.ico"; Comment: "Dossier où déposer les rushes"
+Name: "{group}\Claude Code"; Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -File ""{app}\docker\windows\claude.ps1"""; WorkingDir: "{app}"; IconFilename: "{app}\icons\icon.ico"; Comment: "Claude Code dans le conteneur"
+Name: "{group}\Terminal du conteneur"; Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -File ""{app}\docker\windows\shell.ps1"""; WorkingDir: "{app}"; IconFilename: "{app}\icons\icon.ico"; Comment: "Terminal dans le conteneur (dossier montage)"
+Name: "{group}\Nettoyer Docker"; Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -File ""{app}\docker\windows\clean.ps1"""; WorkingDir: "{app}"; IconFilename: "{app}\icons\icon.ico"; Comment: "Libère la place prise par les anciennes images de Docker"
+Name: "{group}\Arrêter Auto-montage"; Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -File ""{app}\docker\windows\stop.ps1"""; WorkingDir: "{app}"; IconFilename: "{app}\icons\icon.ico"; Comment: "Arrête le conteneur"
 Name: "{group}\Désinstaller Auto-montage"; Filename: "{uninstallexe}"
-Name: "{userdesktop}\Auto-montage"; Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -File ""{app}\docker\windows\open.ps1"""; WorkingDir: "{app}"; IconFilename: "{app}\docker\icon.ico"; Comment: "Version de travail, moments, corrections et effets"
+Name: "{userdesktop}\Auto-montage"; Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -File ""{app}\docker\windows\open.ps1"""; WorkingDir: "{app}"; IconFilename: "{app}\icons\icon.ico"; Comment: "Version de travail, moments, corrections et effets"
 
 [Run]
 Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -File ""{app}\docker\windows\first-run.ps1"""; WorkingDir: "{app}"; Description: "Vérifier Docker Desktop et lancer Auto-montage"; Flags: postinstall nowait skipifsilent

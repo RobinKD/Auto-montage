@@ -20,12 +20,12 @@ cp -R "$PAYLOAD" "$APP/Contents/Resources/payload"
 /usr/libexec/PlistBuddy -c "Add :CFBundleShortVersionString string $VERSION" "$APP/Contents/Info.plist" 2>/dev/null \
   || /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $VERSION" "$APP/Contents/Info.plist"
 
-# Icône (docker/icon.png -> applet.icns).
+# Icône (icons/icon.png -> applet.icns).
 ICONSET="$WORKDIR/icon.iconset"
 mkdir -p "$ICONSET"
 for s in 16 32 128 256 512; do
-  sips -z $s $s "$ROOT/docker/icon.png" --out "$ICONSET/icon_${s}x${s}.png" >/dev/null
-  sips -z $((s * 2)) $((s * 2)) "$ROOT/docker/icon.png" --out "$ICONSET/icon_${s}x${s}@2x.png" >/dev/null
+  sips -z $s $s "$ROOT/icons/icon.png" --out "$ICONSET/icon_${s}x${s}.png" >/dev/null
+  sips -z $((s * 2)) $((s * 2)) "$ROOT/icons/icon.png" --out "$ICONSET/icon_${s}x${s}@2x.png" >/dev/null
 done
 iconutil -c icns "$ICONSET" -o "$APP/Contents/Resources/applet.icns"
 

@@ -62,7 +62,7 @@ cat > "$APP/Contents/Info.plist" <<EOF
 EOF
 printf 'APPL????' > "$APP/Contents/PkgInfo"
 
-python3 - "$ROOT/docker/icon.png" "$APP/Contents/Resources/applet.icns" <<'EOF'
+python3 - "$ROOT/icons/icon.png" "$APP/Contents/Resources/applet.icns" <<'EOF'
 import sys
 from PIL import Image
 Image.open(sys.argv[1]).convert("RGBA").resize((1024, 1024), Image.LANCZOS).save(sys.argv[2], format="ICNS")
