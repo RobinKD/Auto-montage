@@ -74,18 +74,30 @@ jobs:
           name: payload
           path: payload.tgz
 
+  # Chaque installateur reçoit la copie du projet (faite sur Linux : fins de ligne de
+  # .gitattributes) et le programme compilé pour son système (programme.yml), dans
+  # montage/bin/auto-montage[.exe]. Vérifications : installation dans un dossier temporaire, le
+  # programme installé se lance, donne le numéro de VERSION (celui de la compilation, sans le
+  # suffixe -dev d'un lancement à la main) et « stop » répond qu'il n'est pas lancé.
   linux:
     name: Linux (AppImage)
-    needs: projet
+    needs: [projet, programme]
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
         with:
           name: payload
+      - uses: actions/download-artifact@v4
+        with:
+          name: programme-linux-x86_64
+          path: prog
       - name: Construction
         run: |
           mkdir -p build && tar -xzf payload.tgz -C build
+          mkdir -p build/payload/montage/bin
+          cp prog/auto-montage-linux-x86_64 build/payload/montage/bin/auto-montage
+          chmod 755 build/payload/montage/bin/auto-montage
           packaging/linux/build-appimage.sh build/payload dist
       - name: Vérification (installation dans un dossier temporaire)
         env:
@@ -93,12 +105,23 @@ jobs:
         run: |
           APP="$(ls dist/*.AppImage)"
           export AUTO_MONTAGE_HOME="$RUNNER_TEMP/am" XDG_DATA_HOME="$RUNNER_TEMP/share"
-          APPIMAGE_EXTRACT_AND_RUN=1 "$APP" install
-          test -x "$AUTO_MONTAGE_HOME/docker/open.sh"
-          test -f "$AUTO_MONTAGE_HOME/compose.yaml"
+          export APPIMAGE_EXTRACT_AND_RUN=1
+          "$APP" install
+          AM="$AUTO_MONTAGE_HOME/montage/bin/auto-montage"
+          test -x "$AM"
+          test -x "$AUTO_MONTAGE_HOME/montage/am"
+          test -d "$AUTO_MONTAGE_HOME/montage/public/rushes"
           test "$(cat "$AUTO_MONTAGE_HOME/.auto-montage-version")" = "$V"
           grep -q "Exec=" "$XDG_DATA_HOME/applications/auto-montage.desktop"
-          bash -n "$AUTO_MONTAGE_HOME/docker/lib.sh"
+          if grep -qi docker "$XDG_DATA_HOME/applications/auto-montage.desktop"; then
+            echo "Action Docker dans l'entrée du menu"; exit 1
+          fi
+          test "$("$AM" version)" = "$(tr -d '[:space:]' < VERSION)"
+          OUT="$("$AM" stop)"; echo "$OUT"
+          echo "$OUT" | grep -q "n'est pas lancé"
+          # Même chose par l'action « stop » de l'AppImage (sans fenêtre : message affiché).
+          OUT="$("$APP" stop)"; echo "$OUT"
+          echo "$OUT" | grep -q "n'est pas lancé"
       - uses: actions/upload-artifact@v4
         with:
           name: linux
@@ -106,21 +129,28 @@ jobs:
 
   windows:
     name: Windows (.exe)
-    needs: projet
+    needs: [projet, programme]
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
         with:
           name: payload
-      - name: Copie du projet
+      - uses: actions/download-artifact@v4
+        with:
+          name: programme-windows-x86_64
+          path: prog
+      - name: Copie du projet et programme
         shell: bash
-        run: mkdir -p build && tar -xzf payload.tgz -C build
-      - name: Syntaxe des scripts PowerShell (Windows PowerShell 5.1)
+        run: |
+          mkdir -p build && tar -xzf payload.tgz -C build
+          mkdir -p build/payload/montage/bin
+          cp prog/auto-montage-windows-x86_64.exe build/payload/montage/bin/auto-montage.exe
+      - name: Syntaxe des scripts PowerShell (Windows PowerShell 5.1), s'il y en a
         shell: powershell
         run: |
           $bad = 0
-          foreach ($f in Get-ChildItem build\payload\docker\windows\*.ps1) {
+          foreach ($f in Get-ChildItem build\payload -Recurse -Filter *.ps1) {
             $errors = $null
             [System.Management.Automation.Language.Parser]::ParseFile($f.FullName, [ref]$null, [ref]$errors) | Out-Null
             if ($errors) { $bad++; Write-Host "$($f.Name) : $($errors[0].Message)" }
@@ -141,27 +171,27 @@ jobs:
           $exe = (Get-ChildItem dist\*.exe).FullName
           $dir = Join-Path $env:RUNNER_TEMP 'am'
           Start-Process $exe -ArgumentList '/VERYSILENT', '/SUPPRESSMSGBOXES', "/DIR=$dir" -Wait
-          if (-not (Test-Path "$dir\docker\windows\open.ps1")) { throw 'Fichiers non installés' }
-          if (-not (Test-Path "$dir\compose.yaml")) { throw 'compose.yaml manquant' }
+          $am = "$dir\montage\bin\auto-montage.exe"
+          if (-not (Test-Path $am)) { throw 'Programme non installé' }
+          if (-not (Test-Path "$dir\montage\public\rushes")) { throw 'Dossier des rushes manquant' }
           $lnk = Join-Path ([Environment]::GetFolderPath('Desktop')) 'Auto-montage.lnk'
           if (-not (Test-Path $lnk)) { throw 'Raccourci du bureau manquant' }
-          $target = (New-Object -ComObject WScript.Shell).CreateShortcut($lnk).Arguments
-          Write-Host "Raccourci : $target"
-          if ((Get-Content "$dir\docker\entrypoint.sh" -Raw) -match "`r") { throw 'entrypoint.sh en CRLF' }
-      - name: Vérification du lanceur (sans conteneurs Linux sur cette machine)
-        shell: pwsh
-        env:
-          CI: "true"
-        run: |
-          # Les machines Windows de GitHub n'ont que des conteneurs Windows (ou pas de Docker) :
-          # le lanceur doit l'expliquer et s'arrêter, sans rester bloqué.
-          $dir = Join-Path $env:RUNNER_TEMP 'am'
-          $out = powershell -NoProfile -ExecutionPolicy Bypass -File "$dir\docker\windows\open.ps1" 2>&1 | Out-String
+          $sc = (New-Object -ComObject WScript.Shell).CreateShortcut($lnk)
+          Write-Host "Raccourci : $($sc.TargetPath) $($sc.Arguments)"
+          if ($sc.TargetPath -notlike '*\montage\bin\auto-montage.exe' -or $sc.Arguments -ne 'start') { throw 'Raccourci du bureau incorrect' }
+          $menu = Join-Path ([Environment]::GetFolderPath('Programs')) 'Auto-montage'
+          foreach ($n in 'Téléchargements', 'Dossier des rushes', 'Claude Code', 'Arrêter Auto-montage') {
+            if (-not (Test-Path (Join-Path $menu "$n.lnk"))) { throw "Raccourci « $n » manquant" }
+          }
+          $v = (& $am version | Out-String).Trim()
+          $attendu = (Get-Content VERSION -Raw).Trim()
+          Write-Host "Version du programme : $v"
+          if ($v -ne $attendu) { throw "version $v au lieu de $attendu" }
+          $out = & $am stop | Out-String
           $code = $LASTEXITCODE
           Write-Host $out
-          if ($code -ne 1) { throw "code de sortie $code au lieu de 1" }
-          if ($out -notmatch 'conteneurs Windows|Docker ne répond pas') { throw 'message attendu absent' }
-          exit 0  # le code 1 attendu du lanceur ne doit pas faire échouer l'étape
+          if ($code -ne 0) { throw "auto-montage stop : code $code" }
+          if ($out -notmatch 'pas lanc') { throw 'message attendu absent' }
       - uses: actions/upload-artifact@v4
         with:
           name: windows
@@ -169,17 +199,30 @@ jobs:
 
   macos:
     name: macOS (.dmg)
-    needs: projet
+    needs: [projet, programme]
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
         with:
           name: payload
-      - name: Construction
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: programme-macos-*
+          path: prog
+          merge-multiple: true
+      - name: Programme universel (Apple Silicon et Intel)
         run: |
           mkdir -p build && tar -xzf payload.tgz -C build
-          packaging/macos/build-dmg.sh build/payload dist
+          mkdir -p build/payload/montage/bin
+          BIN=build/payload/montage/bin/auto-montage
+          lipo -create prog/auto-montage-macos-arm64 prog/auto-montage-macos-x86_64 -output "$BIN"
+          codesign --force --sign - "$BIN"
+          chmod 755 "$BIN"
+          ARCHS="$(lipo -archs "$BIN")"; echo "Programme : $ARCHS"
+          [[ " $ARCHS " == *" arm64 "* && " $ARCHS " == *" x86_64 "* ]]
+      - name: Construction
+        run: packaging/macos/build-dmg.sh build/payload dist
       - name: Vérification (montage du .dmg, première installation)
         env:
           V: ${{ needs.projet.outputs.version }}
@@ -199,17 +242,20 @@ jobs:
           fi
           export AUTO_MONTAGE_HOME="$RUNNER_TEMP/am"
           bash "$APP/Contents/Resources/first-run.sh" "$APP/Contents/Resources/payload"
-          test -x "$AUTO_MONTAGE_HOME/docker/open.sh"
+          AM="$AUTO_MONTAGE_HOME/montage/bin/auto-montage"
+          test -x "$AM"
+          test -d "$AUTO_MONTAGE_HOME/montage/public/rushes"
           test "$(cat "$AUTO_MONTAGE_HOME/.auto-montage-version")" = "$V"
-          bash -n "$AUTO_MONTAGE_HOME/docker/lib.sh"
-          # Sans Docker Desktop (cas des machines de GitHub) : explication et arrêt, sans blocage.
-          set +e
-          OUT="$(PATH=/usr/bin:/bin:/usr/sbin:/sbin "$AUTO_MONTAGE_HOME/docker/open.sh" < /dev/null 2>&1)"
-          CODE=$?
-          set -e
-          echo "$OUT"
-          test "$CODE" = 1
-          echo "$OUT" | grep -q "Docker Desktop n'est pas installé"
+          codesign --verify "$AM"
+          ARCHS="$(lipo -archs "$AM")"; echo "Programme installé : $ARCHS"
+          [[ " $ARCHS " == *" arm64 "* && " $ARCHS " == *" x86_64 "* ]]
+          test "$("$AM" version)" = "$(tr -d '[:space:]' < VERSION)"
+          # Partie Intel (Rosetta, si la machine l'a).
+          if arch -x86_64 /usr/bin/true 2>/dev/null; then
+            test "$(arch -x86_64 "$AM" version)" = "$(tr -d '[:space:]' < VERSION)"
+          fi
+          OUT="$("$AM" stop)"; echo "$OUT"
+          echo "$OUT" | grep -q "n'est pas lancé"
           hdiutil detach /tmp/am-dmg
       - uses: actions/upload-artifact@v4
         with:

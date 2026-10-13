@@ -1,8 +1,9 @@
 #!/bin/bash
-# AppImage Auto-montage. Au premier lancement (ou après une mise à jour), copie le projet dans
-# ~/Auto-montage (rushes, rendus et sélections déjà présents restent), ajoute « Auto-montage »
-# au menu des applications, puis ouvre l'interface dans le navigateur.
-# Usage : Auto-montage.AppImage [open|downloads|claude|shell|rushes|stop|install]
+# AppImage Auto-montage. Au premier lancement (ou après une mise à jour), copie le projet et le
+# programme (montage/bin/auto-montage) dans ~/Auto-montage (rushes, rendus et sélections déjà
+# présents restent), ajoute « Auto-montage » au menu des applications, puis lance l'interface
+# (auto-montage start, dans une fenêtre de terminal) qui s'ouvre dans le navigateur.
+# Usage : Auto-montage.AppImage [open|downloads|claude|rushes|stop|install]
 set -euo pipefail
 HERE="$(dirname "$(readlink -f "$0")")"
 DEST="${AUTO_MONTAGE_HOME:-$HOME/Auto-montage}"
@@ -31,7 +32,7 @@ install_project() {
   if [ -z "$installed" ] || version_gt "$VERSION" "$installed"; then
     mkdir -p "$DEST"
     cp -a "$HERE/payload/." "$DEST/"
-    chmod +x "$DEST"/docker/*.sh "$DEST"/montage/am
+    chmod +x "$DEST"/montage/am "$DEST"/montage/bin/auto-montage
     mkdir -p "$DEST/montage/public/rushes"
     echo "$VERSION" > "$DEST/.auto-montage-version"
     echo "Auto-montage $VERSION installé dans $DEST"
@@ -51,7 +52,7 @@ Exec="$SELF" open
 Icon=auto-montage
 Terminal=false
 Categories=AudioVideo;Video;
-Actions=downloads;rushes;claude;shell;clean;stop;
+Actions=downloads;rushes;claude;stop;
 
 [Desktop Action downloads]
 Name=Téléchargements (720p, 1080p, 4K)
@@ -65,14 +66,6 @@ Exec="$SELF" rushes
 Name=Claude Code
 Exec="$SELF" claude
 
-[Desktop Action shell]
-Name=Terminal du conteneur
-Exec="$SELF" shell
-
-[Desktop Action clean]
-Name=Nettoyer Docker (place disque)
-Exec="$SELF" clean
-
 [Desktop Action stop]
 Name=Arrêter Auto-montage
 Exec="$SELF" stop
@@ -80,9 +73,12 @@ DESKTOP
   update-desktop-database "$apps" >/dev/null 2>&1 || true
 }
 
-# Lance une commande dans une fenêtre de terminal (avancement de l'installation, Claude Code).
+# Lance une commande dans une fenêtre de terminal (avancement de l'installation, interface qui
+# tourne tant que la fenêtre est ouverte, Claude Code).
 in_terminal() {
   if [ -t 0 ] && [ -t 1 ]; then exec "$@"; fi
+  # Fenêtre gardée ouverte après une erreur, pour qu'on puisse lire le message.
+  set -- bash -c '"$@"; c=$?; if [ "$c" != 0 ]; then read -r -p "Erreur (code $c). Entrée pour fermer… " _; fi; exit "$c"' auto-montage "$@"
   local t
   for t in x-terminal-emulator gnome-terminal kgx ptyxis konsole xfce4-terminal mate-terminal \
            tilix lxterminal alacritty kitty foot wezterm xterm; do
@@ -101,15 +97,33 @@ in_terminal() {
   exit 0
 }
 
+# Claude Code dans le dossier montage : celui de la machine, sinon celui installé par
+# « auto-montage setup » (montage/claude, avec Node de montage/node).
+claude_code() {
+  cd "$DEST/montage"
+  export PATH="$DEST/montage/claude/node_modules/.bin:$DEST/montage/node/bin:$PATH"
+  if ! command -v claude >/dev/null 2>&1; then
+    echo "Claude Code n'est pas encore installé : ouvrez d'abord Auto-montage (il l'installe au premier lancement)."
+    exit 1
+  fi
+  exec claude
+}
+
 install_project
+AM="$DEST/montage/bin/auto-montage"
 case "$ACTION" in
   install) ;;
-  open) in_terminal "$DEST/docker/open.sh" ;;
-  downloads) in_terminal "$DEST/docker/open.sh" downloads/ ;;
-  claude) in_terminal "$DEST/docker/claude.sh" ;;
-  shell) in_terminal "$DEST/docker/shell.sh" ;;
-  rushes) exec "$DEST/docker/rushes.sh" ;;
-  clean) in_terminal "$DEST/docker/clean.sh" ;;
-  stop) exec "$DEST/docker/stop.sh" ;;
-  *) echo "Action inconnue : $ACTION (open, downloads, claude, shell, rushes, clean, stop, install)" >&2; exit 2 ;;
+  open) in_terminal "$AM" start ;;
+  downloads) in_terminal "$AM" start downloads/ ;;
+  claude) in_terminal "$SELF" claude-terminal ;;
+  claude-terminal) claude_code ;;
+  rushes)
+    mkdir -p "$DEST/montage/public/rushes"
+    exec xdg-open "$DEST/montage/public/rushes" ;;
+  stop)
+    if [ -t 1 ]; then exec "$AM" stop; fi
+    OUT="$("$AM" stop 2>&1)" && CODE=0 || CODE=$?
+    notify "$OUT"
+    exit "$CODE" ;;
+  *) echo "Action inconnue : $ACTION (open, downloads, claude, rushes, stop, install)" >&2; exit 2 ;;
 esac

@@ -43,9 +43,9 @@ MÉTHODE B : PAR LE TERMINAL (si la méthode A ne marche pas)
 
 ENSUITE
 -------
-   - Installez Docker Desktop si l'application le demande
-     (https://www.docker.com/products/docker-desktop/), lancez-le une fois, puis rouvrez
-     Auto-montage.
-   - Acceptez que l'application contrôle le Terminal : il affiche l'avancement de
-     l'installation (10 à 20 minutes la première fois).
+   - Acceptez que l'application contrôle le Terminal : Auto-montage y tourne et y affiche
+     l'avancement. La première fois, il télécharge et installe ce dont il a besoin (10 à 20
+     minutes, connexion Internet nécessaire) ; les fois suivantes, quelques secondes.
    - Le navigateur s'ouvre ensuite sur l'interface (http://localhost:8080/).
+   - Laissez la fenêtre du Terminal ouverte pendant que vous utilisez Auto-montage : la fermer
+     arrête l'interface (comme « Arrêter Auto-montage » dans l'application).

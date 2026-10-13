@@ -1,7 +1,7 @@
 #!/bin/bash
-# macOS : copie le projet embarqué dans l'application vers ~/Auto-montage au premier
-# lancement ou quand l'application est plus récente que le projet installé (rushes, rendus et
-# sélections déjà présents restent).
+# macOS : copie le projet embarqué dans l'application (avec le programme
+# montage/bin/auto-montage) vers ~/Auto-montage au premier lancement ou quand l'application est
+# plus récente que le projet installé (rushes, rendus et sélections déjà présents restent).
 # Usage : first-run.sh <dossier payload de l'application>
 set -euo pipefail
 PAYLOAD="$1"
@@ -18,7 +18,10 @@ if [ -z "$INSTALLED" ] || version_gt "$VERSION" "$INSTALLED"; then
   mkdir -p "$DEST"
   cp -R "$PAYLOAD/." "$DEST/"
   chmod -R u+w "$DEST" 2>/dev/null || true
-  chmod +x "$DEST"/docker/*.sh "$DEST"/montage/am
+  chmod +x "$DEST"/montage/am "$DEST"/montage/bin/auto-montage
+  # Application déjà autorisée par l'utilisateur : le programme copié perd l'étiquette
+  # « téléchargé d'Internet », sinon Gatekeeper le bloquerait au lancement dans le Terminal.
+  xattr -d com.apple.quarantine "$DEST/montage/bin/auto-montage" 2>/dev/null || true
   mkdir -p "$DEST/montage/public/rushes"
   echo "$VERSION" > "$DEST/.auto-montage-version"
 fi
