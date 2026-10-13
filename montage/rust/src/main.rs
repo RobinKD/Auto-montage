@@ -25,6 +25,7 @@ mod make_downloads;
 mod make_hd;
 mod make_moments;
 mod make_sfx;
+mod mcp;
 mod memoire;
 mod moments_lib;
 mod net;
@@ -63,6 +64,7 @@ const COMMANDS: &[(&str, Cmd, &str)] = &[
     ("decoupage", decoupage::main, "scinder ou fusionner des moments"),
     ("loudness", loudness::main, "volume perçu d'un fichier (LUFS), normalisation"),
     ("subtitles", subtitles::main, "sous-titres du montage en fichiers .srt et .vtt (out/)"),
+    ("mcp", mcp::main, "serveur MCP : Claude pilote le montage (claude mcp add auto-montage -- ./am mcp)"),
     ("make_downloads", make_downloads::main, "page des téléchargements"),
     ("make_hd", make_hd::main, "source 4K des images gardées"),
     ("project", project::main, "montages enregistrés (save, open, delete)"),

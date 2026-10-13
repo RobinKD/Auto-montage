@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "auto-montage": {
+      "command": "montage/am",
+      "args": ["mcp"]
+    }
+  }
+}

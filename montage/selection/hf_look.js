@@ -83,7 +83,7 @@
     const vignette = s.vignette > 0
       ? `radial-gradient(ellipse at 50% 50%, rgba(0,0,0,0) ${r4(60 - 25 * s.vignette / 100)}%, rgba(0,0,0,${r4(0.85 * s.vignette / 100)}) 100%)` : "";
     if (isNeutral(s)) return { svg: "", css: "", vignette };
-    const p = colorParams(s), N = 48;
+    const p = colorParams(s), N = 128;
     const tables = [0, 1, 2].map((ch) => { const f = channelCurve(p, ch); return Array.from({ length: N + 1 }, (_, i) => r4(f(i / N))).join(" "); });
     const vib = 1 + 0.45 * p.vibrance / 100;  // vibrance : saturation douce (approchée, sans masque des tons chair)
     const svg = `<filter id="am-couleur" x="0" y="0" width="100%" height="100%" color-interpolation-filters="sRGB">` +
