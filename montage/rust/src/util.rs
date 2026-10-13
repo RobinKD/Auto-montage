@@ -142,6 +142,23 @@ pub fn comma(text: String) -> String {
     text.replace('.', ",")
 }
 
+/// Copie récursive d'un dossier (`shutil.copytree`) ; sert hors Unix, où les liens vers les
+/// dossiers sont copiés comme des dossiers.
+#[cfg(not(unix))]
+pub fn copy_tree(src: &Path, dst: &Path) -> io::Result<()> {
+    fs::create_dir_all(dst)?;
+    for e in fs::read_dir(src)? {
+        let e = e?;
+        let to = dst.join(e.file_name());
+        if e.file_type()?.is_dir() {
+            copy_tree(&e.path(), &to)?;
+        } else {
+            fs::copy(e.path(), to)?;
+        }
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
