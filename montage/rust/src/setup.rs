@@ -5,7 +5,7 @@
 //! commande hyperframes restent des programmes externes.
 //!
 //! - `auto-montage setup` : tout (paquets Node, navigateur de rendu, Whisper, police, modèles des
-//!   visages). Appelé par le hook de session Claude Code sur le web et au démarrage du conteneur.
+//!   visages). Appelé par le hook de session Claude Code sur le web et par `auto-montage start`.
 //!   (Plus de paquets Python à installer, ni de modèle Haar : les visages passent par YuNet.)
 //! - `setup_whisper` : whisper.cpp compilé pour le CPU (sauf s'il est déjà là, compilé ou livré
 //!   dans `montage/bin/` ; version publiée : téléchargé déjà compilé) et ses modèles.
@@ -110,10 +110,10 @@ fn download_file(url: &str, out: &Path, retries: u32) -> Result<u64, String> {
 
 /// `auto-montage setup` : installe les dépendances du projet. Idempotent : chaque étape saute ce
 /// qui existe déjà. Appelé par le hook de session Claude Code sur le web
-/// (.claude/hooks/session-start.sh) et au démarrage du conteneur Docker (docker/entrypoint.sh).
+/// (.claude/hooks/session-start.sh) et par `auto-montage start` (lanceur.rs).
 pub fn main(_args: &[String]) -> i32 {
     let root = paths::root();
-    // Node.js autonome si la machine n'en a pas (version native sans Docker).
+    // Node.js autonome si la machine n'en a pas (Node 20 ou plus).
     let code = sub("fetch_node");
     if code != 0 {
         return code;
@@ -143,7 +143,7 @@ pub fn main(_args: &[String]) -> i32 {
         println!("ffmpeg non installé (réessayé au prochain démarrage) : celui de la machine sera utilisé.");
     }
 
-    // Navigateur de rendu de HyperFrames (Chromium de Playwright sur Linux ARM64 : Mac Apple Silicon).
+    // Navigateur de rendu de HyperFrames (Chromium de Playwright sur Linux ARM64).
     let browser = Command::new(paths::self_exe()).arg("ensure_browser").current_dir(root).stdout(Stdio::null()).status();
     if !browser.map(|s| s.success()).unwrap_or(false) {
         println!("Navigateur de rendu non installé (réessayé au prochain démarrage et à chaque rendu).");
@@ -177,7 +177,7 @@ pub fn main(_args: &[String]) -> i32 {
 /// transcribe_segments et prepare. Ne refait rien si tout est déjà là ; des programmes déjà
 /// compilés trouvés par `paths::whisper_bin` (montage/bin/, PATH) suffisent.
 pub fn setup_whisper(_args: &[String]) -> i32 {
-    // WHISPER_DIR : autre emplacement (conteneur Docker : volume /opt/whisper/whisper.cpp).
+    // WHISPER_DIR : autre emplacement de whisper.cpp (par défaut montage/whisper.cpp).
     let whisper = paths::whisper_dir();
     let ready = || ["whisper-cli", "vad-speech-segments"].iter().all(|n| paths::whisper_bin(n).is_file());
     if !ready() {
@@ -477,9 +477,10 @@ fn find_shell(pw_dir: &Path) -> Option<PathBuf> {
 /// Navigateur de rendu de HyperFrames (Chrome sans écran) : affiche son chemin en dernière
 /// ligne, après l'avoir téléchargé s'il manque. Appelé par setup et render_lib::headless_chrome.
 /// - Environnement cloud : le Chromium fourni (/opt/pw-browsers), sans téléchargement.
-/// - Linux ARM64 (conteneur Docker sur un Mac Apple Silicon) : Google ne publie pas de
-///   « chrome-headless-shell » pour cette plateforme, et HyperFrames essaie alors un apt-get
-///   impossible ici. On prend celui de Playwright (même Chrome 141 que l'environnement cloud).
+/// - Linux ARM64 (Raspberry Pi, machines virtuelles Linux sur un Mac Apple Silicon…) : Google ne
+///   publie pas de « chrome-headless-shell » pour cette plateforme, et HyperFrames essaie alors un
+///   apt-get qui demande les droits d'administrateur. On prend celui de Playwright (même
+///   Chrome 141 que l'environnement cloud).
 /// - Ailleurs : « hyperframes browser ensure » (Chrome téléchargé dans ~/.cache/hyperframes).
 pub fn ensure_browser(_args: &[String]) -> i32 {
     let root = paths::root();

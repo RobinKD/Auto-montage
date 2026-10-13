@@ -144,7 +144,7 @@ fn unit_of(label: &str) -> Value {
 // programmes en gardant ce qui est fait (morceaux de la version de travail, morceaux transcrits,
 // positions du visage, extraits : work/reprise/, work/seg/, work/moments/clips/) ; « Reprendre »
 // relance l'étape atteinte avec AM_REPRISE=1, qui repart de là. Une tâche coupée par un arrêt du
-// serveur, du conteneur ou de l'ordinateur (fichier resté « running »), ou arrêtée par une erreur,
+// serveur ou de l'ordinateur (fichier resté « running »), ou arrêtée par une erreur,
 // se reprend de la même façon.
 pub fn task_path() -> PathBuf {
     work().join("tache.json")
@@ -808,7 +808,7 @@ fn run_steps(steps: &[Step], arg: &str, args: &[String], first: usize) -> Result
     let secs = util::round_int(util::now_secs() - gf(&j.m, "startedTs"));
     write(&mut j, &format!("\n# RÉSULTAT : réussi ({secs} s)"));
     if kind == "update" || kind == "reset" {
-        // programme remplacé : relance de la nouvelle version (conteneur : redémarrage)
+        // programme remplacé : relance de la nouvelle version
         j.m.insert("step".into(), json!("redémarrage"));
         std::thread::spawn(|| {
             std::thread::sleep(Duration::from_secs(3));
@@ -1119,7 +1119,7 @@ fn watch_memory(j: &mut Job) {
         sm.insert(
             "message".into(),
             json!(format!(
-                "La mémoire est presque épuisée ({} libres) : l'étape risque d'être arrêtée. Fermez d'autres programmes, ou mettez la préparation en pause et donnez plus de mémoire à Docker (Réglages > Resources > Memory).",
+                "La mémoire est presque épuisée ({} libres) : l'étape risque d'être arrêtée. Fermez d'autres programmes (navigateur, logiciels de montage…), ou mettez la préparation en pause le temps d'en fermer.",
                 memoire::go(avail)
             )),
         );
@@ -1130,8 +1130,9 @@ fn watch_memory(j: &mut Job) {
 
 // --- Journal (page /logs/) ------------------------------------------------------------
 // Chaque tâche écrit son journal complet dans work/logs/<date>_<tâche>.log (les 40 derniers
-// sont gardés) ; le démarrage du conteneur et le serveur écrivent dans work/logs/demarrage.log
-// (docker/entrypoint.sh). La page « Journal » les affiche et en fait un rapport à envoyer.
+// sont gardés) ; le démarrage (installation de ce qui manque) et le serveur écrivent dans
+// work/logs/demarrage.log (`auto-montage start`, lanceur.rs). La page « Journal » les affiche
+// et en fait un rapport à envoyer.
 pub fn kind_name(kind: &str) -> Option<&'static str> {
     Some(match kind {
         "prepare" => "Préparation",
@@ -1180,7 +1181,7 @@ fn tail_bytes(path: &Path, n: u64) -> Vec<u8> {
 }
 
 /// Au démarrage du serveur, aucune tâche ne tourne : un journal sans « # RÉSULTAT » est celui
-/// d'une tâche coupée par l'arrêt du serveur ou du conteneur. Il est complété pour le dire.
+/// d'une tâche coupée par l'arrêt du serveur ou de l'ordinateur. Il est complété pour le dire.
 pub fn close_interrupted_logs() {
     let names = util::list_dir(logs());
     let start = names.len().saturating_sub(40);
@@ -1198,7 +1199,7 @@ pub fn close_interrupted_logs() {
             let _ = write!(
                 f,
                 "\n# Dernière écriture le {last}, puis plus rien : le serveur s'est arrêté pendant la tâche \
-                 (Auto-montage ou Docker fermé, ordinateur éteint ou redémarré, mémoire de Docker épuisée…).\n\
+                 (Auto-montage fermé, ordinateur éteint ou redémarré, mémoire épuisée…).\n\
                  # Serveur redémarré le {} ({}).\n# RÉSULTAT : interrompu\n",
                 now_fmt("%d/%m/%Y à %H:%M:%S"),
                 progress::resources(root())
@@ -1263,7 +1264,7 @@ pub fn report_text() -> String {
         };
         (s("state"), s("kind"), s("step"), s("error"))
     };
-    lines.push(format!("Système du conteneur : {system} ; {cpus} cœurs ; disque libre {} Go", disk_free(root()) >> 30));
+    lines.push(format!("Système : {system} ; {cpus} cœurs ; disque libre {} Go", disk_free(root()) >> 30));
     lines.push(format!(
         "Claude Code : {}{}",
         if super::claude::claude_connected(false) { "connecté" } else { "non connecté" },
@@ -1475,7 +1476,7 @@ mod tests {
     fn errors_like_python() {
         let log = vec![json!("Error: boom"), json!("    at x")];
         assert_eq!(job_error(&log, 1), "Error: boom");
-        assert_eq!(job_error(&[], 137), "code 137, signal SIGKILL : tué de force, le plus souvent par manque de mémoire (Docker : Réglages > Resources)");
+        assert_eq!(job_error(&[], 137), "code 137, signal SIGKILL : tué de force, le plus souvent par manque de mémoire (fermez d'autres programmes)");
     }
 
     #[test]

@@ -127,7 +127,7 @@ pub fn ffprobe() -> PathBuf {
 }
 
 /// Node.js autonome téléchargé par `auto-montage setup` (`montage/node/`) quand la machine n'a
-/// pas de Node assez récent (version native sans Docker).
+/// pas de Node assez récent (20 ou plus).
 pub fn node_home() -> PathBuf {
     root().join("node")
 }

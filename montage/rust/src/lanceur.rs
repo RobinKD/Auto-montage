@@ -1,4 +1,4 @@
-//! Lancement d'Auto-montage sur la machine, sans Docker (raccourcis des installateurs) :
+//! Lancement d'Auto-montage sur la machine (raccourcis des installateurs) :
 //!
 //!   auto-montage start [page] [--port N] [--sans-navigateur]
 //!       Déjà lancé : ouvre la page dans le navigateur (après l'avoir relancé si ses fichiers ont

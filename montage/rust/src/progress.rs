@@ -148,8 +148,8 @@ pub fn exit_reason(code: i32, shell: bool) -> String {
     }
     let name = procs::signal_name(sig);
     let why = match name.as_str() {
-        "SIGKILL" => "tué de force, le plus souvent par manque de mémoire (Docker : Réglages > Resources)",
-        "SIGTERM" => "arrêté (annulation, arrêt ou redémarrage du conteneur)",
+        "SIGKILL" => "tué de force, le plus souvent par manque de mémoire (fermez d'autres programmes)",
+        "SIGTERM" => "arrêté (annulation, arrêt d'Auto-montage ou de l'ordinateur)",
         "SIGSEGV" => "plantage du programme",
         "SIGBUS" => "plantage (disque plein ou fichier modifié pendant la lecture ?)",
         "SIGINT" => "interrompu",

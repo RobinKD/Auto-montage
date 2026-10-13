@@ -4,7 +4,7 @@
 //!   - « Auto-montage » : public/fonts/ (Oliver, Patrick Hand, Poppins…) ;
 //!   - « Vos polices »  : public/fonts/perso/, ajoutées depuis la page des moments ;
 //!   - « Système »      : polices installées là où tourne le rendu (dossiers de polices du
-//!                        système : ceux du conteneur en local, de la machine en version native).
+//!                        système de la machine).
 //! Formats lisibles par le navigateur de rendu seulement (ttf, otf, woff, woff2), sans italique.
 //! Famille, graisse et italique sont lus dans le fichier de la police (tables name et OS/2), comme
 //! fontconfig le faisait pour la version Python.

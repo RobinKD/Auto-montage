@@ -14,8 +14,8 @@ use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
 use std::sync::LazyLock;
 
-/// Noms sous lesquels l'interface est ouverte (navigateur de la machine, lanceurs, contrôle de
-/// santé du conteneur) ; d'autres avec AM_ALLOWED_HOSTS="nom1,nom2".
+/// Noms sous lesquels l'interface est ouverte (navigateur de la machine, lanceurs) ; d'autres
+/// avec AM_ALLOWED_HOSTS="nom1,nom2".
 static ALLOWED_HOSTS: LazyLock<Vec<String>> = LazyLock::new(|| {
     let mut v: Vec<String> = ["localhost", "127.0.0.1", "[::1]"].iter().map(|s| s.to_string()).collect();
     let extra = std::env::var("AM_ALLOWED_HOSTS").unwrap_or_default().to_lowercase().replace(' ', "");
@@ -718,8 +718,7 @@ fn do_post(req: &Req, body_reader: &mut dyn Read) -> Reply {
             return send_json(&r, 200);
         }
         "/api/restart" => {
-            // fichiers changés sur le disque : relance (recompilée si lancée depuis les sources ;
-            // conteneur : il redémarre tout seul)
+            // fichiers changés sur le disque : relance (recompilée si lancée depuis les sources)
             if jobs::is_running() {
                 return err_json("Une tâche est en cours : attendez qu'elle finisse.", 409);
             }
@@ -775,7 +774,7 @@ fn do_post(req: &Req, body_reader: &mut dyn Read) -> Reply {
         }
         "/api/claude/login" => {
             if paths::claude().is_none() {
-                return err_json("Claude Code n'est pas installé dans ce conteneur.", 400);
+                return err_json("Claude Code n'est pas installé : relancez Auto-montage pour l'installer.", 400);
             }
             let out = claude::login_start(util::truthy(body.get("console")));
             let status = if out.get("error").is_some() { 400 } else { 200 };
@@ -893,10 +892,10 @@ fn do_post(req: &Req, body_reader: &mut dyn Read) -> Reply {
                 return err_json("Message vide.", 400);
             }
             if paths::claude().is_none() {
-                return err_json("Claude Code n'est pas installé dans ce conteneur.", 400);
+                return err_json("Claude Code n'est pas installé : relancez Auto-montage pour l'installer.", 400);
             }
             if !claude::claude_connected(false) {
-                return err_json("Claude Code n'est pas connecté : ouvrez-le une fois (lanceur « Claude Code »).", 400);
+                return err_json("Claude Code n'est pas connecté : connectez-le sur la page « Connexion à Claude ».", 400);
             }
             return match claude::chat_send(message.chars().take(20000).collect()) {
                 Some(e) => err_json(&e, 409),
@@ -1079,7 +1078,7 @@ fn post_prepare(body: &Map<String, Value>) -> Reply {
             return err_json("Aucune consigne ni aucun élément de style choisi.", 400);
         }
         if !claude::claude_connected(false) {
-            return err_json("Claude Code n'est pas connecté : ouvrez-le une fois (lanceur « Claude Code »).", 400);
+            return err_json("Claude Code n'est pas connecté : connectez-le sur la page « Connexion à Claude ».", 400);
         }
         steps = jobs::prepare_with_instructions();
     }

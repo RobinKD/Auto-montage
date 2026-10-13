@@ -5,8 +5,6 @@
 //!   (`auto-montage-<système>`, `asset_name`, construit par .github/workflows/programme.yml).
 //! - Sans programme publié pour ce système : recompilé depuis les sources (`montage/rust/`) si
 //!   Rust (cargo) est installé.
-//! - Dans le conteneur Docker (`AM_IN_CONTAINER`) : rien à faire ici, le conteneur redémarre et
-//!   recompile au démarrage (docker/entrypoint.sh).
 //!
 //! Le nouveau programme est d'abord écrit à côté (`auto-montage.new`) et vérifié (il se lance
 //! et donne le numéro de la version attendue) ; il ne prend la place de l'ancien qu'après.
@@ -38,11 +36,6 @@ fn staged_path() -> PathBuf {
 
 fn old_path() -> PathBuf {
     paths::root().join("bin").join(exe("auto-montage.old"))
-}
-
-/// Dans le conteneur Docker d'Auto-montage.
-pub fn in_container() -> bool {
-    env::var_os("AM_IN_CONTAINER").is_some_and(|v| !v.is_empty())
 }
 
 /// Nom de ce système dans les fichiers joints aux versions : linux-x86_64, linux-aarch64,
@@ -170,12 +163,9 @@ fn running_from_build() -> bool {
 }
 
 /// Relance le serveur avec le programme à jour, mêmes arguments : après une mise à jour, une
-/// réinitialisation, ou des fichiers changés sur le disque. Dans le conteneur : simple arrêt (le
-/// conteneur redémarre et recompile). Programme lancé depuis les sources : recompilé d'abord.
+/// réinitialisation, ou des fichiers changés sur le disque. Programme lancé depuis les sources :
+/// recompilé d'abord.
 pub fn relaunch() -> ! {
-    if in_container() {
-        std::process::exit(0);
-    }
     let program = if running_from_build() && can_build() {
         match build() {
             Ok(p) => p,

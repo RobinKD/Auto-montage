@@ -88,7 +88,7 @@
       <button type="submit" class="primary" id="send">Envoyer</button>
       <button type="button" id="stop" hidden>Arrêter</button>
       <button type="button" id="new">Nouvelle conversation</button>
-      <span class="note">Pour tout le reste (installer, autres commandes) : lanceur « Claude Code ».</span>
+      <span class="note">Pour tout le reste (installer, autres commandes) : Claude Code dans un terminal, dans le dossier d'Auto-montage.</span>
     </div>
     <p class="err" id="status" role="status"></p>
   </form>
@@ -185,7 +185,7 @@
       const r = await fetch("/api/chat", { cache: "no-store" });
       const data = await r.json();
       state = { ...data, ready: data.installed && data.claude };
-      const warn = !data.installed ? "Claude Code n'est pas installé dans ce conteneur."
+      const warn = !data.installed ? "Claude Code n'est pas installé : relancez Auto-montage pour l'installer."
         : !data.claude ? "Claude Code n'est pas encore connecté : la discussion ne fonctionne pas sans lui." : "";
       $("not-ready").textContent = warn;
       if (warn && data.installed) $("not-ready").insertAdjacentHTML("beforeend", ' <a href="/claude/">Se connecter à Claude</a> (une fois, avec votre compte claude.ai).');
