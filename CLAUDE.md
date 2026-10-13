@@ -77,8 +77,10 @@ interne : les changements attendent la prochaine version.
   pas (zoom d'au moins sa taille, ×4 au plus, `centeredOrigin` borné au cadre).
 - Qui parle (`rust/src/diarize.rs`, `./am diarize`, étape de `prepare` après detect_face, barre
   « Locuteurs », facultative) : locuteurs sans modèle (méthode de FilmCraft, MIT/Apache-2.0 :
-  morceaux de mots, moyenne et écart type des MFCC, regroupement par lien moyen jusqu'à `THRESHOLD`,
-  groupe de moins de 5 % joint au plus proche ; une seule voix = un locuteur) → `"spk"` sur chaque mot
+  morceaux de mots, moyenne et écart type des MFCC, regroupement par lien moyen ; deux voix si écart
+  > `MIN_DISTANCE` et > `RATIO` × écart interne des groupes d'au moins `MIN_GROUP` morceaux, ou >
+  `THRESHOLD` ; groupe de moins de 5 % joint au plus proche ; une seule voix = un locuteur ; essai sans
+  écrire : `diarize --plage <début> <fin>`, `AM_DIARIZE_DEBUG=1`) → `"spk"` sur chaque mot
   et segment de `work/segments.json` (`"s"` des mots de la page) ; personne de chaque locuteur
   (`assign`) : lèvres (différence d'images bas du visage / haut du visage pendant ses morceaux, rapportée
   à la moyenne de cette personne sur tous les locuteurs, `lips` ≥ 1,15), sinon seule à l'image
