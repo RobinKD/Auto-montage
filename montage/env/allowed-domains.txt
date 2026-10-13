@@ -12,4 +12,4 @@ pypi.org                               https://pypi.org/                        
 files.pythonhosted.org                 https://files.pythonhosted.org/                                                     ffmpeg (archive imageio-ffmpeg) : téléchargement
 index.crates.io                        https://index.crates.io/config.json                                                 paquets Rust : index (compilation d'Auto-montage)
 static.crates.io                       https://static.crates.io/                                                           paquets Rust : téléchargement
-nodejs.org	https://nodejs.org/dist/index.json
+nodejs.org                             https://nodejs.org/dist/index.json                                                  Node.js autonome (installation sans Node sur la machine)
