@@ -343,6 +343,16 @@ fn run() -> Result<(), String> {
         + gap_list.iter().map(|g| fnum(g, "end") - fnum(g, "start")).sum::<f64>()
         + 2.0 * montage_s;
     let mut steps_done = 0.0;
+    // Tours de parole (diarize) : cadrage « personne qui parle » de l'aperçu, même règle que build_edit.
+    let turns = crate::diarize::turns(&work);
+    let turns_json = |a: f64, b: f64| -> Value {
+        Value::Array(
+            crate::diarize::turns_in(&turns, a, b)
+                .into_iter()
+                .map(|(x, y, person, spk)| json!([num(round_to(x - a, 2)), num(round_to(y - a, 2)), person, spk]))
+                .collect(),
+        )
+    };
     const LABEL: &str = "Découpage des moments";
     report(LABEL, 0.0, if steps_total != 0.0 { steps_total } else { 1.0 });
     let empty = json!({});
@@ -360,11 +370,15 @@ fn run() -> Result<(), String> {
             .iter()
             .enumerate()
             .map(|(i, w)| {
-                json!({
+                let mut o = json!({
                     "w": fixes.get(i.to_string()).cloned().unwrap_or_else(|| w.get("w").cloned().unwrap_or(Value::Null)),
                     "a": sub_round(w.get("a").unwrap_or(&json!(0)), a, 3),
                     "b": sub_round(w.get("b").unwrap_or(&json!(0)), a, 3),
-                })
+                });
+                if let Some(k) = w.get("spk").filter(|k| k.is_i64()) {
+                    o["s"] = k.clone(); // locuteur du mot (diarize)
+                }
+                o
             })
             .collect();
         let joined: Vec<String> = words
@@ -387,6 +401,9 @@ fn run() -> Result<(), String> {
         m.insert("face".into(), pg.face_at((start + end) / 2.0));
         m.insert("faceTrack".into(), pg.face_track(a, b.x));
         m.insert("persons".into(), pg.persons_in(start, end));
+        if !turns.is_empty() {
+            m.insert("turns".into(), turns_json(a.x, b.x)); // [[début, fin, personne ou -1, locuteur]]
+        }
         m.insert("cashWord".into(), ov("cashWord").unwrap_or(Value::Null));
         m.insert("chip".into(), ov("chips").unwrap_or(Value::Null));
         m.insert("vfxExtra".into(), ov("vfx").unwrap_or(json!([]))); // effets visuels placés par Claude
@@ -556,6 +573,12 @@ fn run() -> Result<(), String> {
         "captionLines": {"lines": caption_lines.get("lines").cloned().unwrap_or(Value::Null),
                          "lineSizes": caption_lines.get("lineSizes").cloned().unwrap_or(Value::Null)},
         "persons": persons_obj,
+        // Locuteurs (diarize) : [{id, person, seconds}], pastilles de couleur sur la page.
+        "speakers": util::arr(&read_json(work.join("locuteurs.json")).unwrap_or(Value::Null), "speakers")
+            .iter()
+            .map(|sp| json!({"id": sp.get("id").cloned().unwrap_or(Value::Null), "person": sp.get("person").cloned().unwrap_or(Value::Null),
+                             "seconds": sp.get("seconds").cloned().unwrap_or(Value::Null)}))
+            .collect::<Vec<_>>(),
         "voices": VOICES.iter().map(|(i, label, desc)| json!({"id": i, "label": label, "desc": desc})).collect::<Vec<_>>(),
         "strip": strip, "wave": wave_peaks, "rushEnd": num(round_to(rush_duration(&work), 2)),
     });

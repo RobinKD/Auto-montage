@@ -75,6 +75,24 @@ interne : les changements attendent la prochaine version.
   Écran partagé ou incrustation : cadre de chaque personne (`x0, y0, x1, y1` ajoutés au visage,
   `detect_face.panels` : rectangle de bords fixes sans autre visage), dont le plan rapproché ne sort
   pas (zoom d'au moins sa taille, ×4 au plus, `centeredOrigin` borné au cadre).
+- Qui parle (`rust/src/diarize.rs`, `./am diarize`, étape de `prepare` après detect_face, barre
+  « Locuteurs », facultative) : locuteurs sans modèle (méthode de FilmCraft, MIT/Apache-2.0 :
+  morceaux de mots, moyenne et écart type des MFCC, regroupement par lien moyen ; deux voix si écart
+  > `MIN_DISTANCE` et > `RATIO` × écart interne des groupes d'au moins `MIN_GROUP` morceaux, ou >
+  `THRESHOLD` ; groupe de moins de 5 % joint au plus proche ; une seule voix = un locuteur ; essai sans
+  écrire : `diarize --plage <début> <fin>`, `AM_DIARIZE_DEBUG=1`) → `"spk"` sur chaque mot
+  et segment de `work/segments.json` (`"s"` des mots de la page) ; personne de chaque locuteur
+  (`assign`) : lèvres (différence d'images bas du visage / haut du visage pendant ses morceaux, rapportée
+  à la moyenne de cette personne sur tous les locuteurs, `lips` ≥ 1,15), sinon seule à l'image
+  (`alone` ≥ 0,6), un seul locuteur : la plus présente → `work/locuteurs.json` (`speakers: [{id,
+  person (null = hors champ), seconds, share, lips, alone, seen, candidates}]`). Cadrage « personne qui
+  parle » : `focus: "auto"` du moment (`"tous"` = tout le monde malgré le réglage général) ou
+  `speakerFocus` de `work/habillage.json` (case de « Zooms et animations ») ; `diarize::turns` (tours de
+  parole, tenue minimale `HOLD` = 1,5 s, silences gardés) → fenêtres `focus` de edit.json
+  (`build_edit`, temps du montage, rien quand la personne n'est pas trouvée) rendues par `focusFrame`,
+  et `turns` de chaque moment (make_moments, `[début, fin, personne ou -1, locuteur]`) suivis par
+  `focusPersonAt` / `faceInClip` de la page ; trait de couleur du locuteur sous les mots de la frise,
+  locuteurs du moment dans le panneau « Cadrage » (`DATA.speakers`).
 - L'effet visuel « visage gêné » est fait à la main par l'utilisateur ; seule la voix
   tremble automatiquement.
 - Domaines réseau nécessaires : `montage/env/allowed-domains.txt`.

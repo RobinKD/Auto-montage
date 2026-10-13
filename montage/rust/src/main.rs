@@ -13,6 +13,7 @@ mod build_edit;
 mod claude_tasks;
 mod decoupage;
 mod detect_face;
+mod diarize;
 mod difflib;
 mod ffmpeg_limite;
 mod fonts_lib;
@@ -74,6 +75,7 @@ const COMMANDS: &[(&str, Cmd, &str)] = &[
     ("join_rushes", join_rushes::main, "assemble plusieurs vidéos d'un rush"),
     ("transcribe_segments", transcribe_segments::main, "transcription Whisper par segment"),
     ("detect_face", detect_face::main, "visages et cadrage"),
+    ("diarize", diarize::main, "qui parle : locuteurs et personne à l'image de chacun"),
     ("make_sfx", make_sfx::main, "bruitages par défaut"),
     ("analyze_sound", analyze_sound::main, "analyse du son de la voix"),
     ("analyze_style", analyze_style::main, "analyse des vidéos d'exemple"),

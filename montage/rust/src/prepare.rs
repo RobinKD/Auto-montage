@@ -11,7 +11,7 @@
 //!         (ni AM_REPRISE=1, mis par l'interface locale), tout est refait.
 //!
 //! Chaque étape est une commande de ce programme lancée comme processus enfant (join_rushes,
-//! project save, memoire, version_travail, setup_whisper, transcribe_segments, detect_face,
+//! project save, memoire, version_travail, setup_whisper, transcribe_segments, detect_face, diarize,
 //! fetch_fonts, make_sfx, build_edit…) : le groupe de processus de la tâche (annulation, pause) et
 //! la mesure de la mémoire de l'interface locale les voient comme avant. Une étape qui échoue
 //! arrête la préparation avec son code (comme `set -e` du script d'origine).
@@ -233,6 +233,12 @@ pub fn main(args: &[String]) -> i32 {
         progress::say("Modèle YuNet indisponible : visages non détectés.");
     }
     check!(step(&["detect_face"]));
+    // Qui parle (diarize) : locuteur de chaque mot (work/segments.json) et personne à l'image de
+    // chacun (work/locuteurs.json), pour le cadrage « personne qui parle ». Facultatif : un échec
+    // n'arrête pas la préparation.
+    if step(&["diarize"]) != 0 {
+        progress::say("Locuteurs non trouvés : cadrage « personne qui parle » indisponible.");
+    }
 
     progress::say("Étape 4/4 : bruitages et montage");
     progress::say("@memoire Bruitages et montage");

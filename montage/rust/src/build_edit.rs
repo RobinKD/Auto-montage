@@ -655,6 +655,10 @@ fn run() -> Result<(), String> {
     let mut page_gains: HashMap<i64, f64> = HashMap::new(); // volume de la voix par moment (page des moments)
     let mut page_focus: HashMap<i64, i64> = HashMap::new(); // cadrage sur une personne par moment (detect_face)
     let mut page_transitions: HashMap<i64, Map<String, Value>> = HashMap::new(); // transition avant le moment (look.rs)
+    // Cadrage « personne qui parle » (focus "auto", diarize) ou « tout le monde » imposé (focus
+    // "tous", quand le cadrage sur la personne qui parle est choisi pour tout le montage).
+    let mut page_auto: HashSet<i64> = HashSet::new();
+    let mut page_all: HashSet<i64> = HashSet::new();
 
     let selection_path = work.join("selection.json");
     let selection: Option<Value> = if selection_path.exists() {
@@ -706,8 +710,19 @@ fn run() -> Result<(), String> {
         }
         if let Some(Value::Object(g)) = selection.get("focus") {
             for (k, v) in g {
-                if let (Ok(k), Some(v)) = (k.trim().parse::<i64>(), pyint(Some(v))) {
-                    page_focus.insert(k, v);
+                let Ok(k) = k.trim().parse::<i64>() else { continue };
+                match v.as_str() {
+                    Some("auto") => {
+                        page_auto.insert(k);
+                    }
+                    Some("tous") => {
+                        page_all.insert(k);
+                    }
+                    _ => {
+                        if let Some(v) = pyint(Some(v)) {
+                            page_focus.insert(k, v);
+                        }
+                    }
                 }
             }
         }
@@ -826,6 +841,7 @@ fn run() -> Result<(), String> {
         page_gains.clear();
         page_focus.clear();
         page_transitions.clear();
+        page_auto.clear();
         page_sfx = OMap::new();
         page_vfx = OMap::new();
         for k in &keep {
@@ -1572,10 +1588,42 @@ fn run() -> Result<(), String> {
     // --- Cadrage choisi par moment -------------------------------------------------------------
     // Moment cadré sur une personne (page des moments) : fenêtres en temps du montage, sur tous ses
     // plans ; le rendu y centre l'image sur cette personne (render_hyperframes, focusAt).
-    let focus: Vec<Value> = clips
-        .iter()
-        .filter_map(|c| page_focus.get(&c.seg).map(|p| json!({"start": r3(c.from as f64 / FPS), "end": r3(c.end()), "person": p})))
-        .collect();
+    // Cadrage « personne qui parle » (moment réglé sur « auto », ou « speakerFocus » de
+    // work/habillage.json pour les moments sans choix) : fenêtres qui suivent les tours de parole
+    // (diarize::turns, tenue minimale diarize::HOLD), sur la personne liée au locuteur ; aucune
+    // fenêtre quand elle n'est pas trouvée (voix hors champ), et le rendu garde le cadrage de tout
+    // le monde quand elle n'est pas à l'image. Même règle dans l'aperçu de la page (turns de make_moments).
+    let h = util::read_obj(work.join("habillage.json"));
+    let speaker_focus = truthy(h.get("speakerFocus")) && !derush;
+    let turns = if speaker_focus || !page_auto.is_empty() { crate::diarize::turns(&work) } else { vec![] };
+    let mut focus: Vec<Value> = vec![];
+    let mut last: Option<(f64, i64)> = None; // fin et personne de la dernière fenêtre (fenêtres jointes)
+    for c in &clips {
+        if let Some(p) = page_focus.get(&c.seg) {
+            focus.push(json!({"start": r3(c.from as f64 / FPS), "end": r3(c.end()), "person": p}));
+            last = None;
+            continue;
+        }
+        if page_all.contains(&c.seg) || !(page_auto.contains(&c.seg) || speaker_focus) {
+            continue;
+        }
+        let (src, at) = (c.trim_before as f64 / FPS, c.from as f64 / FPS);
+        for (a, b, person, _) in crate::diarize::turns_in(&turns, src, src + c.dur as f64 / FPS) {
+            if person <= 0 {
+                continue;
+            }
+            let (start, end) = (at + a - src, at + b - src);
+            if let (Some((e, p)), Some(Value::Object(prev))) = (last, focus.last_mut()) {
+                if p == person && (start - e).abs() < 1e-3 {
+                    prev.insert("end".into(), r3(end));
+                    last = Some((end, person));
+                    continue;
+                }
+            }
+            focus.push(json!({"start": r3(start), "end": r3(end), "person": person}));
+            last = Some((end, person));
+        }
+    }
 
     // --- Transitions entre moments (look.rs) ---------------------------------------------------
     // À chaque coupe entre deux moments (pas entre les parties d'un même moment, ni entre deux
@@ -1608,12 +1656,12 @@ fn run() -> Result<(), String> {
     }
 
     // --- Habillage de tout le montage ------------------------------------------------------
-    let h = util::read_obj(work.join("habillage.json"));
     let mut habillage = json!({
         "autoZoom": num(pyfloat(h.get("autoZoom"), 1.0).min(2.0).max(0.0)),
         "pop": truthy(h.get("pop")),
         "karaoke": truthy(h.get("karaoke")),
         "karaokeColor": h.get("karaokeColor").and_then(Value::as_str).unwrap_or("#ffd84d"),
+        "speakerFocus": speaker_focus,
     });
     if derush {
         // image du rush telle quelle ; sous-titres simples si la case est cochée
