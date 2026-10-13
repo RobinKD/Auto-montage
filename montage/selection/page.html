@@ -422,6 +422,10 @@
           </div>
         </div>
         <div class="row2">
+          <span class="history-btns" role="group" aria-label="Historique">
+            <button type="button" id="undo" disabled title="Rien à annuler"><span aria-hidden="true">↶</span> Annuler</button>
+            <button type="button" id="redo" disabled title="Rien à rétablir"><span aria-hidden="true">↷</span> Rétablir</button>
+          </span>
           <button type="button" id="reset">Revenir aux suggestions</button>
           <button type="button" id="regen" class="regen" hidden>Générer la vidéo entière</button>
           <span class="status" id="status" role="status">Chargement de la sélection…</span>
@@ -1785,7 +1789,17 @@ ${HFAudio.voiceElements(spec)}
       body: JSON.stringify({ id: m.id, ...extra }) }).catch(() => null);
     const data = r ? await r.json().catch(() => ({})) : {};
     if (!r || !r.ok) { setStatus(data.error || "Action impossible.", "err"); return; }
-    setStatus(`${data.message} Mise à jour de la page…`);
+    // Historique : instantané d'avant (découpage, réglages des moments, variantes) gardé par le serveur.
+    if (data.snapshot) {
+      const LABELS = { split: "scission", merge: "fusion", unmerge: "séparation", unsplit: "recollage" };
+      remember({ kind: "decoupage", label: `${LABELS[action] || action} du moment à ${fmt(m.start)}`, prev: data.snapshot, next: null });
+      await new Promise((res) => setTimeout(res, 10));  // entrée enregistrée avant le rechargement
+    }
+    await reloadAfterJob(data.message);
+  }
+  // Attend la fin de la mise à jour de la page des moments (make_moments), puis la recharge.
+  async function reloadAfterJob(message) {
+    setStatus(`${message} Mise à jour de la page…`);
     for (;;) {
       await new Promise((res) => setTimeout(res, 1000));
       const j = await fetch("/api/job", { cache: "no-store" }).then((x) => x.json()).catch(() => null);
@@ -3094,6 +3108,7 @@ ${HFAudio.voiceElements(spec)}
 
   function switchVariant(id, copyCurrent) {
     state.variant = id;
+    keepShadow = copyCurrent ? [...state.keep] : null;
     render();
     if (copyCurrent) scheduleSave(0);
     watchVariant();
@@ -3104,6 +3119,7 @@ ${HFAudio.voiceElements(spec)}
     ? partsOf(m).filter((p) => partKept(m, p.k)).map((p) => `${m.id}/${p.k}`)
     : state.keep.has(m.id) ? [m.id] : []));
   function scheduleSave(delay = 600) {
+    if (!hist.busy) noteKeep();  // historique (Annuler / Rétablir)
     if (!db) { setStatus("Non enregistré : ouvrez la page connecté à claude.ai", "err"); return; }
     setStatus("Enregistrement…");
     dirty = true;
@@ -3126,6 +3142,142 @@ ${HFAudio.voiceElements(spec)}
     }, delay);
   }
 
+  // --- Annuler / Rétablir (Ctrl+Z, Ctrl+Maj+Z ou Ctrl+Y, boutons de la barre du haut) ----------
+  // Chaque modification enregistrée est une entrée sérialisable (gardée pour l'onglet dans
+  // sessionStorage : elle survit au rechargement qui suit une scission ou une fusion) :
+  //   moment      réglages d'un moment avant / après (edits[id] : effets, texte, coupes, cadrage…)
+  //   keep        moments gardés de la variante, avant / après
+  //   global      réglage de tout le montage (PUT sur url : habillage, son, style des sous-titres,
+  //               effets proposés, couleurs, transitions), corps avant / après
+  //   decoupage   scission ou fusion : instantanés du serveur (/api/moments/restore) avant / après
+  // Les entrées faites dans le même instant (une coupe : coupes du moment + parties gardées) forment
+  // un seul pas ; deux pas identiques à moins de 1,5 s (curseur, frappe) sont réunis. HISTORY_MAX pas.
+  const HISTORY_MAX = 50;
+  const clone = (x) => (x === undefined ? undefined : JSON.parse(JSON.stringify(x)));
+  const historyKey = `am-historique:${DATA.rush}`;
+  const hist = (() => {
+    try { const h = JSON.parse(sessionStorage.getItem(historyKey) || "null"); if (h && Array.isArray(h.past)) return { ...h, busy: false, pending: [] }; } catch (e) {}
+    return { past: [], future: [], busy: false, pending: [] };
+  })();
+  const historySave = () => { try { sessionStorage.setItem(historyKey, JSON.stringify({ past: hist.past, future: hist.future })); } catch (e) {} };
+  const sig = (it) => it.kind === "moment" ? `m${it.id}:${it.keys}` : it.kind === "global" ? `g${it.url}:${Object.keys(it.next || {}).sort()}` : it.kind;
+  const FIELD = { sfx: "effets sonores", vfx: "effets visuels", text: "texte", nosub: "sous-titres", gain: "volume de la voix",
+                  focus: "cadrage", trim: "début et fin", cuts: "coupes" };
+  const GLOBAL = { "/api/habillage": "zooms et animations", "/api/son": "son de la voix", "/api/caption-style": "style des sous-titres",
+                   "/api/effects": "effets proposés", "/api/couleur": "couleurs", "/api/transitions": "transitions" };
+  function describe(items) {
+    const it = items.find((x) => x.kind === "moment") || items[0];
+    if (it.kind === "decoupage") return it.label;
+    if (it.kind === "global") return GLOBAL[it.url] || "réglage du montage";
+    if (it.kind === "keep") {
+      const a = new Set(it.prev.map(String)), b = new Set(it.next.map(String));
+      const added = [...b].filter((x) => !a.has(x)).length, removed = [...a].filter((x) => !b.has(x)).length;
+      return added && !removed ? `${added} moment${added > 1 ? "s" : ""} gardé${added > 1 ? "s" : ""}`
+        : removed && !added ? `${removed} moment${removed > 1 ? "s" : ""} retiré${removed > 1 ? "s" : ""}` : "moments gardés";
+    }
+    const m = byId.get(it.id);
+    const what = it.keys.split(",").filter((k) => k !== "fxv").map((k) => FIELD[k] || k).join(", ");
+    return `${what || "réglages"} du moment${m ? ` à ${fmt(m.start)}` : ""}`;
+  }
+  function remember(item) {
+    if (hist.busy) return;
+    hist.pending.push(item);
+    if (hist.pending.length > 1) return;
+    setTimeout(() => {
+      const items = hist.pending.splice(0);
+      if (!items.length) return;
+      const last = hist.past[hist.past.length - 1], now = Date.now();
+      const same = last && !last.items.some((x) => x.kind === "decoupage") && now - last.at < 1500
+        && last.items.length === items.length && last.items.every((x, i) => sig(x) === sig(items[i]));
+      if (same) { last.items.forEach((x, i) => { x.next = items[i].next; }); last.at = now; }
+      else hist.past.push({ items, label: describe(items), at: now });
+      if (hist.past.length > HISTORY_MAX) hist.past.splice(0, hist.past.length - HISTORY_MAX);
+      hist.future = [];
+      historySave();
+      showHistory();
+    }, 0);
+  }
+  // Remet un élément dans l'état « prev » (annuler) ou « next » (rétablir).
+  const globalReload = {};  // url -> fonction qui relit le réglage et remet ses contrôles à jour
+  async function applyItem(it, which) {
+    const v = it[which];
+    if (it.kind === "moment") {
+      if (v) edits[it.id] = clone(v); else delete edits[it.id];
+      await writeMoment(it.id);
+    } else if (it.kind === "keep") {
+      if (it.variant !== state.variant) switchVariant(it.variant, false);
+      state.keep = new Set(v);
+      keepShadow = [...state.keep];
+      render();
+      scheduleSave(0);
+    } else if (it.kind === "global") {
+      const r = await fetch(it.url, { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify(v) }).catch(() => null);
+      if (!r || !r.ok) throw new Error("réglage non enregistré");
+      if (globalReload[it.url]) await globalReload[it.url]();
+    } else if (it.kind === "decoupage") {
+      const r = await fetch("/api/moments/restore", { method: "POST", headers: { "content-type": "application/json" },
+        body: JSON.stringify({ snapshot: v }) }).catch(() => null);
+      const data = r ? await r.json().catch(() => ({})) : {};
+      if (!r || !r.ok) throw new Error(data.error || "instantané introuvable");
+      it[which === "prev" ? "next" : "prev"] = data.snapshot;  // état quitté, pour le pas inverse
+      return "reload";  // page refaite par le serveur (make_moments) : rechargée après l'enregistrement de l'historique
+    }
+  }
+  async function stepHistory(back) {
+    const from = back ? hist.past : hist.future, to = back ? hist.future : hist.past;
+    if (hist.busy || !from.length) return;
+    const entry = from.pop();
+    hist.busy = true;
+    let reload = false;
+    try {
+      const items = back ? [...entry.items].reverse() : entry.items;
+      for (const it of items) reload = (await applyItem(it, back ? "prev" : "next")) === "reload" || reload;
+      to.push(entry);
+      setStatus(`${back ? "Annulé" : "Rétabli"} : ${entry.label}`, "ok");
+    } catch (e) {
+      from.push(entry);
+      setStatus(`${back ? "Annulation" : "Rétablissement"} impossible : ${e.message}`, "err");
+    } finally {
+      hist.busy = false;
+      historySave();
+      showHistory();
+    }
+    if (reload) await reloadAfterJob(`${back ? "Annulé" : "Rétabli"} : ${entry.label}.`);
+  }
+  function showHistory() {
+    const u = $("undo"), r = $("redo");
+    if (!u) return;
+    const lu = hist.past[hist.past.length - 1], lr = hist.future[hist.future.length - 1];
+    u.disabled = !lu; r.disabled = !lr;
+    u.title = lu ? `Annuler : ${lu.label} (Ctrl+Z)` : "Rien à annuler";
+    r.title = lr ? `Rétablir : ${lr.label} (Ctrl+Maj+Z)` : "Rien à rétablir";
+  }
+  // Sélection de la variante telle que connue avant la dernière modification (pas « keep »).
+  let keepShadow = null;
+  function noteKeep() {
+    const now = [...state.keep];
+    const key = (a) => JSON.stringify(a.map(String).sort());
+    if (keepShadow && key(now) !== key(keepShadow)) remember({ kind: "keep", variant: state.variant, prev: keepShadow, next: now });
+    keepShadow = now;
+  }
+  // Réglage de tout le montage modifié (url, corps d'avant, corps d'après).
+  function rememberGlobal(url, prev, next) {
+    if (prev === undefined || JSON.stringify(prev) === JSON.stringify(next)) return;
+    remember({ kind: "global", url, prev: clone(prev), next: clone(next) });
+  }
+  $("undo").addEventListener("click", () => stepHistory(true));
+  $("redo").addEventListener("click", () => stepHistory(false));
+  document.addEventListener("keydown", (e) => {
+    if (!(e.ctrlKey || e.metaKey) || e.altKey) return;
+    const k = e.key.toLowerCase();
+    if (k !== "z" && k !== "y") return;
+    const t = e.target;
+    if (t && t.closest && t.closest("input[type=text], input:not([type]), textarea, [contenteditable]")) return;  // annulation du champ
+    e.preventDefault();
+    stepHistory(k === "z" && !e.shiftKey);
+  });
+  showHistory();
+
   // Corrections de texte et effets : un document par moment (collection « moments »).
   // Texte vide : plus de sous-titres sur ce moment (« Texte d'origine » les remet).
   function saveText(m, text) {
@@ -3138,22 +3290,28 @@ ${HFAudio.voiceElements(spec)}
     const before = edits[id] || {};
     // Effets enregistrés avant l'effet « voix » : on garde la voix proposée en réenregistrant.
     if (Array.isArray(before.sfx) && !before.fxv && !("sfx" in patch)) patch = { ...patch, sfx: sfxOf(byId.get(id)) };
+    const prev = edits[id] ? clone(edits[id]) : null;
     edits[id] = { ...before, ...patch, fxv: 2 };
+    remember({ kind: "moment", id, prev, next: clone(edits[id]), keys: Object.keys(patch).sort().join(",") });
+    await writeMoment(id);
+  }
+  // Document « moments/<id> » écrit d'après edits[id] (aussi pour Annuler / Rétablir).
+  async function writeMoment(id) {
     if (fx && fx.m.id === id && player.paused) fx = buildOverlay(fx.m);  // aperçu à jour (zoom libre, texte…)
     render();  // frise, inspecteur et nombre de moments changés
     if (!db) { setStatus("Non enregistré : ouvrez la page connecté à claude.ai", "err"); return; }
-    const m = byId.get(id);
+    const m = byId.get(id), e = edits[id] || {};
     try {
       await db.doc(`moments/${id}`).set({
         rush: DATA.rush,
-        text: edits[id].text || null,
-        nosub: edits[id].nosub ? true : null,  // sous-titres supprimés
-        sfx: Array.isArray(edits[id].sfx) ? edits[id].sfx : null,
-        vfx: Array.isArray(edits[id].vfx) ? edits[id].vfx : null,
-        gain: typeof edits[id].gain === "number" && edits[id].gain !== 1 ? edits[id].gain : null,
-        focus: Number.isInteger(edits[id].focus) ? edits[id].focus : null,  // cadrage sur une personne
-        trim: edits[id].trim || null,
-        cuts: Array.isArray(edits[id].cuts) && edits[id].cuts.length ? edits[id].cuts : null,
+        text: e.text || null,
+        nosub: e.nosub ? true : null,  // sous-titres supprimés
+        sfx: Array.isArray(e.sfx) ? e.sfx : null,
+        vfx: Array.isArray(e.vfx) ? e.vfx : null,
+        gain: typeof e.gain === "number" && e.gain !== 1 ? e.gain : null,
+        focus: Number.isInteger(e.focus) ? e.focus : null,  // cadrage sur une personne
+        trim: e.trim || null,
+        cuts: Array.isArray(e.cuts) && e.cuts.length ? e.cuts : null,
         fxv: 2,  // effets enregistrés avec l'effet « voix » au catalogue
         updatedAt: new Date().toISOString(),
       });
@@ -3278,6 +3436,7 @@ ${HFAudio.voiceElements(spec)}
       if (data && Array.isArray(data.keep) && data.rush === DATA.rush) {
         state.keep = new Set(data.keep);
         normKeep();
+        keepShadow = [...state.keep];
         setStatus(`Sélection « ${data.name || state.variant} » chargée`, "ok");
       } else if (!snap.exists) {
         setStatus("Suggestions affichées : cochez ou décochez pour enregistrer");
@@ -3308,6 +3467,7 @@ ${HFAudio.voiceElements(spec)}
       }
       momentsLoaded = true;
       normKeep();
+      if (!dirty) keepShadow = [...state.keep];
       render();
     });
   })();
@@ -3394,6 +3554,7 @@ ${HFAudio.voiceElements(spec)}
   // Enregistré dans work/caption_style.json, repris par build_edit à la génération.
   if (window.AUTO_MONTAGE_LOCAL) {
     let info = null;
+    let csSaved;  // style enregistré (historique : Annuler / Rétablir)
     const WEIGHTS = { 100: "Très fine", 200: "Extra-fine", 300: "Fine", 400: "Normale", 500: "Moyenne", 600: "Demi-grasse", 700: "Grasse", 800: "Extra-grasse", 900: "Noire" };
     const csStatus = (t) => { $("cs-status").textContent = t; };
     const family = () => info.fonts.find((f) => f.id === $("cs-font").value) || info.fonts[0];
@@ -3500,6 +3661,7 @@ ${HFAudio.voiceElements(spec)}
       saveT = setTimeout(async () => {
         const r = await fetch("/api/caption-style", { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify(st) }).catch(() => null);
         csStatus(r && r.ok ? "Enregistré : visible dans l'aperçu des moments, et dans la vidéo à la prochaine « Générer la vidéo entière »." : "Le style n'a pas pu être enregistré.");
+        if (r && r.ok) { rememberGlobal("/api/caption-style", csSaved, st); csSaved = st; }
       }, 400);
     }
     $("cs-font").addEventListener("change", () => { fillWeights(Number($("cs-weight").value)); changed(); });
@@ -3534,10 +3696,21 @@ ${HFAudio.voiceElements(spec)}
     {
       $("hab-zoom").value = String([0, 0.5, 1, 1.6].reduce((b, v) => (Math.abs(v - HAB.autoZoom) < Math.abs(b - HAB.autoZoom) ? v : b), 1));
       $("hab-pop").checked = HAB.pop; $("hab-karaoke").checked = HAB.karaoke; $("hab-karaoke-color").value = HAB.karaokeColor;
+      const showHab = () => {
+        $("hab-zoom").value = String([0, 0.5, 1, 1.6].reduce((b, v) => (Math.abs(v - HAB.autoZoom) < Math.abs(b - HAB.autoZoom) ? v : b), 1));
+        $("hab-pop").checked = HAB.pop; $("hab-karaoke").checked = HAB.karaoke; $("hab-karaoke-color").value = HAB.karaokeColor;
+      };
+      globalReload["/api/habillage"] = async () => {
+        Object.assign(HAB, await fetch("/api/habillage").then((r) => r.json()));
+        showHab();
+        refreshCaption();
+      };
       const putHab = async () => {
+        const prevHab = clone(HAB);
         Object.assign(HAB, { autoZoom: Number($("hab-zoom").value), pop: $("hab-pop").checked, karaoke: $("hab-karaoke").checked, karaokeColor: $("hab-karaoke-color").value });
         refreshCaption();
         const r = await fetch("/api/habillage", { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify(HAB) }).catch(() => null);
+        if (r && r.ok) rememberGlobal("/api/habillage", prevHab, HAB);
         $("hab-status").textContent = r && r.ok ? "Enregistré : dans l'aperçu tout de suite, dans la vidéo à la prochaine génération." : "Le réglage n'a pas pu être enregistré.";
       };
       for (const id of ["hab-zoom", "hab-pop", "hab-karaoke", "hab-karaoke-color"]) $(id).addEventListener("change", putHab);
@@ -3547,8 +3720,9 @@ ${HFAudio.voiceElements(spec)}
     {
       let son = {};
       const putSon = async (patch) => {
+        const prev = Object.fromEntries(Object.keys(patch).map((k) => [k, son[k] === undefined ? null : son[k]]));
         const r = await fetch("/api/son", { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify(patch) }).catch(() => null);
-        if (r && r.ok) son = (await r.json()).settings || son;
+        if (r && r.ok) { son = (await r.json()).settings || son; rememberGlobal("/api/son", prev, patch); }
         hfSon = son;
         $("son-status").textContent = r && r.ok ? "Enregistré : appliqué à la prochaine génération de la vidéo entière." : "Le réglage n'a pas pu être enregistré.";
       };
@@ -3593,7 +3767,7 @@ ${HFAudio.voiceElements(spec)}
         }
         box.append(ul);
       };
-      fetch("/api/son").then((r) => r.json()).then(({ settings, analyse, volume }) => {
+      const loadSon = () => fetch("/api/son").then((r) => r.json()).then(({ settings, analyse, volume }) => {
         son = settings || {};
         hfSon = son;
         voiceGlobal = typeof son.voice === "number" ? son.voice : 1;
@@ -3607,6 +3781,8 @@ ${HFAudio.voiceElements(spec)}
         showResult(analyse);
         $("son-panel").hidden = false;
       }).catch(() => {});
+      loadSon();
+      globalReload["/api/son"] = loadSon;
       $("son-voice").addEventListener("input", () => {
         $("son-voice-val").textContent = `${$("son-voice").value} %`;
         voiceGlobal = Number($("son-voice").value) / 100;
@@ -3667,16 +3843,24 @@ ${HFAudio.voiceElements(spec)}
     });
     $("fx-volume").addEventListener("input", () => { $("fx-volume-val").textContent = `${$("fx-volume").value} %`; });
     $("fx-volume").addEventListener("change", async () => {
+      const prevVolume = sfxVolume;
       sfxVolume = Number($("fx-volume").value) / 100;
       const r = await fetch("/api/effects", { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify({ volume: sfxVolume }) }).catch(() => null);
+      if (r && r.ok) rememberGlobal("/api/effects", { volume: prevVolume }, { volume: sfxVolume });
       $("fx-choice-status").textContent = r && r.ok ? "Volume enregistré : dans l'aperçu tout de suite, dans la vidéo à la prochaine génération." : "Le volume n'a pas pu être enregistré.";
       const a = sound("bop").cloneNode(); a.volume = Math.min(1, 0.7 * sfxVolume); a.play().catch(() => {});
     });
     const loadFxChoice = () => fetch("/api/effects").then((r) => r.json()).then(async ({ effects, purge, volume }) => {
       $("fx-choice-groups").replaceChildren();
       if (typeof volume === "number") { $("fx-volume").value = String(Math.round(volume * 100)); $("fx-volume-val").textContent = `${$("fx-volume").value} %`; }
-      const putEffects = (extra = {}) => fetch("/api/effects", { method: "PUT", headers: { "content-type": "application/json" },
-        body: JSON.stringify({ hidden: effects.filter((x) => !x.shown).map((x) => x.id), ...extra }) }).catch(() => null);
+      let hiddenSaved = effects.filter((x) => !x.shown).map((x) => x.id);
+      const putEffects = async (extra = {}) => {
+        const hidden = effects.filter((x) => !x.shown).map((x) => x.id);
+        const r = await fetch("/api/effects", { method: "PUT", headers: { "content-type": "application/json" },
+          body: JSON.stringify({ hidden, ...extra }) }).catch(() => null);
+        if (r && r.ok) { rememberGlobal("/api/effects", { hidden: hiddenSaved }, { hidden }); hiddenSaved = hidden; }
+        return r;
+      };
       const box = $("fx-choice-groups");
       for (const [kind, title] of Object.entries(FX_GROUPS)) {
         const items = effects.filter((e) => e.kind === kind);
@@ -3713,10 +3897,25 @@ ${HFAudio.voiceElements(spec)}
       }
     }).catch(() => {});
     loadFxChoice();
+    globalReload["/api/effects"] = async () => {
+      const { effects, volume } = await fetch("/api/effects").then((r) => r.json());
+      if (typeof volume === "number") sfxVolume = volume;
+      hiddenFx.clear();
+      effects.filter((x) => !x.shown).forEach((x) => hiddenFx.add(x.id));
+      await loadFxChoice();
+      renderList();
+    };
     fetch("/api/caption-style").then((r) => r.json()).then((data) => {
       info = data;
       if (!info.fonts.length) return;
       showForm();
+      csSaved = current();
+      globalReload["/api/caption-style"] = async () => {
+        info = await fetch("/api/caption-style").then((r) => r.json());
+        showForm();
+        csSaved = current();
+        preview(csSaved);
+      };
       $("cap-style").hidden = false;
       $("cap-style").addEventListener("toggle", () => refreshCaption());
     }).catch(() => {});

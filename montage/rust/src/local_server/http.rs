@@ -701,7 +701,7 @@ const POST_ROUTES: &[&str] = &[
     "/api/claude/login", "/api/claude/code", "/api/claude/logout",
     "/api/update/check", "/api/update/apply", "/api/update/reset", "/api/restart", "/api/quit", "/api/style/analyse", "/api/son/analyse",
     "/api/tutorial/seen",
-    "/api/moments/merge", "/api/moments/split", "/api/moments/unmerge", "/api/moments/unsplit",
+    "/api/moments/merge", "/api/moments/split", "/api/moments/unmerge", "/api/moments/unsplit", "/api/moments/restore",
 ];
 
 fn do_post(req: &Req, body_reader: &mut dyn Read) -> Reply {
@@ -993,10 +993,100 @@ fn do_post(req: &Req, body_reader: &mut dyn Read) -> Reply {
 
 /// Scinder ou fusionner des moments (decoupage), puis refaire la page des moments (seuls les
 /// extraits touchés sont recalculés).
+// --- Historique de la page des moments (Annuler / Rétablir une scission ou une fusion) -----------
+// Instantané de work/decoupage.json et des documents de la page (local_db : moments, variantes),
+// dans work/historique/<nom>.json (HISTORY_KEEP gardés) : remettre un instantané rend exactement
+// la découpe et les réglages d'avant, puis la page des moments est refaite.
+const HISTORY_KEEP: usize = 40;
+const HISTORY_COLLECTIONS: [&str; 2] = ["moments", "variantes"];
+
+fn history_dir() -> PathBuf {
+    work().join("historique")
+}
+
+fn take_snapshot() -> Option<String> {
+    let mut collections = Map::new();
+    for c in HISTORY_COLLECTIONS {
+        let mut docs = Map::new();
+        for name in util::list_dir(db().join(c)) {
+            if let Some(id) = name.strip_suffix(".json").filter(|n| !n.starts_with('.')) {
+                if let Some(v) = util::read_json(db().join(c).join(&name)) {
+                    docs.insert(id.to_string(), v);
+                }
+            }
+        }
+        collections.insert(c.into(), Value::Object(docs));
+    }
+    let deco = util::read_json(work().join("decoupage.json")).unwrap_or(Value::Null);
+    let dir = history_dir();
+    util::mkdirs(&dir);
+    let name = format!("{}-{:03}", chrono::Utc::now().format("%Y%m%d-%H%M%S"), rand_suffix());
+    write_json(dir.join(format!("{name}.json")), &json!({"decoupage": deco, "db": collections}), None, false).ok()?;
+    let mut all: Vec<String> = util::list_dir(&dir).into_iter().filter(|n| n.ends_with(".json")).collect();
+    all.sort();
+    for old in all.iter().take(all.len().saturating_sub(HISTORY_KEEP)) {
+        let _ = fs::remove_file(dir.join(old));
+    }
+    Some(name)
+}
+
+fn rand_suffix() -> u32 {
+    std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.subsec_millis()).unwrap_or(0)
+}
+
+/// Remet l'instantané `name` ; renvoie celui de l'état quitté (pour le pas inverse).
+fn restore_snapshot(name: &str) -> Result<String, String> {
+    if !safe_id(name) {
+        return Err("Instantané invalide.".into());
+    }
+    let snap = util::read_json(history_dir().join(format!("{name}.json"))).ok_or("Cet état n'est plus dans l'historique.")?;
+    let back = take_snapshot().ok_or("Historique impossible à écrire.")?;
+    match snap.get("decoupage") {
+        Some(v) if !v.is_null() => {
+            write_json(work().join("decoupage.json"), v, Some(1), true).map_err(|e| e.to_string())?;
+        }
+        _ => {
+            let _ = fs::remove_file(work().join("decoupage.json"));
+        }
+    }
+    for c in HISTORY_COLLECTIONS {
+        let folder = db().join(c);
+        util::mkdirs(&folder);
+        let docs = snap.get("db").and_then(|d| d.get(c)).and_then(Value::as_object).cloned().unwrap_or_default();
+        for name in util::list_dir(&folder) {
+            if let Some(id) = name.strip_suffix(".json") {
+                if !docs.contains_key(id) {
+                    let _ = fs::remove_file(folder.join(&name));
+                }
+            }
+        }
+        for (id, doc) in &docs {
+            if safe_id(id) {
+                write_json(folder.join(format!("{id}.json")), doc, Some(1), false).map_err(|e| e.to_string())?;
+            }
+        }
+    }
+    Ok(back)
+}
+
 fn post_moments(action: &str, body: &Map<String, Value>) -> Reply {
     if busy() {
         return err_json(&busy_error(), 409);
     }
+    if action == "restore" {
+        let name = body.get("snapshot").and_then(Value::as_str).unwrap_or("");
+        return match restore_snapshot(name) {
+            Ok(back) => {
+                let steps: Vec<Step> = vec![("page des moments".into(), vec!["make_moments".into()])];
+                if !start_job("decoupage", steps, "Découpage remis.", None, None, false) {
+                    return err_json(&busy_error(), 409);
+                }
+                send_json(&json!({"ok": true, "message": "Découpage remis.", "snapshot": back}), 202)
+            }
+            Err(e) => err_json(&e, 400),
+        };
+    }
+    let snapshot = take_snapshot();
     // Fusion de plusieurs moments sélectionnés sur la frise : « count » fusions de suite
     // (le moment fusionné garde l'id du premier).
     let parsed = (|| {
@@ -1036,7 +1126,7 @@ fn post_moments(action: &str, body: &Map<String, Value>) -> Reply {
     if !start_job("decoupage", steps, &message, None, None, false) {
         return err_json(&busy_error(), 409);
     }
-    send_json(&json!({"ok": true, "message": message}), 202)
+    send_json(&json!({"ok": true, "message": message, "snapshot": snapshot}), 202)
 }
 
 fn post_prepare(body: &Map<String, Value>) -> Reply {

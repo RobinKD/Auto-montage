@@ -271,6 +271,12 @@ pub fn sound_settings() -> Map<String, Value> {
 
 pub fn save_sound(body: &Map<String, Value>) -> Option<Map<String, Value>> {
     let mut s = sound_settings();
+    // null : réglage remis à sa valeur par défaut (Annuler sur la page des moments)
+    for (k, _) in body.iter().filter(|(_, v)| v.is_null()) {
+        s.remove(k);
+    }
+    let body: Map<String, Value> = body.iter().filter(|(_, v)| !v.is_null()).map(|(k, v)| (k.clone(), v.clone())).collect();
+    let body = &body;
     if let Some(v) = body.get("voice") {
         s.insert("voice".into(), util::num(util::round_to(py_float(v)?.clamp(0.0, 2.0), 2)));
     }
