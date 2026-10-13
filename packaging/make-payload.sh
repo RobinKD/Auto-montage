@@ -20,10 +20,6 @@ git archive --format=tar HEAD | tar -x -C "$OUT"
 rm -rf "$OUT/packaging" "$OUT/.github" "$OUT/montage/rust/target"
 echo "$VERSION" > "$OUT/VERSION"
 chmod +x "$OUT"/montage/am
-# Anciens lanceurs Docker, s'il en reste dans le dépôt (le programme n'en a pas besoin).
-if [ -d "$OUT/docker" ]; then
-  find "$OUT/docker" -name '*.sh' -exec chmod +x {} +
-fi
 if [ -n "$PROGRAMME" ]; then
   [ -f "$PROGRAMME" ] || { echo "Programme introuvable : $PROGRAMME" >&2; exit 1; }
   NOM=auto-montage
