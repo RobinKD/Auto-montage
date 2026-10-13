@@ -808,11 +808,11 @@ fn run_steps(steps: &[Step], arg: &str, args: &[String], first: usize) -> Result
     let secs = util::round_int(util::now_secs() - gf(&j.m, "startedTs"));
     write(&mut j, &format!("\n# RÉSULTAT : réussi ({secs} s)"));
     if kind == "update" || kind == "reset" {
-        // programme remplacé : redémarrage du conteneur
+        // programme remplacé : relance de la nouvelle version (conteneur : redémarrage)
         j.m.insert("step".into(), json!("redémarrage"));
         std::thread::spawn(|| {
             std::thread::sleep(Duration::from_secs(3));
-            std::process::exit(0);
+            crate::relance::relaunch();
         });
     }
     Ok(())

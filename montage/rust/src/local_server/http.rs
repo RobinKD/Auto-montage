@@ -718,13 +718,14 @@ fn do_post(req: &Req, body_reader: &mut dyn Read) -> Reply {
             return send_json(&r, 200);
         }
         "/api/restart" => {
-            // fichiers changés sur le disque : le conteneur redémarre tout seul
+            // fichiers changés sur le disque : relance (recompilée si lancée depuis les sources ;
+            // conteneur : il redémarre tout seul)
             if jobs::is_running() {
                 return err_json("Une tâche est en cours : attendez qu'elle finisse.", 409);
             }
             std::thread::spawn(|| {
                 std::thread::sleep(std::time::Duration::from_secs(1));
-                std::process::exit(0);
+                crate::relance::relaunch();
             });
             return ok_json(202);
         }

@@ -67,11 +67,23 @@ pub fn main(args: &[String]) -> i32 {
     jobs::remove_partial_files(true);
     std::thread::spawn(claude::update_loop);
     let addr = if host.contains(':') { format!("[{host}]:{port}") } else { format!("{host}:{port}") };
-    let server = match tiny_http::Server::http(&addr) {
-        Ok(s) => s,
-        Err(e) => {
-            eprintln!("Auto-montage : impossible d'écouter sur {addr} ({e})");
-            return 1;
+    crate::relance::cleanup(); // restes d'un remplacement du programme
+    // Relance après une mise à jour : l'ancien serveur peut tenir le port quelques instants.
+    let mut tries = 0;
+    let server = loop {
+        match tiny_http::Server::http(&addr) {
+            Ok(s) => break s,
+            Err(e) if tries < 40 => {
+                tries += 1;
+                if tries == 1 {
+                    eprintln!("Auto-montage : {addr} occupé ({e}), nouvel essai…");
+                }
+                std::thread::sleep(std::time::Duration::from_millis(500));
+            }
+            Err(e) => {
+                eprintln!("Auto-montage : impossible d'écouter sur {addr} ({e})");
+                return 1;
+            }
         }
     };
     println!("Auto-montage : http://localhost:{port}/ (moments) et /downloads/ (téléchargements)");

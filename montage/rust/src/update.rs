@@ -12,11 +12,16 @@
 //! l'autre sont effacés (liste .auto-montage-files). La réinitialisation garde une copie des
 //! fichiers qu'elle remplace dans montage/work/sauvegardes/reinitialisation-<date>/.
 //!
-//! Version native : l'archive contient les sources ; le programme auto-montage lui-même doit être
-//! recompilé (ou réinstallé) après une mise à jour pour que le nouveau code serve.
+//! Le programme lui-même (`montage/bin/auto-montage`) est remplacé par celui compilé pour ce
+//! système et joint à la version (relance.rs) ; sans lui, recompilé depuis les sources si Rust est
+//! installé. Il est téléchargé et vérifié avant que le moindre fichier soit remplacé. Le serveur
+//! local relance ensuite la nouvelle version (`relance::relaunch`).
+//!
+//! Essais : `AM_UPDATE_API` remplace https://api.github.com (faux GitHub local).
 
 use crate::net;
 use crate::paths;
+use crate::relance;
 use crate::progress::{report, say};
 use crate::pyjson;
 use regex::Regex;
@@ -42,6 +47,9 @@ fn project() -> PathBuf {
     let root = paths::root();
     let abs = std::path::absolute(root).unwrap_or_else(|_| root.to_path_buf());
     abs.parent().map(Path::to_path_buf).unwrap_or(abs)
+}
+fn api_base() -> String {
+    std::env::var("AM_UPDATE_API").map(|s| s.trim_end_matches('/').to_string()).unwrap_or_else(|_| "https://api.github.com".into())
 }
 fn repo() -> String {
     std::env::var("AM_UPDATE_REPO").unwrap_or_else(|_| "RobinKD/Auto-montage".into())
@@ -120,7 +128,7 @@ fn check() -> Value {
     for (k, v) in [("latest", Value::Null), ("tag", Value::Null), ("newer", json!(false)), ("notes", json!("")), ("error", Value::Null)] {
         out.insert(k.into(), v);
     }
-    let releases = api(&format!("https://api.github.com/repos/{}/releases?per_page=20", repo())).and_then(|r| {
+    let releases = api(&format!("{}/repos/{}/releases?per_page=20", api_base(), repo())).and_then(|r| {
         let mut body = String::new();
         r.into_reader().read_to_string(&mut body).map_err(|e| ApiError::Net(e.to_string()))?;
         serde_json::from_str::<Value>(&body).map_err(|e| ApiError::Net(e.to_string()))
@@ -205,7 +213,7 @@ fn download(tag: &str) -> Result<Vec<u8>, ApiError> {
             (Box::new(f), size)
         }
         _ => {
-            let r = api(&format!("https://api.github.com/repos/{}/tarball/{tag}", repo()))?;
+            let r = api(&format!("{}/repos/{}/tarball/{tag}", api_base(), repo()))?;
             let size = r.header("Content-Length").and_then(|s| s.parse().ok()).unwrap_or(0);
             (Box::new(r.into_reader()), size)
         }
@@ -329,6 +337,141 @@ fn copy_content(from: &Path, to: &Path) -> std::io::Result<()> {
     Ok(())
 }
 
+// --- Programme compilé de la version ----------------------------------------------------
+
+/// Programme de la nouvelle version, préparé avant de remplacer les fichiers.
+enum Program {
+    /// téléchargé et vérifié, à mettre en place (relance::commit)
+    Ready(PathBuf),
+    /// pas publié pour ce système : à recompiler une fois les sources installées
+    Build,
+    /// rien à faire ici (conteneur : recompilé au redémarrage ; essai avec AM_UPDATE_ARCHIVE)
+    Skip,
+}
+
+/// Programme publié pour ce système avec la version `tag`, téléchargé (barre « Téléchargement
+/// du programme ») et vérifié ; None s'il n'est pas publié.
+fn fetch_program(tag: &str) -> Result<Option<PathBuf>, String> {
+    let Some(name) = relance::asset_name() else { return Ok(None) };
+    let release = match api(&format!("{}/repos/{}/releases/tags/{tag}", api_base(), repo())) {
+        Ok(r) => {
+            let mut body = String::new();
+            r.into_reader().read_to_string(&mut body).map_err(|e| format!("GitHub : {e}"))?;
+            serde_json::from_str::<Value>(&body).map_err(|e| format!("GitHub : {e}"))?
+        }
+        Err(ApiError::Http(404)) => return Ok(None),
+        Err(e) => return Err(format!("Téléchargement impossible : {e}")),
+    };
+    let asset = release.get("assets").and_then(Value::as_array).and_then(|a| {
+        a.iter().find(|x| x.get("name").and_then(Value::as_str) == Some(name.as_str()))
+    });
+    let Some(url) = asset.and_then(|a| a.get("browser_download_url")).and_then(Value::as_str) else {
+        return Ok(None);
+    };
+    say(&format!("Téléchargement du programme ({name})…"));
+    let resp = match net::agent(Duration::from_secs(600)).get(url).call() {
+        Ok(r) => r,
+        Err(ureq::Error::Status(code, _)) => return Err(format!("Téléchargement du programme impossible (erreur {code}).")),
+        Err(e) => return Err(format!("Téléchargement du programme impossible : {e}")),
+    };
+    let total: u64 = resp.header("Content-Length").and_then(|s| s.parse().ok()).unwrap_or(0);
+    let dl = relance::installed().with_file_name(format!("{name}.telechargement"));
+    if let Some(dir) = dl.parent() {
+        fs::create_dir_all(dir).map_err(|e| format!("{} : {e}", dir.display()))?;
+    }
+    let result = (|| -> Result<(), String> {
+        let mut file = fs::File::create(&dl).map_err(|e| format!("{} : {e}", dl.display()))?;
+        let mut reader = resp.into_reader();
+        let mut chunk = vec![0u8; 1 << 16];
+        let mut got = 0u64;
+        loop {
+            let n = reader.read(&mut chunk).map_err(|e| format!("Téléchargement du programme coupé : {e}"))?;
+            if n == 0 {
+                break;
+            }
+            std::io::Write::write_all(&mut file, &chunk[..n]).map_err(|e| format!("{} : {e}", dl.display()))?;
+            got += n as u64;
+            report("Téléchargement du programme", got as f64, total.max(got).max(1) as f64);
+        }
+        Ok(())
+    })();
+    let staged = result.and_then(|_| relance::stage(&dl, &tag[1..]));
+    let _ = fs::remove_file(&dl);
+    staged.map(Some)
+}
+
+/// Rien à faire pour le programme : dans le conteneur (recompilé au redémarrage), ou essai avec
+/// une archive locale sans faux GitHub.
+fn skip_program() -> bool {
+    relance::in_container() || (std::env::var_os("AM_UPDATE_ARCHIVE").is_some() && std::env::var_os("AM_UPDATE_API").is_none())
+}
+
+fn prepare_program(tag: &str) -> Result<Program, String> {
+    if skip_program() {
+        return Ok(Program::Skip);
+    }
+    match fetch_program(tag)? {
+        Some(p) => Ok(Program::Ready(p)),
+        None if relance::can_build() => Ok(Program::Build),
+        None => Err(format!(
+            "Le programme d'Auto-montage {} n'est pas publié pour ce système ({}) et Rust n'est pas installé pour le compiler : rien n'est remplacé.",
+            &tag[1..],
+            relance::asset_name().unwrap_or_else(|| format!("{} {}", std::env::consts::OS, std::env::consts::ARCH))
+        )),
+    }
+}
+
+/// Recompile le programme depuis les sources installées ; dans une installation (programme dans
+/// bin/), le met à la place de l'ancien.
+fn build_program(tag: &str) -> Result<(), String> {
+    say("Compilation du programme (plusieurs minutes la première fois)…");
+    let built = relance::build()?;
+    if relance::installed().is_file() {
+        let staged = relance::stage(&built, &tag[1..])?;
+        relance::commit(&staged)?;
+    }
+    Ok(())
+}
+
+fn finish_program(program: Program, tag: &str) -> Result<(), String> {
+    match program {
+        Program::Ready(p) => {
+            relance::commit(&p)?;
+            say(&format!("Programme {} installé.", &tag[1..]));
+            Ok(())
+        }
+        Program::Build => build_program(tag),
+        Program::Skip => Ok(()),
+    }
+}
+
+/// Réinitialisation : remet le programme publié avec cette version s'il a changé.
+fn reset_program(tag: &str) {
+    if skip_program() {
+        return;
+    }
+    match fetch_program(tag) {
+        Ok(Some(p)) => {
+            if relance::same_as_installed(&p) {
+                let _ = fs::remove_file(&p);
+                say("Programme déjà identique à celui publié.");
+            } else if let Err(e) = relance::commit(&p) {
+                say(&format!("Programme non remplacé : {e}"));
+            } else {
+                say(&format!("Programme {} remis comme publié.", &tag[1..]));
+            }
+        }
+        Ok(None) if relance::can_build() => {
+            if let Err(e) = build_program(tag) {
+                say(&format!("Programme non recompilé : {e}"));
+            }
+        }
+        Ok(None) => say("Programme pas publié pour ce système : gardé tel quel."),
+        Err(e) => say(&format!("Programme non vérifié : {e}")),
+    }
+}
+
+
 fn fail(msg: impl std::fmt::Display) -> i32 {
     eprintln!("{msg}");
     1
@@ -346,6 +489,11 @@ fn apply(tag: &str) -> i32 {
     let buf = match download(tag) {
         Ok(b) => b,
         Err(e) => return fail(format!("Téléchargement impossible : {e}")),
+    };
+    // programme téléchargé et vérifié avant de toucher aux fichiers
+    let program = match prepare_program(tag) {
+        Ok(p) => p,
+        Err(e) => return fail(e),
     };
     say("Installation…");
     let tmp = match TempDir::new() {
@@ -380,6 +528,9 @@ fn apply(tag: &str) -> i32 {
         return fail(e);
     }
     drop(tmp);
+    if let Err(e) = finish_program(program, tag) {
+        return fail(e);
+    }
     say(&format!("Auto-montage {} installé : {} fichiers remplacés, {removed} retirés.", &tag[1..], files.len()));
     0
 }
@@ -476,6 +627,7 @@ fn reset(tag: Option<&str>) -> i32 {
     for rel in &missing {
         say(&format!("  recréé : {rel}"));
     }
+    reset_program(&tag);
     if let Some(b) = backup {
         let abs = std::path::absolute(&b).unwrap_or(b);
         let rel = abs.strip_prefix(project()).map(Path::to_path_buf).unwrap_or(abs.clone());
