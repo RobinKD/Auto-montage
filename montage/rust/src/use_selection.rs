@@ -8,7 +8,8 @@
 //!                               "vfx"?: [{"kind": "typed" | "chip", "text", "at", "type", "dur", "sound"}, …],
 //!                               "trim"?: {"in", "out"} pour un plan sans parole (id >= 1000),
 //!                               "cuts"?: [instants de coupe en s], "fxv"?: 2,
-//!                               "focus"?: n (cadrage sur la personne n de detect_face)}
+//!                               "focus"?: n (cadrage sur la personne n de detect_face), "auto"
+//!                               (personne qui parle, diarize) ou "tous" (tout le monde)}
 //! Les documents des moments sont aussi gardés tels quels (« page » : sélection et réglages),
 //! repris par build_edit dans edit.json, pour que la page montre ce qui a changé depuis.
 //!   Dans « keep », « id/k » désigne la partie k d'un moment découpé (« Couper ici »).
@@ -176,11 +177,18 @@ pub fn main(args: &[String]) -> i32 {
         if let Some(list) = m.get("vfx").and_then(Value::as_array) {
             vfx.insert(seg.clone(), Value::Array(list.iter().filter(|v| v.is_object()).cloned().collect()));
         }
-        if let Some(Value::Number(n)) = m.get("focus") {
+        match m.get("focus") {
             // cadrage sur une personne (entier seulement, comme isinstance(…, int))
-            if let Some(i) = n.as_i64() {
-                focus.insert(seg.clone(), json!(i));
+            Some(Value::Number(n)) => {
+                if let Some(i) = n.as_i64() {
+                    focus.insert(seg.clone(), json!(i));
+                }
             }
+            // « auto » : personne qui parle (diarize) ; « tous » : tout le monde dans l'image
+            Some(Value::String(v)) if v == "auto" || v == "tous" => {
+                focus.insert(seg.clone(), json!(v));
+            }
+            _ => {}
         }
     }
 

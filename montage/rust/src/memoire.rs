@@ -79,7 +79,7 @@ fn part(v: &VideoInfo) -> f64 {
 }
 
 /// Opérations connues, dans l'ordre de la version Python.
-pub const OPERATIONS: [&str; 14] = [
+pub const OPERATIONS: [&str; 15] = [
     "Assemblage des vidéos",
     "Assemblage des vidéos (réencodage)",
     "Copie du rush en 1080p",
@@ -87,6 +87,7 @@ pub const OPERATIONS: [&str; 14] = [
     "Détection de la parole",
     "Transcription",
     "Position du visage",
+    "Locuteurs",
     "Bruitages et montage",
     "Consignes de montage (Claude)",
     "Montage selon les consignes",
@@ -113,6 +114,8 @@ fn formula(op: &str, v: &VideoInfo) -> Option<f64> {
         // Modèle large-v3-turbo (1,6 Go) et ses calculs ; le son 16 kHz du rush entier en mémoire.
         "Transcription" => 2300.0 + 0.1 * v.duration,
         "Position du visage" => 100.0 + 10.0 * mpx(v.work),
+        // Son 16 kHz du rush en flottants, MFCC de chaque image de 10 ms, images grises d'une fenêtre.
+        "Locuteurs" => 80.0 + 0.08 * v.duration,
         // Son du rush entier en 48 kHz (entiers puis flottants), lu pour recaler les coupes.
         "Bruitages et montage" => 250.0 + 0.3 * v.duration,
         "Consignes de montage (Claude)" => 600.0,
@@ -137,6 +140,7 @@ pub fn steps(step: &str) -> Option<Vec<&'static str>> {
             "Détection de la parole",
             "Transcription",
             "Position du visage",
+            "Locuteurs",
             "Bruitages et montage",
         ],
         "consignes de montage (Claude)" => vec!["Consignes de montage (Claude)"],

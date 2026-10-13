@@ -304,7 +304,7 @@ pub fn save_sound(body: &Map<String, Value>) -> Option<Map<String, Value>> {
 }
 
 pub fn habillage_path() -> PathBuf {
-    work().join("habillage.json") // zooms automatiques, animation des sous-titres
+    work().join("habillage.json") // zooms automatiques, animation des sous-titres, cadrage sur qui parle
 }
 pub fn tutorial_seen_path() -> PathBuf {
     work().join("tutoriel_vu") // le tutoriel a été ouvert une fois
@@ -329,7 +329,7 @@ pub fn save_habillage(body: &Map<String, Value>) -> Option<Map<String, Value>> {
     if let Some(v) = body.get("autoZoom") {
         h.insert("autoZoom".into(), util::num(util::round_to(py_float(v)?.clamp(0.0, 2.0), 2)));
     }
-    for key in ["pop", "karaoke"] {
+    for key in ["pop", "karaoke", "speakerFocus"] {
         if let Some(v) = body.get(key) {
             h.insert(key.into(), json!(util::truthy(Some(v))));
         }

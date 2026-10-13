@@ -7,6 +7,10 @@
     border: 1px solid var(--line); border-radius: 999px; background: var(--surface); color: inherit; font: inherit; font-size: 13px; cursor: pointer; }
   .framing-choice img { width: 28px; height: 28px; border-radius: 50%; object-fit: cover; display: block; }
   .framing-choice.on { border-color: var(--accent); box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 35%, transparent); }
+  /* Qui parle (diarize) : couleur de chaque locuteur, pastille et trait sous ses mots. */
+  .spk-dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; flex: none; }
+  .spk-legend { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; color: var(--muted, inherit); }
+  .spk-legend img { width: 22px; height: 22px; border-radius: 50%; object-fit: cover; }
   /* Page sombre, façon logiciel de montage (CapCut) : barre du haut, lecteur et inspecteur au
      milieu, frises en bas. Une colonne sur téléphone. */
   :root {
@@ -536,6 +540,7 @@
           </label>
           <label class="inline"><input type="checkbox" id="hab-pop"> Sous-titres qui apparaissent avec un petit rebond</label>
           <label class="inline"><input type="checkbox" id="hab-karaoke"> Mot prononcé en couleur <input type="color" id="hab-karaoke-color" value="#ffd84d" aria-label="Couleur du mot prononcé"></label>
+          <label class="inline" id="hab-speaker-row" hidden><input type="checkbox" id="hab-speaker"> Cadrer sur la personne qui parle (plusieurs personnes, écran partagé)</label>
         </div>
         <p class="sub" id="hab-status" role="status" style="margin: 6px 0 0;"></p>
       </details>
@@ -629,7 +634,7 @@
     while (i < F.length - 2 && F[i + 1][0] <= t) i++;
     const a = F[i], b = F[Math.min(i + 1, F.length - 1)];
     const k = Math.min(1, Math.max(0, (t - a[0]) / ((b[0] - a[0]) || 1)));
-    const person = focusOf(m);
+    const person = focusPersonAt(m, t);
     if (person) {
       const fa = (a[4] || []).find((f) => f[0] === person), fb = (b[4] || []).find((f) => f[0] === person);
       const f = fa && fb ? fa.slice(0, 5).map((v, j) => j ? v + (fb[j] - v) * k : v) : fa || fb;
@@ -654,6 +659,25 @@
     return cl(left / (1 - v), 0, 1);
   };
   const focusOf = (m) => (edits[m.id] && Number.isInteger(edits[m.id].focus) ? edits[m.id].focus : null);
+  // Cadrage « personne qui parle » (diarize, work/locuteurs.json) : focus "auto" du moment, ou
+  // « speakerFocus » de tout le montage (work/habillage.json) pour un moment sans choix ; "tous" :
+  // tout le monde dans l'image même quand le montage suit la personne qui parle. Tours de parole
+  // m.turns ([début, fin dans l'extrait, personne ou -1, locuteur], tenue minimale de 1,5 s) faits
+  // par make_moments avec la même règle que build_edit (diarize::turns) ; personne absente de
+  // l'image à cet instant : cadrage de tout le monde, comme focusFrame du rendu.
+  const focusValue = (f) => (Number.isInteger(f) || f === "auto" || f === "tous" ? f : null);
+  const speakerFocusAll = () => { try { return !DERUSH && !!HAB.speakerFocus; } catch (e) { return false; } };
+  const focusMode = (m) => { const f = focusValue(edits[m.id] && edits[m.id].focus); return f === null && speakerFocusAll() ? "auto" : f; };
+  const SPEAKERS = Array.isArray(DATA.speakers) ? DATA.speakers : [];
+  const SPK_COLORS = ["#4fc3f7", "#ffb74d", "#ba68c8", "#81c784", "#f06292", "#fff176"];
+  const spkColor = (k) => SPK_COLORS[k % SPK_COLORS.length];
+  const hasTurns = (m) => (m.turns || []).some((r) => r[2] > 0);
+  function focusPersonAt(m, t) {
+    const p = focusOf(m);
+    if (p || focusMode(m) !== "auto") return p;
+    const r = (m.turns || []).find((x) => t >= x[0] && t < x[1]);
+    return r && r[2] > 0 ? r[2] : null;
+  }
   if (FRAME_W !== 1080 || FRAME_H !== 1920) {  // version pour la page : petit côté de 720 (make_moments)
     const k = 720 / Math.min(FRAME_W, FRAME_H), even = (x) => Math.round((x * k) / 2) * 2;
     document.getElementById("download").title = `Télécharger la vidéo entière (MP4 ${even(FRAME_W)}x${even(FRAME_H)}, compressée pour la page)`;
@@ -939,7 +963,7 @@
       out.sfx = sfxOf(m, e);
       out.vfx = vfxOf(m, e, first);
       out.gain = e && typeof e.gain === "number" ? e.gain : 1;
-      out.focus = e && Number.isInteger(e.focus) ? e.focus : null;
+      out.focus = e ? focusValue(e.focus) : null;
     }
     return out;
   }
@@ -1021,7 +1045,7 @@
     if (noSub(m)) return m.words.map((w) => ({ text: "", a: w.a, b: w.b }));
     const t = edits[m.id] && edits[m.id].text;
     const texts = t ? realign(m.words.map((w) => w.w), t) : m.words.map((w) => w.w);
-    return m.words.map((w, k) => ({ text: texts[k], a: w.a, b: w.b }));
+    return m.words.map((w, k) => ({ text: texts[k], a: w.a, b: w.b, s: w.s }));
   }
   // Mots et lettres au plus par sous-titre selon le nombre de lignes (fonts_lib.CAPTION_LIMITS).
   const CAPTION_LIMITS = { 1: [3, 14], 2: [6, 26], 3: [9, 38] };
@@ -2370,6 +2394,10 @@ ${HFAudio.voiceElements(spec)}
         wd.style.top = `${FXH + 4}px`;
         wd.dataset.a = String(w.a);
         wd.title = `« ${w.text} » · ${w.a.toFixed(2)} s`;
+        if (SPEAKERS.length > 1 && Number.isInteger(w.s)) {  // qui parle (diarize)
+          wd.style.boxShadow = `inset 0 -3px 0 ${spkColor(w.s)}`;
+          wd.title += ` · locuteur ${w.s + 1}`;
+        }
         track.append(wd);
       }
     }
@@ -2997,25 +3025,42 @@ ${HFAudio.voiceElements(spec)}
     }
     // Cadrage : tout le monde (par défaut), ou une des personnes vues pendant ce moment
     // (vignettes de detect_face), en plan rapproché.
-    if (!DERUSH && ((m.persons || []).length >= 2 || focusOf(m))) {
+    if (!DERUSH && ((m.persons || []).length >= 2 || focusOf(m) || focusValue(edits[m.id] && edits[m.id].focus) || (hasTurns(m) && SPEAKERS.length > 1))) {
       const row = document.createElement("div");
       row.className = "tags framing";
       row.style.width = "100%";
       row.append(Object.assign(document.createElement("span"), { className: "sfx-title", textContent: "Cadrage :" }));
-      const pick = (person, content, title) => {
+      const cur = focusMode(m);
+      const pick = (person, content, title, on = cur === person) => {
         const b = Object.assign(document.createElement("button"), { type: "button", title });
-        b.className = "framing-choice" + ((focusOf(m) || null) === person ? " on" : "");
-        b.setAttribute("aria-pressed", String((focusOf(m) || null) === person));
+        b.className = "framing-choice" + (on ? " on" : "");
+        b.setAttribute("aria-pressed", String(on));
         b.append(content);
         b.addEventListener("click", () => saveMoment(m.id, { focus: person }));
         return b;
       };
-      row.append(pick(null, "Tout le monde", "Garder tout le monde dans l'image (zooms limités)"));
+      row.append(pick(speakerFocusAll() ? "tous" : null, "Tout le monde", "Garder tout le monde dans l'image (zooms limités)", cur === null || cur === "tous"));
+      if (hasTurns(m)) {  // qui parle (diarize) : plan rapproché sur la personne qui parle, tour après tour
+        const who = el("span", "", "Personne qui parle");
+        row.append(pick(speakerFocusAll() ? null : "auto", who, "Cadrer sur la personne qui parle (suit les tours de parole, sans aller-retour de moins de 1,5 s)", cur === "auto"));
+      }
       for (const p of m.persons || []) {
         const src = (DATA.persons || {})[String(p)];
         if (!src) continue;
         const img = Object.assign(document.createElement("img"), { src, alt: `Personne ${p}`, width: 40, height: 40 });
         row.append(pick(p, img, `Cadrer sur cette personne (plan rapproché)`));
+      }
+      // Qui parle dans ce moment : couleur du locuteur (trait sous ses mots) et sa personne.
+      const said = [...new Set((m.words || []).map((w) => w.s).filter(Number.isInteger))];
+      if (SPEAKERS.length > 1) for (const k of said) {
+        const sp = SPEAKERS.find((x) => x.id === k) || {}, lg = el("span", "spk-legend");
+        const dot = el("span", "spk-dot");
+        dot.style.background = spkColor(k);
+        lg.append(dot, document.createTextNode(`Locuteur ${k + 1}`));
+        const src = sp.person ? (DATA.persons || {})[String(sp.person)] : null;
+        if (src) lg.append(Object.assign(document.createElement("img"), { src, alt: `Personne ${sp.person}`, width: 22, height: 22 }));
+        else lg.title = "Pas trouvé à l'image (voix hors champ)";
+        row.append(lg);
       }
       tags.append(row);
     }
@@ -3141,7 +3186,7 @@ ${HFAudio.voiceElements(spec)}
         sfx: Array.isArray(edits[id].sfx) ? edits[id].sfx : null,
         vfx: Array.isArray(edits[id].vfx) ? edits[id].vfx : null,
         gain: typeof edits[id].gain === "number" && edits[id].gain !== 1 ? edits[id].gain : null,
-        focus: Number.isInteger(edits[id].focus) ? edits[id].focus : null,  // cadrage sur une personne
+        focus: focusValue(edits[id].focus),  // cadrage sur une personne, "auto" (qui parle) ou "tous"
         trim: edits[id].trim || null,
         cuts: Array.isArray(edits[id].cuts) && edits[id].cuts.length ? edits[id].cuts : null,
         fxv: 2,  // effets enregistrés avec l'effet « voix » au catalogue
@@ -3165,7 +3210,7 @@ ${HFAudio.voiceElements(spec)}
       cuts: Array.isArray(d.cuts) ? d.cuts.filter(Number.isFinite) : undefined,
       fxv: d.fxv || undefined,
       gain: typeof d.gain === "number" ? d.gain : undefined,
-      focus: Number.isInteger(d.focus) ? d.focus : undefined,
+      focus: focusValue(d.focus) ?? undefined,
     };
   }
 
@@ -3524,13 +3569,15 @@ ${HFAudio.voiceElements(spec)}
     {
       $("hab-zoom").value = String([0, 0.5, 1, 1.6].reduce((b, v) => (Math.abs(v - HAB.autoZoom) < Math.abs(b - HAB.autoZoom) ? v : b), 1));
       $("hab-pop").checked = HAB.pop; $("hab-karaoke").checked = HAB.karaoke; $("hab-karaoke-color").value = HAB.karaokeColor;
+      $("hab-speaker").checked = !!HAB.speakerFocus; $("hab-speaker-row").hidden = !SPEAKERS.some((x) => x.person);
       const putHab = async () => {
-        Object.assign(HAB, { autoZoom: Number($("hab-zoom").value), pop: $("hab-pop").checked, karaoke: $("hab-karaoke").checked, karaokeColor: $("hab-karaoke-color").value });
+        Object.assign(HAB, { autoZoom: Number($("hab-zoom").value), pop: $("hab-pop").checked, karaoke: $("hab-karaoke").checked, karaokeColor: $("hab-karaoke-color").value, speakerFocus: $("hab-speaker").checked });
         refreshCaption();
         const r = await fetch("/api/habillage", { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify(HAB) }).catch(() => null);
         $("hab-status").textContent = r && r.ok ? "Enregistré : dans l'aperçu tout de suite, dans la vidéo à la prochaine génération." : "Le réglage n'a pas pu être enregistré.";
       };
       for (const id of ["hab-zoom", "hab-pop", "hab-karaoke", "hab-karaoke-color"]) $(id).addEventListener("change", putHab);
+      $("hab-speaker").addEventListener("change", () => { putHab(); renderInspector(); });  // cadrage des moments à jour
       $("hab-panel").hidden = false;
     }
     // Son de la voix : volume, nettoyage, bruits parasites (work/son.json, analyze_sound).

@@ -70,7 +70,7 @@ pub fn prepare_with_instructions() -> Vec<Step> {
 // durées réelles de la machine (work/timings.json), et l'opération en cours suit sa propre
 // vitesse dès qu'elle a avancé.
 pub const PLAN: [(&str, &[&str]); 8] = [
-    ("préparation du rush", &["Copie du rush en 1080p", "Extraction du son", "Transcription", "Position du visage"]),
+    ("préparation du rush", &["Copie du rush en 1080p", "Extraction du son", "Transcription", "Position du visage", "Locuteurs"]),
     ("rendu de la vidéo entière", &["Rendu de la vidéo"]),
     ("rendu 1080p", &["Rendu de la vidéo"]),
     ("page des moments", &["Découpage des moments"]),
@@ -89,11 +89,12 @@ pub fn plan_json() -> Value {
 }
 
 /// (clé, échelle, secondes par seconde d'échelle, entier dans la version Python).
-pub const RATES: [(&str, &str, f64, bool); 18] = [
+pub const RATES: [(&str, &str, f64, bool); 19] = [
     ("Copie du rush en 1080p", "rush", 0.3, false),
     ("Extraction du son", "rush", 0.01, false),
     ("Transcription", "rush", 0.3, false),
     ("Position du visage", "rush", 0.1, false),
+    ("Locuteurs", "rush", 0.03, false),
     // Plusieurs vidéos pour un rush : mises bout à bout (copie) ou réencodées (réglages différents).
     ("Assemblage des vidéos", "rush", 0.03, false),
     ("Assemblage des vidéos (réencodage)", "rush", 1.2, false),
@@ -865,7 +866,7 @@ fn kept_path() -> PathBuf {
 pub fn abandon_parts_def() -> Vec<(&'static str, &'static str, Vec<PathBuf>)> {
     vec![
         ("travail", "Copie du rush en 1080p", vec![rushes().join("rush_1080.mp4"), reprise().join("travail")]),
-        ("son", "Son et transcription", ["rush_16k.wav", "vad.txt", "seg", "segments.json"].iter().map(|n| work().join(n)).collect()),
+        ("son", "Son et transcription", ["rush_16k.wav", "vad.txt", "seg", "segments.json", "locuteurs.json"].iter().map(|n| work().join(n)).collect()),
         ("visage", "Position du visage", vec![reprise().join("visage.json")]),
         ("moments", "Extraits de la page des moments", ["clips", "thumbs"].iter().map(|n| moments().join(n)).collect()),
     ]
