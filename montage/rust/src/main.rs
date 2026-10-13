@@ -80,10 +80,19 @@ const COMMANDS: &[(&str, Cmd, &str)] = &[
     ("apply_instructions", claude_tasks::apply_instructions, "consignes de montage appliquées par Claude"),
     ("style_claude", claude_tasks::style_claude, "analyse du style par Claude"),
     ("ffmpeg_limite", ffmpeg_limite::main, "ffmpeg donné à HyperFrames"),
+    ("version", version, "numéro de version de ce programme"),
 ];
 
+/// Numéro de version compilé dans le programme (fichier VERSION du dépôt, build.rs).
+pub const VERSION: &str = env!("AM_VERSION");
+
+fn version(_: &[String]) -> i32 {
+    println!("{VERSION}");
+    0
+}
+
 fn usage() -> i32 {
-    eprintln!("Auto-montage {} : auto-montage <commande> [arguments…]\n", env!("CARGO_PKG_VERSION"));
+    eprintln!("Auto-montage {} : auto-montage <commande> [arguments…]\n", env!("AM_VERSION"));
     for (name, _, what) in COMMANDS {
         eprintln!("  {name:22} {what}");
     }

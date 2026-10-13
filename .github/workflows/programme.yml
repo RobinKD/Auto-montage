@@ -1,0 +1,79 @@
+# Programme Auto-montage (Rust, montage/rust/) compilé pour chaque système, avec ses tests :
+#   linux-x86_64, linux-aarch64, macos-arm64, macos-x86_64, windows-x86_64.exe
+# Lancé à chaque envoi sur la branche rust (ou à la main : Actions > Programme > Run workflow),
+# et par installateurs.yml pour une version publiée : les programmes y sont joints à la version
+# (fichiers auto-montage-<système>), où la mise à jour de l'interface va les chercher.
+# Chaque programme est aussi gardé 14 jours dans les « artifacts » de l'exécution
+# (programme-<système>).
+name: Programme
+
+on:
+  push:
+    branches: [rust]
+    paths:
+      - "montage/rust/**"
+      - "VERSION"
+      - ".github/workflows/programme.yml"
+  workflow_dispatch:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  compilation:
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { name: linux-x86_64, os: ubuntu-22.04, target: x86_64-unknown-linux-gnu }
+          - { name: linux-aarch64, os: ubuntu-22.04-arm, target: aarch64-unknown-linux-gnu }
+          - { name: macos-arm64, os: macos-latest, target: aarch64-apple-darwin }
+          # Mac Intel : compilé sur un Mac Apple Silicon (pas lancé ici).
+          - { name: macos-x86_64, os: macos-latest, target: x86_64-apple-darwin, cross: true }
+          - { name: windows-x86_64, os: windows-latest, target: x86_64-pc-windows-msvc, ext: .exe }
+    env:
+      # Windows : bibliothèque C de Microsoft incluse dans le programme (pas de « Visual C++
+      # Redistributable » à installer). macOS : programme accepté à partir de macOS 11.
+      RUSTFLAGS: ${{ contains(matrix.target, 'windows') && '-C target-feature=+crt-static' || '' }}
+      MACOSX_DEPLOYMENT_TARGET: "11.0"
+    defaults:
+      run:
+        shell: bash
+        working-directory: montage/rust
+    steps:
+      - uses: actions/checkout@v4
+      - name: Rust
+        run: |
+          rustup toolchain install stable --profile minimal
+          rustup default stable
+          rustup target add ${{ matrix.target }}
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            montage/rust/target
+          key: programme-${{ matrix.name }}-${{ hashFiles('montage/rust/Cargo.lock') }}
+      - name: Tests
+        if: ${{ !matrix.cross }}
+        run: cargo test --release --target ${{ matrix.target }}
+      - name: Programme
+        run: |
+          cargo build --release --target ${{ matrix.target }}
+          mkdir -p ../../dist
+          cp target/${{ matrix.target }}/release/auto-montage${{ matrix.ext }} ../../dist/auto-montage-${{ matrix.name }}${{ matrix.ext }}
+      - name: Vérification (le programme se lance et donne le numéro de VERSION)
+        if: ${{ !matrix.cross }}
+        run: |
+          V="$(../../dist/auto-montage-${{ matrix.name }}${{ matrix.ext }} version | tr -d '\r')"
+          echo "Version du programme : $V"
+          test "$V" = "$(tr -d '[:space:]' < ../../VERSION)"
+          ../../dist/auto-montage-${{ matrix.name }}${{ matrix.ext }} voix > /dev/null
+      - uses: actions/upload-artifact@v4
+        with:
+          name: programme-${{ matrix.name }}
+          path: dist/auto-montage-${{ matrix.name }}${{ matrix.ext }}
+          retention-days: 14

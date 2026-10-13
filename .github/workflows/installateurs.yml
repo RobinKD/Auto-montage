@@ -1,4 +1,6 @@
-# Installateurs Auto-montage : AppImage (Linux), .exe (Windows), .dmg (macOS).
+# Installateurs Auto-montage : AppImage (Linux), .exe (Windows), .dmg (macOS), et le programme
+# compilé pour chaque système (programme.yml : auto-montage-<système>), joint à la version pour
+# la mise à jour depuis l'interface.
 # Lancé automatiquement quand un tag v<numéro> est poussé (git tag v0.44 && git push origin
 # v0.44) : construit et vérifie les trois installateurs, puis publie la version avec eux. Le tag
 # doit porter le numéro du fichier VERSION de son commit. Notes : les sections de CHANGELOG.md
@@ -20,6 +22,10 @@ permissions:
   contents: read
 
 jobs:
+  programme:
+    name: Programme
+    uses: ./.github/workflows/programme.yml
+
   projet:
     name: Copie du projet
     runs-on: ubuntu-latest
@@ -213,7 +219,7 @@ jobs:
   publication:
     name: Publication
     if: needs.projet.outputs.publish == 'true'
-    needs: [projet, linux, windows, macos]
+    needs: [projet, programme, linux, windows, macos]
     runs-on: ubuntu-latest
     # Une publication à la fois (ex. deux tags poussés ensemble).
     permissions:
@@ -228,7 +234,7 @@ jobs:
       - uses: actions/download-artifact@v4
         with:
           path: dist
-          pattern: "{linux,windows,macos}"
+          pattern: "{linux,windows,macos,programme-*}"
           merge-multiple: true
       - name: Version GitHub
         env:
@@ -238,9 +244,9 @@ jobs:
           ls -la dist
           if gh release view "v$V" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
             # Publiée sans installateurs (packaging/publish-release.sh) : on les ajoute.
-            gh release upload "v$V" dist/*.AppImage dist/*.exe dist/*.dmg --repo "$GITHUB_REPOSITORY"
+            gh release upload "v$V" dist/*.AppImage dist/*.exe dist/*.dmg dist/auto-montage-* --repo "$GITHUB_REPOSITORY"
             exit 0
           fi
           packaging/notes-version.sh --installateurs "$V" > /dev/null
-          gh release create "v$V" dist/*.AppImage dist/*.exe dist/*.dmg --repo "$GITHUB_REPOSITORY" \
+          gh release create "v$V" dist/*.AppImage dist/*.exe dist/*.dmg dist/auto-montage-* --repo "$GITHUB_REPOSITORY" \
             --verify-tag --title "Auto-montage $V" --notes-file "dist/notes-v$V.md" --prerelease
