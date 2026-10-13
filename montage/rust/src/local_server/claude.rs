@@ -117,10 +117,10 @@ pub fn claude_account() -> String {
 
 // --- Mises à jour (page /updates/) ------------------------------------------------------
 // Vérifiées au démarrage puis toutes les 6 h (auto-montage update check) ; « Mettre à jour »
-// remplace les fichiers du programme (tâche « update »), puis le serveur s'arrête : le
-// conteneur redémarre tout seul (restart: unless-stopped) avec la nouvelle version.
+// remplace les fichiers du programme et le programme compilé pour ce système (tâche « update »),
+// puis le serveur se relance avec la nouvelle version (relance.rs).
 // « Réinitialiser » (tâche « reset ») retélécharge la version installée et remet les fichiers
-// du programme modifiés ou effacés, puis redémarre de la même façon.
+// du programme modifiés ou effacés, puis se relance de la même façon.
 pub static UPDATE: Mutex<(f64, Option<Value>)> = Mutex::new((0.0, None));
 
 pub fn update_check() -> Value {
@@ -248,7 +248,7 @@ pub fn login_start(console: bool) -> Value {
     if console {
         cmd.arg("--console");
     }
-    cmd.env("BROWSER", "true"); // pas de navigateur dans le conteneur
+    cmd.env("BROWSER", "true"); // pas de navigateur ouvert par Claude : l'adresse va à la page /claude/
     cmd.env("PATH", claude_path_env());
     if let Ok(cwd) = std::env::current_dir() {
         cmd.cwd(cwd);
@@ -345,7 +345,7 @@ pub fn logout() {
 // textes et outils utilisés s'ajoutent au message en cours, que la page relit chaque seconde.
 // Sans personne pour valider ses actions, Claude a des outils limités : lire et modifier les
 // fichiers du projet, et lancer les seules commandes de montage (pas de commande libre ni de web).
-// Pour le reste : lanceur « Claude Code » (terminal, chaque action validée).
+// Pour le reste : Claude Code lancé dans un terminal (chaque action validée).
 fn chat_dir() -> PathBuf {
     work().join("chat")
 }
@@ -390,14 +390,16 @@ static SESSION_ID: LazyLock<Regex> =
 
 pub fn chat_context() -> String {
     format!(
-        "Tu es dans l'interface locale d'Auto-montage (conteneur Docker ou Podman) ; l'utilisateur
-te parle depuis la page http://localhost:8080/chat/ et ne voit que tes textes et le nom des outils
+        "Tu es dans l'interface locale d'Auto-montage, installée sur l'ordinateur de l'utilisateur
+(sans conteneur : ne touche à rien hors du dossier d'Auto-montage) ; l'utilisateur te parle
+depuis la page http://localhost:8080/chat/ et ne voit que tes textes et le nom des outils
 utilisés. Tu peux lire le projet, modifier les fichiers de montage/work/ (suggestions.json,
 edit_choices.json, caption_style.json pour le style des sous-titres, local_db/…) et lancer seulement ces commandes, écrites exactement ainsi :
 {}
 (* : nom de la variante, par exemple travail).
-Tout autre outil ou commande est refusé : dans ce cas, dis à l'utilisateur d'ouvrir le lanceur
-« Claude Code » (terminal où il valide chaque action). Pas de page claude.ai à publier, pas
+Tout autre outil ou commande est refusé : dans ce cas, dis à l'utilisateur de lancer Claude Code
+lui-même dans un terminal, dans le dossier d'Auto-montage (il y valide chaque action).
+Pas de page claude.ai à publier, pas
 d'ArtifactData ni de routine : la page des moments (http://localhost:8080/) est servie depuis
 montage/work/moments/, les choix de la page sont dans montage/work/local_db/, et son bouton
 « Générer la vidéo entière » fait use_selection, build_edit, render apercu et

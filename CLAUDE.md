@@ -53,7 +53,7 @@ installateurs, puis publie la version avec eux et les notes de `packaging/notes-
 --installateurs`. Sans Actions, `packaging/publish-release.sh` publie la version sans
 installateurs (la page « Mises à jour » n'a besoin que du tag ; `--essai` montre les notes) ;
 un tag poussé ensuite y ajoute les installateurs. Les tests (`tests.yml`) se lancent quand une
-modification du projet arrive sur main, et chaque lundi . Les installateurs ne sont construits que
+modification du projet arrive sur main ou rust, et chaque lundi. Les installateurs ne sont construits que
 pour publier une version (tag `v*`). Rien ne se lance sur dev. Pas de nouveau numéro pour une retouche mineure ou
 interne : les changements attendent la prochaine version.
 
@@ -84,7 +84,14 @@ interne : les changements attendent la prochaine version.
   (page « Rushes et montages » /rush/, section « Montages »). Les tâches de l'interface locale
   s'annulent (`/api/job/cancel`, groupe de processus) ; les vidéos longues s'écrivent en
   `*.part.*` puis sont renommées, et une annulation efface ces fichiers provisoires.
-- En local (Docker, `docker/README.md`) : pas de page claude.ai à publier ; la page
+- En local (installateurs des versions publiées, ou `./am start` depuis un clone avec Rust ;
+  `rust/src/lanceur.rs`) : `auto-montage start [page] [--port N] [--sans-navigateur]` installe ce
+  qui manque (`setup` : Node 20 ou plus dans `node/` s'il n'y en a pas, paquets Node, ffmpeg dans
+  `bin/`, navigateur de rendu, whisper.cpp publié déjà compilé sinon compilé, modèles, police
+  Oliver, Claude Code dans `claude/` et son plugin HyperFrames), sert l'interface sur
+  127.0.0.1:8080 et ouvre le navigateur (déjà lancée : ouvre seulement la page) ;
+  `auto-montage stop` l'arrête. Programme directement sur la machine, sans conteneur. Pas de
+  page claude.ai à publier ; la page
   <http://localhost:8080/rush/> envoie le rush et les consignes, et lance la préparation par
   boutons ; avec des consignes et Claude connecté, elle lance `rust/src/claude_tasks.rs`
   (Claude sans interaction : `work/suggestions.json` et `work/edit_choices.json`). La page
@@ -216,7 +223,7 @@ interne : les changements attendent la prochaine version.
 - Rendu : `./am render apercu|final` lance `rust/src/render_hyperframes.rs`, qui écrit le
   montage (edit.json, face.json) en page HTML + GSAP dans `work/rendu_hyperframes/` et la rend
   avec `hyperframes render` (Chrome sans écran : `render_lib.headless_chrome` → `./am ensure_browser`, Chromium de
-  Playwright sur Linux ARM64 (Mac Apple Silicon), sinon `hyperframes browser ensure` ; ffprobe de `@ffprobe-installer`). Les effets sont dessinés image
+  Playwright sur Linux ARM64, sinon `hyperframes browser ensure` ; ffprobe de `@ffprobe-installer`). Les effets sont dessinés image
   par image dans cette page (fonction `draw`) ; la page des moments les imite en direct : un effet
   ajouté doit l'être aux deux. Rust (`rust/src/render_lib.rs`) : bruitages, police des
   sous-titres (Pillow), mots mis en valeur, coupure en 2 lignes. 4K : 4 navigateurs dépassent 14 Go
@@ -242,7 +249,7 @@ interne : les changements attendent la prochaine version.
   `make_hd`, la page des moments (`--ar`, `--u` = 10,8 px de la composition, classe `paysage`
   pour le lecteur large) et les téléchargements (`res_label`).
 - Mémoire : `rust/src/memoire.rs` (besoin de chaque opération d'après la taille de l'image et la durée,
-  `OPERATIONS` / `STEPS` ; mémoire libre bornée par la limite du conteneur) ; avertissement « juste » ou
+  `OPERATIONS` / `STEPS` ; mémoire libre bornée par la limite du cgroup s'il y en a une) ; avertissement « juste » ou
   « insuffisant » dans prepare, sur /rush/ avant de préparer (`/api/memoire`), au début de chaque
   étape (`check_memory`) et si la mémoire s'épuise (`watch_memory`), 4K comprise (`final_info`).
   Apprise sur la machine : `local_server.sample_memory` mesure le pic (PSS des programmes de l'étape,
@@ -274,7 +281,9 @@ interne : les changements attendent la prochaine version.
   l'utilisateur gardées (`KEEP`), fichiers retirés d'après `.auto-montage-files` ; reset, bouton
   « Réinitialiser Auto-montage » après confirmation : archive de la version installée, sinon la
   dernière publiée, fichiers du programme modifiés ou effacés remis, copie des remplacés dans
-  `work/sauvegardes/reinitialisation-<date>/`), puis le serveur s'arrête et le conteneur redémarre. Fichiers changés
+  `work/sauvegardes/reinitialisation-<date>/` ; les deux téléchargent aussi le programme compilé
+  pour ce système, joint à la version, sinon le recompilent si Rust est là), puis le serveur se
+  relance avec la nouvelle version (`rust/src/relance.rs`). Fichiers changés
   sur le disque sans mise à jour (git pull dans le dossier d'installation) : la page le dit et
   propose « Redémarrer » (`/api/restart`, `disk_version()`). Les installateurs
   ne recopient leur projet que s'il est plus récent (`version_gt`).
@@ -282,19 +291,17 @@ interne : les changements attendent la prochaine version.
   enregistrés, rushes de `public/rushes`, `rush_2160.webm`, vidéos de `work/rendu_hyperframes/assets`,
   `work/sauvegardes`, restes `.envoi-*` et `*.part.*` ; taille réellement libérée, liens physiques
   exclus), `/api/place` et `/api/place/delete` (refusé pendant une tâche). Au démarrage du serveur,
-  les restes sont effacés ; `project save` efface les vidéos du dernier rendu. Docker : `LABEL
-  auto-montage` (Dockerfile), ancienne image effacée par les lanceurs après `up --build` ; menu
-  « Nettoyer Docker » (`docker/clean.sh`, `docker/windows/clean.ps1` : images sans nom, cache de
-  construction, jamais les volumes).
+  les restes sont effacés ; `project save` efface les vidéos du dernier rendu.
 - Journal (/logs/) : chaque tâche écrit `work/logs/<date>_<tâche>.log` (40 gardés, fin
-  « # RÉSULTAT : … ») ; démarrage et serveur dans `work/logs/demarrage.log` (entrypoint) ;
+  « # RÉSULTAT : … ») ; démarrage (installation par `start`) et serveur dans `work/logs/demarrage.log` ;
   erreurs de la discussion dans `work/logs/discussion.log` ; `/api/logs/rapport` les regroupe.
   Points d'avancement avec disque libre et mémoire disponible (`progress.resources`) ; échec de
   ffmpeg (`progress.ffmpeg`) : code ou signal expliqué (`exit_reason`) et ses 40 dernières lignes ;
   au démarrage du serveur, un journal sans « # RÉSULTAT » est fermé en « interrompu »
   (`close_interrupted_logs`) ; journal impossible à écrire : signalé sur la page et dans demarrage.log.
-- Tests : `tests/e2e.sh` (rush de synthèse de `tests/make_sample_rush.sh`) dans le workflow
-  `tests.yml` (quand le projet change sur main, chaque lundi, ou à la main). L'interface
+- Tests : `tests/e2e.sh` (rush de synthèse de `tests/make_sample_rush.sh`, installation par
+  `auto-montage start`) dans le workflow `tests.yml`, sur Linux, macOS et Windows sans conteneur
+  (quand le projet change sur main ou rust, chaque lundi, ou à la main). L'interface
   <http://localhost:8080/> sert `work/moments/` telle quelle (relancer `make_moments`
   suffit), les choix sont dans `work/local_db/` (même forme que l'export ArtifactData :
   `./am use_selection work/local_db <variante>`) et son bouton « Générer »

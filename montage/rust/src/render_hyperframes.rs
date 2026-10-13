@@ -39,8 +39,8 @@ const PART_SECONDS: f64 = memoire::RENDER_PART; // durée d'une partie (secondes
 // Disque pris par le rendu (partie la plus longue raccourcie pour qu'il tienne, disk_part) :
 // - images des plans d'une partie, extraites par HyperFrames (JPEG qualité 95) avant de la rendre :
 //   0,06 à 0,16 octet par pixel mesurés (rush de synthèse, rush filmé), 0,2 par prudence ;
-// - mémoire partagée de chaque navigateur, écrite dans /tmp (Chrome, quand /dev/shm est petit comme
-//   sous Docker) : 2 Go mesurés pour 4 navigateurs en 1080p, environ 250 octets par pixel ;
+// - mémoire partagée de chaque navigateur, écrite dans /tmp (Chrome, quand /dev/shm est petit, comme
+//   dans un conteneur) : 2 Go mesurés pour 4 navigateurs en 1080p, environ 250 octets par pixel ;
 // - vidéos rendues : les parties (pendant le rendu), puis aussi le montage assemblé (à la fin, sans
 //   images extraites ni navigateurs), environ 1 Mo/s en 1080p chacun.
 const FRAME_BYTES: f64 = 0.2;

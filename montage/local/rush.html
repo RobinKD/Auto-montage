@@ -320,7 +320,6 @@
       <span class="facts" id="space-total"></span>
     </div>
     <p class="status" id="space-status" role="status"></p>
-    <p class="note">La place prise par Docker lui-même (anciennes versions d'Auto-montage) se libère avec « Nettoyer Docker », dans le menu de l'application Auto-montage.</p>
   </section>
 </main>
 
@@ -1140,7 +1139,7 @@
       ? `La préparation de ${t.arg} est en pause ${where}. Elle reprendra là où elle en était, même après avoir fermé Auto-montage ou redémarré l'ordinateur.`
       : t.state === "error"
         ? `La préparation de ${t.arg} s'est arrêtée sur une erreur ${where}${t.error ? ` : ${t.error}` : ""}. Une fois le problème réglé (mémoire, place sur le disque…), elle peut reprendre là où elle en était.`
-        : `La préparation de ${t.arg} a été coupée ${where} (Auto-montage, Docker ou l'ordinateur arrêté). Elle peut reprendre là où elle en était.`;
+        : `La préparation de ${t.arg} a été coupée ${where} (Auto-montage ou l'ordinateur arrêté). Elle peut reprendre là où elle en était.`;
     showSteps(t, false);
   }
   $("pause").addEventListener("click", async () => {

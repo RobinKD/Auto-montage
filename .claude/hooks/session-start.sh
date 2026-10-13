@@ -21,5 +21,5 @@ cargo build --release --quiet --manifest-path rust/Cargo.toml
 ./am check_network || echo "Certains domaines sont bloqués : voir env/allowed-domains.txt"
 
 # ffmpeg, paquets Node, navigateur de rendu, Whisper et ses modèles, police Oliver, modèles des
-# visages : étape commune avec le conteneur Docker.
+# visages : même étape que `auto-montage start` sur un ordinateur.
 ./am setup

@@ -3232,7 +3232,7 @@ ${HFAudio.voiceElements(spec)}
         rush: DATA.rush, variant: state.variant, name: state.names[state.variant] || state.variant,
         requestedAt: new Date().toISOString(),
       });
-      // Version locale (Docker, rust/src/local_server.rs) : le serveur monte lui-même la
+      // Version locale (interface sur l'ordinateur, rust/src/local_server.rs) : le serveur monte lui-même la
       // variante, puis la page se recharge.
       if (window.AUTO_MONTAGE_LOCAL) { await regenLocal(btn); return; }
       await mcp.callTool("Claude Code Remote", "update_trigger", {

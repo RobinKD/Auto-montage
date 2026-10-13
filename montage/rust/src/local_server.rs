@@ -1,4 +1,5 @@
-//! Interface web locale (Docker ou poste) : page des moments, vidéo entière et téléchargements.
+//! Interface web locale (sur l'ordinateur de l'utilisateur) : page des moments, vidéo entière
+//! et téléchargements.
 //!
 //! Usage : auto-montage local_server [--host 0.0.0.0] [--port 8080]
 //!   /              page des moments (work/moments/index.html, générée par make_moments)

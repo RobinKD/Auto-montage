@@ -43,7 +43,7 @@ Usage : auto-montage update check          dernière version publiée (JSON)
                                            du programme modifiés ou effacés comme publiés";
 
 fn project() -> PathBuf {
-    // dossier d'installation (/app dans le conteneur)
+    // dossier d'installation (celui qui contient montage/)
     let root = paths::root();
     let abs = std::path::absolute(root).unwrap_or_else(|_| root.to_path_buf());
     abs.parent().map(Path::to_path_buf).unwrap_or(abs)
@@ -345,7 +345,7 @@ enum Program {
     Ready(PathBuf),
     /// pas publié pour ce système : à recompiler une fois les sources installées
     Build,
-    /// rien à faire ici (conteneur : recompilé au redémarrage ; essai avec AM_UPDATE_ARCHIVE)
+    /// rien à faire ici (essai avec AM_UPDATE_ARCHIVE)
     Skip,
 }
 
@@ -405,10 +405,9 @@ fn fetch_program(tag: &str) -> Result<Option<PathBuf>, String> {
     staged.map(Some)
 }
 
-/// Rien à faire pour le programme : dans le conteneur (recompilé au redémarrage), ou essai avec
-/// une archive locale sans faux GitHub.
+/// Rien à faire pour le programme : essai avec une archive locale sans faux GitHub.
 fn skip_program() -> bool {
-    relance::in_container() || (std::env::var_os("AM_UPDATE_ARCHIVE").is_some() && std::env::var_os("AM_UPDATE_API").is_none())
+    std::env::var_os("AM_UPDATE_ARCHIVE").is_some() && std::env::var_os("AM_UPDATE_API").is_none()
 }
 
 fn prepare_program(tag: &str) -> Result<Program, String> {

@@ -18,9 +18,10 @@
 //! formule (qui suit la taille de l'image et la durée), multiplié par le plus grand rapport mesuré /
 //! prévu des 5 dernières mesures de l'opération, plus 10 % de marge (entre 0,5 et 3 fois la formule).
 //!
-//! Mémoire disponible : MemAvailable de /proc/meminfo, bornée par la limite du conteneur (cgroup)
-//! quand il y en a une ; hors Linux, celle que donne le système (sysinfo). Avertissement « juste »
-//! sous 1,25 fois le besoin, « insuffisant » en dessous.
+//! Mémoire disponible : MemAvailable de /proc/meminfo, bornée par la limite du groupe de
+//! processus (cgroup : conteneur, environnement cloud, session limitée) quand il y en a une ;
+//! hors Linux, celle que donne le système (sysinfo). Avertissement « juste » sous 1,25 fois le
+//! besoin, « insuffisant » en dessous.
 //!
 //! Usage : auto-montage memoire <rush> [<vidéo suivante>…]   bilan de la préparation (texte)
 //! La préparation l'appelle au début ; l'interface locale s'en sert avant de préparer et au début
@@ -361,11 +362,12 @@ pub fn meminfo() -> (Option<i64>, Option<i64>) {
     }
 }
 
-/// (mémoire disponible, mémoire totale) en octets : celle de la machine (ou de la machine
-/// virtuelle de Docker), bornée par la limite du conteneur. (None, None) si illisible.
+/// (mémoire disponible, mémoire totale) en octets : celle de la machine, bornée par la limite du
+/// cgroup s'il y en a une. (None, None) si illisible.
 pub fn available() -> (Option<i64>, Option<i64>) {
     let (Some(avail), Some(total)) = meminfo() else { return (None, None) };
-    // Limite du conteneur : cgroup v2, puis v1 (le cache de fichiers inactif se libère).
+    // Limite du cgroup (conteneur, environnement cloud) : v2, puis v1 (le cache de fichiers
+    // inactif se libère).
     for (limit_f, usage_f, stat_f, key) in [
         ("/sys/fs/cgroup/memory.max", "/sys/fs/cgroup/memory.current", "/sys/fs/cgroup/memory.stat", "inactive_file"),
         (
@@ -427,8 +429,8 @@ pub fn advice(level: &str, need: i64, avail: Option<i64>, what: &str) -> String 
     } else {
         format!("Mémoire juste pour {what} : il faut environ {}, il y a {} de libres.", go(need), go(avail))
     };
-    head + " L'étape risque d'être arrêtée en route. Fermez d'autres programmes, ou donnez plus de \
-            mémoire à Docker (Réglages > Resources > Memory), puis relancez ou reprenez la tâche."
+    head + " L'étape risque d'être arrêtée en route. Fermez d'autres programmes (navigateur, \
+            logiciels de montage…), puis relancez ou reprenez la tâche."
 }
 
 /// Bilan pour une tâche : besoin de chaque opération, pic, mémoire libre et avertissement.

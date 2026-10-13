@@ -104,7 +104,7 @@
       </li>
     </ol>
     <p id="msg" role="status"></p>
-    <p class="note">Auto-montage ne peut pas lire les cookies de votre navigateur (aucun site ne le peut, pour votre sécurité) : c'est pour cela que l'autorisation passe par cette page, ouverte dans votre navigateur. Autre possibilité : le lanceur « Claude Code » (terminal), ou une clé d'API (variable <code>ANTHROPIC_API_KEY</code> avant de lancer Auto-montage).</p>
+    <p class="note">Auto-montage ne peut pas lire les cookies de votre navigateur (aucun site ne le peut, pour votre sécurité) : c'est pour cela que l'autorisation passe par cette page, ouverte dans votre navigateur. Autre possibilité : Claude Code dans un terminal (commande <code>claude</code>, puis <code>/login</code>), ou une clé d'API (variable <code>ANTHROPIC_API_KEY</code> avant de lancer Auto-montage).</p>
     <p class="note"><a href="#" id="console">Utiliser plutôt un compte Anthropic Console (facturation à l'usage de l'API)</a></p>
   </section>
 </main>
@@ -117,7 +117,7 @@
   async function refresh() {
     const st = await fetch("/api/claude", { cache: "no-store" }).then((r) => r.json()).catch(() => null);
     if (!st) { $("state").textContent = "Le serveur Auto-montage ne répond pas."; return; }
-    if (!st.installed) { $("state").textContent = "Claude Code n'est pas installé dans ce conteneur."; return; }
+    if (!st.installed) { $("state").textContent = "Claude Code n'est pas installé : relancez Auto-montage pour l'installer."; return; }
     $("state").textContent = st.connected ? "Claude Code est connecté." : "Claude Code n'est pas connecté.";
     $("state").className = st.connected ? "ok" : "err";
     $("account").hidden = !st.account;

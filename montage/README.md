@@ -96,11 +96,16 @@ intact. `work/downloads/publish.json` donne les lots à publier (64 Mo max par p
 les morceaux de l'ancienne version à retirer. Une version plus ancienne que la version de
 travail (ex. une 4K d'un montage précédent) est signalée sur la page.
 
-## En local (Docker)
+## En local
 
-`docker/README.md` à la racine du dépôt : conteneur avec Claude Code et toutes les
-dépendances, raccourci de bureau, interface web sur <http://localhost:8080/> (page des
-moments et téléchargements, servis par `rust/src/local_server.rs`).
+Installateurs des versions publiées (voir le `README.md` à la racine), ou depuis un clone avec
+Rust : `./am start` (Windows : `am start`) installe ce qui manque (`./am setup` : Node 20 ou plus
+dans `node/` s'il n'y en a pas, paquets Node, ffmpeg dans `bin/`, navigateur de rendu, Whisper,
+modèles, police Oliver, Claude Code dans `claude/` et son plugin HyperFrames), puis lance
+l'interface web sur <http://localhost:8080/> (page des moments et téléchargements, servis par
+`rust/src/local_server.rs`) et ouvre le navigateur ; déjà lancée, il ouvre seulement la page.
+`./am stop` l'arrête. Ce qui s'affiche au démarrage va aussi dans `work/logs/demarrage.log`
+(`rust/src/lanceur.rs`). Le programme tourne directement sur la machine, sans conteneur.
 
 Deux modes, choisis dans le bandeau du haut de chaque page (`work/mode.txt`) : **Dérushage**
 (découpe du rush en moments seulement : pas d'effets, de cadrage, de réglages du son ni de
@@ -154,7 +159,7 @@ pour ne pas ralentir la transcription.
 
 Mémoire : au début, `rust/src/memoire.rs` estime d'après la vidéo (taille de l'image, durée) la
 mémoire de chaque étape (la transcription, environ 2,3 Go, et le rendu, plus de 1 Go par
-navigateur, sont les plus gourmandes) et la compare à la mémoire libre du conteneur : avertissement
+navigateur, sont les plus gourmandes) et la compare à la mémoire libre de la machine : avertissement
 si elle est juste ou insuffisante. Le rendu ouvre autant de navigateurs (un par cœur au plus) que 80 % de la mémoire libre le permet. Un montage de plus de 3 minutes est rendu par parties d'environ 2 minutes, mises bout à bout ensuite : la mémoire du rendu ne grandit plus avec la longueur du montage, et un rendu interrompu reprend après la dernière partie finie (`work/rendu_parties/`).
 L'interface locale le montre avant de préparer, au début de chaque étape, et quand la mémoire
 s'épuise pendant une étape (aussi pour la création 4K, qui demande le plus). Chaque préparation
@@ -208,8 +213,8 @@ elles sont à refaire pour chaque nouveau rush. Relancer `./am build_edit` aprè
 ## Notes techniques
 
 - Navigateur de rendu (`./am ensure_browser`) : le Chromium de l'environnement cloud
-  (`/opt/pw-browsers`) s'il existe ; sur Linux ARM64 (conteneur sur un Mac Apple Silicon, où
-  Google ne publie pas de Chrome sans écran), celui de Playwright dans `~/.cache/ms-playwright` ;
+  (`/opt/pw-browsers`) s'il existe ; sur Linux ARM64 (où Google ne publie pas de Chrome
+  sans écran), celui de Playwright dans `~/.cache/ms-playwright` ;
   ailleurs celui de HyperFrames (`hyperframes browser ensure`). Téléchargé une fois.
 - HyperFrames lit les vidéos avec ffmpeg (images extraites) : la version de travail reste en
   H.264, la source 4K en VP9.
