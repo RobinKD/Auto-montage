@@ -270,6 +270,8 @@ fn do_get(req: &Req) -> Reply {
         "/api/caption-style" => return send_json(&caption_style_info(), 200),
         "/api/style/analyse" => return send_json(&style_analysis(), 200),
         "/api/habillage" => return send_json(&Value::Object(habillage()), 200),
+        "/api/couleur" => return send_json(&Value::Object(crate::look::couleur()), 200),
+        "/api/transitions" => return send_json(&Value::Object(crate::look::transitions()), 200),
         "/api/son" => {
             let analyse = work().join("son_analyse.json");
             let a = if analyse.exists() { util::read_json(&analyse).unwrap_or(Value::Null) } else { Value::Null };
@@ -653,10 +655,16 @@ fn do_put(req: &Req, body: &mut dyn Read) -> Reply {
     if route == "/api/instructions" {
         return upload_instructions(req, body);
     }
-    if ["/api/caption-style", "/api/effects", "/api/son", "/api/habillage"].contains(&route) {
+    if ["/api/caption-style", "/api/effects", "/api/son", "/api/habillage", "/api/couleur", "/api/transitions"].contains(&route) {
         let Ok(Value::Object(b)) = read_json(req, body) else { return err_json("JSON invalide", 400) };
         util::mkdirs(work());
         return match route {
+            // couleurs et transitions de tout le montage (look.rs)
+            "/api/couleur" => send_json(&Value::Object(crate::look::save_couleur(&b)), 200),
+            "/api/transitions" => match crate::look::save_transitions(&b) {
+                Some(t) => send_json(&Value::Object(t), 200),
+                None => err_json("Transition inconnue", 400),
+            },
             "/api/habillage" => match save_habillage(&b) {
                 Some(h) => send_json(&Value::Object(h), 200),
                 None => err_json("Réglage invalide", 400),

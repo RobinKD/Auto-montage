@@ -579,7 +579,7 @@ pub const SOUNDS: [(&str, &str, Option<&str>, f64); 12] = [
 ];
 
 /// Effets visuels proposés sur chaque moment (page des moments, build_edit, rendu).
-pub const VISUALS: [(&str, &str); 9] = [
+pub const VISUALS: [(&str, &str); 10] = [
     ("typed", "Texte tapé"),
     ("chip", "Pastille"),
     ("zoomin", "Zoom avant"),
@@ -589,6 +589,7 @@ pub const VISUALS: [(&str, &str); 9] = [
     ("flash", "Flash blanc"),
     ("highlight", "Mot mis en valeur"),
     ("zoomlibre", "Zoom libre"),
+    ("filtre", "Effet d'image"), // noir et blanc, flou, mosaïque… (look.rs, selection/hf_look.js)
 ];
 
 /// Voix modifiées (effet « voix » d'un moment, champ « voice ») : identifiant, libellé, description.
@@ -637,8 +638,9 @@ pub fn copy2(src: &Path, dst: &Path) -> std::io::Result<()> {
 pub fn hf_preview_files(out_dir: &Path) {
     let root = paths::root();
     let nm = root.join("node_modules");
-    let files: [(&str, PathBuf); 4] = [
+    let files: [(&str, PathBuf); 5] = [
         ("hf_audio.js", root.join("selection").join("hf_audio.js")),
+        ("hf_look.js", root.join("selection").join("hf_look.js")), // couleurs, effets d'image, transitions
         ("hyperframes-player.global.js", nm.join("hyperframes").join("dist").join("hyperframes-player.global.js")),
         ("hyperframe.runtime.iife.js", nm.join("hyperframes").join("dist").join("hyperframe.runtime.iife.js")),
         ("gsap.min.js", nm.join("gsap").join("dist").join("gsap.min.js")),
@@ -749,13 +751,13 @@ pub fn batterie_warp(x: &[f64], force: f64) -> Vec<f64> {
 // fournis par défaut le sont tant que l'utilisateur ne les a pas cochés. « defauts » note la
 // dernière liste appliquée : un fichier plus ancien reçoit les effets écartés depuis, en plus
 // de ses propres choix (2 : sons par défaut ; 3 : voix modifiée, volume de la voix par moment
-// et effets visuels).
-pub const DEFAULTS_VERSION: i64 = 3;
+// et effets visuels ; 4 : effet d'image).
+pub const DEFAULTS_VERSION: i64 = 4;
 
 pub fn default_hidden() -> Vec<(i64, Vec<&'static str>)> {
     let mut v3 = vec!["voix", "gainvoix"];
-    v3.extend(VISUALS.iter().map(|v| v.0));
-    vec![(2, SOUNDS.iter().map(|s| s.0).collect()), (3, v3)]
+    v3.extend(VISUALS.iter().map(|v| v.0).filter(|v| *v != "filtre"));
+    vec![(2, SOUNDS.iter().map(|s| s.0).collect()), (3, v3), (4, vec!["filtre"])]
 }
 
 pub fn hidden_effects(path: &Path) -> Vec<String> {

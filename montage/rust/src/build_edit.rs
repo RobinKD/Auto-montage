@@ -25,7 +25,10 @@
 //!            "force" (%)}, {"kind": "flash", "at", "dur"}, {"kind": "highlight", "text": "mot",
 //!            "color": "#rrggbb"}, {"kind": "zoomlibre", "at", "dur", "from": {"s", "x", "y"},
 //!            "to": {"s", "x", "y"}} (zoom progressif d'un cadre à l'autre : grossissement s de 1 à 4,
-//!            centre x, y de l'image visible de 0 à 1))
+//!            centre x, y de l'image visible de 0 à 1), {"kind": "filtre", "effect": id de look::EFFECTS
+//!            (noirblanc, sepia, flou, mosaique, vhs…), "at", "dur", "force" (%)})
+//! Couleurs (work/couleur.json) et transitions entre moments (work/transitions.json, ou
+//! « transition » du document d'un moment) : look.rs.
 
 use crate::difflib::SequenceMatcher;
 use crate::fonts_lib;
@@ -651,6 +654,7 @@ fn run() -> Result<(), String> {
     let mut page_vfx: OMap<i64, Vec<Value>> = OMap::new();
     let mut page_gains: HashMap<i64, f64> = HashMap::new(); // volume de la voix par moment (page des moments)
     let mut page_focus: HashMap<i64, i64> = HashMap::new(); // cadrage sur une personne par moment (detect_face)
+    let mut page_transitions: HashMap<i64, Map<String, Value>> = HashMap::new(); // transition avant le moment (look.rs)
 
     let selection_path = work.join("selection.json");
     let selection: Option<Value> = if selection_path.exists() {
@@ -704,6 +708,13 @@ fn run() -> Result<(), String> {
             for (k, v) in g {
                 if let (Ok(k), Some(v)) = (k.trim().parse::<i64>(), pyint(Some(v))) {
                     page_focus.insert(k, v);
+                }
+            }
+        }
+        if let Some(Value::Object(g)) = selection.get("transitions") {
+            for (k, v) in g {
+                if let (Ok(k), Some(t)) = (k.trim().parse::<i64>(), crate::look::transition_of(v)) {
+                    page_transitions.insert(k, t);
                 }
             }
         }
@@ -814,6 +825,7 @@ fn run() -> Result<(), String> {
         voice_defaults = OMap::new();
         page_gains.clear();
         page_focus.clear();
+        page_transitions.clear();
         page_sfx = OMap::new();
         page_vfx = OMap::new();
         for k in &keep {
@@ -1262,6 +1274,7 @@ fn run() -> Result<(), String> {
     // en valeur. « force » en % (zoom : grossissement ; secousse : amplitude).
     let mut zoom_fx: Vec<(f64, Value)> = vec![];
     let (mut shakes, mut flashes, mut highlights): (Vec<Value>, Vec<Value>, Vec<Value>) = (vec![], vec![], vec![]);
+    let mut looks: Vec<Value> = vec![]; // effets d'image (« filtre », look.rs et selection/hf_look.js)
     for k in &keep {
         let seg_id = k.seg;
         let defaults = vfx_defaults(seg_id);
@@ -1317,6 +1330,18 @@ fn run() -> Result<(), String> {
                            "b": r3(a + pyfloat(fx.get("dur"), 1.0).max(0.05)),
                            "from": frame(fx.get("from")), "to": frame(fx.get("to"))}),
                 ));
+                continue;
+            }
+            if kind == "filtre" {
+                // effet d'image (noir et blanc, flou, mosaïque…) pendant « dur » secondes
+                let effect = fx.get("effect").and_then(Value::as_str).unwrap_or("");
+                if crate::look::EFFECTS.contains(&effect) {
+                    let at = pyfloat(fx.get("at"), 0.0);
+                    let start = page_time(seg_id, at);
+                    let dur = pyfloat(fx.get("dur"), 1.0).max(0.05);
+                    looks.push(json!({"start": r3(start), "end": r3(start + dur), "effect": effect,
+                                      "force": num(pyfloat(fx.get("force"), 50.0).clamp(0.0, 150.0))}));
+                }
                 continue;
             }
             if kind == "highlight" {
@@ -1552,6 +1577,36 @@ fn run() -> Result<(), String> {
         .filter_map(|c| page_focus.get(&c.seg).map(|p| json!({"start": r3(c.from as f64 / FPS), "end": r3(c.end()), "person": p})))
         .collect();
 
+    // --- Transitions entre moments (look.rs) ---------------------------------------------------
+    // À chaque coupe entre deux moments (pas entre les parties d'un même moment, ni entre deux
+    // plans qui se suivent dans le rush) : la transition du moment entrant, sinon le réglage
+    // général. Elle commence à la coupe : le plan entrant reste à sa place, le plan sortant est
+    // prolongé de « frames » images au rendu (dans le rush, tant qu'il en reste).
+    let general_transition = crate::look::transitions();
+    let rush_frames = (rush_duration(&work) * FPS).floor() as i64;
+    let mut transitions: Vec<Value> = vec![];
+    if !derush {
+        for i in 1..clips.len() {
+            let (a, b) = (&clips[i - 1], &clips[i]);
+            if a.seg == b.seg || b.trim_before == a.trim_before + a.dur {
+                continue;
+            }
+            let t = page_transitions.get(&b.seg).unwrap_or(&general_transition);
+            let kind = t.get("kind").and_then(Value::as_str).unwrap_or("");
+            let left = if rush_frames > 0 { rush_frames - (a.trim_before + a.dur) } else { i64::MAX };
+            let frames = ((pyfloat(t.get("dur"), crate::look::DUR_DEFAULT) * FPS).round() as i64).min(b.dur).min(left);
+            if !kind.is_empty() && frames >= 2 {
+                transitions.push(json!({"clip": i, "at": b.from, "frames": frames, "kind": kind}));
+            }
+        }
+    }
+    // Couleurs de tout le montage (work/couleur.json), sauf neutres ou en dérushage.
+    let couleur = util::read_obj(work.join("couleur.json"));
+    let couleur = if derush || crate::look::color_neutral(&couleur) { Value::Null } else { Value::Object(crate::look::color_settings(&couleur)) };
+    if derush {
+        looks.clear();
+    }
+
     // --- Habillage de tout le montage ------------------------------------------------------
     let h = util::read_obj(work.join("habillage.json"));
     let mut habillage = json!({
@@ -1615,6 +1670,10 @@ fn run() -> Result<(), String> {
     edit.insert("shakes".into(), Value::Array(shakes));
     edit.insert("flashes".into(), Value::Array(flashes));
     edit.insert("highlights".into(), Value::Array(highlights));
+    // Couleurs, effets d'image et transitions (look.rs ; dessinés par selection/hf_look.js).
+    edit.insert("couleur".into(), couleur);
+    edit.insert("looks".into(), Value::Array(looks));
+    edit.insert("transitions".into(), Value::Array(transitions));
     // Habillage de tout le montage (page des moments, work/habillage.json) : intensité des
     // zooms automatiques, sous-titres qui rebondissent, mot prononcé en couleur.
     edit.insert("habillage".into(), habillage);

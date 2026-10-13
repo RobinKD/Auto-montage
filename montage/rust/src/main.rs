@@ -18,6 +18,7 @@ mod ffmpeg_limite;
 mod fonts_lib;
 mod join_rushes;
 mod local_server;
+mod look;
 mod loudness;
 mod make_downloads;
 mod make_hd;

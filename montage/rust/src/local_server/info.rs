@@ -446,6 +446,8 @@ pub fn moments_page() -> std::io::Result<String> {
     data.insert("hiddenEffects".into(), json!(effects_hidden()));
     data.insert("sfxVolume".into(), util::num(effects_volume()));
     data.insert("habillage".into(), Value::Object(habillage()));
+    data.insert("couleur".into(), Value::Object(crate::look::couleur())); // look.rs
+    data.insert("transitions".into(), Value::Object(crate::look::transitions()));
     data.insert("captionStyle".into(), caption_style_for_page());
     // Adresses des vidéos et vignettes suivies de leur date de modification : le navigateur
     // ne peut pas resservir la version de travail ou un extrait d'un rush ou d'un rendu

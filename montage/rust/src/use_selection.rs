@@ -8,7 +8,8 @@
 //!                               "vfx"?: [{"kind": "typed" | "chip", "text", "at", "type", "dur", "sound"}, …],
 //!                               "trim"?: {"in", "out"} pour un plan sans parole (id >= 1000),
 //!                               "cuts"?: [instants de coupe en s], "fxv"?: 2,
-//!                               "focus"?: n (cadrage sur la personne n de detect_face)}
+//!                               "focus"?: n (cadrage sur la personne n de detect_face),
+//!                               "transition"?: {"kind", "dur"} (coupe avant ce moment, look.rs)}
 //! Les documents des moments sont aussi gardés tels quels (« page » : sélection et réglages),
 //! repris par build_edit dans edit.json, pour que la page montre ce qui a changé depuis.
 //!   Dans « keep », « id/k » désigne la partie k d'un moment découpé (« Couper ici »).
@@ -104,12 +105,12 @@ pub fn main(args: &[String]) -> i32 {
         return 1;
     };
 
-    let (mut corrections, mut sfx, mut vfx, mut trims, mut cuts, mut gains, mut focus) =
-        (Map::new(), Map::new(), Map::new(), Map::new(), Map::new(), Map::new(), Map::new());
+    let (mut corrections, mut sfx, mut vfx, mut trims, mut cuts, mut gains, mut focus, mut transitions) =
+        (Map::new(), Map::new(), Map::new(), Map::new(), Map::new(), Map::new(), Map::new(), Map::new());
     let mut sfx_legacy: Vec<Value> = vec![];
     // Réglages de la page tels qu'ils partent dans la version de travail : la page les compare
     // aux réglages du moment pour signaler « Modifié depuis la version de travail ».
-    const PAGE_FIELDS: [&str; 9] = ["text", "nosub", "sfx", "vfx", "trim", "cuts", "fxv", "gain", "focus"];
+    const PAGE_FIELDS: [&str; 10] = ["text", "nosub", "sfx", "vfx", "trim", "cuts", "fxv", "gain", "focus", "transition"];
     let mut page = Map::new();
     // Ordre du dossier, comme glob.glob (os.scandir).
     let entries: Vec<_> = fs::read_dir(export_dir.join("moments"))
@@ -182,6 +183,10 @@ pub fn main(args: &[String]) -> i32 {
                 focus.insert(seg.clone(), json!(i));
             }
         }
+        if let Some(t) = m.get("transition").and_then(crate::look::transition_of) {
+            // transition avant ce moment (look.rs), à la place du réglage général
+            transitions.insert(seg.clone(), Value::Object(t));
+        }
     }
 
     let n_keep = keep.as_array().map(|a| a.len()).unwrap_or(0);
@@ -190,7 +195,7 @@ pub fn main(args: &[String]) -> i32 {
     let out = json!({
         "name": name, "keep": keep, "corrections": corrections, "sfx": sfx, "vfx": vfx,
         "trims": trims, "cuts": cuts, "sfx_legacy": sfx_legacy, "gains": gains, "focus": focus,
-        "page": {"keep": keep, "moments": page},
+        "transitions": transitions, "page": {"keep": keep, "moments": page},
     });
     let text = pyjson::dumps_with(&out, pyjson::Opts { indent: Some(1), ensure_ascii: false, ..Default::default() });
     if let Err(e) = fs::write(work.join("selection.json"), text) {

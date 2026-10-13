@@ -20,6 +20,7 @@ use crate::util::{self, round_int, round_to};
 use regex::Regex;
 use serde_json::{json, Map, Value};
 use sha1::{Digest, Sha1};
+use std::collections::HashMap;
 use std::fs;
 use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
@@ -31,6 +32,9 @@ fn dir() -> PathBuf {
 }
 fn hf_audio() -> PathBuf {
     paths::root().join("selection").join("hf_audio.js")
+}
+fn hf_look() -> PathBuf {
+    paths::root().join("selection").join("hf_look.js")
 }
 fn parts_dir() -> PathBuf {
     paths::work().join("rendu_parties") // parties d'un long montage déjà rendues
@@ -185,18 +189,31 @@ fn build(m: &mut Montage, k: i64, part: Option<(i64, i64)>) -> Result<(), String
     // coupe), début arrondi à l'image inférieure, lecture un quart d'image après le début du plan
     // (l'image exacte du plan, sans glisser sur la précédente).
     // Partie : les plans qui y passent, coupés à ses bords.
+    // Transition vers le plan i+1 (look.rs) : le plan i continue dessous pendant « frames » images.
+    // Chaque plan dans son cadre (box : styles de la transition) et son zoom (zb : cadrage), sur
+    // deux pistes en alternance (deux plans à la fois pendant une transition).
+    let mut longer: HashMap<usize, f64> = HashMap::new();
+    for t in util::arr(&m.edit, "transitions") {
+        let i = t.get("clip").and_then(Value::as_u64).unwrap_or(0) as usize;
+        if i > 0 {
+            longer.insert(i - 1, num(t.get("frames")));
+        }
+    }
     let mut videos = vec![];
     for (i, c) in util::arr(&m.edit, "clips").iter().enumerate() {
         let from = num(c.get("from"));
-        let (a, b) = (from.max(f0 as f64), (from + num(c.get("durationInFrames"))).min(f1 as f64));
+        let end = from + num(c.get("durationInFrames")) + longer.get(&i).copied().unwrap_or(0.0);
+        let (a, b) = (from.max(f0 as f64), end.min(f1 as f64));
         if b > a {
             let start = ((a - f0 as f64) / fps * 1e6).trunc() / 1e6;
             videos.push(format!(
-                "<video id=\"clip{i}\" class=\"clip\" muted playsinline src=\"{src}\" data-start=\"{}\" \
-                 data-duration=\"{}\" data-media-start=\"{}\" data-track-index=\"0\"></video>",
+                "<div class=\"fill box\" id=\"box{i}\"><div class=\"fill zoom\" id=\"zb{i}\">\
+                 <video id=\"clip{i}\" class=\"clip\" muted playsinline src=\"{src}\" data-start=\"{}\" \
+                 data-duration=\"{}\" data-media-start=\"{}\" data-track-index=\"{}\"></video></div></div>",
                 pyjson::float_repr(start),
                 r6((b - a) / fps),
-                r6((num(c.get(key)) + a - from + 0.25) / fps)
+                r6((num(c.get(key)) + a - from + 0.25) / fps),
+                i % 2
             ));
         }
     }
@@ -296,6 +313,7 @@ fn build(m: &mut Montage, k: i64, part: Option<(i64, i64)>) -> Result<(), String
         "fps": fps_v, "frames": n, "clips": clips, "face": face,
         "focus": or_empty("focus"), "zooms": or_empty("zooms"), "zoomFx": or_empty("zoomFx"), "shakes": or_empty("shakes"),
         "flashes": or_empty("flashes"), "typed": Value::Array(m.typed.clone()), "chips": or_empty("chips"), "captions": caps,
+        "couleur": e.get("couleur").cloned().unwrap_or(Value::Null), "looks": or_empty("looks"), "transitions": or_empty("transitions"),
         "hab": Value::Object(m.hab.clone()), "cap": Value::Object(cap),
     });
     // Format du rush : sur une image basse (paysage, 4:3), sous-titres plus bas et texte tapé au centre.
@@ -327,6 +345,8 @@ fn build(m: &mut Montage, k: i64, part: Option<(i64, i64)>) -> Result<(), String
     fs::write(dir().join("index.html"), page).map_err(|e| format!("work/rendu_hyperframes/index.html : {e}"))?;
     fs::copy(node_modules().join("gsap").join("dist").join("gsap.min.js"), dir().join("assets").join("gsap.min.js"))
         .map_err(|e| format!("gsap.min.js (paquet npm gsap) : {e}"))?;
+    // Couleurs, effets d'image et transitions : le même code que l'aperçu de la page des moments.
+    fs::copy(hf_look(), dir().join("assets").join("hf_look.js")).map_err(|e| format!("selection/hf_look.js : {e}"))?;
     Ok(())
 }
 
@@ -474,12 +494,13 @@ fn parts_of(frames: i64, fps: f64, longest: Option<f64>) -> Vec<(i64, i64)> {
 /// Empreinte du montage et du code du rendu : une partie déjà rendue ne resert qu'au même.
 fn parts_key(m: &Montage, mode: &str, k: i64, preset: Option<&str>) -> String {
     let mut h = Sha1::new();
-    let sources: [Option<PathBuf>; 5] = [
+    let sources: [Option<PathBuf>; 6] = [
         Some(paths::data().join("edit.json")),
         Some(paths::data().join("face.json")),
         None, // code du rendu : ce fichier-ci
         Some(hf_audio()),
         Some(paths::work().join("son.json")),
+        Some(hf_look()),
     ];
     for p in sources {
         match p {
@@ -725,6 +746,7 @@ const PAGE: &str = r##"<!doctype html>
 <meta name="viewport" content="width=%OUTW%, height=%OUTH%" />
 <title>Montage</title>
 <script src="assets/gsap.min.js"></script>
+<script src="assets/hf_look.js"></script>
 <style>
 @font-face { font-family: "AM Poppins"; src: url("%POPPINS%"); font-weight: 900; }
 @font-face { font-family: "AM Sous-titres"; src: url("%CAPFONT%"); font-weight: %CAPWEIGHT%; }
@@ -742,14 +764,19 @@ html, body { margin: 0; background: black; }
 #caps { align-items: center; top: %CAPTOP%px; }
 #caps > div { display: flex; flex-direction: column; align-items: center; gap: 4px; }
 #flash { background: white; }
+#look { background: black; }
 </style>
 </head>
 <body>
 <div id="root" data-composition-id="main" data-start="0" data-duration="%DUR%" data-fps="%FPS%" data-width="%OUTW%" data-height="%OUTH%">
 <div id="frame">
-<div id="zoom" class="fill">
+<svg width="0" height="0" style="position:absolute"><defs id="amdefs"></defs></svg>
+<div id="look" class="fill">
 %VIDEOS%
 </div>
+<div id="trov" class="fill" style="opacity:0"></div>
+<div id="vign" class="fill"></div>
+<div id="fxov" class="fill"></div>
 %AUDIOS%
 <div id="typed" class="fill"></div>
 <div id="chips" class="fill"></div>
@@ -847,23 +874,31 @@ function draw(frame) {
     dx = 40 * sh.force * damp * (Math.sin(t * 71) + 0.5 * Math.sin(t * 37));
     dy = 40 * sh.force * damp * (Math.cos(t * 59) + 0.5 * Math.sin(t * 43));
   }
-  const z = el("zoom");
+  let zt, zo;
   if (kz) {  // même calcul que keyZoomAt de la page des moments
     const p = ease((sourceTime(frame) - kz.a) / Math.max(0.05, kz.b - kz.a)), A = kz.from, B = kz.to;
     const s = A.s + (B.s - A.s) * p, x = A.x + (B.x - A.x) * p, y = A.y + (B.y - A.y) * p;
-    z.style.transform = `translate(${dx}px, ${dy}px) scale(${s})`;
-    z.style.transformOrigin = `${centeredOrigin(x, s) * 100}% ${centeredOrigin(y, s) * 100}%`;
+    zt = `translate(${dx}px, ${dy}px) scale(${s})`;
+    zo = `${centeredOrigin(x, s) * 100}% ${centeredOrigin(y, s) * 100}%`;
   } else {
   const fo = D.focus.find((x) => inRange(t, x));
   const f = faceAt(sourceTime(frame), fo && fo.person);
   // Personne ne sort de l'image (zooms automatiques et placés) ; cadrage sur une personne :
   // zoom de base du plan rapproché, plafonné pour garder son visage entier.
   scale = Math.min(scale * (f.base || 1), f.s);
-  z.style.transform = `translate(${dx}px, ${dy}px) scale(${scale})`;
+  zt = `translate(${dx}px, ${dy}px) scale(${scale})`;
   const P = f.panel || [0, 0, 1, 1];
-  z.style.transformOrigin = f.center ? `${centeredOrigin(f.x, scale, P[0], P[2]) * 100}% ${centeredOrigin(f.y, scale, P[1], P[3]) * 100}%`
+  zo = f.center ? `${centeredOrigin(f.x, scale, P[0], P[2]) * 100}% ${centeredOrigin(f.y, scale, P[1], P[3]) * 100}%`
     : `${f.x * 100}% ${f.y * 100}%`;
   }
+  // Cadrage du plan en cours ; pendant une transition, le plan sortant garde le même.
+  const ci = D.clips.findIndex((c) => frame >= c.from && frame < c.from + c.durationInFrames);
+  const tr = D.transitions.find((x) => frame >= x.at && frame < x.at + x.frames);
+  for (const i of tr ? [tr.clip - 1, tr.clip] : [ci]) {
+    const zb = el(`zb${i}`);
+    if (zb) { zb.style.transform = zt; zb.style.transformOrigin = zo; }
+  }
+  look(frame, t, tr);
 
   // Texte tapé.
   const ty = D.typed.find((x) => inRange(t, x));
@@ -904,6 +939,33 @@ function draw(frame) {
   const fl = D.flashes.find((x) => inRange(t, x));
   const p = fl ? (t - fl.start) / Math.max(0.01, fl.end - fl.start) : 0;
   el("flash").style.opacity = fl ? 0.95 * (1 - p) * Math.min(1, p * 8 + 0.4) : 0;
+}
+
+// Couleurs de tout le montage, effet d'image du moment, transition entre deux moments
+// (selection/hf_look.js, les mêmes calculs que l'aperçu de la page des moments).
+const COLOR = HFLook.colorFilter(D.couleur || {});
+el("vign").style.background = COLOR.vignette || "";
+let styled = [];
+function look(frame, t, tr) {
+  for (const id of styled) { const b = el(id); if (b) HFLook.applyStyle(b, null); }
+  styled = [];
+  const ov = el("trov");
+  ov.style.opacity = 0;
+  if (tr) {
+    const S = HFLook.transitionStyles(tr.kind, (frame - tr.at + 1) / (tr.frames + 1), %W%, %H%);
+    for (const [i, st] of [[tr.clip - 1, S.out], [tr.clip, S.in]]) {
+      const b = el(`box${i}`);
+      if (b) { HFLook.applyStyle(b, st); styled.push(`box${i}`); }
+    }
+    if (S.over) { ov.style.background = S.over.background; ov.style.opacity = S.over.opacity; }
+  }
+  const lk = D.looks.find((x) => inRange(t, x));
+  const L = lk ? HFLook.effectLayers(lk.effect, lk.force, t - lk.start, lk.end - lk.start, %W%, frame) : { css: "", svg: "", over: "", flip: null };
+  put("amdefs", COLOR.svg + L.svg);
+  const lookEl = el("look");
+  lookEl.style.filter = [COLOR.css, L.css].filter(Boolean).join(" ");
+  lookEl.style.transform = L.flip ? `scale(${L.flip[0]}, ${L.flip[1]})` : "";
+  el("fxov").style.cssText = L.over || "";
 }
 
 // Le numéro d'image suit le temps de la timeline (propriété d'un objet animée par GSAP).

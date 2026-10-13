@@ -44,6 +44,10 @@
      par la page d'après DATA.width/height (--ar, --u-frame, --cap-top, --typed-top). Image plus
      large que haute : classe « paysage » (lecteur plus large). */
   .ov { position: absolute; inset: 0; pointer-events: none; overflow: hidden; --u: var(--u-frame, 1cqw); }
+  /* Couleurs, effets d'image et transitions (hf/hf_look.js, comme le rendu) : calques sous les
+     sous-titres ; pendant une transition, les deux plans sont dessinés dans des canevas. */
+  .ov-layer { position: absolute; inset: 0; }
+  .trc { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; display: block; background: #000; }
   .layout.paysage { grid-template-columns: minmax(0, 480px) minmax(0, 1fr); }
   .ov-cap {
     position: absolute; left: 0; right: 0; top: var(--cap-top, 56.25%); display: flex; flex-direction: column;
@@ -57,7 +61,7 @@
   }
   /* Plein écran : la vidéo garde ses proportions (celles du rush) au centre, l'habillage avec elle. */
   .screen:fullscreen { max-height: none; border-radius: 0; background: #000; display: grid; place-items: center; }
-  .screen:fullscreen video, .screen:fullscreen .ov {
+  .screen:fullscreen video, .screen:fullscreen .ov, .screen:fullscreen .trc {
     position: absolute; inset: 0; margin: auto; width: min(100vw, calc(100vh * var(--arn, 0.5625))); height: min(100vh, calc(100vw / var(--arn, 0.5625)));
   }
   .screen:fullscreen .ov { container-type: inline-size; }
@@ -453,7 +457,13 @@
       <a id="downloads-page" hidden target="_blank" rel="noopener" style="font-size: 13px; color: var(--accent); align-self: flex-end;">Toutes les qualités (1080p, 4K)</a>
       <div class="screen-box"><div class="screen">
         <video id="player" playsinline preload="metadata"></video>
+        <canvas class="trc" id="tr-out" hidden aria-hidden="true"></canvas>
+        <canvas class="trc" id="tr-in" hidden aria-hidden="true"></canvas>
+        <svg width="0" height="0" style="position: absolute;" aria-hidden="true"><defs id="amdefs"></defs></svg>
         <div class="ov" id="ov" hidden>
+          <div class="ov-layer" id="ov-tr" hidden></div>
+          <div class="ov-layer" id="ov-vign" hidden></div>
+          <div class="ov-layer" id="ov-fx" hidden></div>
           <div class="ov-chip" id="ov-chip" hidden></div>
           <div class="ov-intro" id="ov-intro" hidden></div>
           <div class="ov-cap" id="ov-cap"></div>
@@ -543,6 +553,27 @@
         </div>
         <p class="sub" id="hab-status" role="status" style="margin: 6px 0 0;"></p>
       </details>
+      <details class="cap-style col" id="col-panel" hidden data-mode-montage>
+        <summary>Couleurs</summary>
+        <p class="sub" style="margin: 6px 0 0;">Retouche de tout le montage (balance des blancs, lumière, saturation) et looks prêts à l'emploi. Visible tout de suite dans l'aperçu des moments, dans la vidéo à la prochaine génération.</p>
+        <div class="son-clean">
+          <label>Look <select id="col-look"></select></label>
+          <div class="col-sliders" id="col-sliders"></div>
+        </div>
+        <div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 8px;">
+          <button type="button" id="col-reset">Couleurs d'origine</button>
+          <span class="sub" id="col-status" role="status" style="margin: 0;"></span>
+        </div>
+      </details>
+      <details class="cap-style" id="tr-panel" hidden data-mode-montage>
+        <summary>Transitions entre les moments</summary>
+        <p class="sub" style="margin: 6px 0 0;">À chaque passage d'un moment au suivant (pas aux coupes à l'intérieur d'un moment). Chaque moment peut avoir la sienne, dans son inspecteur. Aperçu dans l'onglet « Vidéo entière » (l'image du moment précédent y est figée ; elle continue de bouger dans la vidéo générée).</p>
+        <div class="son-clean">
+          <label>Transition <select id="tr-kind"></select></label>
+          <label>Durée <span id="tr-dur-val"></span><input type="range" id="tr-dur" min="0.2" max="1.5" step="0.1"></label>
+        </div>
+        <p class="sub" id="tr-status" role="status" style="margin: 6px 0 0;"></p>
+      </details>
       <details class="cap-style son" id="son-panel" hidden data-mode-montage>
         <summary>Son de la voix</summary>
         <p class="sub" style="margin: 6px 0 0;">Réglages de tout le montage (chaque moment a aussi son curseur « Voix »). Appliqués à la prochaine « Générer la vidéo entière ».</p>
@@ -612,6 +643,7 @@
 <button type="button" class="to-top" id="to-top" hidden title="Revenir en haut de la page" aria-label="Revenir en haut de la page">↑</button>
 
 <script src="hf/hf_audio.js"></script>
+<script src="hf/hf_look.js"></script>
 <script src="hf/hyperframes-player.global.js"></script>
 <script>
   const DATA = /*__DATA__*/null;
@@ -827,7 +859,18 @@
     { id: "typed", label: "Texte tapé" }, { id: "chip", label: "Pastille" }, { id: "zoomin", label: "Zoom avant" },
     { id: "zoomsec", label: "Zoom sec" }, { id: "dezoom", label: "Dézoom" }, { id: "shake", label: "Secousse" },
     { id: "flash", label: "Flash blanc" }, { id: "highlight", label: "Mot mis en valeur" }, { id: "zoomlibre", label: "Zoom libre" },
+    { id: "filtre", label: "Effet d'image" },
   ];
+  // Couleurs, effets d'image et transitions (hf/hf_look.js, le même code que le rendu ; sans lui,
+  // l'aperçu reste sans couleurs ni transitions).
+  const LOOK = window.HFLook || null;
+  const COLOR = { ...((LOOK && LOOK.COLOR_DEFAULTS) || {}), ...(DATA.couleur || {}) };
+  const TRANS = { kind: "", dur: 0.5, ...(DATA.transitions || {}) };
+  let colorF = LOOK ? LOOK.colorFilter(COLOR) : { svg: "", css: "", vignette: "" };
+  const effectLabel = (id) => ((LOOK && LOOK.EFFECTS.find((x) => x.id === id)) || { label: id }).label;
+  const transitionLabel = (id) => (id ? ((LOOK && LOOK.TRANSITIONS.find((x) => x.id === id)) || { label: id }).label : "Coupe franche");
+  // Transition avant le moment m : la sienne (document du moment), sinon le réglage général.
+  const transitionOf = (m, e = edits[m.id]) => (e && e.transition && typeof e.transition === "object" ? e.transition : TRANS);
   const HAB = { autoZoom: 1, pop: false, karaoke: false, karaokeColor: "#ffd84d", ...(DATA.habillage || {}) };
   const normWord = (w) => w.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "");
   const firstKeptId = () => (moments.find((m) => isKept(m)) || {}).id;
@@ -906,6 +949,7 @@
     if (kind === "dezoom") return { kind, at: t0, dur: 0.8, force: 30 };
     if (kind === "shake") return { kind, at: t0, dur: 0.4, force: 50 };
     if (kind === "flash") return { kind, at: t0, dur: 0.25 };
+    if (kind === "filtre") return { kind, effect: "noirblanc", at: t0, dur: Math.round(Math.min(2, Math.max(0.5, clipLen(m) - t0)) * 100) / 100, force: 100 };
     if (kind === "zoomlibre") {  // de l'image entière à un cadre serré sur le visage, depuis la tête de lecture
       const at = Math.round(Math.min(Math.max(0, momentTime(m)), Math.max(0, momentLen(m) - 0.5)) * 100) / 100;
       const fc = faceInClip(m, at + 1);
@@ -954,11 +998,12 @@
       out.vfx = vfxOf(m, e, first);
       out.gain = e && typeof e.gain === "number" ? e.gain : 1;
       out.focus = e && Number.isInteger(e.focus) ? e.focus : null;
+      out.transition = e && e.transition && typeof e.transition === "object" ? e.transition : null;
     }
     return out;
   }
   const CHANGE_LABELS = { keep: "parties gardées", cuts: "découpe", trim: "début et fin", text: "sous-titres",
-    sfx: "effets sonores", vfx: "effets visuels", gain: "volume de la voix", focus: "cadrage" };
+    sfx: "effets sonores", vfx: "effets visuels", gain: "volume de la voix", focus: "cadrage", transition: "transition" };
   // null : rien à signaler (réglages pas encore chargés, ou moment absent des deux) ;
   // { kind: "same" | "added" | "removed" | "changed", what: [réglages changés] }.
   function workChange(m) {
@@ -1065,7 +1110,7 @@
   function buildOverlay(m) {
     const words = wordsOf(m);
     if (DERUSH) return { m, caps: derushSubs() ? captionGroups(words) : [], events: [], typed: [], chips: [], voice: [], zoomType: 0,
-                         zooms: [], shakes: [], flashes: [], hl: [] };
+                         zooms: [], shakes: [], flashes: [], hl: [], looks: [] };
     const events = [], voice = [];
     for (const f of sfxOf(m)) {
       if (f.kind === "voix") { voice.push({ a: Number(f.at) || 0, b: (Number(f.at) || 0) + (Number(f.dur) || 1), force: voiceForce(f), voice: voiceOf(f) }); continue; }
@@ -1092,7 +1137,7 @@
       }
     }
     // Zooms, secousses, flashs, mots mis en valeur (mêmes règles que build_edit).
-    const zooms = [], shakes = [], flashes = [], hl = [];
+    const zooms = [], shakes = [], flashes = [], hl = [], looks = [];
     for (const f of vfxOf(m)) {
       const a = Number(f.at) || 0, d = Math.max(0.05, Number(f.dur) || 0.8), force = (Number(f.force) || 0) / 100;
       if (f.kind === "zoomin") zooms.push({ type: "in", a, b: Infinity, anim: d, force });
@@ -1100,11 +1145,12 @@
       else if (f.kind === "dezoom") zooms.push({ type: "out", a, b: a + d, anim: d, force });
       else if (f.kind === "shake") shakes.push({ a, b: a + d, force });
       else if (f.kind === "flash") flashes.push({ a, b: a + d });
+      else if (f.kind === "filtre" && LOOK && LOOK.hasEffect(f.effect)) looks.push({ a, b: a + d, effect: f.effect, force: Number(f.force ?? 50) });
       else if (f.kind === "highlight" && String(f.text || "").trim()) hl.push({ words: String(f.text).split(/\s+/).map(normWord).filter(Boolean), color: f.color || "#ffd84d" });
     }
     const key = vfxOf(m).find((f) => f.kind === "zoomlibre") || null;  // zoom libre : tout le moment
     return { m, caps: captionGroups(words), events: events.map((e) => ({ ...e, done: false })), typed, chips, voice, zoomType: m.id % 2,
-             zooms, shakes, flashes, hl, key };
+             zooms, shakes, flashes, hl, key, looks };
   }
 
   // Voix modifiées (moments_lib.VOICES) : identifiant, libellé, description.
@@ -1391,17 +1437,15 @@ ${HFAudio.voiceElements(spec)}
     // des visages ; sinon cadrage suivi dans le temps (make_moments, faceTrack), comme le rendu :
     // zoom centré sur les visages retenus et plafonné pour qu'aucun ne sorte de l'image.
     const K = framer.m && framer.m.id === fx.m.id ? framer.k : fx.key ? keyZoomAt(fx.key, t) : null;
-    if (K) {
-      player.style.transformOrigin = `${centeredOrigin(K.x, K.s) * 100}% ${centeredOrigin(K.y, K.s) * 100}%`;
-      player.style.transform = `translate(${sx}%, ${sy}%) scale(${K.s})`;
-    } else {
+    if (K) zoomNow = { s: K.s, ox: centeredOrigin(K.x, K.s), oy: centeredOrigin(K.y, K.s), tx: sx, ty: sy };
+    else {
     const fc = faceInClip(fx.m, t);
     scale = Math.min(scale * (fc.base || 1), fc.s);
     const P = fc.panel || [0, 0, 1, 1];
-    player.style.transformOrigin = fc.center ? `${centeredOrigin(fc.x, scale, P[0], P[2]) * 100}% ${centeredOrigin(fc.y, scale, P[1], P[3]) * 100}%`
-      : `${fc.x * 100}% ${fc.y * 100}%`;
-    player.style.transform = `translate(${sx}%, ${sy}%) scale(${scale})`;
+    zoomNow = fc.center ? { s: scale, ox: centeredOrigin(fc.x, scale, P[0], P[2]), oy: centeredOrigin(fc.y, scale, P[1], P[3]), tx: sx, ty: sy }
+      : { s: scale, ox: fc.x, oy: fc.y, tx: sx, ty: sy };
     }
+    drawLook(t);
     }
     const fl = fx.flashes.find((x) => t >= x.a && t < x.b);
     const flEl = $("ov-flash");
@@ -1457,9 +1501,78 @@ ${HFAudio.voiceElements(spec)}
     cancelAnimationFrame(ovFrame);
     ovFrame = requestAnimationFrame(drawOverlay);
   }
+  // Image du lecteur : zoom (zoomNow), couleurs de tout le montage, effet d'image du moment
+  // (comme draw et look du rendu, render_hyperframes) ; pendant une transition de la vidéo
+  // entière en direct, les deux plans sont dessinés dans les canevas tr-out (dernière image du
+  // moment précédent) et tr-in (le lecteur), avec les styles de HFLook.transitionStyles.
+  let zoomNow = { s: 1, ox: 0.5, oy: 0.5, tx: 0, ty: 0 }, liveTr = null;
+  const zoomCss = (z, flip) => (flip ? `translate(${(flip[0] < 0 ? 1 - 2 * z.ox : 0) * 100}%, ${(flip[1] < 0 ? 1 - 2 * z.oy : 0) * 100}%) scale(${flip[0]}, ${flip[1]}) ` : "")
+    + `translate(${z.tx}%, ${z.ty}%) scale(${z.s})`;
+  function drawZoomed(cv, z) {  // image du lecteur avec le zoom z, comme la transformation CSS
+    const vw = player.videoWidth, vh = player.videoHeight;
+    if (!vw || !vh) return;
+    const h = Math.min(vh, 960), w = Math.round((vw * h) / vh);
+    if (cv.width !== w || cv.height !== h) { cv.width = w; cv.height = h; }
+    const c = cv.getContext("2d");
+    c.setTransform(1, 0, 0, 1, 0, 0);
+    c.fillStyle = "#000"; c.fillRect(0, 0, w, h);
+    c.setTransform(z.s, 0, 0, z.s, z.ox * w * (1 - z.s) + (z.tx / 100) * w, z.oy * h * (1 - z.s) + (z.ty / 100) * h);
+    try { c.drawImage(player, 0, 0, w, h); } catch (e) { /* image pas encore prête */ }
+  }
+  let defsKey = "";
+  function drawLook(t) {
+    const L = LOOK && fx && !DERUSH ? (() => { const lk = fx.looks.find((x) => t >= x.a && t < x.b);
+      return lk ? LOOK.effectLayers(lk.effect, lk.force, t - lk.a, lk.b - lk.a, player.clientWidth || FRAME_W, Math.round(t * 30)) : null; })() : null;
+    const svg = (DERUSH ? "" : colorF.svg) + (L ? L.svg : "");
+    if (svg !== defsKey) { defsKey = svg; $("amdefs").innerHTML = svg; }
+    const filter = DERUSH ? "" : [colorF.css, L ? L.css : ""].filter(Boolean).join(" ");
+    const flip = L && L.flip;
+    const vg = $("ov-vign"), fo = $("ov-fx");
+    vg.hidden = DERUSH || !colorF.vignette; vg.style.background = colorF.vignette || "";
+    fo.hidden = !(L && L.over); fo.style.cssText = L && L.over ? L.over : "";
+    // Transition de la vidéo entière en direct : avancement d'après le temps du moment entrant.
+    const tr = liveTr && mode === "live" && fx && fx.m.id === liveTr.id ? liveTr : null;
+    if (liveTr && !tr) endLiveTr();
+    const p = tr ? (live.pending !== null ? 0 : (t - tr.a) / tr.dur) : 1;
+    if (tr && (p >= 1 || p < 0)) endLiveTr();
+    if (tr && p >= 0 && p < 1) {
+      const out = $("tr-out"), inn = $("tr-in"), S = LOOK.transitionStyles(tr.kind, p, out.clientWidth || FRAME_W, out.clientHeight || FRAME_H);
+      if (live.pending === null) drawZoomed(inn, zoomNow);
+      out.hidden = false; inn.hidden = live.pending !== null;
+      player.style.opacity = "0";
+      for (const [cv, st] of [[out, S.out], [inn, S.in]]) {
+        LOOK.applyStyle(cv, st);
+        cv.style.filter = [filter, st.filter || ""].filter(Boolean).join(" ");
+        if (flip) cv.style.transform = `scale(${flip[0]}, ${flip[1]}) ${st.transform || ""}`;
+      }
+      const ov = $("ov-tr");
+      ov.hidden = !S.over;
+      if (S.over) { ov.style.background = S.over.background; ov.style.opacity = String(S.over.opacity); }
+    }
+    player.style.filter = filter;
+    player.style.transformOrigin = `${zoomNow.ox * 100}% ${zoomNow.oy * 100}%`;
+    player.style.transform = zoomCss(zoomNow, flip);
+  }
+  function startLiveTr(next) {  // appelé juste avant de passer au moment suivant (liveFollow)
+    endLiveTr();
+    if (!LOOK || DERUSH || !fx) return;
+    const t = transitionOf(next.m);
+    if (!t.kind || !LOOK.hasTransition(t.kind)) return;
+    drawZoomed($("tr-out"), zoomNow);
+    liveTr = { id: next.m.id, a: next.a, kind: t.kind, dur: Math.max(0.2, Number(t.dur) || 0.5) };
+  }
+  function endLiveTr() {
+    liveTr = null;
+    for (const id of ["tr-out", "tr-in"]) { const cv = $(id); cv.hidden = true; if (LOOK) LOOK.applyStyle(cv, null); }
+    $("ov-tr").hidden = true;
+    player.style.opacity = "";
+  }
   function resetOverlay() {
     setVoice(null);
+    endLiveTr();
     player.style.transform = "";
+    player.style.filter = "";
+    $("ov-vign").hidden = true; $("ov-fx").hidden = true;
     $("ov").hidden = true;
     $("ov-cap").replaceChildren(); $("ov-cap").dataset.key = "";
   }
@@ -1564,6 +1677,7 @@ ${HFAudio.voiceElements(spec)}
     if (t < e.b - 1 / 60 && !player.ended) return false;
     const next = plan.list[k + 1];
     if (!next) return stop();
+    if (next.m.id !== e.m.id) startLiveTr(next);
     liveGo(next, next.a, true);
     return next.m.id !== e.m.id;
   }
@@ -2878,6 +2992,29 @@ ${HFAudio.voiceElements(spec)}
         tags.append(sets);
       }
     }
+    if (!DERUSH && LOOK) {
+      // Transition avant ce moment : celle de tout le montage, aucune, ou une au choix.
+      const row = document.createElement("div");
+      row.className = "tags trans-row";
+      row.style.width = "100%";
+      const own = edits[m.id] && edits[m.id].transition;
+      const sel = Object.assign(document.createElement("select"), { id: `tr-${m.id}-kind` });
+      sel.setAttribute("aria-label", "Transition avant ce moment");
+      sel.append(new Option(`Celle de tout le montage (${transitionLabel(TRANS.kind)})`, "*", false, !own));
+      sel.append(new Option("Coupe franche", "", false, !!own && !own.kind));
+      for (const x of LOOK.TRANSITIONS) sel.append(new Option(x.label, x.id, false, !!own && own.kind === x.id));
+      const dur = Object.assign(document.createElement("input"), { type: "number", id: `tr-${m.id}-dur`, min: "0.2", max: "1.5", step: "0.1",
+        value: String((own && own.dur) || TRANS.dur || 0.5), title: "Durée de la transition (s)" });
+      dur.disabled = !own || !own.kind;
+      const save = () => saveMoment(m.id, { transition: sel.value === "*" ? null
+        : { kind: sel.value, dur: Math.min(1.5, Math.max(0.2, Number(dur.value) || 0.5)) } });
+      sel.addEventListener("change", save);
+      dur.addEventListener("change", save);
+      const lab = document.createElement("label");
+      lab.append("durée (s) ", dur);
+      row.append(Object.assign(document.createElement("span"), { className: "sfx-title", textContent: "Transition avant ce moment :" }), sel, lab);
+      tags.append(row);
+    }
     if (!DERUSH) {
       const vtitle = document.createElement("span");
       vtitle.className = "sfx-title";
@@ -2947,6 +3084,22 @@ ${HFAudio.voiceElements(spec)}
               commit: (a, b) => update({ at: a, dur: Math.round((b - a) * 100) / 100 }) }));
             if (f.kind !== "flash") row.append(num("force %", "force", "5", "5", f.kind === "shake" ? "Amplitude de la secousse" : "Grossissement (25 % = image agrandie d'un quart)", "150"));
             row.append(here);
+            sets.append(row);
+            return;
+          }
+          // Effet d'image (hf/hf_look.js) : lequel, quand, à quelle force.
+          if (f.kind === "filtre") {
+            const at0 = Number(f.at) || 0;
+            row.append(...fxBar(m, { start: at0, end: at0 + (Number(f.dur) || 1), label: `Effet d'image : ${effectLabel(f.effect)}`,
+              commit: (a, b) => update({ at: a, dur: Math.round((b - a) * 100) / 100 }) }));
+            const sel = Object.assign(document.createElement("select"), { id: `vfx-${m.id}-filtre-effect` });
+            sel.setAttribute("aria-label", "Effet d'image");
+            for (const x of (LOOK ? LOOK.EFFECTS : [])) sel.append(new Option(x.label, x.id, false, x.id === f.effect));
+            sel.addEventListener("change", () => {
+              const def = LOOK.EFFECTS.find((x) => x.id === sel.value);
+              update({ effect: sel.value, force: def ? def.force : 50 });
+            });
+            row.append(sel, num("force %", "force", "5", "0", "Intensité de l'effet (100 % = réglage d'origine)", "150"), here);
             sets.append(row);
             return;
           }
@@ -3162,7 +3315,7 @@ ${HFAudio.voiceElements(spec)}
   const historySave = () => { try { sessionStorage.setItem(historyKey, JSON.stringify({ past: hist.past, future: hist.future })); } catch (e) {} };
   const sig = (it) => it.kind === "moment" ? `m${it.id}:${it.keys}` : it.kind === "global" ? `g${it.url}:${Object.keys(it.next || {}).sort()}` : it.kind;
   const FIELD = { sfx: "effets sonores", vfx: "effets visuels", text: "texte", nosub: "sous-titres", gain: "volume de la voix",
-                  focus: "cadrage", trim: "début et fin", cuts: "coupes" };
+                  focus: "cadrage", trim: "début et fin", cuts: "coupes", transition: "transition" };
   const GLOBAL = { "/api/habillage": "zooms et animations", "/api/son": "son de la voix", "/api/caption-style": "style des sous-titres",
                    "/api/effects": "effets proposés", "/api/couleur": "couleurs", "/api/transitions": "transitions" };
   function describe(items) {
@@ -3310,6 +3463,7 @@ ${HFAudio.voiceElements(spec)}
         vfx: Array.isArray(e.vfx) ? e.vfx : null,
         gain: typeof e.gain === "number" && e.gain !== 1 ? e.gain : null,
         focus: Number.isInteger(e.focus) ? e.focus : null,  // cadrage sur une personne
+        transition: e.transition && typeof e.transition === "object" ? e.transition : null,  // avant ce moment (look.rs)
         trim: e.trim || null,
         cuts: Array.isArray(e.cuts) && e.cuts.length ? e.cuts : null,
         fxv: 2,  // effets enregistrés avec l'effet « voix » au catalogue
@@ -3334,6 +3488,7 @@ ${HFAudio.voiceElements(spec)}
       fxv: d.fxv || undefined,
       gain: typeof d.gain === "number" ? d.gain : undefined,
       focus: Number.isInteger(d.focus) ? d.focus : undefined,
+      transition: d.transition && typeof d.transition === "object" ? d.transition : undefined,
     };
   }
 
@@ -3715,6 +3870,81 @@ ${HFAudio.voiceElements(spec)}
       };
       for (const id of ["hab-zoom", "hab-pop", "hab-karaoke", "hab-karaoke-color"]) $(id).addEventListener("change", putHab);
       $("hab-panel").hidden = false;
+    }
+    // Couleurs de tout le montage (work/couleur.json, look.rs) : aperçu immédiat (hf/hf_look.js).
+    if (LOOK) {
+      const SLIDERS = [
+        ["temperature", "Température", -100, 100, 1], ["teinte", "Teinte (vert ↔ magenta)", -100, 100, 1],
+        ["exposition", "Exposition (IL)", -3, 3, 0.05], ["contraste", "Contraste", -100, 100, 1],
+        ["hautes", "Hautes lumières", -100, 100, 1], ["ombres", "Ombres", -100, 100, 1],
+        ["blancs", "Blancs", -100, 100, 1], ["noirs", "Noirs", -100, 100, 1],
+        ["saturation", "Saturation (%)", 0, 200, 1], ["vibrance", "Vibrance", -100, 100, 1],
+        ["intensite", "Intensité du look (%)", 0, 100, 5], ["vignette", "Vignettage", 0, 100, 1],
+      ];
+      const look = $("col-look");
+      look.append(new Option("Aucun", ""));
+      for (const l of LOOK.LOOKS) look.append(new Option(l.label, l.id));
+      const box = $("col-sliders");
+      for (const [k, label, min, max, step] of SLIDERS) {
+        const l = document.createElement("label");
+        const v = Object.assign(document.createElement("span"), { id: `col-${k}-val` });
+        const r = Object.assign(document.createElement("input"), { type: "range", id: `col-${k}`, min, max, step });
+        l.append(`${label} `, v, r);
+        box.append(l);
+      }
+      const show = () => {
+        look.value = COLOR.look || "";
+        for (const [k] of SLIDERS) {
+          $(`col-${k}`).value = String(COLOR[k]);
+          $(`col-${k}-val`).textContent = k === "exposition" ? (COLOR[k] > 0 ? "+" : "") + Number(COLOR[k]).toFixed(2) : String(Math.round(COLOR[k]));
+        }
+        $("col-intensite").disabled = !COLOR.look;
+        colorF = LOOK.colorFilter(COLOR);
+        defsKey = null;  // filtre SVG refait à la prochaine image
+        if (fx && player.paused) drawLook(player.currentTime);
+      };
+      let prevCol = clone(COLOR);
+      const putCol = async () => {
+        const r = await fetch("/api/couleur", { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify(COLOR) }).catch(() => null);
+        if (r && r.ok) { Object.assign(COLOR, await r.json()); rememberGlobal("/api/couleur", prevCol, COLOR); prevCol = clone(COLOR); }
+        $("col-status").textContent = r && r.ok ? "Enregistré : dans l'aperçu tout de suite, dans la vidéo à la prochaine génération." : "Le réglage n'a pas pu être enregistré.";
+        show();
+      };
+      look.addEventListener("change", () => { COLOR.look = look.value; show(); putCol(); });
+      for (const [k] of SLIDERS) {
+        $(`col-${k}`).addEventListener("input", () => { COLOR[k] = Number($(`col-${k}`).value); show(); });
+        $(`col-${k}`).addEventListener("change", putCol);
+      }
+      $("col-reset").addEventListener("click", () => { Object.assign(COLOR, LOOK.COLOR_DEFAULTS); show(); putCol(); });
+      globalReload["/api/couleur"] = async () => { Object.assign(COLOR, await fetch("/api/couleur").then((r) => r.json())); prevCol = clone(COLOR); show(); };
+      show();
+      $("col-panel").hidden = false;
+      // Transition entre les moments (work/transitions.json) ; chaque moment peut avoir la sienne.
+      const kind = $("tr-kind");
+      kind.append(new Option("Aucune (coupe franche)", ""));
+      for (const x of LOOK.TRANSITIONS) kind.append(new Option(x.label, x.id));
+      const showTr = () => {
+        kind.value = TRANS.kind || "";
+        $("tr-dur").value = String(TRANS.dur);
+        $("tr-dur-val").textContent = `${Number(TRANS.dur).toFixed(1).replace(".", ",")} s`;
+        $("tr-dur").disabled = !TRANS.kind;
+      };
+      const putTr = async () => {
+        const prev = clone(TRANS);
+        TRANS.kind = kind.value; TRANS.dur = Number($("tr-dur").value);
+        showTr();
+        const r = await fetch("/api/transitions", { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify(TRANS) }).catch(() => null);
+        if (r && r.ok) { Object.assign(TRANS, await r.json()); rememberGlobal("/api/transitions", prev, TRANS); }
+        $("tr-status").textContent = r && r.ok ? "Enregistré : visible dans « Vidéo entière », dans la vidéo à la prochaine génération." : "Le réglage n'a pas pu être enregistré.";
+        showTr();
+        render();  // libellé « celle de tout le montage » des moments
+      };
+      kind.addEventListener("change", putTr);
+      $("tr-dur").addEventListener("input", () => { $("tr-dur-val").textContent = `${Number($("tr-dur").value).toFixed(1).replace(".", ",")} s`; });
+      $("tr-dur").addEventListener("change", putTr);
+      globalReload["/api/transitions"] = async () => { Object.assign(TRANS, await fetch("/api/transitions").then((r) => r.json())); showTr(); render(); };
+      showTr();
+      $("tr-panel").hidden = false;
     }
     // Son de la voix : volume, nettoyage, bruits parasites (work/son.json, analyze_sound).
     {
