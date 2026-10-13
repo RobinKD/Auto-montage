@@ -95,7 +95,8 @@ jobs:
           done
           tail -50 "$RUNNER_TEMP/serveur.log"; exit 1
       - name: Rush, préparation, génération (tests/e2e.sh)
-        run: tests/e2e.sh http://localhost:8080 "$RUNNER_TEMP/rush/essai.mov"
+        # ffmpeg installé par setup dans montage/bin/ (le test en fabrique une 2e vidéo)
+        run: PATH="$PWD/montage/bin:$PATH" tests/e2e.sh http://localhost:8080 "$RUNNER_TEMP/rush/essai.mov"
       - name: Arrêt (auto-montage stop)
         run: |
           montage/bin/auto-montage stop

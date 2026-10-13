@@ -337,7 +337,7 @@ fn limiter_exe() -> Result<PathBuf, String> {
     util::mkdirs(&bin);
     let dst = bin.join(if cfg!(windows) { "ffmpeg_limite.exe" } else { "ffmpeg_limite" });
     let exe = paths::self_exe();
-    let exe = exe.canonicalize().unwrap_or(exe);
+    let exe = paths::canon(&exe).unwrap_or(exe);
     util::link_or_copy(&exe, &dst).map_err(|e| format!("ffmpeg_limite ({}) : {e}", dst.display()))?;
     Ok(dst)
 }

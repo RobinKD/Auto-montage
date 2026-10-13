@@ -114,7 +114,7 @@ pub fn realpath(p: &Path) -> PathBuf {
             Component::CurDir => {}
             Component::Normal(c) => {
                 out.push(c);
-                if let Ok(r) = fs::canonicalize(&out) {
+                if let Ok(r) = crate::paths::canon(&out) {
                     out = r;
                 }
             }

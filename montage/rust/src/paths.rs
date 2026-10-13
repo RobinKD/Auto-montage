@@ -9,6 +9,28 @@ use std::env;
 use std::path::{Path, PathBuf};
 use std::sync::LazyLock;
 
+/// Chemin absolu réel (liens résolus), comme `fs::canonicalize`, mais sans le préfixe `\\?\`
+/// que Windows y ajoute : ffmpeg (listes concat), Node et git refusent ces chemins.
+pub fn canon(p: &Path) -> std::io::Result<PathBuf> {
+    let c = std::fs::canonicalize(p)?;
+    Ok(strip_verbatim(c))
+}
+
+/// Retire le préfixe `\\?\` (ou `\\?\UNC\`) d'un chemin Windows.
+pub fn strip_verbatim(p: PathBuf) -> PathBuf {
+    if !cfg!(windows) {
+        return p;
+    }
+    let s = p.to_string_lossy();
+    if let Some(rest) = s.strip_prefix(r"\\?\UNC\") {
+        return PathBuf::from(format!(r"\\{rest}"));
+    }
+    match s.strip_prefix(r"\\?\") {
+        Some(rest) if rest.len() >= 2 && rest.as_bytes()[1] == b':' => PathBuf::from(rest),
+        _ => p,
+    }
+}
+
 fn is_root(p: &Path) -> bool {
     p.join("selection").join("page.html").is_file()
 }
@@ -19,7 +41,7 @@ pub static ROOT: LazyLock<PathBuf> = LazyLock::new(|| {
     }
     let mut starts = vec![];
     if let Ok(exe) = env::current_exe() {
-        starts.push(exe.canonicalize().unwrap_or(exe));
+        starts.push(canon(&exe).unwrap_or(exe));
     }
     if let Ok(cwd) = env::current_dir() {
         starts.push(cwd.clone());

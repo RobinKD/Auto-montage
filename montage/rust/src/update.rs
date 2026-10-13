@@ -517,10 +517,10 @@ fn apply(tag: &str) -> i32 {
     }
     let mut removed = 0;
     let new: BTreeSet<&String> = files.iter().collect();
-    let base = project().canonicalize().unwrap_or_else(|_| project());
+    let base = paths::canon(&project()).unwrap_or_else(|_| project());
     for rel in old.iter().filter(|r| !new.contains(r)) {
         // retirés dans la nouvelle version
-        let Ok(path) = on_disk(&project(), rel).canonicalize() else { continue };
+        let Ok(path) = paths::canon(&on_disk(&project(), rel)) else { continue };
         if !path.starts_with(&base) || path == base {
             continue; // liste modifiée : rien hors de l'installation
         }

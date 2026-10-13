@@ -158,8 +158,8 @@ pub fn build() -> Result<PathBuf, String> {
 /// Lancé depuis les sources compilées ici (rust/target), pas depuis bin/ ?
 fn running_from_build() -> bool {
     let me = paths::self_exe();
-    let target = fs::canonicalize(target_dir()).unwrap_or_else(|_| target_dir());
-    fs::canonicalize(&me).unwrap_or(me).starts_with(target)
+    let target = paths::canon(&target_dir()).unwrap_or_else(|_| target_dir());
+    paths::canon(&me).unwrap_or(me).starts_with(target)
 }
 
 /// Relance le serveur avec le programme à jour, mêmes arguments : après une mise à jour, une
