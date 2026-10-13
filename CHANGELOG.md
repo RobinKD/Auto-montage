@@ -4,6 +4,16 @@ Chaque version publiée reprend sa section dans ses notes (onglet Releases). Une
 section, le numéro dans `VERSION` et le tag `v<numéro>` poussé publient la version avec ses
 installateurs (voir `packaging/README.md`).
 
+## 0.70
+
+- **La 4K d'une longue vidéo ne s'arrête plus en route** (« Échec du rendu HyperFrames (code 1) ») :
+  en 4K, le navigateur du rendu garde en mémoire chaque image de la vidéo qu'il a affichée (environ
+  4 Mo par image), et au bout de 45 s de vidéo environ, une machine de 8 Go était pleine et le rendu
+  se bloquait. La 4K est maintenant rendue par parties plus courtes (30 s sur une machine de 8 Go,
+  plus longues s'il y a plus de mémoire), chacune avec un navigateur neuf, puis assemblées.
+- Avec plusieurs navigateurs en 4K, les images ne sont plus écrites sur le disque avant d'être
+  encodées (18 Go pour une partie de 2 min 30) : elles vont directement dans la vidéo.
+
 ## 0.69
 
 - **Mode développeur** : caché par défaut ; comme sur Android, toucher 7 fois de suite le numéro

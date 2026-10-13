@@ -43,6 +43,13 @@ BROWSER_BYTES = 300
 OUT_BYTES = 0.5  # par pixel et par seconde de montage
 DISK_SHARE = 0.8  # part du disque libre que le rendu peut prendre
 MIN_PART = 20  # secondes de montage : partie la plus courte, sinon disque trop plein pour rendre
+# 4K : chaque navigateur garde en mémoire les images des plans qu'il a affichées, environ 4 Mo par
+# image 4K (0,5 octet par pixel de l'image rendue, mesuré en 16:9 ; 30 fois moins par pixel en
+# 1080p), jusqu'à la fin de la partie. Une partie de 1 min 30 dépassait 7,7 Go et le rendu
+# s'arrêtait (« capture stalled », code 1) : la partie est raccourcie pour que cette mémoire tienne
+# à côté du reste du rendu (memory_part), sans descendre sous MIN_MEM_PART.
+CAPTURE_BYTES = 0.5
+MIN_MEM_PART = 30
 # Extractions d'images des plans en même temps (scripts/ffmpeg_limite.sh) : environ 200 Mo chacune
 # en 1080p (4 fois plus en 4K : 2 au plus).
 EXTRACTIONS = max(1, min(4, os.cpu_count() or 1))
@@ -168,6 +175,11 @@ def tools(hd=False):
     # bout d'une heure, toutes parties comprises (un montage de 22 min : plus de 13 Go, disque
     # plein). Sans cache, celles d'une partie vont dans son dossier de travail, effacé à sa fin.
     env["HYPERFRAMES_EXTRACT_CACHE_DIR"] = "off"
+    # Images capturées envoyées à l'encodeur au fil du rendu, même à plusieurs navigateurs en
+    # capture par copie d'écran (4K par « --resolution » : image agrandie dans le navigateur, sans
+    # BeginFrame). Sinon HyperFrames écrit chaque image sur le disque avant d'encoder : environ
+    # 4 Mo par image 4K, 18 Go pour une partie de 2 min 30, et le rendu s'arrête (code 1).
+    env["HF_CAPTURE_PARALLEL_STREAM"] = "true"
     if os.name == "posix":
         env.update(AM_FFMPEG_REAL=env["HYPERFRAMES_FFMPEG_PATH"], AM_FFMPEG_SLOTS=str(EXTRACTIONS_HD if hd else EXTRACTIONS),
                    AM_FFMPEG_LOCKS=os.path.join(DIR, "verrous"), FFMPEG_PROCESS_TIMEOUT_MS=str(6 * 3600 * 1000),
@@ -212,6 +224,18 @@ def disk_part(fps, pixels, free, workers, total):
     de l'image rendue et de la source) ; None si le disque ne limite pas (1,5 fois PART_SECONDS)."""
     room = DISK_SHARE * free - workers * BROWSER_BYTES * pixels - total * OUT_BYTES * pixels
     longest = room / (fps * pixels * FRAME_BYTES)
+    return None if longest >= 1.5 * PART_SECONDS else longest
+
+
+def memory_part(fps, pixels, hd, info, workers):
+    """Durée de partie la plus longue (secondes de montage) dont les images gardées par les
+    navigateurs tiennent dans la mémoire libre, à côté du reste du rendu ; None si la mémoire ne
+    limite pas (1080p, ou mémoire libre inconnue)."""
+    avail = memoire.available()[0]
+    if not hd or avail is None:
+        return None
+    base = memoire.need("Rendu 4K", {**info, "montage": 0, "workers": workers})
+    longest = max(MIN_MEM_PART, (memoire.RENDER_SHARE * avail - base) / (fps * pixels * CAPTURE_BYTES))
     return None if longest >= 1.5 * PART_SECONDS else longest
 
 
@@ -296,6 +320,10 @@ def main():
         sys.exit(f"Pas assez de place sur le disque pour le rendu : {memoire.go(free)} libres, il en faut "
                  f"au moins {memoire.go(need)}. De la place peut être libérée en bas de la page "
                  "« Rushes et montages » (« Libérer de la place »).")
+    why = f" (place sur le disque : {memoire.go(free)} libres)" if longest else ""
+    by_memory = memory_part(m.fps, pixels, hd, info, workers)
+    if by_memory is not None and (longest is None or by_memory < longest):
+        longest, why = by_memory, " (mémoire des navigateurs en 4K)"
     parts = parts_of(m.frames, m.fps, longest)
     if len(parts) > 1 and 2 * total * OUT_BYTES * pixels > DISK_SHARE * free:
         print(f"Attention : disque presque plein ({memoire.go(free)} libres), l'assemblage des parties "
@@ -311,8 +339,7 @@ def main():
         if not name.startswith(key):
             remove(os.path.join(PARTS, name))
     if len(parts) > 1:
-        print(f"Rendu en {len(parts)} parties d'environ {round(total / len(parts))} s"
-              + (f" (place sur le disque : {memoire.go(free)} libres)" if longest else ""), flush=True)
+        print(f"Rendu en {len(parts)} parties d'environ {round(total / len(parts))} s{why}", flush=True)
     env = tools(hd)
     report("Rendu de la vidéo", 0, total)
     done_paths = []
