@@ -9,13 +9,28 @@
 # Prérequis : xorriso, Pillow, et l'outil dmg
 #   (git clone https://github.com/fanquake/libdmg-hfsplus && cmake -B build && cmake --build build),
 #   passé par DMG_TOOL=<chemin> s'il n'est pas dans le PATH.
-# Usage : packaging/macos/build-dmg-linux.sh <dossier du projet (make-payload.sh)> <dossier de sortie>
+# Programme : celui du projet (montage/bin/auto-montage), sinon ceux donnés après le dossier de
+# sortie : un seul (universel, ou d'une seule sorte de Mac : auto-montage-macos-arm64 pour Apple
+# Silicon), ou plusieurs réunis en un programme universel par llvm-lipo (ou lipo) s'il est
+# installé. Pas de signature ici : les programmes compilés sur un Mac (programme.yml) sont déjà
+# signés « ad hoc » par l'éditeur de liens, ce qui suffit sur Apple Silicon, et lipo garde
+# la signature de chaque partie.
+# Usage : packaging/macos/build-dmg-linux.sh <dossier du projet (make-payload.sh)> <dossier de sortie> [programme macOS…]
 set -euo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
 ROOT="$(cd "$HERE/../.." && pwd)"
 PAYLOAD="$(cd "$1" && pwd)"
 OUT="$(mkdir -p "$2" && cd "$2" && pwd)"
 VERSION="$(cat "$PAYLOAD/VERSION")"
+shift 2
+PROGRAMMES=("$@")
+LIPO="$(command -v llvm-lipo || command -v lipo || true)"
+if [ ${#PROGRAMMES[@]} -eq 0 ] && [ ! -x "$PAYLOAD/montage/bin/auto-montage" ]; then
+  echo "Programme absent : $PAYLOAD/montage/bin/auto-montage, ou chemin(s) après le dossier de sortie." >&2; exit 1
+fi
+if [ ${#PROGRAMMES[@]} -gt 1 ] && [ -z "$LIPO" ]; then
+  echo "Plusieurs programmes sans llvm-lipo pour les réunir : n'en donner qu'un (ex. auto-montage-macos-arm64)." >&2; exit 1
+fi
 DMG_TOOL="${DMG_TOOL:-$(command -v dmg || true)}"
 [ -x "$DMG_TOOL" ] || { echo "Outil dmg (libdmg-hfsplus) introuvable : DMG_TOOL=<chemin>." >&2; exit 1; }
 ISO_TOOL="$(command -v xorrisofs || true)"
@@ -39,6 +54,16 @@ EOF
 chmod 755 "$APP/Contents/MacOS/Auto-montage"
 cp "$HERE/first-run.sh" "$APP/Contents/Resources/first-run.sh"
 cp -R "$PAYLOAD" "$APP/Contents/Resources/payload"
+BIN="$APP/Contents/Resources/payload/montage/bin/auto-montage"
+if [ ${#PROGRAMMES[@]} -gt 0 ]; then
+  mkdir -p "$(dirname "$BIN")"
+  rm -f "$BIN"
+  if [ ${#PROGRAMMES[@]} -eq 1 ]; then cp "${PROGRAMMES[0]}" "$BIN"
+  else "$LIPO" -create "${PROGRAMMES[@]}" -output "$BIN"
+  fi
+fi
+chmod 755 "$BIN"
+[ -n "$LIPO" ] && echo "Programme : $("$LIPO" -archs "$BIN")"
 
 cat > "$APP/Contents/Info.plist" <<EOF
 <?xml version="1.0" encoding="UTF-8"?>

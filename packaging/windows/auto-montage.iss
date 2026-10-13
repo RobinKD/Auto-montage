@@ -1,8 +1,11 @@
 ﻿; Installateur Windows d'Auto-montage (Inno Setup 6).
 ; Construit par .github/workflows/installateurs.yml :
 ;   ISCC /DAppVersion=0.1 /DPayload=<projet> /DOutDir=<sortie> packaging\windows\auto-montage.iss
+; Le projet (Payload, make-payload.sh) contient le programme Windows : montage\bin\auto-montage.exe.
 ; Installation pour l'utilisateur seul (pas de droits administrateur) dans Documents\Auto-montage :
 ; les rushes, rendus et sélections y restent après une mise à jour ou une désinstallation.
+; Les raccourcis lancent le programme (auto-montage.exe start : installe le reste au premier
+; lancement, sert l'interface et l'ouvre dans le navigateur, tant que sa fenêtre est ouverte).
 
 #ifndef AppVersion
   #define AppVersion "0.0"
@@ -44,16 +47,19 @@ Source: "{#Payload}\*"; DestDir: "{app}"; Flags: recursesubdirs createallsubdirs
 [Dirs]
 Name: "{app}\montage\public\rushes"; Flags: uninsneveruninstall
 
+[InstallDelete]
+; Raccourcis des anciennes versions (lancement par Docker).
+Type: files; Name: "{group}\Terminal du conteneur.lnk"
+Type: files; Name: "{group}\Nettoyer Docker.lnk"
+
 [Icons]
-Name: "{group}\Auto-montage"; Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -File ""{app}\docker\windows\open.ps1"""; WorkingDir: "{app}"; IconFilename: "{app}\icons\icon.ico"; Comment: "Version de travail, moments, corrections et effets"
-Name: "{group}\Téléchargements"; Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -File ""{app}\docker\windows\open.ps1"" downloads/"; WorkingDir: "{app}"; IconFilename: "{app}\icons\icon.ico"; Comment: "Versions 720p, 1080p et 4K"
-Name: "{group}\Dossier des rushes"; Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File ""{app}\docker\windows\rushes.ps1"""; WorkingDir: "{app}"; IconFilename: "{app}\icons\icon.ico"; Comment: "Dossier où déposer les rushes"
-Name: "{group}\Claude Code"; Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -File ""{app}\docker\windows\claude.ps1"""; WorkingDir: "{app}"; IconFilename: "{app}\icons\icon.ico"; Comment: "Claude Code dans le conteneur"
-Name: "{group}\Terminal du conteneur"; Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -File ""{app}\docker\windows\shell.ps1"""; WorkingDir: "{app}"; IconFilename: "{app}\icons\icon.ico"; Comment: "Terminal dans le conteneur (dossier montage)"
-Name: "{group}\Nettoyer Docker"; Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -File ""{app}\docker\windows\clean.ps1"""; WorkingDir: "{app}"; IconFilename: "{app}\icons\icon.ico"; Comment: "Libère la place prise par les anciennes images de Docker"
-Name: "{group}\Arrêter Auto-montage"; Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -File ""{app}\docker\windows\stop.ps1"""; WorkingDir: "{app}"; IconFilename: "{app}\icons\icon.ico"; Comment: "Arrête le conteneur"
+Name: "{group}\Auto-montage"; Filename: "{app}\montage\bin\auto-montage.exe"; Parameters: "start"; WorkingDir: "{app}\montage"; IconFilename: "{app}\icons\icon.ico"; Comment: "Version de travail, moments, corrections et effets"
+Name: "{group}\Téléchargements"; Filename: "{app}\montage\bin\auto-montage.exe"; Parameters: "start downloads/"; WorkingDir: "{app}\montage"; IconFilename: "{app}\icons\icon.ico"; Comment: "Versions 720p, 1080p et 4K"
+Name: "{group}\Dossier des rushes"; Filename: "{win}\explorer.exe"; Parameters: """{app}\montage\public\rushes"""; IconFilename: "{app}\icons\icon.ico"; Comment: "Dossier où déposer les rushes"
+Name: "{group}\Claude Code"; Filename: "{cmd}"; Parameters: "/K set ""PATH={app}\montage\claude\node_modules\.bin;{app}\montage\node;%PATH%"" & where claude >nul 2>&1 & if errorlevel 1 (echo Claude Code n'est pas encore installé : ouvrez d'abord Auto-montage, qui l'installe au premier lancement.) else claude"; WorkingDir: "{app}\montage"; IconFilename: "{app}\icons\icon.ico"; Comment: "Claude Code dans le dossier d'Auto-montage"
+Name: "{group}\Arrêter Auto-montage"; Filename: "{cmd}"; Parameters: "/C """"{app}\montage\bin\auto-montage.exe"" stop & timeout /t 5 >nul"""; WorkingDir: "{app}\montage"; IconFilename: "{app}\icons\icon.ico"; Comment: "Arrête l'interface"
 Name: "{group}\Désinstaller Auto-montage"; Filename: "{uninstallexe}"
-Name: "{userdesktop}\Auto-montage"; Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -File ""{app}\docker\windows\open.ps1"""; WorkingDir: "{app}"; IconFilename: "{app}\icons\icon.ico"; Comment: "Version de travail, moments, corrections et effets"
+Name: "{userdesktop}\Auto-montage"; Filename: "{app}\montage\bin\auto-montage.exe"; Parameters: "start"; WorkingDir: "{app}\montage"; IconFilename: "{app}\icons\icon.ico"; Comment: "Version de travail, moments, corrections et effets"
 
 [Run]
-Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -File ""{app}\docker\windows\first-run.ps1"""; WorkingDir: "{app}"; Description: "Vérifier Docker Desktop et lancer Auto-montage"; Flags: postinstall nowait skipifsilent
+Filename: "{app}\montage\bin\auto-montage.exe"; Parameters: "start"; WorkingDir: "{app}\montage"; Description: "Lancer Auto-montage (la première fois : 10 à 20 min d'installation)"; Flags: postinstall nowait skipifsilent
