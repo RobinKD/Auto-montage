@@ -17,10 +17,14 @@
 //!    moins 0,25 s, ou 4 s au plus ; morceau de moins de 0,7 s joint au précédent) ; chaque morceau
 //!    reçoit un vecteur de voix (moyenne et écart type des MFCC 1 à 19 de ses images voisées, à
 //!    30 dB au plus de la plus forte, chaque coefficient rapporté à sa dispersion sur tout le rush) ;
-//!    regroupement hiérarchique par lien moyen (distance quadratique moyenne) jusqu'à ce que les
-//!    deux groupes les plus proches soient à plus de THRESHOLD ; un groupe de moins de 5 % de la
-//!    parole rejoint le plus proche. Locuteurs numérotés dans l'ordre où ils parlent. Une seule voix
-//!    reste un seul locuteur (les morceaux d'une voix restent proches d'elle-même).
+//!    regroupement hiérarchique par lien moyen (distance quadratique moyenne, mise à jour de
+//!    Lance-Williams). Ajout par rapport à FilmCraft, dont le seul seuil (0,4) coupait une même voix
+//!    en plusieurs sur un vrai rush (salutations, voix au micro de la salle ou en visio) : deux groupes
+//!    restent deux voix s'ils sont à plus de MIN_DISTANCE et à plus de RATIO fois l'écart entre les
+//!    morceaux de chacun (groupes d'au moins MIN_GROUP morceaux ; mesure sans échelle), ou à plus de
+//!    THRESHOLD ; un groupe de moins de 5 % de la parole rejoint le plus proche. Locuteurs numérotés
+//!    dans l'ordre où ils parlent. Une seule voix reste un seul locuteur. Essai sur une plage du rush,
+//!    sans rien écrire : `diarize --plage <début> <fin>` (AM_DIARIZE_DEBUG=1 : distances des groupes).
 //! 2. Personne de chaque locuteur : pendant ses morceaux (jusqu'à MAX_WINDOWS fenêtres de 1,6 s),
 //!    les images de la version de travail sont lues en gris et, pour chaque visage présent (face.json
 //!    de l'instant), le mouvement de la bouche (différence d'une image à la suivante dans le bas du
@@ -59,8 +63,14 @@ const N_MFCC: usize = 20;
 const CHUNK_GAP: f64 = 0.25;
 const MIN_CHUNK: f64 = 0.7;
 const MAX_CHUNK: f64 = 4.0;
-/// Distance au-delà de laquelle deux groupes de morceaux sont deux voix.
-pub const THRESHOLD: f32 = 0.4;
+/// Deux groupes de morceaux sont deux voix quand ils sont à plus de MIN_DISTANCE (seuil de FilmCraft)
+/// et que leur écart dépasse RATIO fois l'écart moyen entre les morceaux de chacun (groupes d'au moins
+/// MIN_GROUP morceaux : une petite variante d'une voix, salutations, rires, rejoint sa voix), ou
+/// quand ils sont à plus de THRESHOLD (voix très différentes).
+const MIN_DISTANCE: f32 = 0.4;
+pub const RATIO: f32 = 1.4;
+const MIN_GROUP: usize = 5;
+pub const THRESHOLD: f32 = 1.0;
 const MAX_SPEAKERS: usize = 6;
 /// Groupe de moins de cette part de la parole : rejoint le groupe le plus proche.
 const MIN_SHARE: f32 = 0.05;
@@ -68,8 +78,8 @@ const MIN_SHARE: f32 = 0.05;
 /// Fenêtres d'analyse des lèvres par locuteur, et leur durée.
 const MAX_WINDOWS: usize = 24;
 const WINDOW: f64 = 1.6;
-/// Largeur des images lues pour les lèvres.
-const LIP_W: usize = 960;
+/// Largeur des images lues pour les lèvres (petits visages d'un écran partagé : pleine définition).
+const LIP_W: usize = 1920;
 /// Lèvres d'une personne qui bougent au moins 15 % de plus que d'habitude : elle parle.
 const LIPS_MIN: f64 = 1.15;
 /// Personne seule à l'image pendant au moins cette part des fenêtres d'un locuteur.
@@ -316,6 +326,8 @@ fn agglomerate(vecs: &[Vec<f32>], weight: &[f32]) -> Vec<usize> {
     }
     let mut members: Vec<Vec<usize>> = (0..n).map(|i| vec![i]).collect();
     let mut alive: Vec<bool> = vec![true; n];
+    // distances entre les morceaux de chaque groupe : (somme, nombre de paires)
+    let mut within: Vec<(f32, f32)> = vec![(0.0, 0.0); n];
     let mut count = n;
     while count > 1 {
         let mut best = (f32::INFINITY, 0, 0);
@@ -329,11 +341,23 @@ fn agglomerate(vecs: &[Vec<f32>], weight: &[f32]) -> Vec<usize> {
                 }
             }
         }
-        if best.0 > THRESHOLD && count <= MAX_SPEAKERS {
+        let (_, i, j) = best;
+        // Écart entre les deux groupes rapporté à l'écart entre les morceaux de chacun : une même voix
+        // reste près de 1 quel que soit le son du rush (mesure sans échelle) ; deux voix s'écartent.
+        let ratio = if members[i].len() >= MIN_GROUP && members[j].len() >= MIN_GROUP {
+            let (wi, wj) = (within[i].0 / within[i].1, within[j].0 / within[j].1);
+            best.0 / (0.5 * (wi + wj)).max(1e-6)
+        } else {
+            0.0
+        };
+        if std::env::var("AM_DIARIZE_DEBUG").is_ok() && count <= 10 {
+            eprintln!("groupes {count} : plus proches à {:.3}, rapport {ratio:.2} ({} et {} morceaux)", best.0, members[i].len(), members[j].len());
+        }
+        if (best.0 > THRESHOLD || (best.0 > MIN_DISTANCE && ratio > RATIO)) && count <= MAX_SPEAKERS {
             break;
         }
-        let (_, i, j) = best;
         let (si, sj) = (members[i].len() as f32, members[j].len() as f32);
+        within[i] = (within[i].0 + within[j].0 + best.0 * si * sj, within[i].1 + within[j].1 + si * sj);
         for k in 0..n {
             if alive[k] && k != i && k != j {
                 let x = (si * d[k * n + i] + sj * d[k * n + j]) / (si + sj);
@@ -437,33 +461,41 @@ fn lip_activity(video: &Path, w: usize, h: usize, a: f64, dur: f64, faces: &[Fac
         .stdout(Stdio::piped())
         .spawn();
     let Ok(mut child) = out else { return vec![] };
-    let mut data = Vec::new();
+    // Images lues une à une (seules la précédente et la courante restent en mémoire).
+    let size = w * h;
+    let (mut prev, mut cur) = (vec![0u8; size], vec![0u8; size]);
+    // par visage : (somme bouche, somme haut, paires)
+    let mut sums = vec![(0.0, 0.0, 0usize); faces.len()];
+    let boxes: Vec<_> = faces
+        .iter()
+        .map(|&(_, x, y, fw, fh)| ((x - 0.25 * fw, y + 0.17 * fh, x + 0.25 * fw, y + 0.45 * fh), (x - 0.3 * fw, y - 0.38 * fh, x + 0.3 * fw, y - 0.12 * fh)))
+        .collect();
+    let mut n = 0usize;
     if let Some(o) = child.stdout.as_mut() {
-        let _ = o.read_to_end(&mut data);
+        while o.read_exact(&mut cur).is_ok() {
+            if n > 0 {
+                for (k, (mouth, upper)) in boxes.iter().enumerate() {
+                    if let (Some(m), Some(u)) = (mad(&prev, &cur, w, h, *mouth), mad(&prev, &cur, w, h, *upper)) {
+                        sums[k].0 += m;
+                        sums[k].1 += u;
+                        sums[k].2 += 1;
+                    }
+                }
+            }
+            std::mem::swap(&mut prev, &mut cur);
+            n += 1;
+        }
     }
     let _ = child.wait();
-    let size = w * h;
-    let frames: Vec<&[u8]> = data.chunks_exact(size).collect();
-    if frames.len() < 3 {
+    if n < 3 {
         return vec![];
     }
-    let mut res = vec![];
-    for &(p, x, y, fw, fh) in faces {
-        let mouth = (x - 0.25 * fw, y + 0.17 * fh, x + 0.25 * fw, y + 0.45 * fh);
-        let upper = (x - 0.3 * fw, y - 0.38 * fh, x + 0.3 * fw, y - 0.12 * fh);
-        let (mut sm, mut su, mut k) = (0.0, 0.0, 0);
-        for pair in frames.windows(2) {
-            if let (Some(m), Some(u)) = (mad(pair[0], pair[1], w, h, mouth), mad(pair[0], pair[1], w, h, upper)) {
-                sm += m;
-                su += u;
-                k += 1;
-            }
-        }
-        if k > 0 {
-            res.push((p, (sm / k as f64) / (su / k as f64 + 1.0)));
-        }
-    }
-    res
+    faces
+        .iter()
+        .zip(&sums)
+        .filter(|(_, s)| s.2 > 0)
+        .map(|(f, &(sm, su, k))| (f.0, (sm / k as f64) / (su / k as f64 + 1.0)))
+        .collect()
 }
 
 fn median(v: &mut [f64]) -> Option<f64> {
@@ -613,8 +645,14 @@ fn read_audio(path: &Path) -> Result<Vec<f32>, String> {
     Ok(r.samples::<i16>().map(|s| s.unwrap_or(0) as f32 / 32768.0).collect())
 }
 
-fn run() -> Result<(), String> {
+fn run(args: &[String]) -> Result<(), String> {
     let work = paths::work();
+    // Essai (réglages) : « --plage <début> <fin> » : locuteurs des seuls mots de cette plage du
+    // rush, affichés sans rien écrire.
+    let plage: Option<(f64, f64)> = match args {
+        [flag, a, b, ..] if flag == "--plage" => Some((a.parse().map_err(|_| "--plage <début> <fin>")?, b.parse().map_err(|_| "--plage <début> <fin>")?)),
+        _ => None,
+    };
     let seg_path = work.join("segments.json");
     let out_path = work.join("locuteurs.json");
     let mut segments = match util::read_json(&seg_path) {
@@ -622,7 +660,8 @@ fn run() -> Result<(), String> {
         _ => return Err("work/segments.json illisible (rush pas encore transcrit)".into()),
     };
     let has_spk = segments.iter().all(|s| util::arr(s, "words").iter().all(|w| w.get("spk").is_some()));
-    if std::env::var("AM_REPRISE").as_deref() == Ok("1")
+    if plage.is_none()
+        && std::env::var("AM_REPRISE").as_deref() == Ok("1")
         && has_spk
         && util::mtime(&out_path).unwrap_or(0.0) >= util::mtime(&seg_path).unwrap_or(f64::INFINITY)
     {
@@ -639,11 +678,21 @@ fn run() -> Result<(), String> {
         }
     }
     idx.sort_by(|x, y| x.2.total_cmp(&y.2));
+    if let Some((a, b)) = plage {
+        idx.retain(|x| x.2 >= a && x.3 <= b);
+    }
     let words: Vec<Word> = idx.iter().map(|x| (x.2, x.3)).collect();
     let ch = chunks(&words);
     let audio = read_audio(&work.join("rush_16k.wav"))?;
     let (labels, n) = cluster(&audio, &words, &ch);
     drop(audio);
+    if plage.is_some() {
+        for (c, l) in ch.iter().zip(&labels) {
+            say(&format!("{:7.2}-{:7.2} locuteur {l}", words[c.start].0, words[c.end - 1].1));
+        }
+        say(&format!("{n} locuteur(s) sur la plage"));
+        return Ok(());
+    }
     let mut spk_of = vec![0usize; words.len()];
     for (c, l) in ch.iter().zip(&labels) {
         for k in c.clone() {
@@ -733,8 +782,8 @@ fn run() -> Result<(), String> {
     Ok(())
 }
 
-pub fn main(_args: &[String]) -> i32 {
-    match run() {
+pub fn main(args: &[String]) -> i32 {
+    match run(args) {
         Ok(()) => 0,
         Err(e) => {
             eprintln!("{e}");
@@ -931,6 +980,47 @@ mod tests {
         let (labels, n) = cluster(&audio, &words, &ch);
         assert_eq!(n, 1);
         assert!(labels.iter().all(|&l| l == 0));
+    }
+
+    #[test]
+    fn longue_voix_seule_un_locuteur_et_longue_conversation_deux() {
+        // Une voix, 40 morceaux (bruit différent à chaque morceau) : un seul locuteur. (Une voix de
+        // synthèse n'a pas la variété des sons d'une vraie voix : sa hauteur ou ses formants ne
+        // peuvent pas varier ici sans en faire plusieurs voix ; sur un vrai rush, voir resultat.md.)
+        let (mut audio, mut words) = (Vec::new(), Vec::new());
+        for k in 0..40 {
+            let t0 = audio.len() as f64 / 16_000.0;
+            audio.extend(voice(140.0, [(520.0, 90.0), (1450.0, 120.0)], 1.5, k * 13 + 5));
+            for w in 0..3 {
+                words.push((t0 + w as f64 * 0.5, t0 + w as f64 * 0.5 + 0.45));
+            }
+            audio.extend(vec![0f32; 6000]);
+        }
+        let ch = chunks(&words);
+        assert_eq!(cluster(&audio, &words, &ch).1, 1);
+        // Deux voix, 30 morceaux chacune, en alternance irrégulière : deux locuteurs.
+        let (mut audio, mut words, mut who) = (Vec::new(), Vec::new(), Vec::new());
+        for k in 0..60u32 {
+            let b = (k * 7 + k / 3) % 2 == 1;
+            let t0 = audio.len() as f64 / 16_000.0;
+            audio.extend(if b {
+                voice(210.0 + (k % 3) as f32 * 5.0, [(450.0, 80.0), (2300.0, 150.0)], 1.5, k)
+            } else {
+                voice(120.0 + (k % 3) as f32 * 5.0, [(620.0, 90.0), (1150.0, 120.0)], 1.5, k)
+            });
+            for w in 0..3 {
+                words.push((t0 + w as f64 * 0.5, t0 + w as f64 * 0.5 + 0.45));
+            }
+            who.push(b);
+            audio.extend(vec![0f32; 6000]);
+        }
+        let ch = chunks(&words);
+        let (labels, n) = cluster(&audio, &words, &ch);
+        assert_eq!(n, 2);
+        let first = labels[0];
+        for (k, &b) in who.iter().enumerate() {
+            assert_eq!(labels[k] == first, b == who[0], "morceau {k}");
+        }
     }
 
     #[test]
