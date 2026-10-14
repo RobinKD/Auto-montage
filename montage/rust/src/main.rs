@@ -14,6 +14,7 @@ mod claude_tasks;
 mod decoupage;
 mod detect_face;
 mod difflib;
+mod export;
 mod ffmpeg_limite;
 mod fonts_lib;
 mod join_rushes;
@@ -61,6 +62,7 @@ const COMMANDS: &[(&str, Cmd, &str)] = &[
     ("decoupage", decoupage::main, "scinder ou fusionner des moments"),
     ("loudness", loudness::main, "volume perçu d'un fichier (LUFS), normalisation"),
     ("subtitles", subtitles::main, "sous-titres du montage en fichiers .srt et .vtt (out/)"),
+    ("export", export::main, "copies pour les plateformes (YouTube, TikTok, Instagram…) : out/export/"),
     ("make_downloads", make_downloads::main, "page des téléchargements"),
     ("make_hd", make_hd::main, "source 4K des images gardées"),
     ("project", project::main, "montages enregistrés (save, open, delete)"),

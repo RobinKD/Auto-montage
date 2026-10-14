@@ -16,7 +16,8 @@
 //!   - render (après HyperFrames) : le son de la vidéo rendue est mesuré puis corrigé pour tomber
 //!     sur la cible à ±0,5 LU, crête vraie sous −1 dBTP (image copiée telle quelle), résultat
 //!     dans work/volume.json ;
-//!   - préréglages d'export (export.rs) : chaque plateforme a sa cible.
+//!   - préréglages d'export (export.rs) : chaque plateforme a sa cible (loudness::normalize
+//!     avant l'encodage de chaque copie).
 //!
 //! Commande : auto-montage loudness <fichier> [--cible LUFS [--sortie <fichier>]]
 //!   mesure (et normalise vers --sortie, image copiée).

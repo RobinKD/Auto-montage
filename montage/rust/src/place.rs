@@ -94,7 +94,7 @@ pub fn extract_caches() -> Vec<PathBuf> {
 
 pub fn leftovers() -> Vec<PathBuf> {
     let mut out = vec![];
-    for d in [paths::rushes(), paths::out()] {
+    for d in [paths::rushes(), paths::out(), crate::export::out_dir()] {
         for n in util::list_dir(&d) {
             if n.starts_with(".envoi-") || n.contains(".part.") {
                 out.push(d.join(n));

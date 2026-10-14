@@ -291,6 +291,18 @@ fn do_get(req: &Req) -> Reply {
         }
         "/api/projects" => return send_json(&projects_data(), 200),
         "/api/downloads" => return send_json(&downloads_data(), 200),
+        "/api/export" => {
+            // préréglages par plateforme, cadrage d'après le montage, exports faits (export.rs)
+            let mut v = crate::export::listing();
+            let running = {
+                let j = jobs::JOB.lock().unwrap();
+                j.m["state"] == "running" && j.m["kind"] == "export"
+            };
+            if let Value::Object(m) = &mut v {
+                m.insert("running".into(), json!(running));
+            }
+            return send_json(&v, 200);
+        }
         "/api/place" => return send_json(&place::inventory(), 200),
         "/api/rushes" => return send_json(&rush_list(), 200),
         "/api/memoire" => {
@@ -695,7 +707,7 @@ fn do_put(req: &Req, body: &mut dyn Read) -> Reply {
 
 // --- POST -------------------------------------------------------------------------------
 const POST_ROUTES: &[&str] = &[
-    "/api/regen", "/api/prepare", "/api/final", "/api/chat", "/api/chat/stop", "/api/chat/new",
+    "/api/regen", "/api/prepare", "/api/final", "/api/export", "/api/chat", "/api/chat/stop", "/api/chat/new",
     "/api/projects/open", "/api/projects/delete", "/api/projects/save", "/api/job/cancel", "/api/job/pause",
     "/api/job/resume", "/api/job/abandon", "/api/place/delete",
     "/api/claude/login", "/api/claude/code", "/api/claude/logout",
@@ -878,6 +890,32 @@ fn do_post(req: &Req, body_reader: &mut dyn Read) -> Reply {
             return err_json("Pas encore de vidéo entière générée : générez-la d'abord.", 400);
         }
         if !start_job("final", jobs::final_steps(), "4k", None, None, false) {
+            return err_json(&busy_error(), 409);
+        }
+        return ok_json(202);
+    }
+    if route == "/api/export" {
+        // {"presets": [identifiants], "cut": bool} : copies pour les plateformes (export.rs),
+        // possibles aussi en mode Dérushage
+        let mut args: Vec<String> = vec![];
+        for id in body.get("presets").and_then(Value::as_array).map(Vec::as_slice).unwrap_or(&[]) {
+            match id.as_str().and_then(crate::export::find) {
+                Some(p) if !args.iter().any(|a| a == p.id) => args.push(p.id.to_string()),
+                Some(_) => {}
+                None => return err_json("Préréglage inconnu.", 400),
+            }
+        }
+        if args.is_empty() {
+            return err_json("Choisissez au moins une plateforme.", 400);
+        }
+        if crate::export::default_source().is_none() {
+            return err_json("Pas encore de vidéo entière générée : générez-la d'abord.", 400);
+        }
+        if util::truthy(body.get("cut")) {
+            args.push("--couper".into());
+        }
+        let label = format!("{} plateforme(s)", args.iter().filter(|a| !a.starts_with("--")).count());
+        if !start_job("export", jobs::export_steps(), &label, Some(args), None, false) {
             return err_json(&busy_error(), 409);
         }
         return ok_json(202);

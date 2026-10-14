@@ -559,7 +559,9 @@ pub fn downloads_data() -> Value {
         subtitles.push(json!({"label": label, "note": note, "type": kind, "size": meta.len(), "parts": [format!("/out/montage.{ext}")],
                               "count": crate::subtitles::count(&path), "renderedAt": iso_utc(mt), "filename": format!("{rush}_sous-titres.{ext}")}));
     }
-    json!({"rush": rush, "versions": versions, "subtitles": subtitles, "momentsPage": "/", "final": final_info()})
+    // copies pour les plateformes (export.rs), servies depuis out/export/
+    let exports = crate::export::done_exports();
+    json!({"rush": rush, "versions": versions, "subtitles": subtitles, "exports": exports, "momentsPage": "/", "final": final_info()})
 }
 
 /// Création de la version 4K depuis les pages : possible, et durée estimée sur cette machine.
