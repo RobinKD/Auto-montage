@@ -53,6 +53,11 @@ pub fn final_steps() -> Vec<Step> {
     vec![step("source 4K", &["make_hd"]), step("rendu 4K", &["render", "final"])]
 }
 
+/// Copies pour les plateformes (export.rs) : « {args} » = préréglages, plus « --couper ».
+pub fn export_steps() -> Vec<Step> {
+    vec![step("export pour les plateformes", &["export", "{args}"])]
+}
+
 /// Avec les consignes de montage appliquées par Claude, entre la préparation et le rendu.
 pub fn prepare_with_instructions() -> Vec<Step> {
     let p = prepare_steps();
@@ -69,7 +74,7 @@ pub fn prepare_with_instructions() -> Vec<Step> {
 // poste, rush de 26 s sur 2 cœurs) ; elles sont recalées après chaque tâche réussie sur les
 // durées réelles de la machine (work/timings.json), et l'opération en cours suit sa propre
 // vitesse dès qu'elle a avancé.
-pub const PLAN: [(&str, &[&str]); 8] = [
+pub const PLAN: [(&str, &[&str]); 9] = [
     ("préparation du rush", &["Copie du rush en 1080p", "Extraction du son", "Transcription", "Position du visage", "Locuteurs"]),
     ("rendu de la vidéo entière", &["Rendu de la vidéo"]),
     ("rendu 1080p", &["Rendu de la vidéo"]),
@@ -78,6 +83,7 @@ pub const PLAN: [(&str, &[&str]); 8] = [
     ("source 4K", &["Source 4K"]),
     ("rendu 4K", &["Rendu 4K"]),
     ("mesures des vidéos d'exemple", &["Analyse des vidéos d'exemple"]),
+    ("export pour les plateformes", &["Export pour les plateformes"]),
 ];
 
 fn plan_of(step: &str) -> &'static [&'static str] {
@@ -89,7 +95,7 @@ pub fn plan_json() -> Value {
 }
 
 /// (clé, échelle, secondes par seconde d'échelle, entier dans la version Python).
-pub const RATES: [(&str, &str, f64, bool); 19] = [
+pub const RATES: [(&str, &str, f64, bool); 21] = [
     ("Copie du rush en 1080p", "rush", 0.3, false),
     ("Extraction du son", "rush", 0.01, false),
     ("Transcription", "rush", 0.3, false),
@@ -114,6 +120,11 @@ pub const RATES: [(&str, &str, f64, bool); 19] = [
     ("Source 4K", "rush", 1.9, false),
     ("Rendu 4K", "montage", 20.0, true),
     ("étape:rendu 4K", "fixe", 20.0, true),
+    // Export pour les plateformes (export.rs) : échelle = durée du montage pour chaque copie,
+    // H.264 1080p « fast » (~1,2 s par seconde de montage et par copie sur 4 cœurs ; plusieurs
+    // copies demandées : vitesse recalée sur la machine).
+    ("Export pour les plateformes", "montage", 1.2, false),
+    ("étape:export pour les plateformes", "fixe", 5.0, true),
 ];
 
 fn rates_table() -> impl Iterator<Item = &'static (&'static str, &'static str, f64, bool)> {
@@ -1142,6 +1153,7 @@ pub fn kind_name(kind: &str) -> Option<&'static str> {
         "update" => "Mise à jour",
         "reset" => "Réinitialisation",
         "style" => "Analyse du style",
+        "export" => "Export pour les plateformes",
         _ => return None,
     })
 }
@@ -1305,7 +1317,7 @@ pub fn report_text() -> String {
 /// annulée : les versions précédentes restent intactes. Avec uploads (démarrage du serveur, rien
 /// ne tourne) : aussi les envois coupés (.envoi-*) et les fichiers d'une tâche arrêtée en route.
 pub fn remove_partial_files(uploads: bool) {
-    for folder in [out(), rushes()] {
+    for folder in [out(), out().join("export"), rushes()] {
         for name in util::list_dir(&folder) {
             if name.contains(".part.") || (uploads && name.starts_with(".envoi-")) {
                 let _ = fs::remove_file(folder.join(name));

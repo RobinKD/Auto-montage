@@ -1,5 +1,6 @@
-//! Prépare la page « Téléchargements » : la vidéo entière en 720p, 1080p et 4K, et ses sous-titres
-//! (out/montage.srt et .vtt, subtitles.rs).
+//! Prépare la page « Téléchargements » : la vidéo entière en 720p, 1080p et 4K, ses sous-titres
+//! (out/montage.srt et .vtt, subtitles.rs) et les copies pour les plateformes (out/export/,
+//! export.rs) qui tiennent encore dans la page (les autres y sont seulement mentionnées).
 //!
 //! Sources (celles qui existent) :
 //!   720p   work/moments/montage.mp4   (copie légère de la page des moments, make_moments)
@@ -83,6 +84,29 @@ fn fit(out: &Path, src: &Path, target_bytes: u64) -> Result<PathBuf, String> {
     Ok(dst)
 }
 
+/// Copie `src` dans files/ : tel quel sous 15 Mo, sinon en morceaux de 14 Mo (en .mp4 : type
+/// servi par les pages) que la page rassemble dans l'ordre. Renvoie les chemins publiés.
+fn publish_file(src: &Path, files: &Path, base: &str) -> Result<Vec<String>, String> {
+    let size = fs::metadata(src).map(|m| m.len()).map_err(|e| e.to_string())?;
+    let mut names = vec![];
+    if size <= SINGLE_MAX {
+        fs::copy(src, files.join(format!("{base}.mp4"))).map_err(|e| e.to_string())?;
+        names.push(format!("files/{base}.mp4"));
+    } else {
+        let mut input = fs::File::open(src).map_err(|e| e.to_string())?;
+        let mut k = 0;
+        while k * PART < size {
+            let file = format!("{base}.part{:02}.mp4", k + 1);
+            let mut buf = Vec::with_capacity(PART as usize);
+            (&mut input).take(PART).read_to_end(&mut buf).map_err(|e| e.to_string())?;
+            fs::File::create(files.join(&file)).and_then(|mut f| f.write_all(&buf)).map_err(|e| e.to_string())?;
+            names.push(format!("files/{file}"));
+            k += 1;
+        }
+    }
+    Ok(names)
+}
+
 pub fn main(_args: &[String]) -> i32 {
     match run() {
         Ok(()) => 0,
@@ -158,6 +182,7 @@ fn run() -> Result<(), String> {
     }
 
     let apercu = paths::out().join("montage_apercu.mp4");
+    let mut used: u64 = 0; // octets déjà dans la page
     let mut versions: Vec<Value> = vec![];
     let mut current: Vec<String> = vec![];
     for f in util::list_dir(&files) {
@@ -171,25 +196,8 @@ fn run() -> Result<(), String> {
             _ => s.path.clone(),
         };
         let size = fs::metadata(&src).map(|m| m.len()).map_err(|e| e.to_string())?;
-        let base = format!("{rush}_{}_{tag}", s.id);
-        let mut names = vec![];
-        if size <= SINGLE_MAX {
-            let name = format!("files/{base}.mp4");
-            fs::copy(&src, files.join(format!("{base}.mp4"))).map_err(|e| e.to_string())?;
-            names.push(name);
-        } else {
-            // Morceaux bruts (en .mp4 : type servi par les pages), rassemblés dans l'ordre par la page.
-            let mut input = fs::File::open(&src).map_err(|e| e.to_string())?;
-            let mut k = 0;
-            while k * PART < size {
-                let file = format!("{base}.part{:02}.mp4", k + 1);
-                let mut buf = Vec::with_capacity(PART as usize);
-                (&mut input).take(PART).read_to_end(&mut buf).map_err(|e| e.to_string())?;
-                fs::File::create(files.join(&file)).and_then(|mut f| f.write_all(&buf)).map_err(|e| e.to_string())?;
-                names.push(format!("files/{file}"));
-                k += 1;
-            }
-        }
+        used += size;
+        let names = publish_file(&src, &files, &format!("{rush}_{}_{tag}", s.id))?;
         current.extend(names.iter().cloned());
         let stale = s.id != "720p"
             && apercu.exists()
@@ -219,10 +227,30 @@ fn run() -> Result<(), String> {
                               "filename": format!("{rush}_sous-titres.{ext}")}));
     }
 
+    // Copies pour les plateformes (export.rs) : publiées tant que la page tient (BUDGET), les
+    // autres listées sans fichier (« parts » vide : dans out/export/ sur l'ordinateur).
+    let mut exports: Vec<Value> = vec![];
+    for mut e in crate::export::done_exports() {
+        let file = e["file"].as_str().unwrap_or("").to_string();
+        let src = file.split('/').fold(root.to_path_buf(), |p, x| p.join(x));
+        let size = fs::metadata(&src).map(|m| m.len()).unwrap_or(0);
+        let parts = if used + size <= BUDGET {
+            used += size;
+            let tag = utc_of(py_mtime(&src).unwrap_or(0.0)).format("%Y%m%d-%H%M%S").to_string();
+            let names = publish_file(&src, &files, &format!("{rush}_{}_{tag}", e["preset"].as_str().unwrap_or("export")))?;
+            current.extend(names.iter().cloned());
+            names
+        } else {
+            vec![]
+        };
+        e["parts"] = json!(parts);
+        exports.push(e);
+    }
+
     let moments_url = util::read_text(work.join("moments_url.txt")).map(Value::String).unwrap_or(Value::Null);
     let page = fs::read_to_string(root.join("selection").join("downloads.html")).map_err(|e| e.to_string())?;
     let page = page.replace("__RUSH__", &html_escape(&rush));
-    let data = json!({"rush": rush, "versions": versions, "subtitles": subtitles, "momentsPage": moments_url});
+    let data = json!({"rush": rush, "versions": versions, "subtitles": subtitles, "exports": exports, "momentsPage": moments_url});
     let page = page.replace("/*__DATA__*/null", &pyjson::dumps_utf8(&data).replace('<', "\\u003c"));
     fs::write(out.join("index.html"), page).map_err(|e| e.to_string())?;
 
@@ -256,6 +284,15 @@ fn run() -> Result<(), String> {
             v["size"].as_f64().unwrap_or(0.0) / MB as f64,
             util::arr(v, "parts").len(),
             if v["stale"] == json!(true) { " (ancienne)" } else { "" }
+        );
+    }
+    for e in &exports {
+        let n = util::arr(e, "parts").len();
+        println!(
+            "{:>16} : {:6.1} Mo {}",
+            e["preset"].as_str().unwrap_or(""),
+            e["size"].as_f64().unwrap_or(0.0) / MB as f64,
+            if n > 0 { format!("en {n} fichier(s)") } else { "(trop lourd pour la page : seulement dans out/export/)".into() }
         );
     }
     println!("{} publication(s), {} ancien(s) fichier(s) à retirer -> work/downloads/", batches.len(), remove.len());

@@ -190,6 +190,10 @@
   .dl-menu .row span { color: var(--muted); flex: 1; min-width: 8em; }
   .dl-menu a, .dl-menu button { font: inherit; font-size: 13px; }
   .dl-menu .hint { color: var(--warn); }
+  .dl-menu .plat { display: grid; grid-template-columns: repeat(auto-fill, minmax(15em, 1fr)); gap: 4px 12px; }
+  .dl-menu .plat label { display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap; }
+  .dl-menu .plat small { color: var(--muted); font-size: 12px; }
+  .dl-menu .plat .hint { font-size: 12px; }
   /* Avancement de la génération (interface locale) : opération en cours, puis ensemble. */
   .gen-progress[hidden] { display: none; }
   .gen-progress { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--muted); }
@@ -3558,7 +3562,7 @@ ${HFAudio.voiceElements(spec)}
     // Mémoire juste ou insuffisante pour l'étape en cours (rust/src/memoire.rs) : dit sous la barre.
     const mem = job.stepMemory && job.stepMemory.level !== "ok" ? job.stepMemory.message : "";
     if (mem) $("gen-label").textContent += ` · ${mem}`;
-    $("gen-all-label").textContent = job.kind === "final" ? "Ensemble de la création 4K" : "Ensemble de la génération";
+    $("gen-all-label").textContent = job.kind === "final" ? "Ensemble de la création 4K" : job.kind === "export" ? "Ensemble de l'export" : "Ensemble de la génération";
     $("gen-all").value = job.overall || 0;
     $("gen-all-facts").textContent = `${Math.floor((job.overall || 0) * 100)} %${remaining(job.remaining)}`;
   }
@@ -4260,7 +4264,84 @@ ${HFAudio.voiceElements(spec)}
       }
       menu.append(row);
     }
+    await exportSection(menu);
     menu.hidden = false;
+  }
+  // Copies pour les plateformes (rust/src/export.rs, /api/export) : format, débit et volume de
+  // chaque plateforme ; image entière sur fond flou si le format diffère du montage. Possible
+  // aussi en mode Dérushage.
+  async function exportSection(menu) {
+    const ex = await fetch("/api/export", { cache: "no-store" }).then((r) => r.json()).catch(() => null);
+    if (!ex || !ex.presets) return;
+    const mb = (n) => `${(n / 1048576).toFixed(n < 10485760 ? 1 : 0)} Mo`;
+    const head = document.createElement("div");
+    head.className = "row";
+    head.style.marginTop = "6px";
+    head.append(Object.assign(document.createElement("b"), { textContent: "Pour une plateforme" }),
+      Object.assign(document.createElement("span"), { textContent: ex.source
+        ? `depuis la vidéo entière ${ex.source.width}x${ex.source.height} (${ex.source.format}) ; volume réglé pour chaque plateforme`
+        : "générez d'abord la vidéo entière" }));
+    menu.append(head);
+    const done = Object.fromEntries((ex.exports || []).map((e) => [e.preset, e]));
+    const grid = document.createElement("div");
+    grid.className = "plat";
+    const boxes = [];
+    for (const p of ex.presets) {
+      const cell = document.createElement("div");
+      const label = document.createElement("label");
+      const cb = Object.assign(document.createElement("input"), { type: "checkbox", value: p.id, disabled: !ex.source || ex.running });
+      boxes.push(cb);
+      label.append(cb, p.label, Object.assign(document.createElement("small"), { textContent: `${p.format} · ${p.width}x${p.height}${p.blur ? " · fond flou" : ""}` }));
+      label.title = `${p.usage}. ${p.framing || ""}. ${p.lufs} LUFS, crête ${p.peak} dBTP${p.limitNote ? `, durée : ${p.limitNote}` : ""}.`;
+      cell.append(label);
+      if (p.tooLong) cell.append(Object.assign(document.createElement("div"), { className: "hint", textContent: `Trop longue (${p.limitNote})` }));
+      const e = done[p.id];
+      if (e) {
+        const a = Object.assign(document.createElement("a"), { href: e.url, download: e.filename, textContent: `Télécharger (${mb(e.size)})` });
+        a.title = `${e.width}x${e.height}, ${Math.round(e.videoKbps)} kb/s, ${String(e.lufs).replace(".", ",")} LUFS, crête ${String(e.peak).replace(".", ",")} dBTP`;
+        cell.append(" ", a);
+        for (const w of e.stale ? ["faite depuis une vidéo entière précédente"] : e.warnings || [])
+          cell.append(Object.assign(document.createElement("div"), { className: "hint", textContent: w }));
+      }
+      grid.append(cell);
+    }
+    menu.append(grid);
+    const row = document.createElement("div");
+    row.className = "row";
+    const cut = Object.assign(document.createElement("input"), { type: "checkbox", id: "export-cut" });
+    const cutLabel = Object.assign(document.createElement("label"), { htmlFor: "export-cut", textContent: " Couper à la durée maximale de la plateforme" });
+    cutLabel.prepend(cut);
+    const go = Object.assign(document.createElement("button"), { type: "button", textContent: ex.running ? "Export en cours…" : "Exporter", disabled: true });
+    const sync = () => {
+      const n = boxes.filter((b) => b.checked).length;
+      go.disabled = !n || !ex.source || ex.running;
+      if (!ex.running) go.textContent = n > 1 ? `Exporter (${n})` : "Exporter";
+    };
+    boxes.forEach((b) => b.addEventListener("change", sync));
+    go.addEventListener("click", async () => {
+      go.disabled = true;
+      const presets = boxes.filter((b) => b.checked).map((b) => b.value);
+      const r = await fetch("/api/export", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ presets, cut: cut.checked }) });
+      if (!r.ok) { setStatus((await r.json().catch(() => ({}))).error || `erreur ${r.status}`, "err"); sync(); return; }
+      $("dl-menu").hidden = true;
+      followExport();
+    });
+    row.append(go);
+    if (ex.presets.some((p) => p.tooLong)) row.append(cutLabel);
+    menu.append(row);
+  }
+  async function followExport() {
+    for (;;) {
+      await new Promise((r) => setTimeout(r, 1500));
+      const job = await fetch("/api/job").then((r) => r.json()).catch(() => null);
+      if (!job) continue;
+      showGenProgress(job);
+      if (job.state === "running") { setStatus(`Export pour les plateformes : ${job.progress ? job.progress.label : job.step}…`); continue; }
+      if (job.state === "cancelled") { setStatus("Export annulé"); return; }
+      if (job.state === "done") { setStatus("Copies pour les plateformes prêtes : liens dans « Télécharger »", "ok"); openDownloadMenu(); }
+      else setStatus(`L'export a échoué : ${job.error || "erreur inconnue"} (détail : lien « Journal »)`, "err");
+      return;
+    }
   }
   async function createFinal(btn, estimate) {
     if (!confirm(`Créer la version 4K ? Cela prend du temps (${minutes(estimate || 0)} sur cet ordinateur). Vous pourrez continuer à utiliser la page pendant ce temps.`)) return;
@@ -4328,6 +4409,7 @@ ${HFAudio.voiceElements(spec)}
       const job = await fetch("/api/job").then((r) => r.json()).catch(() => null);
       if (job && job.state === "running" && job.kind === "regen") { $("regen").disabled = true; followRegen($("regen")); }
       if (job && job.state === "running" && job.kind === "final") followFinal();
+      if (job && job.state === "running" && job.kind === "export") followExport();
     }
   })();
 

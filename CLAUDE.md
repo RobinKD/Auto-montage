@@ -336,6 +336,17 @@ interne : les changements attendent la prochaine version.
   sur le disque sans mise à jour (git pull dans le dossier d'installation) : la page le dit et
   propose « Redémarrer » (`/api/restart`, `disk_version()`). Les installateurs
   ne recopient leur projet que s'il est plus récent (`version_gt`).
+- Préréglages d'export par plateforme (`rust/src/export.rs`, idée de FilmCraft) : `./am export
+  <préréglage…>|tout [--couper] [--source f]` (`--liste`) encode depuis `out/montage_4k.mp4` s'il est
+  à jour, sinon `out/montage_apercu.mp4`, une copie H.264 + AAC `+faststart` par plateforme (`PRESETS` :
+  YouTube, Shorts, TikTok, Instagram Reels / fil 4:5 / carré, Facebook, LinkedIn, X, Vimeo ; taille,
+  débits, images/s max, LUFS et crête, durée max) dans `out/export/<rush>_<id>.mp4` (rangé par
+  `project`), résumé `work/exports.json`. Format différent du montage : image entière sur fond flou
+  (`video_filter`, jamais de recadrage) ; volume amené à la cible de chaque plateforme par
+  `loudness::normalize` avant l'encodage ; durée trop longue : avertissement, ou coupe avec `--couper`.
+  Interface locale : tâche `export` (GET / POST `/api/export`), section « Pour une plateforme » du menu
+  « Télécharger » de la page des moments (aussi en dérushage), exports listés sur « Téléchargements »
+  (`make_downloads` n'en publie que ce qui tient dans la page).
 - Libérer de la place (section en bas de /rush/) : `rust/src/place.rs` (inventaire : montages
   enregistrés, rushes de `public/rushes`, `rush_2160.webm`, vidéos de `work/rendu_hyperframes/assets`,
   `work/sauvegardes`, restes `.envoi-*` et `*.part.*` ; taille réellement libérée, liens physiques
