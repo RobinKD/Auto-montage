@@ -174,6 +174,10 @@ fn tools() -> Value {
          "inputSchema": {"type": "object", "properties": {}}},
         {"name": "mesurer_volume", "description": "Mesure le volume d'un fichier vidéo ou son (EBU R128 : LUFS intégré, plage, crête vraie). Par défaut la dernière vidéo générée.",
          "inputSchema": {"type": "object", "properties": {"fichier": {"type": "string"}}}},
+        {"name": "exporter_plateforme", "description": format!("Copies de la dernière vidéo générée pour des plateformes (format, débit, volume cible de chacune ; format différent du montage : image entière sur fond flou), dans out/export/. Sans plateformes : liste des préréglages et des exports faits. Préréglages : {}. couper : coupe à la durée maximale de la plateforme. attendre : jusqu'à la fin.",
+            crate::export::PRESETS.iter().map(|p| format!("{} ({})", p.id, p.label)).collect::<Vec<_>>().join(", ")),
+         "inputSchema": {"type": "object", "properties": {"plateformes": {"type": "array", "items": {"type": "string", "enum": crate::export::PRESETS.iter().map(|p| p.id).collect::<Vec<_>>()}},
+                         "couper": {"type": "boolean"}, "attendre": {"type": "boolean"}, "delai_max": {"type": "integer", "description": "secondes (1800 par défaut)"}}}},
         {"name": "preparer_rush", "description": "Prépare un rush déjà dans montage/public/rushes/ (transcription, visages, locuteurs, page des moments). langue : fr ou en.",
          "inputSchema": {"type": "object", "required": ["rush"], "properties": {"rush": {"type": "string"}, "langue": {"type": "string", "enum": ["fr", "en"]}}}},
     ])
@@ -449,6 +453,19 @@ fn tool(name: &str, a: &Map<String, Value>) -> Result<Value, String> {
             call("POST", "/api/final", Some(&json!({})))?;
             Ok(json!({"lance": true, "suivi": "outil etat"}))
         }
+        "exporter_plateforme" => {
+            let presets = a.get("plateformes").and_then(Value::as_array).cloned().unwrap_or_default();
+            if presets.is_empty() {
+                return call("GET", "/api/export", None);
+            }
+            call("POST", "/api/export", Some(&json!({"presets": presets, "cut": a.get("couper").and_then(Value::as_bool).unwrap_or(false)})))?;
+            if a.get("attendre").and_then(Value::as_bool).unwrap_or(false) {
+                let st = wait_job(a.get("delai_max").and_then(Value::as_u64).unwrap_or(1800));
+                let done = call("GET", "/api/export", None)?;
+                return Ok(json!({"tache": job_summary(&st), "exports": done.get("exports")}));
+            }
+            Ok(json!({"lance": true, "suivi": "outil etat"}))
+        }
         "preparer_rush" => {
             let r = call("POST", "/api/prepare", Some(&json!({"rush": arg_str(a, "rush", ""), "langue": arg_str(a, "langue", "fr")})))?;
             Ok(json!({"lance": true, "reponse": r, "suivi": "outil etat"}))
@@ -527,7 +544,7 @@ mod tests {
         assert!(handle(&json!({"jsonrpc": "2.0", "method": "notifications/initialized"})).is_none());
         let list = handle(&json!({"jsonrpc": "2.0", "id": 2, "method": "tools/list"})).unwrap();
         let names: Vec<&str> = list["result"]["tools"].as_array().unwrap().iter().map(|t| t["name"].as_str().unwrap()).collect();
-        assert!(names.contains(&"regler_moment") && names.contains(&"generer_video") && names.contains(&"annuler"));
+        assert!(names.contains(&"regler_moment") && names.contains(&"generer_video") && names.contains(&"annuler") && names.contains(&"exporter_plateforme"));
         let cat = handle(&json!({"jsonrpc": "2.0", "id": 3, "method": "tools/call", "params": {"name": "catalogue"}})).unwrap();
         let s = &cat["result"]["structuredContent"];
         assert_eq!(s["transitions"].as_array().unwrap().len(), crate::look::TRANSITIONS.len());

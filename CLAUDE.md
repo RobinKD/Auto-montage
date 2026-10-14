@@ -194,7 +194,7 @@ interne : les changements attendent la prochaine version.
   à la racine, ou `claude mcp add auto-montage -- ./am mcp`) : etat, catalogue, liste_moments, garder_moments,
   regler_moment, scinder_moment, fusionner_moments, lire_reglages / changer_reglages (couleurs, transitions,
   habillage, son, sous_titres, effets), annuler, generer_video, rendu_4k, sous_titres, mesurer_volume,
-  preparer_rush. Les modifications passent par l'interface locale (lancée au besoin, `AM_URL`), donc mêmes
+  exporter_plateforme (POST /api/export), preparer_rush. Les modifications passent par l'interface locale (lancée au besoin, `AM_URL`), donc mêmes
   fichiers et mêmes tâches que la page ; journal pour « annuler » dans `work/historique/mcp.json`. Un nouveau
   réglage ou une nouvelle action de la page doit y avoir sa commande.
 - Effets fournis par défaut : liste unique dans `rust/src/moments_lib.rs` (`SOUNDS` : sons de
