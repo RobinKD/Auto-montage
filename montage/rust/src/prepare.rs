@@ -145,6 +145,10 @@ pub fn main(args: &[String]) -> i32 {
     let reprise = std::env::var("AM_REPRISE").as_deref() == Ok("1");
     if !reprise {
         util::remove_all(work.join("reprise"));
+        // Vidéo entière rendue pour une préparation précédente de ce rush : elle ne correspond
+        // plus à la nouvelle transcription (une préparation sans consignes ne rend rien).
+        let _ = fs::remove_file(paths::out().join("montage_apercu.mp4"));
+        let _ = fs::remove_file(work.join("moments").join("montage.mp4"));
     }
     // Mémoire nécessaire à chaque étape d'après la vidéo, comparée à la mémoire libre (avertissement).
     let _ = step(&["memoire", &rush]);

@@ -40,10 +40,11 @@ pub fn regen_steps() -> Vec<Step> {
     ]
 }
 
+/// Sans consignes, pas de rendu : la vidéo entière se joue en direct sur la page des moments
+/// (« Vidéo entière ») et n'est rendue qu'au premier « Générer la vidéo entière ».
 pub fn prepare_steps() -> Vec<Step> {
     vec![
         step("préparation du rush", &["prepare", "{args}"]), // une ou plusieurs vidéos
-        step("rendu de la vidéo entière", &["render", "apercu"]),
         step("page des moments", &["make_moments"]),
     ]
 }
@@ -58,12 +59,14 @@ pub fn export_steps() -> Vec<Step> {
     vec![step("export pour les plateformes", &["export", "{args}"])]
 }
 
-/// Avec les consignes de montage appliquées par Claude, entre la préparation et le rendu.
+/// Avec les consignes de montage appliquées par Claude, entre la préparation et la page des
+/// moments : montage selon les consignes, puis rendu de la vidéo entière.
 pub fn prepare_with_instructions() -> Vec<Step> {
     let p = prepare_steps();
     let mut v = vec![p[0].clone()];
     v.push(step("consignes de montage (Claude)", &["apply_instructions"]));
     v.push(step("montage selon les consignes", &["build_edit"]));
+    v.push(step("rendu de la vidéo entière", &["render", "apercu"]));
     v.extend(p[1..].iter().cloned());
     v
 }

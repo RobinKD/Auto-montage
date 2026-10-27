@@ -98,9 +98,6 @@ echo "  préparée à nouveau avec ce qui était gardé, en pause ($label), repr
 curl -fsS -X POST "$URL/api/job/resume" >/dev/null || fail "reprise"
 wait_job
 curl -fsS "$URL/api/logs/rapport" | has "Parties gardées" || fail "parties gardées non signalées au journal"
-# Mémoire mesurée (pas pour l'étape reprise en route : une partie était déjà faite).
-curl -fsS "$URL/api/memoire?rush=$NAME" | json '[o["op"] for o in d["operations"] if o["measured"]]' | has "Rendu de la vidéo" \
-  || fail "mémoire du rendu non mesurée"
 curl -fsS "$URL/api/job" | json 'd["paused"]' | has -x None || fail "tâche en pause restée après la reprise"
 case "$LABELS" in *Transcription*) ;; *) fail "pas de barre de progression « Transcription » (vu : ${LABELS:-aucune})" ;; esac
 
@@ -112,9 +109,8 @@ N="$(echo "$DATA" | json 'len([m for m in d["moments"] if not m.get("gap")])')"
 [ "$N" -ge 3 ] || fail "seulement $N moments de parole"
 echo "  $N moments de parole"
 echo "$DATA" | json '[c["id"] for c in d["sfxCatalog"]]' | has "perso-bip-essai" || fail "son personnel absent des effets de la page"
-for f in /montage.mp4 /out/montage_apercu.mp4 "$(echo "$DATA" | json 'd["moments"][0]["clip"]' | sed 's|^|/|')"; do
-  [ "$(curl -s -o /dev/null -w '%{http_code}' -H 'Range: bytes=0-99' "$URL$f")" = 206 ] || fail "vidéo $f"
-done
+[ "$(curl -s -o /dev/null -w '%{http_code}' -H 'Range: bytes=0-99' "$URL$(echo "$DATA" | json 'd["moments"][0]["clip"]' | sed 's|^|/|')")" = 206 ] \
+  || fail "extrait du premier moment"
 # Frises de la page : images du rush et forme d'onde.
 SHEET="$(echo "$DATA" | json 'd["strip"]["sheets"][0]')"
 curl -fsS -o /dev/null "$URL/$SHEET" || fail "images de la frise ($SHEET)"
@@ -146,6 +142,22 @@ echo "  police des sous-titres : $FONT"
 # Vidéo d'exemple : durée prévue de son analyse (l'analyse elle-même demande Claude).
 curl -fsS -X PUT --data-binary "@$RUSH" "$URL/api/style/videos/exemple.mov" >/dev/null || fail "envoi d'une vidéo d'exemple"
 curl -fsS "$URL/api/style/analyse" | json 'd["videos"], d["estimate"] > 0' | has "exemple.mov" || fail "analyse du style (estimation)"
+# Préparation sans consignes : pas de rendu, la vidéo entière se joue en direct sur la page.
+if [ "$WITH_CLAUDE" = false ]; then
+  echo "$DATA" | json 'd["working"]' | has -x None || fail "vidéo entière rendue pendant une préparation sans consignes"
+  echo "5a. Générer la vidéo entière avec les moments suggérés"
+  KEEP="$(echo "$DATA" | json 'json.dumps([m["id"] for m in d["moments"] if m["suggested"]])')"
+  curl -fsS -X POST -H "content-type: application/json" \
+    -d "{\"variant\": \"travail\", \"name\": \"Travail\", \"keep\": $KEEP}" "$URL/api/regen" >/dev/null || fail "lancement de la génération"
+  LABELS=""
+  wait_job
+  DATA="$(curl -fsS "$URL/" | sed -n 's/^  const DATA = \(.*\);$/\1/p')"
+fi
+for f in /montage.mp4 /out/montage_apercu.mp4; do
+  [ "$(curl -s -o /dev/null -w '%{http_code}' -H 'Range: bytes=0-99' "$URL$f")" = 206 ] || fail "vidéo $f"
+done
+curl -fsS "$URL/api/memoire?rush=$NAME" | json '[o["op"] for o in d["operations"] if o["measured"]]' | has "Rendu de la vidéo" \
+  || fail "mémoire du rendu non mesurée"
 D1="$(echo "$DATA" | json 'd["working"]["duration"]')"
 echo "  vidéo entière : $D1 s"
 
