@@ -20,7 +20,8 @@ npm i
   la page des moments les imite en direct.
 - **Aperçu** : lit la version 1080 du rush (`rush_1080.mp4`) → `out/montage_apercu.mp4`.
 - **Final** : `rust/src/make_hd.rs` encode en 4K les seules images gardées au montage
-  (`rush_2160.webm`, ~8 min pour 40 s d'images, refait seulement si le dérush change),
+  depuis le rush d'origine (`rush_2160.mp4`, H.264 crf 16, par la carte graphique si elle marche ;
+  moins d'une minute pour 20 s d'images sur 4 cœurs, refait seulement si le dérush change),
   puis la même page est rendue en 4K (2 navigateurs au plus, pour la mémoire) → `out/montage_4k.mp4`. Le texte reste
   net et l'image est en 4K native. Les positions de chaque clip dans la source 4K
   (`trimBeforeHd`) sont calculées par `build_edit`.
@@ -189,7 +190,7 @@ découpage se fait d'après la parole.
 | Étape | Commande | Sortie |
 | --- | --- | --- |
 | Version de travail 1080×1920 (MP4), par morceaux d'une minute | `version_travail` (via `prepare`) | `public/rushes/` |
-| Source 4K des images gardées (rendu final) | `make_hd` via `render final` | `public/rushes/rush_2160.webm` |
+| Source 4K des images gardées (rendu final) | `make_hd` via `render final` | `public/rushes/rush_2160.mp4` |
 | Segments de parole (VAD Silero) et transcription mot à mot par segment (Whisper large-v3-turbo, segments transcrits ensemble par morceaux de 28 s) | `setup_whisper`, `transcribe_segments` | `work/segments.json` |
 | Visages et cadrage des zooms (YuNet, tous les visages, zoom plafonné pour que personne ne sorte de l'image ; personnes reconnues par SFace, vignettes pour le « Cadrage » par moment) | `detect_face`, `fetch_face_model` | `src/data/face.json`, `work/visages/` |
 | Bruitages provisoires | `make_sfx` | `public/sfx/` |
@@ -216,4 +217,4 @@ chaque nouveau rush ; relancer `./am build_edit` après modification.
   sans écran), celui de Playwright dans `~/.cache/ms-playwright` ;
   ailleurs celui de HyperFrames (`hyperframes browser ensure`). Téléchargé une fois.
 - HyperFrames lit les vidéos avec ffmpeg (images extraites) : la version de travail reste en
-  H.264, la source 4K en VP9.
+  H.264, la source 4K aussi (`rush_2160.mp4`, crf 16).

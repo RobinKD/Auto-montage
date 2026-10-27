@@ -167,7 +167,7 @@ impl Montage {
     /// images gardées).
     pub fn rush(&self) -> (PathBuf, &'static str) {
         if self.hd {
-            (paths::rushes().join("rush_2160.webm"), "trimBeforeHd")
+            (paths::rushes().join(crate::make_hd::FILE), "trimBeforeHd")
         } else {
             (paths::rushes().join("rush_1080.mp4"), "trimBefore")
         }

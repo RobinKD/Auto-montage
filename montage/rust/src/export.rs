@@ -26,7 +26,9 @@
 //!
 //! Commande : auto-montage export <préréglage…>|tout [--couper] [--source <fichier>]
 //!            auto-montage export --liste [--json]
+//! Encodage par la carte graphique si elle marche (gpu.rs), sinon par le processeur.
 
+use crate::gpu::{self, Encoder, Rate};
 use crate::loudness;
 use crate::paths;
 use crate::procs;
@@ -392,25 +394,30 @@ fn normalized_audio(audio: &[f32], preset: &Preset, cache: &mut HashMap<String, 
     Ok((path, after))
 }
 
-/// Arguments ffmpeg d'un export (sans « -progress », ajouté par progress::ffmpeg).
-pub fn ffmpeg_args(src: &Path, audio: Option<&Path>, info: &Probe, preset: &Preset, keep: Option<f64>, dst: &Path) -> Vec<String> {
+/// Arguments ffmpeg d'un export avec l'encodeur `enc` (carte graphique ou processeur : gpu.rs ;
+/// sans « -progress », ajouté par progress::ffmpeg).
+pub fn ffmpeg_args(src: &Path, audio: Option<&Path>, info: &Probe, preset: &Preset, keep: Option<f64>, enc: &Encoder, dst: &Path) -> Vec<String> {
     let fps = out_fps(info.fps, preset.max_fps);
     let (rate, max) = video_rate(preset, fps);
     let s = |x: &str| x.to_string();
-    let mut a: Vec<String> = vec![paths::ffmpeg().to_string_lossy().into_owned(), s("-v"), s("error"), s("-y"), s("-i"), paths::display(src)];
+    let mut a: Vec<String> = vec![paths::ffmpeg().to_string_lossy().into_owned(), s("-v"), s("error"), s("-y")];
+    a.extend(enc.input_args());
+    a.extend([s("-i"), paths::display(src)]);
     if let Some(raw) = audio {
         a.extend(["-f", "f32le", "-ar", "48000", "-ac", "2", "-i"].map(s));
         a.push(paths::display(raw));
     }
-    a.extend([s("-filter_complex"), video_filter((info.width, info.height), preset, info.fps), s("-map"), s("[v]")]);
+    let graph = video_filter((info.width, info.height), preset, info.fps);
+    let graph = format!("{}{}[v]", graph.strip_suffix("[v]").unwrap_or(&graph), enc.filter_tail());
+    a.extend([s("-filter_complex"), graph, s("-map"), s("[v]")]);
     if audio.is_some() {
         a.extend(["-map", "1:a:0", "-c:a", "aac", "-ar", "48000", "-ac", "2"].map(s));
         a.extend([s("-b:a"), format!("{}k", preset.audio_kbps)]);
     } else {
         a.push(s("-an"));
     }
-    a.extend(["-c:v", "libx264", "-preset", "fast", "-profile:v", "high", "-pix_fmt", "yuv420p"].map(s));
-    a.extend([s("-b:v"), format!("{rate}k"), s("-maxrate"), format!("{max}k"), s("-bufsize"), format!("{}k", 2 * max)]);
+    a.extend(enc.video_args(Rate::Bitrate { kbps: rate as i64, max_kbps: max as i64 }, "fast"));
+    a.extend(["-profile:v", "high"].map(s));
     a.extend([s("-g"), format!("{}", (2.0 * fps).round() as i64)]);
     a.extend(["-color_primaries", "bt709", "-color_trc", "bt709", "-colorspace", "bt709", "-movflags", "+faststart"].map(s));
     if let Some(t) = keep {
@@ -449,9 +456,11 @@ fn export_one(job: &Job, preset: &Preset, cache: &mut HashMap<String, (PathBuf, 
     };
     let dst = out_dir().join(format!("{}_{}.mp4", job.rush, preset.id));
     let part = out_dir().join(format!("{}_{}.part.mp4", job.rush, preset.id));
-    let args = ffmpeg_args(job.src, raw.as_deref(), job.info, preset, keep, &part);
     let total = keep.unwrap_or(job.info.duration);
-    let code = progress::ffmpeg("Export pour les plateformes", &args, Some(total), offset, Some(whole));
+    let code = gpu::encode(|enc| {
+        let args = ffmpeg_args(job.src, raw.as_deref(), job.info, preset, keep, enc, &part);
+        progress::ffmpeg("Export pour les plateformes", &args, Some(total), offset, Some(whole))
+    });
     if code != 0 {
         let _ = fs::remove_file(&part);
         return Err(format!("{} : échec de l'encodage (ffmpeg, {})", preset.label, progress::exit_reason(code, false)));
@@ -755,12 +764,12 @@ mod tests {
     #[test]
     fn arguments_ffmpeg() {
         let info = Probe { width: 1920, height: 1080, fps: 30.0, duration: 200.0, has_audio: true, ..Default::default() };
-        let a = ffmpeg_args(Path::new("in.mp4"), Some(Path::new("son.f32")), &info, find("x").unwrap(), Some(140.0), Path::new("o.mp4"));
+        let a = ffmpeg_args(Path::new("in.mp4"), Some(Path::new("son.f32")), &info, find("x").unwrap(), Some(140.0), &Encoder::cpu(), Path::new("o.mp4"));
         let s = a.join(" ");
         for want in ["-c:v libx264", "-c:a aac", "-b:a 192k", "-b:v 8000k", "-maxrate 12000k", "-movflags +faststart", "-t 140", "-g 60", "-map 1:a:0"] {
             assert!(s.contains(want), "{want} absent : {s}");
         }
-        let a = ffmpeg_args(Path::new("in.mp4"), None, &info, find("youtube").unwrap(), None, Path::new("o.mp4"));
+        let a = ffmpeg_args(Path::new("in.mp4"), None, &info, find("youtube").unwrap(), None, &Encoder::cpu(), Path::new("o.mp4"));
         assert!(a.contains(&"-an".to_string()) && a.contains(&"-shortest".to_string()));
     }
 }

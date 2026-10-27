@@ -741,7 +741,14 @@ pub fn main(args: &[String]) -> i32 {
             if parts.len() > 1 {
                 say(&format!("Partie {} sur {}", i + 1, parts.len()));
             }
-            let code = run_hyperframes(&cmd, &env, f0 as f64 / fps, part_len, total);
+            // Vidéo encodée par la carte graphique si elle marche (gpu.rs ; HyperFrames choisit
+            // son encodeur matériel) ; échec : partie refaite par le processeur.
+            let enc = crate::gpu::h264();
+            let mut code = run_hyperframes(&[cmd.clone(), if enc.is_gpu() { vec!["--gpu".into()] } else { vec![] }].concat(), &env, f0 as f64 / fps, part_len, total);
+            if code != 0 && enc.is_gpu() {
+                crate::gpu::give_up(&enc);
+                code = run_hyperframes(&cmd, &env, f0 as f64 / fps, part_len, total);
+            }
             if code != 0 || !tmp.exists() {
                 let left = memoire::disk_free(paths::root()).unwrap_or(u64::MAX);
                 return fail(format!(

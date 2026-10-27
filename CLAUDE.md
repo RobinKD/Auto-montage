@@ -355,7 +355,7 @@ interne : les changements attendent la prochaine version.
   « Télécharger » de la page des moments (aussi en dérushage), exports listés sur « Téléchargements »
   (`make_downloads` n'en publie que ce qui tient dans la page).
 - Libérer de la place (section en bas de /rush/) : `rust/src/place.rs` (inventaire : montages
-  enregistrés, rushes de `public/rushes`, `rush_2160.webm`, vidéos de `work/rendu_hyperframes/assets`,
+  enregistrés, rushes de `public/rushes`, `rush_2160.mp4`, vidéos de `work/rendu_hyperframes/assets`,
   `work/sauvegardes`, restes `.envoi-*` et `*.part.*` ; taille réellement libérée, liens physiques
   exclus), `/api/place` et `/api/place/delete` (refusé pendant une tâche). Au démarrage du serveur,
   les restes sont effacés ; `project save` efface les vidéos du dernier rendu.
@@ -374,3 +374,13 @@ interne : les changements attendent la prochaine version.
   `./am use_selection work/local_db <variante>`) et son bouton « Générer »
   monte la version de travail lui-même (`rust/src/local_server.rs`). « Télécharger » y propose
   720p, 1080p et la création de la 4K (`/api/final` : `make_hd` puis `render final`).
+- Source 4K (`rust/src/make_hd.rs`) : lue dans le rush d'origine (`work/rush.txt`, ou l'assemblage de
+  join_rushes), images gardées choisies avant la mise à l'échelle (`fps=30,select,scale`) : un rush 4K
+  garde ses images (réduites s'il est plus grand), un rush plus petit est agrandi ; H.264 crf 16
+  (`public/rushes/rush_2160.mp4`, l'ancienne `rush_2160.webm` en VP9 est effacée).
+- Carte graphique (`rust/src/gpu.rs`, `./am gpu`) : encodeur H.264 matériel du ffmpeg utilisé
+  (videotoolbox, nvenc, qsv, vaapi, amf) essayé sur quelques images, résultat dans `work/gpu.json` ;
+  utilisé (avec `-hwaccel auto`) par la version de travail, la source 4K, les exports et le rendu
+  HyperFrames (`--gpu`), jamais pour les analyses ; ligne « Encodage : carte graphique (…) » ou
+  « Encodage : processeur » ; échec : refait par le processeur, carte écartée ; `AM_GPU=0` la coupe.
+  whisper.cpp compilé ici avec CUDA (nvcc) ou Vulkan (glslc, vulkaninfo) si présents, sinon CPU.

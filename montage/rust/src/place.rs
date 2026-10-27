@@ -4,7 +4,7 @@
 //! Éléments proposés :
 //!   projet:<dossier>     montage enregistré (work/projets/<dossier>)
 //!   rush:<fichier>       vidéo envoyée (public/rushes), copie de l'original de l'ordinateur
-//!   hd                   source 4K du montage en cours (public/rushes/rush_2160.webm), refaite à la
+//!   hd                   source 4K du montage en cours (public/rushes/rush_2160.mp4), refaite à la
 //!                        prochaine création 4K
 //!   rendu                copies des vidéos laissées par le dernier rendu (work/rendu_hyperframes/assets),
 //!                        refaites au prochain rendu
@@ -105,6 +105,11 @@ pub fn leftovers() -> Vec<PathBuf> {
     out
 }
 
+/// Source 4K du montage en cours (rush_2160.mp4, ou rush_2160.webm des versions précédentes).
+pub fn hd_files() -> Vec<PathBuf> {
+    [crate::make_hd::FILE, crate::make_hd::OLD_FILE].iter().map(|n| paths::rushes().join(n)).filter(|p| p.is_file()).collect()
+}
+
 pub fn render_copies() -> Vec<PathBuf> {
     util::list_dir(assets()).into_iter().filter(|n| is_video(n)).map(|n| assets().join(n)).collect()
 }
@@ -153,7 +158,7 @@ pub fn inventory() -> Value {
         let note = if name == current {
             format!(
                 "Vidéo du montage en cours : sans elle, sa 4K ne pourra plus être créée{} Le montage lui-même reste.",
-                if paths::rushes().join("rush_2160.webm").exists() {
+                if paths::rushes().join(crate::make_hd::FILE).exists() {
                     " (la source 4K est déjà prête, elle suffit tant qu'elle reste)."
                 } else {
                     "."
@@ -168,10 +173,11 @@ pub fn inventory() -> Value {
                           "detail": format!("fichier du {}", day(util::mtime(&path).unwrap_or(0.0))), "note": note,
                           "keep": name == current || used}));
     }
-    let hd = paths::rushes().join("rush_2160.webm");
-    if hd.is_file() {
-        items.push(json!({"id": "hd", "group": "videos", "label": "Source 4K du montage en cours", "size": freed(&hd),
-                          "detail": "rush_2160.webm",
+    let hd = hd_files();
+    if !hd.is_empty() {
+        let names: Vec<String> = hd.iter().map(|p| name_of(p)).collect();
+        items.push(json!({"id": "hd", "group": "videos", "label": "Source 4K du montage en cours", "size": hd.iter().map(|p| freed(p)).sum::<u64>(),
+                          "detail": names.join(", "),
                           "note": "Refaite (plusieurs minutes) à la prochaine création 4K ; la 4K déjà créée reste.",
                           "keep": true}));
     }
@@ -221,7 +227,7 @@ pub fn delete(ids: &[String]) -> Vec<String> {
             "projet" => vec![store().join(name)],
             "rush" => vec![paths::rushes().join(name)],
             "sauvegarde" => vec![backups().join(name)],
-            "hd" => vec![paths::rushes().join("rush_2160.webm")],
+            "hd" => hd_files(),
             "rendu" => render_copies(),
             "parties" => render_parts(),
             "restes" => leftovers(),
