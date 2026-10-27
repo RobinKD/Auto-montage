@@ -285,6 +285,24 @@ pub fn disk_free(path: &Path) -> u64 {
     crate::memoire::disk_free(path).unwrap_or(0)
 }
 
+/// Extensions des fichiers servis tels quels (vidéos, images, sons, polices, données, sous-titres) :
+/// jamais de page (.html, .svg, .xml…) qu'un fichier déposé dans work/ ou out/ ferait exécuter
+/// par le navigateur avec les droits de l'interface. Les scripts (.js) seulement ceux des pages
+/// (local/) et du lecteur de la page des moments (work/moments/hf/, copiés par le programme).
+pub const SERVED_EXT: [&str; 34] = [
+    "mp4", "m4v", "mov", "mkv", "webm", "avi", "mts", "jpg", "jpeg", "png", "webp", "gif", "ico", "mp3", "wav", "ogg",
+    "opus", "oga", "m4a", "aac", "flac", "aif", "aiff", "ttf", "otf", "woff", "woff2", "json", "txt", "srt", "vtt", "md",
+    "pdf", "js",
+];
+
+pub fn servable(path: &Path) -> bool {
+    let ext = path.extension().map(|e| e.to_string_lossy().to_lowercase()).unwrap_or_default();
+    if !SERVED_EXT.contains(&ext.as_str()) {
+        return false;
+    }
+    ext != "js" || [root().join("local"), moments().join("hf")].iter().any(|d| realpath(path).starts_with(realpath(d)))
+}
+
 /// Type d'un fichier servi : celui de `mimetypes` de Python pour les fichiers du projet.
 pub fn mime_type(path: &Path) -> String {
     let ext = path.extension().map(|e| e.to_string_lossy().to_lowercase()).unwrap_or_default();
@@ -387,5 +405,16 @@ mod tests {
         assert!(inside(&base, "../etc/passwd").is_none());
         assert!(inside(&base, "x/../y").is_some());
         assert_eq!(inside(&base, ""), Some(realpath(&base)));
+    }
+
+    #[test]
+    fn served_types() {
+        let m = realpath(&moments());
+        assert!(servable(&m.join("clips").join("m_1.mp4")));
+        assert!(servable(&m.join("hf").join("gsap.min.js")));
+        assert!(servable(&realpath(&root().join("local")).join("menu.js")));
+        for bad in ["x.html", "x.HTM", "x.svg", "x.xml", "x.mjs", "x.js", "x"] {
+            assert!(!servable(&m.join(bad)), "{bad}");
+        }
     }
 }

@@ -325,9 +325,21 @@ pub fn fetch_node(_args: &[String]) -> i32 {
     let staging = paths::root().join("node.installation");
     util::remove_all(&staging);
     let result = (|| -> Result<(), String> {
+        // Empreinte publiée par nodejs.org pour cette archive (SHASUMS256.txt de la version).
+        let sums = match net::get(&format!("https://nodejs.org/dist/v{NODE_VERSION}/SHASUMS256.txt"), &[], Duration::from_secs(60)) {
+            Ok((200, body)) => String::from_utf8_lossy(&body).into_owned(),
+            Ok((code, _)) => return Err(format!("empreintes de Node.js indisponibles (HTTP {code})")),
+            Err(e) => return Err(format!("empreintes de Node.js indisponibles ({e})")),
+        };
+        let file = format!("{base}.{ext}");
+        let expected = sums
+            .lines()
+            .find_map(|l| l.split_once("  ").filter(|(_, n)| n.trim() == file).map(|(h, _)| h.to_string()))
+            .ok_or_else(|| format!("empreinte de {file} absente de SHASUMS256.txt"))?;
+        check_sha256(&tmp, &expected)?;
         let f = fs::File::open(&tmp).map_err(|e| e.to_string())?;
         if ext == "zip" {
-            zip::ZipArchive::new(f).and_then(|mut z| z.extract(&staging)).map_err(|e| e.to_string())?;
+            unzip(f, &staging)?;
         } else {
             tar::Archive::new(flate2::read::GzDecoder::new(f)).unpack(&staging).map_err(|e| e.to_string())?;
         }
@@ -346,6 +358,49 @@ pub fn fetch_node(_args: &[String]) -> i32 {
             1
         }
     }
+}
+
+/// Empreinte SHA-256 d'un fichier (hexadécimal, minuscules).
+fn sha256_file(path: &Path) -> Result<String, String> {
+    use sha2::{Digest, Sha256};
+    let mut f = fs::File::open(path).map_err(|e| e.to_string())?;
+    let mut h = Sha256::new();
+    std::io::copy(&mut f, &mut h).map_err(|e| e.to_string())?;
+    Ok(hex::encode(h.finalize()))
+}
+
+/// Vérifie qu'un fichier téléchargé est bien celui publié (empreinte SHA-256 attendue).
+fn check_sha256(path: &Path, expected: &str) -> Result<(), String> {
+    let got = sha256_file(path)?;
+    if got.eq_ignore_ascii_case(expected.trim()) {
+        Ok(())
+    } else {
+        Err(format!("empreinte inattendue (fichier abîmé ou modifié) : {got} au lieu de {expected}"))
+    }
+}
+
+/// Extrait une archive zip dans `dest` : fichiers et dossiers seulement, chacun gardé dans `dest`
+/// (nom absolu ou avec « .. » refusé), sans lien symbolique ni droits spéciaux.
+fn unzip(f: fs::File, dest: &Path) -> Result<(), String> {
+    let mut z = zip::ZipArchive::new(f).map_err(|e| e.to_string())?;
+    for i in 0..z.len() {
+        let mut entry = z.by_index(i).map_err(|e| e.to_string())?;
+        let Some(rel) = entry.enclosed_name() else { return Err(format!("chemin refusé dans l'archive : {}", entry.name().unwrap_or_default())) };
+        let target = dest.join(rel);
+        if entry.is_dir() {
+            util::mkdirs(&target);
+            continue;
+        }
+        if entry.is_symlink() || !entry.is_file() {
+            continue;
+        }
+        if let Some(parent) = target.parent() {
+            util::mkdirs(parent);
+        }
+        let mut out = fs::File::create(&target).map_err(|e| e.to_string())?;
+        std::io::copy(&mut entry, &mut out).map_err(|e| e.to_string())?;
+    }
+    Ok(())
 }
 
 /// Claude Code (dans `montage/claude/` s'il n'est pas sur la machine) et le plugin HyperFrames du
@@ -426,16 +481,25 @@ pub fn fetch_fonts(_args: &[String]) -> i32 {
 pub fn fetch_face_model(_args: &[String]) -> i32 {
     let models = paths::work().join("models");
     util::mkdirs(&models);
-    let fetch = |file: &str, repo: &str| -> bool {
+    // Version fixée de chaque modèle (commit du dépôt) et son empreinte SHA-256 : le fichier lu
+    // par tract est exactement celui-là.
+    let fetch = |file: &str, repo: &str, commit: &str, sha: &str| -> bool {
         let out = models.join(file);
         if fs::metadata(&out).map(|m| m.len() > 0).unwrap_or(false) {
             return true;
         }
-        let url = format!("https://huggingface.co/opencv/{repo}/resolve/main/{file}");
+        let url = format!("https://huggingface.co/opencv/{repo}/resolve/{commit}/{file}");
         let part = models.join(format!("{file}.dl"));
         match download_file(&url, &part, 0) {
             // Moins de 100 Ko : page d'erreur ou pointeur Git LFS, pas le modèle.
-            Ok(n) if n > 100_000 => fs::rename(&part, &out).is_ok(),
+            Ok(n) if n > 100_000 => match check_sha256(&part, sha) {
+                Ok(()) => fs::rename(&part, &out).is_ok(),
+                Err(e) => {
+                    let _ = fs::remove_file(&part);
+                    eprintln!("Modèle {file} : téléchargement invalide ({e})");
+                    false
+                }
+            },
             Ok(_) => {
                 let _ = fs::remove_file(&part);
                 eprintln!("Modèle {file} : téléchargement invalide");
@@ -448,10 +512,20 @@ pub fn fetch_face_model(_args: &[String]) -> i32 {
             }
         }
     };
-    if !fetch("face_detection_yunet_2023mar.onnx", "face_detection_yunet") {
+    if !fetch(
+        "face_detection_yunet_2023mar.onnx",
+        "face_detection_yunet",
+        "3cc26e7f1014a5ee5d74a42acee58bafc9d0a310",
+        "8f2383e4dd3cfbb4553ea8718107fc0423210dc964f9f4280604804ed2552fa4",
+    ) {
         return 1;
     }
-    if !fetch("face_recognition_sface_2021dec.onnx", "face_recognition_sface") {
+    if !fetch(
+        "face_recognition_sface_2021dec.onnx",
+        "face_recognition_sface",
+        "3d7082438a6e4551e840c9b2bb60b71e8da4b524",
+        "0ba9fbfa01b5270c96627c4ef784da859931e02f04419c829e83484087c34e79",
+    ) {
         eprintln!("SFace indisponible : personnes non reconnues d'un plan à l'autre.");
     }
     0
@@ -585,10 +659,12 @@ pub fn fetch_ffmpeg(_args: &[String]) -> i32 {
             return 1;
         }
     };
-    let Some(url) = util::arr(&info, "urls")
+    let wheel_info = util::arr(&info, "urls")
         .iter()
-        .find(|u| util::s(u, "filename").map(|f| f.ends_with(".whl") && f.contains(tag)).unwrap_or(false))
-        .and_then(|u| util::s(u, "url"))
+        .find(|u| util::s(u, "filename").map(|f| f.ends_with(".whl") && f.contains(tag)).unwrap_or(false));
+    // empreinte publiée par PyPI pour cette archive (vérifiée après le téléchargement)
+    let sha = wheel_info.and_then(|u| u.get("digests")).and_then(|d| util::s(d, "sha256")).unwrap_or("").to_string();
+    let Some(url) = wheel_info.and_then(|u| util::s(u, "url"))
     else {
         eprintln!("ffmpeg : archive introuvable pour ce système ({tag}).");
         return 1;
@@ -601,11 +677,16 @@ pub fn fetch_ffmpeg(_args: &[String]) -> i32 {
         return 1;
     }
     let result = (|| -> Result<(), String> {
+        if sha.is_empty() {
+            return Err("empreinte de l'archive absente de PyPI".into());
+        }
+        check_sha256(&wheel, &sha)?;
         let mut zip = zip::ZipArchive::new(fs::File::open(&wheel).map_err(|e| e.to_string())?).map_err(|e| e.to_string())?;
         let name = zip
             .file_names()
+            .filter_map(Result::ok)
             .find(|n| n.starts_with("imageio_ffmpeg/binaries/ffmpeg-"))
-            .map(String::from)
+            .map(|n| n.into_owned())
             .ok_or("ffmpeg absent de l'archive")?;
         let mut entry = zip.by_name(&name).map_err(|e| e.to_string())?;
         let part = bin.join(format!("{exe}.part"));

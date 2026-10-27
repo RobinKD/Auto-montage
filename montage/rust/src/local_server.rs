@@ -68,6 +68,10 @@ pub fn main(args: &[String]) -> i32 {
     jobs::remove_partial_files(true);
     std::thread::spawn(claude::update_loop);
     let addr = if host.contains(':') { format!("[{host}]:{port}") } else { format!("{host}:{port}") };
+    if !matches!(host.as_str(), "127.0.0.1" | "localhost" | "::1") {
+        // l'interface n'a pas de mot de passe : tout appareil qui joint cette adresse la pilote
+        eprintln!("Attention : interface ouverte sur {addr}, sans mot de passe : n'importe quel appareil du réseau peut la piloter.");
+    }
     crate::relance::cleanup(); // restes d'un remplacement du programme
     // Relance après une mise à jour : l'ancien serveur peut tenir le port quelques instants.
     let mut tries = 0;

@@ -1362,7 +1362,7 @@ fn run() -> Result<(), String> {
                 let word = if fx.get("text").is_some() { pystr(fx.get("text")) } else { String::new() };
                 let word = word.trim();
                 if !word.is_empty() {
-                    let color = fx.get("color").and_then(Value::as_str).filter(|c| c.chars().count() == 7).unwrap_or("#ffd84d");
+                    let color = fx.get("color").and_then(Value::as_str).filter(|c| fonts_lib::is_color(c)).unwrap_or("#ffd84d");
                     highlights.push(json!({"words": word, "color": color,
                                            "start": r3(first_clip(seg_id).from as f64 / FPS),
                                            "end": r3(last_clip(seg_id).end())}));
@@ -1657,7 +1657,7 @@ fn run() -> Result<(), String> {
         "autoZoom": num(pyfloat(h.get("autoZoom"), 1.0).min(2.0).max(0.0)),
         "pop": truthy(h.get("pop")),
         "karaoke": truthy(h.get("karaoke")),
-        "karaokeColor": h.get("karaokeColor").and_then(Value::as_str).unwrap_or("#ffd84d"),
+        "karaokeColor": h.get("karaokeColor").and_then(Value::as_str).filter(|c| fonts_lib::is_color(c)).unwrap_or("#ffd84d"),
         "speakerFocus": speaker_focus,
     });
     if derush {

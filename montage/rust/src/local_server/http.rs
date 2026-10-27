@@ -123,7 +123,8 @@ fn http_date(ts: f64) -> String {
 
 /// Fichier statique, avec les requêtes partielles (Range) pour avancer dans les vidéos.
 fn send_file(req: &Req, path: Option<PathBuf>) -> Reply {
-    let Some(path) = path.filter(|p| p.is_file()) else { return error(404, None) };
+    // types permis seulement (SERVED_EXT) : un fichier déposé ne devient jamais une page
+    let Some(path) = path.filter(|p| p.is_file() && servable(p)) else { return error(404, None) };
     let Ok(meta) = fs::metadata(&path) else { return error(404, None) };
     let size = meta.len() as i64;
     // Validateurs : le navigateur revalide sa copie et reçoit le nouveau fichier s'il a changé.
@@ -156,7 +157,12 @@ fn send_file(req: &Req, path: Option<PathBuf>) -> Reply {
         status = 206;
         headers.push(("Content-Range".into(), format!("bytes {start}-{end}/{size}")));
     }
-    headers.push(("Content-Type".into(), mime_type(&path)));
+    let mime = mime_type(&path);
+    // un texte ouvert seul n'a aucun droit (pas de script) ; nosniff : ajouté par send
+    if (mime.starts_with("text/") && mime != "text/javascript") || mime == "application/json" {
+        headers.push(("Content-Security-Policy".into(), "sandbox; frame-ancestors 'none'".into()));
+    }
+    headers.push(("Content-Type".into(), mime));
     headers.push(("Accept-Ranges".into(), "bytes".into()));
     headers.push(("ETag".into(), etag));
     headers.push(("Last-Modified".into(), modified));
@@ -226,8 +232,13 @@ fn do_get(req: &Req) -> Reply {
         }
         "/updates" | "/updates/" => return page(&["local", "updates.html"]),
         "/api/update" => {
-            if claude::UPDATE.lock().map(|u| u.1.is_none()).unwrap_or(true) {
-                claude::update_check();
+            {
+                // une seule vérification à la fois : des demandes répétées attendent son résultat
+                static CHECKING: std::sync::Mutex<()> = std::sync::Mutex::new(());
+                let _one = CHECKING.lock().unwrap_or_else(|e| e.into_inner());
+                if claude::UPDATE.lock().map(|u| u.1.is_none()).unwrap_or(true) {
+                    claude::update_check();
+                }
             }
             let mut s = claude::update_state();
             s["version"] = json!(*VERSION);
@@ -236,10 +247,10 @@ fn do_get(req: &Req) -> Reply {
         }
         "/claude" | "/claude/" => return page(&["local", "claude.html"]),
         "/api/claude" => {
-            let connected = claude::claude_connected(true);
+            let (connected, account) = claude::claude_page_status();
             return send_json(
                 &json!({"connected": connected, "installed": paths::claude().is_some(),
-                        "account": if connected { claude::claude_account() } else { String::new() },
+                        "account": account,
                         "apiKey": std::env::var("ANTHROPIC_API_KEY").map(|k| !k.is_empty()).unwrap_or(false),
                         "pending": claude::login_pending()}),
                 200,
@@ -1330,6 +1341,10 @@ fn send(request: tiny_http::Request, reply: Reply) {
         .iter(),
     ) {
         if k.eq_ignore_ascii_case("Content-Length") {
+            continue;
+        }
+        // règle propre à la réponse (send_file) : elle reprend déjà frame-ancestors
+        if v == "frame-ancestors 'none'" && reply.headers.iter().any(|(h, _)| h.eq_ignore_ascii_case("Content-Security-Policy")) {
             continue;
         }
         if let Ok(h) = Header::from_bytes(k.as_bytes(), v.as_bytes()) {

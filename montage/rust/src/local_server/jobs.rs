@@ -1163,7 +1163,7 @@ fn digit_prefix(name: &str) -> bool {
 }
 
 fn open_job_log(kind: &str, arg: &str, steps: &[String]) -> std::io::Result<(fs::File, String)> {
-    util::mkdirs(logs());
+    super::claude::private_dir(&logs());
     let name = format!("{}_{kind}.log", now_fmt("%Y-%m-%d_%H%M%S"));
     let mut f = fs::File::create(logs().join(&name))?;
     write!(
