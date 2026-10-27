@@ -115,7 +115,6 @@ echo "$DATA" | json '[c["id"] for c in d["sfxCatalog"]]' | has "perso-bip-essai"
 SHEET="$(echo "$DATA" | json 'd["strip"]["sheets"][0]')"
 curl -fsS -o /dev/null "$URL/$SHEET" || fail "images de la frise ($SHEET)"
 echo "$DATA" | json 'len(d["wave"]) > 0' | has -x True || fail "forme d'onde absente de la page"
-curl -fsS "$URL/downloads/" | has "1080p" || fail "page des téléchargements"
 curl -fsS "$URL/chat/" | has "Discuter\|Claude" || fail "page de discussion"
 curl -fsS "$URL/logs/" | has "Journal" || fail "page Journal"
 curl -fsS "$URL/tutoriel/" | has "Sans Claude Code" || fail "page Tutoriel"
@@ -148,7 +147,7 @@ if [ "$WITH_CLAUDE" = false ]; then
   echo "5a. Générer la vidéo entière avec les moments suggérés"
   KEEP="$(echo "$DATA" | json 'json.dumps([m["id"] for m in d["moments"] if m["suggested"]])')"
   curl -fsS -X POST -H "content-type: application/json" \
-    -d "{\"variant\": \"travail\", \"name\": \"Travail\", \"keep\": $KEEP}" "$URL/api/regen" >/dev/null || fail "lancement de la génération"
+    -d "{\"variant\": \"suggestions\", \"name\": \"Suggestions\", \"keep\": $KEEP}" "$URL/api/regen" >/dev/null || fail "lancement de la génération"
   LABELS=""
   wait_job
   DATA="$(curl -fsS "$URL/" | sed -n 's/^  const DATA = \(.*\);$/\1/p')"
@@ -156,8 +155,8 @@ fi
 for f in /montage.mp4 /out/montage_apercu.mp4; do
   [ "$(curl -s -o /dev/null -w '%{http_code}' -H 'Range: bytes=0-99' "$URL$f")" = 206 ] || fail "vidéo $f"
 done
-curl -fsS "$URL/api/memoire?rush=$NAME" | json '[o["op"] for o in d["operations"] if o["measured"]]' | has "Rendu de la vidéo" \
-  || fail "mémoire du rendu non mesurée"
+curl -fsS "$URL/api/logs/rapport" | has "Mémoire mesurée : .*Rendu de la vidéo" || fail "mémoire du rendu non mesurée"
+curl -fsS "$URL/downloads/" | has "1080p" || fail "page des téléchargements"
 D1="$(echo "$DATA" | json 'd["working"]["duration"]')"
 echo "  vidéo entière : $D1 s"
 
