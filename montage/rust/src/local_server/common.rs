@@ -75,8 +75,9 @@ pub static SKELETON: LazyLock<String> = LazyLock::new(|| {
     )
 });
 
-/// Mode « Dérushage » : les parties marquées data-mode-montage (effets, sous-titres, Claude) sont
-/// masquées dès le chargement ; local/menu.js montre le choix du mode dans le bandeau.
+/// Mode « Dérushage » du montage en cours : les parties marquées data-mode-montage (effets,
+/// Claude) sont masquées dès le chargement ; « Valider le dérush » (page des moments) mène au
+/// mode Auto-montage.
 pub const SKELETON_STYLE: &str = "html[data-mode=\"derush\"] [data-mode-montage],\
 html[data-mode=\"derush\"][data-subtitles=\"0\"] [data-subtitles-only]{display:none!important}";
 
@@ -91,7 +92,7 @@ pub fn with_mode(skeleton: &str) -> String {
 /// Fonction réservée au mode Auto-montage (Claude, effets) : message d'erreur, sinon None.
 pub fn derush_refused() -> Option<&'static str> {
     (app_mode(&work()) == "derush")
-        .then_some("Indisponible en mode Dérushage : passez en mode Auto-montage dans le bandeau du haut.")
+        .then_some("Indisponible pendant le dérushage : validez d'abord le dérush (bouton « Valider le dérush » de la page des moments) pour passer à l'auto-montage.")
 }
 
 /// Identifiant sûr (collection, document, montage…) : ni « . » ni « .. », caractères simples.

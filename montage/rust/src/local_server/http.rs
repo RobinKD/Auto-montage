@@ -5,7 +5,7 @@ use super::claude;
 use super::common::*;
 use super::info::*;
 use super::jobs::{self, busy, busy_error, cancel_job, job_status, paused_task, resume_job, start_job, Step, JOB_LOCK};
-use crate::moments_lib::{app_mode, derush_subtitles, language_label, MODES};
+use crate::moments_lib::{app_mode, derush_subtitles, language_label};
 use crate::{decoupage, fonts_lib, memoire, paths, place, procs, pyjson, util};
 use regex::Regex;
 use serde_json::{json, Map, Value};
@@ -652,15 +652,6 @@ fn do_delete(req: &Req) -> Reply {
 // --- PUT --------------------------------------------------------------------------------
 fn do_put(req: &Req, body: &mut dyn Read) -> Reply {
     let route = req.raw_path.as_str();
-    if route == "/api/mode" {
-        // bandeau : Dérushage ou Auto-montage
-        let b = read_obj(req, body);
-        let mode = b.get("mode").and_then(Value::as_str).filter(|m| MODES.iter().any(|(c, _)| c == m));
-        let Some(mode) = mode else { return err_json("Mode inconnu.", 400) };
-        util::mkdirs(work());
-        let _ = fs::write(work().join("mode.txt"), format!("{mode}\n"));
-        return send_json(&json!({"mode": mode}), 200);
-    }
     if route == "/api/derush" {
         // dérushage : sous-titres oui / non
         let b = read_obj(req, body);
@@ -726,7 +717,7 @@ const POST_ROUTES: &[&str] = &[
     "/api/claude/login", "/api/claude/code", "/api/claude/logout",
     "/api/update/check", "/api/update/apply", "/api/update/reset", "/api/restart", "/api/quit", "/api/style/analyse", "/api/son/analyse",
     "/api/tutorial/seen",
-    "/api/moments/merge", "/api/moments/split", "/api/moments/unmerge", "/api/moments/unsplit", "/api/moments/restore",
+    "/api/moments/split", "/api/moments/unsplit", "/api/moments/restore", "/api/derush/valider",
 ];
 
 fn do_post(req: &Req, body_reader: &mut dyn Read) -> Reply {
@@ -1005,7 +996,48 @@ fn do_post(req: &Req, body_reader: &mut dyn Read) -> Reply {
     if let Some(action) = route.strip_prefix("/api/moments/") {
         return post_moments(action, &body);
     }
+    let variant = match save_variant(&body) {
+        Ok(v) => v,
+        Err(reply) => return reply,
+    };
+    if route == "/api/derush/valider" {
+        return post_derush_valider(&variant);
+    }
     // /api/regen
+    if !start_job("regen", jobs::regen_steps(), &variant, None, None, false) {
+        return err_json(&busy_error(), 409);
+    }
+    ok_json(202)
+}
+
+/// « Valider le dérush » → auto-montage : les moments gardés du dérush mis bout à bout en une
+/// vidéo (derush_video), nouveau rush préparé sans Whisper (sa transcription est celle du dérush,
+/// corrections comprises), en mode Auto-montage, comme un seul moment. Le dérush reste dans
+/// « Montages » (project save, au changement de rush).
+fn post_derush_valider(variant: &str) -> Reply {
+    if app_mode(&work()) != "derush" {
+        return err_json("Ce montage n'est pas en dérushage.", 400);
+    }
+    let rush = read_text(work().join("rush.txt")).unwrap_or_default();
+    let name = crate::derush_video::output_name(&rush);
+    let db = db().to_string_lossy().into_owned();
+    let segs = "work/derush_segments.json";
+    let steps = vec![
+        ("lecture de la sélection".to_string(), vec!["use_selection".to_string(), db, "{arg}".into()]),
+        ("montage".into(), vec!["build_edit".into()]),
+        ("vidéo du dérush".into(), vec!["derush_video".into(), "{args}".into()]),
+        ("préparation du rush".into(), ["prepare", "--mode", "montage", "--transcription", segs, "{args}"].iter().map(|s| s.to_string()).collect()),
+        ("page des moments".into(), vec!["make_moments".into()]),
+    ];
+    if !start_job("derush", steps, variant, Some(vec![name.clone()]), None, false) {
+        return err_json(&busy_error(), 409);
+    }
+    send_json(&json!({"ok": true, "rush": name}), 202)
+}
+
+/// Variante demandée (« travail » par défaut), enregistrée avec la sélection envoyée si la page
+/// ne l'a jamais modifiée (rush tout juste préparé).
+fn save_variant(body: &Map<String, Value>) -> Result<String, Reply> {
     let variant = {
         let v = body_str(&body, "variant");
         if v.is_empty() {
@@ -1015,14 +1047,14 @@ fn do_post(req: &Req, body_reader: &mut dyn Read) -> Reply {
         }
     };
     if !safe_id(&variant) {
-        return err_json("variante invalide", 400);
+        return Err(err_json("variante invalide", 400));
     }
     let doc = db().join("variantes").join(format!("{variant}.json"));
     if !doc.exists() {
         // Variante jamais modifiée sur la page (rush tout juste préparé) : sa sélection
         // actuelle (les suggestions) est envoyée avec la demande.
         let Some(keep) = body.get("keep").filter(|k| k.is_array()) else {
-            return err_json(&format!("variante « {variant} » pas encore enregistrée"), 400);
+            return Err(err_json(&format!("variante « {variant} » pas encore enregistrée"), 400));
         };
         util::mkdirs(doc.parent().unwrap());
         let name = {
@@ -1036,15 +1068,10 @@ fn do_post(req: &Req, body_reader: &mut dyn Read) -> Reply {
         let rush = basename(&read_text(work().join("rush.txt")).unwrap_or_default()).to_string();
         let _ = write_json(&doc, &json!({"name": name, "keep": keep, "rush": rush, "updatedAt": now_iso()}), Some(1), false);
     }
-    if !start_job("regen", jobs::regen_steps(), &variant, None, None, false) {
-        return err_json(&busy_error(), 409);
-    }
-    ok_json(202)
+    Ok(variant)
 }
 
-/// Scinder ou fusionner des moments (decoupage), puis refaire la page des moments (seuls les
-/// extraits touchés sont recalculés).
-// --- Historique de la page des moments (Annuler / Rétablir une scission ou une fusion) -----------
+// --- Historique de la page des moments (Annuler / Rétablir une coupe ou un recollage) ------------
 // Instantané de work/decoupage.json et des documents de la page (local_db : moments, variantes),
 // dans work/historique/<nom>.json (HISTORY_KEEP gardés) : remettre un instantané rend exactement
 // la découpe et les réglages d'avant, puis la page des moments est refaite.
@@ -1137,42 +1164,21 @@ fn post_moments(action: &str, body: &Map<String, Value>) -> Reply {
             Err(e) => err_json(&e, 400),
         };
     }
+    // Couper un moment en deux (« Couper » : avant le mot le plus proche de l'instant t), ou
+    // recoller une partie au moment précédent (decoupage), puis refaire la page des moments (seuls
+    // les extraits touchés sont recalculés).
     let snapshot = take_snapshot();
-    // Fusion de plusieurs moments sélectionnés sur la frise : « count » fusions de suite
-    // (le moment fusionné garde l'id du premier).
     let parsed = (|| {
         let mid = py_int(body.get("id")?)?;
         let t = if action == "split" { py_float(body.get("t").unwrap_or(&json!(0)))? } else { 0.0 };
-        let count = if action == "merge" { py_int(body.get("count").unwrap_or(&json!(1)))?.clamp(1, 100) } else { 1 };
-        Some((mid, t, count))
+        Some((mid, t))
     })();
-    let Some((mid, t, count)) = parsed else { return err_json("Moment invalide.", 400) };
-    let mut done = 0;
-    let mut message = String::new();
-    for _ in 0..count {
-        let r = match action {
-            "merge" => decoupage::merge(mid),
-            "unmerge" => decoupage::unmerge(mid),
-            "split" => decoupage::split(mid, t),
-            _ => decoupage::unsplit(mid),
-        };
-        match r {
-            Ok(m) => {
-                message = m;
-                done += 1;
-            }
-            Err(e) => {
-                if done == 0 {
-                    return err_json(&e.to_string(), 400);
-                }
-                message = format!("{} moments fusionnés en un seul (pas plus : {e})", done + 1);
-                break;
-            }
-        }
-    }
-    if count > 1 && done == count {
-        message = format!("{} moments fusionnés en un seul.", count + 1);
-    }
+    let Some((mid, t)) = parsed else { return err_json("Moment invalide.", 400) };
+    let r = if action == "split" { decoupage::split(mid, t) } else { decoupage::unsplit(mid) };
+    let message = match r {
+        Ok(m) => m,
+        Err(e) => return err_json(&e.to_string(), 400),
+    };
     let steps: Vec<Step> = vec![("page des moments".into(), vec!["make_moments".into()])];
     if !start_job("decoupage", steps, &message, None, None, false) {
         return err_json(&busy_error(), 409);

@@ -411,15 +411,12 @@ fn run() -> Result<(), String> {
         m.insert("reason".into(), reasons.get(&sid).cloned().unwrap_or(json!("")));
         m.insert("clip".into(), json!(format!("clips/{name}.mp4")));
         m.insert("thumb".into(), json!(format!("thumbs/{name}.jpg")));
-        // Fusion : ids réunis ; scission : segment d'origine et rang du mot de coupe.
-        if truthy(seg.get("merged")) {
-            m.insert("merged".into(), seg["merged"].clone());
-        }
+        // Moment coupé (« Couper ») : segment d'origine et rang du mot de coupe.
         if seg.get("splitFrom").map(|v| !v.is_null()).unwrap_or(false) {
             m.insert("splitFrom".into(), seg["splitFrom"].clone());
             m.insert("splitWord".into(), util::arr(seg, "words").first().and_then(|w| w.get("oi")).cloned().unwrap_or(Value::Null));
         }
-        // Rang de chaque mot dans son segment d'origine (pour scinder ici).
+        // Rang de chaque mot dans son segment d'origine (pour couper ici).
         m.insert(
             "origins".into(),
             Value::Array(

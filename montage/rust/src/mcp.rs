@@ -8,7 +8,7 @@
 //! besoin : mêmes règles, mêmes tâches et mêmes fichiers que la page des moments, qui voit les
 //! changements tout de suite. Les lectures (moments, réglages, catalogue) lisent les fichiers.
 //! Chaque modification faite ici est notée dans work/historique/mcp.json : « annuler » la défait
-//! (document de moment ou de variante, réglage de tout le montage, scission ou fusion).
+//! (document de moment ou de variante, réglage de tout le montage, coupe d'un moment).
 
 use crate::paths;
 use crate::util;
@@ -153,20 +153,20 @@ fn tools() -> Value {
         {"name": "garder_moments", "description": "Garde ou retire des moments de la vidéo entière (sélection de la variante).",
          "inputSchema": {"type": "object", "properties": {"garder": {"type": "array", "items": {"type": "integer"}}, "retirer": {"type": "array", "items": {"type": "integer"}},
                                                           "variante": {"type": "string"}}}},
-        {"name": "regler_moment", "description": "Change les réglages d'un moment (fusionnés avec les existants ; null retire un réglage) : text (sous-titre corrigé), nosub, sfx, vfx (effets visuels, dont {\"kind\": \"filtre\", \"effect\", \"at\", \"dur\", \"force\"}), gain (volume de la voix, 1 = 100 %), focus (personne, \"auto\" ou \"tous\"), transition ({\"kind\", \"dur\"} avant ce moment), cuts, trim. Temps en s depuis le début de l'extrait du moment.",
+        {"name": "regler_moment", "description": "Change les réglages d'un moment (fusionnés avec les existants ; null retire un réglage) : text (sous-titre corrigé), nosub, sfx, vfx (effets visuels, dont {\"kind\": \"filtre\", \"effect\", \"at\", \"dur\", \"force\"}), gain (volume de la voix, 1 = 100 %), focus (personne, \"auto\" ou \"tous\"), transition ({\"kind\", \"dur\"} avant ce moment), trim ({\"in\", \"out\"} : début et fin gardés). Temps en s depuis le début de l'extrait du moment.",
          "inputSchema": {"type": "object", "required": ["id", "reglages"], "properties": {"id": id.clone(), "reglages": {"type": "object"}}}},
-        {"name": "scinder_moment", "description": "Scinde un moment en deux avant le mot d'indice avant_mot (liste_moments avec_mots).",
-         "inputSchema": {"type": "object", "required": ["id", "avant_mot"], "properties": {"id": id.clone(), "avant_mot": {"type": "integer"}}}},
-        {"name": "fusionner_moments", "description": "Fusionne un moment avec les suivants (nombre = combien de fusions de suite, 1 par défaut).",
-         "inputSchema": {"type": "object", "required": ["id"], "properties": {"id": id, "nombre": {"type": "integer"}}}},
+        {"name": "couper_moment", "description": "Coupe un moment en deux moments séparés avant le mot d'indice avant_mot (liste_moments avec_mots), comme « Couper » de la page ; chacun se garde ou se retire.",
+         "inputSchema": {"type": "object", "required": ["id", "avant_mot"], "properties": {"id": id, "avant_mot": {"type": "integer"}}}},
         {"name": "lire_reglages", "description": "Réglages de tout le montage : couleurs, transitions, habillage, son, sous_titres (style), effets.",
          "inputSchema": {"type": "object", "required": ["quoi"], "properties": {"quoi": {"type": "string", "enum": setting_names}}}},
         {"name": "changer_reglages", "description": format!("Change des réglages de tout le montage (seules les clés données). {}",
             SETTINGS.iter().map(|s| format!("{} : {}", s.0, s.2)).collect::<Vec<_>>().join(" ; ")),
          "inputSchema": {"type": "object", "required": ["quoi", "valeurs"], "properties": {"quoi": {"type": "string", "enum": setting_names}, "valeurs": {"type": "object"}}}},
-        {"name": "annuler", "description": "Défait la dernière modification faite par ces commandes (moment, sélection, réglage, scission ou fusion).",
+        {"name": "annuler", "description": "Défait la dernière modification faite par ces commandes (moment, sélection, réglage, coupe d'un moment).",
          "inputSchema": {"type": "object", "properties": {}}},
         {"name": "generer_video", "description": "Génère la vidéo entière (aperçu 1080p) d'après la variante, avec couleurs, effets, transitions, volume normalisé et sous-titres en fichiers. attendre : jusqu'à la fin (sinon suivre avec etat).",
+         "inputSchema": {"type": "object", "properties": {"variante": {"type": "string"}, "attendre": {"type": "boolean"}, "delai_max": {"type": "integer", "description": "secondes (1800 par défaut)"}}}},
+        {"name": "valider_derush", "description": "Dérushage terminé, passage à l'auto-montage : les moments gardés de la variante deviennent une seule vidéo (nouveau rush, un seul moment, sous-titres corrigés repris sans nouvelle transcription), en mode Auto-montage ; le dérush reste dans les montages enregistrés. Seulement en dérushage. attendre : jusqu'à la fin.",
          "inputSchema": {"type": "object", "properties": {"variante": {"type": "string"}, "attendre": {"type": "boolean"}, "delai_max": {"type": "integer", "description": "secondes (1800 par défaut)"}}}},
         {"name": "rendu_4k", "description": "Crée la version 4K de la vidéo entière générée (long).",
          "inputSchema": {"type": "object", "properties": {}}},
@@ -286,7 +286,7 @@ fn garder(a: &Map<String, Value>) -> Result<Value, String> {
 fn regler(a: &Map<String, Value>) -> Result<Value, String> {
     let id = a.get("id").and_then(Value::as_i64).ok_or("id manquant")?;
     let Some(Value::Object(patch)) = a.get("reglages") else { return Err("reglages : objet attendu".into()) };
-    const FIELDS: [&str; 9] = ["text", "nosub", "sfx", "vfx", "gain", "focus", "transition", "cuts", "trim"];
+    const FIELDS: [&str; 8] = ["text", "nosub", "sfx", "vfx", "gain", "focus", "transition", "trim"];
     if let Some(k) = patch.keys().find(|k| !FIELDS.contains(&k.as_str())) {
         return Err(format!("réglage inconnu : {k} (possibles : {})", FIELDS.join(", ")));
     }
@@ -345,7 +345,7 @@ fn annuler() -> Result<Value, String> {
             let prev = if e["prev"].is_null() {
                 // document créé ici : remis vide (aucun réglage)
                 json!({"rush": rush(), "text": null, "nosub": null, "sfx": null, "vfx": null, "gain": null, "focus": null,
-                       "transition": null, "trim": null, "cuts": null})
+                       "transition": null, "trim": null})
             } else {
                 e["prev"].clone()
             };
@@ -412,20 +412,14 @@ fn tool(name: &str, a: &Map<String, Value>) -> Result<Value, String> {
         }
         "garder_moments" => garder(a),
         "regler_moment" => regler(a),
-        "scinder_moment" => {
+        "couper_moment" => {
             let id = a.get("id").and_then(Value::as_i64).ok_or("id manquant")?;
             let i = a.get("avant_mot").and_then(Value::as_u64).ok_or("avant_mot manquant")? as usize;
             let data = page_data()?;
             let m = util::arr(&data, "moments").iter().find(|m| m["id"].as_i64() == Some(id)).cloned().ok_or("moment introuvable")?;
             let w = util::arr(&m, "words").get(i).cloned().ok_or("indice de mot hors du moment")?;
             let r = call("POST", "/api/moments/split", Some(&json!({"id": id, "t": w["a"]})))?;
-            after_decoupage(r, &format!("scission du moment {id}"))
-        }
-        "fusionner_moments" => {
-            let id = a.get("id").and_then(Value::as_i64).ok_or("id manquant")?;
-            let n = a.get("nombre").and_then(Value::as_i64).unwrap_or(1);
-            let r = call("POST", "/api/moments/merge", Some(&json!({"id": id, "count": n})))?;
-            after_decoupage(r, &format!("fusion du moment {id}"))
+            after_decoupage(r, &format!("coupe du moment {id}"))
         }
         "lire_reglages" | "changer_reglages" => {
             let quoi = arg_str(a, "quoi", "");
@@ -452,6 +446,21 @@ fn tool(name: &str, a: &Map<String, Value>) -> Result<Value, String> {
                 return Ok(json!({"tache": job_summary(&st), "video": out, "volume": util::read_obj(paths::work().join("volume.json")).get("montage_apercu.mp4")}));
             }
             Ok(json!({"lance": true, "suivi": "outil etat"}))
+        }
+        "valider_derush" => {
+            let variant = safe(arg_str(a, "variante", "travail"))?.to_string();
+            let mut body = json!({"variant": variant});
+            if doc("variantes", &variant).is_none() {
+                if let Ok(Value::Object(l)) = liste_moments(&Map::new()) {
+                    body["keep"] = json!(util::arr(&Value::Object(l), "moments").iter().filter(|m| m["garde"] == json!(true)).map(|m| m["id"].clone()).collect::<Vec<_>>());
+                }
+            }
+            let res = call("POST", "/api/derush/valider", Some(&body))?;
+            if a.get("attendre").and_then(Value::as_bool).unwrap_or(false) {
+                let st = wait_job(a.get("delai_max").and_then(Value::as_u64).unwrap_or(1800));
+                return Ok(json!({"tache": job_summary(&st), "rush": res.get("rush")}));
+            }
+            Ok(json!({"lance": true, "rush": res.get("rush"), "suivi": "outil etat"}))
         }
         "rendu_4k" => {
             call("POST", "/api/final", Some(&json!({})))?;

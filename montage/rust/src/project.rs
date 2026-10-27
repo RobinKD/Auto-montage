@@ -35,8 +35,9 @@ const USAGE: &str = "Usage : auto-montage project save            met de côté 
 /// Les consignes (work/instructions.*) et la langue (langue.txt) sont choisies avant de préparer le
 /// rush suivant : elles restent (langue_rush.txt, la langue du rush, est rangée avec lui).
 /// tache.json et reprise : préparation en cours ou en pause (local_server) : jamais rangée.
-pub const SHARED: [&str; 21] = [
-    "projets", "local_db", "timings.json", "models", "regen_trigger.txt", "instructions.md", "instructions.name", "langue.txt", "mode.txt",
+/// Le mode (mode.txt : dérushage ou auto-montage) est propre à chaque montage : rangé avec lui.
+pub const SHARED: [&str; 20] = [
+    "projets", "local_db", "timings.json", "models", "regen_trigger.txt", "instructions.md", "instructions.name", "langue.txt",
     "derush.json", "style", "logs", "sauvegardes", "caption_style_default.json", "effets_page.json", "tutoriel_vu", "rendu_hyperframes",
     "rendu_parties", "memoire_mesures.json", "tache.json", "reprise",
 ];

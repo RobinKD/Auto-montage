@@ -41,10 +41,11 @@ pub fn regen_steps() -> Vec<Step> {
 }
 
 /// Sans consignes, pas de rendu : la vidéo entière se joue en direct sur la page des moments
-/// (« Vidéo entière ») et n'est rendue qu'au premier « Générer la vidéo entière ».
+/// (« Vidéo entière ») et n'est rendue qu'au premier « Générer la vidéo entière ». Un nouveau rush
+/// commence en dérushage (prepare --mode derush, work/mode.txt du montage).
 pub fn prepare_steps() -> Vec<Step> {
     vec![
-        step("préparation du rush", &["prepare", "{args}"]), // une ou plusieurs vidéos
+        step("préparation du rush", &["prepare", "--mode", "derush", "{args}"]), // une ou plusieurs vidéos
         step("page des moments", &["make_moments"]),
     ]
 }
@@ -60,10 +61,11 @@ pub fn export_steps() -> Vec<Step> {
 }
 
 /// Avec les consignes de montage appliquées par Claude, entre la préparation et la page des
-/// moments : montage selon les consignes, puis rendu de la vidéo entière.
+/// moments : montage selon les consignes, puis rendu de la vidéo entière. Le montage est alors en
+/// mode Auto-montage (effets, Claude).
 pub fn prepare_with_instructions() -> Vec<Step> {
     let p = prepare_steps();
-    let mut v = vec![p[0].clone()];
+    let mut v = vec![step("préparation du rush", &["prepare", "--mode", "montage", "{args}"])];
     v.push(step("consignes de montage (Claude)", &["apply_instructions"]));
     v.push(step("montage selon les consignes", &["build_edit"]));
     v.push(step("rendu de la vidéo entière", &["render", "apercu"]));
@@ -77,7 +79,7 @@ pub fn prepare_with_instructions() -> Vec<Step> {
 // poste, rush de 26 s sur 2 cœurs) ; elles sont recalées après chaque tâche réussie sur les
 // durées réelles de la machine (work/timings.json), et l'opération en cours suit sa propre
 // vitesse dès qu'elle a avancé.
-pub const PLAN: [(&str, &[&str]); 9] = [
+pub const PLAN: [(&str, &[&str]); 10] = [
     ("préparation du rush", &["Copie du rush en 1080p", "Extraction du son", "Transcription", "Position du visage", "Locuteurs"]),
     ("rendu de la vidéo entière", &["Rendu de la vidéo"]),
     ("rendu 1080p", &["Rendu de la vidéo"]),
@@ -87,6 +89,7 @@ pub const PLAN: [(&str, &[&str]); 9] = [
     ("rendu 4K", &["Rendu 4K"]),
     ("mesures des vidéos d'exemple", &["Analyse des vidéos d'exemple"]),
     ("export pour les plateformes", &["Export pour les plateformes"]),
+    ("vidéo du dérush", &["Vidéo du dérush"]),
 ];
 
 fn plan_of(step: &str) -> &'static [&'static str] {
@@ -98,7 +101,7 @@ pub fn plan_json() -> Value {
 }
 
 /// (clé, échelle, secondes par seconde d'échelle, écrit en entier dans timings.json).
-pub const RATES: [(&str, &str, f64, bool); 21] = [
+pub const RATES: [(&str, &str, f64, bool); 22] = [
     ("Copie du rush en 1080p", "rush", 0.3, false),
     ("Extraction du son", "rush", 0.01, false),
     ("Transcription", "rush", 0.3, false),
@@ -129,6 +132,9 @@ pub const RATES: [(&str, &str, f64, bool); 21] = [
     // copies demandées : vitesse recalée sur la machine).
     ("Export pour les plateformes", "montage", 1.2, false),
     ("étape:export pour les plateformes", "fixe", 5.0, true),
+    // Dérush validé (derush_video) : moments gardés réencodés depuis le rush d'origine (H.264
+    // « veryfast »), échelle = durée du montage du dérush.
+    ("Vidéo du dérush", "montage", 0.8, false),
 ];
 
 fn rates_table() -> impl Iterator<Item = &'static (&'static str, &'static str, f64, bool)> {
@@ -1010,8 +1016,8 @@ pub fn busy() -> bool {
 /// Reprend la tâche en pause à l'étape où elle s'était arrêtée. Message d'erreur, ou None.
 pub fn resume_job() -> Option<String> {
     let Some(rec) = paused_task() else { return Some("Aucune tâche à reprendre.".into()) };
-    let every = prepare_with_instructions();
     let names: Vec<String> = rec["steps"].as_array().unwrap().iter().map(|s| s.as_str().unwrap_or("").to_string()).collect();
+    let every = if names.iter().any(|n| n == "consignes de montage (Claude)") { prepare_with_instructions() } else { prepare_steps() };
     if !names.iter().all(|n| every.iter().any(|(e, _)| e == n)) {
         return Some("Cette tâche ne peut pas être reprise : abandonnez-la.".into());
     }
@@ -1158,6 +1164,7 @@ pub fn kind_name(kind: &str) -> Option<&'static str> {
         "reset" => "Réinitialisation",
         "style" => "Analyse du style",
         "export" => "Export pour les plateformes",
+        "derush" => "Passage à l'auto-montage",
         _ => return None,
     })
 }
@@ -1483,8 +1490,8 @@ mod tests {
 
     #[test]
     fn argv_expands() {
-        let cmd = vec!["prepare".to_string(), "{args}".into()];
-        assert_eq!(argv(&cmd, "x", &["a.mov".into(), "b.mov".into()]), vec!["prepare", "a.mov", "b.mov"]);
+        let cmd = vec!["prepare".to_string(), "--mode".into(), "derush".into(), "{args}".into()];
+        assert_eq!(argv(&cmd, "x", &["a.mov".into(), "b.mov".into()]), vec!["prepare", "--mode", "derush", "a.mov", "b.mov"]);
         let cmd = vec!["use_selection".to_string(), "db".into(), "{arg}".into()];
         assert_eq!(argv(&cmd, "travail", &[]), vec!["use_selection", "db", "travail"]);
     }

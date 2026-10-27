@@ -5,6 +5,11 @@
 //!         assemblées dans l'ordre (join_rushes) puis préparées comme un seul rush
 //!         auto-montage prepare --langue en <fichier…>   rush en anglais (français par défaut ;
 //!         le choix est gardé pour les préparations suivantes : work/langue.txt)
+//!         auto-montage prepare --mode derush|montage <fichier…>   mode du montage (work/mode.txt) :
+//!         écrit pour un nouveau rush (ou s'il n'y en a pas encore) ; l'interface locale prépare un
+//!         nouveau rush en « derush » (Dérushage), « montage » avec des consignes appliquées par Claude
+//!         auto-montage prepare --transcription <fichier json> <rush>   transcription déjà faite
+//!         (format de work/segments.json ; vidéo d'un dérush validé, derush_video) : sans Whisper
 //!         auto-montage prepare --reprendre <fichier…>   reprend une préparation interrompue (pause,
 //!         arrêt, panne) là où elle en était : morceaux de la version de travail (work/reprise/),
 //!         morceaux transcrits (work/seg/), positions du visage déjà trouvées. Sans cette option
@@ -16,7 +21,7 @@
 //! la mesure de la mémoire de l'interface locale les voient comme avant. Une étape qui échoue
 //! arrête la préparation avec son code (comme `set -e` du script d'origine).
 
-use crate::moments_lib::{audio_map_of, audio_streams, display_size, frame_size, language, language_label, work_size};
+use crate::moments_lib::{audio_map_of, audio_streams, display_size, frame_size, language, language_label, work_size, MODES};
 use crate::{paths, procs, progress, util};
 use std::fs;
 use std::path::Path;
@@ -77,6 +82,30 @@ pub fn main(args: &[String]) -> i32 {
         std::env::set_var("AM_REPRISE", "1");
         args.remove(0);
     }
+    let mut mode: Option<String> = None;
+    if args.first().map(String::as_str) == Some("--mode") {
+        let m = args.get(1).cloned().unwrap_or_default();
+        if !MODES.iter().any(|(c, _)| *c == m) {
+            eprintln!("Mode inconnu : {m} (derush ou montage)");
+            return 1;
+        }
+        mode = Some(m);
+        args.drain(..2);
+    }
+    // Transcription fournie : lue tout de suite (le fichier peut être dans work/, que
+    // `project save` range quand le rush change).
+    let mut transcription: Option<String> = None;
+    if args.first().map(String::as_str) == Some("--transcription") {
+        let file = args.get(1).cloned().unwrap_or_default();
+        match fs::read_to_string(root.join(&file)) {
+            Ok(t) if serde_json::from_str::<serde_json::Value>(&t).map(|v| v.is_array()).unwrap_or(false) => transcription = Some(t),
+            _ => {
+                eprintln!("Transcription illisible : {file}");
+                return 1;
+            }
+        }
+        args.drain(..2);
+    }
     if args.first().map(String::as_str) == Some("--langue") {
         let lang = args.get(1).cloned().unwrap_or_default();
         if language_label(&lang).is_none() {
@@ -132,9 +161,16 @@ pub fn main(args: &[String]) -> i32 {
     let old = util::read_text(work.join("rush.txt")).unwrap_or_default();
     let key = file_key(&rush);
     let old_key = util::read_text(work.join("rush_key.txt")).unwrap_or_default();
-    if old != rush || (!old_key.is_empty() && old_key != key) {
+    let new_rush = old != rush || (!old_key.is_empty() && old_key != key);
+    if new_rush {
         check!(step(&["project", "save"]));
         util::mkdirs(&work);
+    }
+    // Mode du nouveau montage (dérushage ou auto-montage), gardé avec lui (project).
+    if let Some(m) = &mode {
+        if new_rush || !work.join("mode.txt").is_file() {
+            let _ = fs::write(work.join("mode.txt"), format!("{m}\n"));
+        }
     }
     if fs::write(work.join("rush.txt"), format!("{rush}\n")).is_err() || fs::write(work.join("rush_key.txt"), format!("{key}\n")).is_err() {
         eprintln!("Impossible d'écrire dans work/");
@@ -175,10 +211,16 @@ pub fn main(args: &[String]) -> i32 {
     }
 
     let label = language_label(&langue).unwrap_or("Français").to_lowercase();
-    progress::say(&format!("Étape 2/4 : transcription en {label} (Whisper, le plus long : environ la durée du rush)"));
+    if transcription.is_some() {
+        progress::say("Étape 2/4 : son du rush (transcription du dérush reprise)");
+    } else {
+        progress::say(&format!("Étape 2/4 : transcription en {label} (Whisper, le plus long : environ la durée du rush)"));
+    }
     // 2. Audio 16 kHz mono, segments de parole (VAD Silero) et transcription par segment.
     //    (Reprise : son et segments déjà faits gardés, morceaux déjà transcrits aussi.)
-    check!(step(&["setup_whisper"]));
+    if transcription.is_none() {
+        check!(step(&["setup_whisper"]));
+    }
     let wav = work.join("rush_16k.wav");
     if !reprise || !wav.is_file() {
         let part = work.join("rush_16k.part.wav");
@@ -194,7 +236,13 @@ pub fn main(args: &[String]) -> i32 {
         let _ = fs::remove_file(work.join("vad.txt"));
     }
     let vad = work.join("vad.txt");
-    if !reprise || !vad.is_file() {
+    if let Some(t) = &transcription {
+        // Transcription déjà faite (dérush validé) : ni détection de la parole ni Whisper.
+        if let Err(e) = fs::write(work.join("segments.json"), t) {
+            eprintln!("work/segments.json : {e}");
+            return 1;
+        }
+    } else if !reprise || !vad.is_file() {
         progress::say("@memoire Détection de la parole"); // mémoire mesurée par l'interface locale (sans barre)
         let part = work.join("vad.part.txt");
         let out = match fs::File::create(&part) {
@@ -228,7 +276,9 @@ pub fn main(args: &[String]) -> i32 {
             return 1;
         }
     }
-    check!(step(&["transcribe_segments"]));
+    if transcription.is_none() {
+        check!(step(&["transcribe_segments"]));
+    }
 
     progress::say("Étape 3/4 : position du visage");
     // 3. Visages et cadrage (YuNet) : src/data/face.json.

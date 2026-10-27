@@ -197,18 +197,22 @@ case "$LABELS" in *"Assemblage des vidéos"*) ;; *) fail "pas de barre « Assemb
 curl -fsS "$URL/" | has '"rush": "essai (assemblage de 2).mov"' || fail "page des moments du rush assemblé"
 curl -fsS "$URL/api/projects" | json '[p["rush"] for p in d["saved"]]' | has "essai.mov" || fail "montage d'essai.mov pas mis de côté"
 
-echo "8. Fusionner deux moments, puis les séparer (page des moments)"
+echo "8. Couper un moment en deux, puis recoller la partie (page des moments)"
 pdata() { curl -fsS "$URL/" | python3 -c "import json,re,sys; d=json.loads(re.search(r'^  const DATA = (\{.*\});$', sys.stdin.read(), re.M).group(1)); print($1)"; }
-FIRST="$(pdata '[m["id"] for m in d["moments"] if not m.get("gap")][0] if sum(1 for m in d["moments"] if not m.get("gap")) > 1 else ""')"
+FIRST="$(pdata 'next((m["id"] for m in d["moments"] if not m.get("gap") and len(m["words"]) > 1), "")')"
 if [ -n "$FIRST" ]; then
-  curl -fsS -X POST -H "content-type: application/json" -d "{\"id\": $FIRST}" "$URL/api/moments/merge" >/dev/null || fail "fusion de deux moments"
+  N0="$(pdata 'len(d["moments"])')"
+  T="$(pdata 'next(m["words"][1]["a"] for m in d["moments"] if m["id"] == '"$FIRST"')')"
+  curl -fsS -X POST -H "content-type: application/json" -d "{\"id\": $FIRST, \"t\": $T}" "$URL/api/moments/split" >/dev/null || fail "« Couper » un moment"
   wait_job
-  pdata '[m["id"] for m in d["moments"] if m.get("merged")]' | has -x "\[$FIRST\]" || fail "moment fusionné absent de la page"
-  curl -fsS -X POST -H "content-type: application/json" -d "{\"id\": $FIRST}" "$URL/api/moments/unmerge" >/dev/null || fail "séparation du moment fusionné"
+  [ "$(pdata 'len(d["moments"])')" = "$((N0 + 1))" ] || fail "pas de moment de plus après « Couper »"
+  PART="$(pdata '[m["id"] for m in d["moments"] if m.get("splitFrom") == '"$FIRST"' and m["id"] != '"$FIRST"'][0]')"
+  curl -fsS -X POST -H "content-type: application/json" -d "{\"id\": $PART}" "$URL/api/moments/unsplit" >/dev/null || fail "« Recoller » la partie coupée"
   wait_job
-  pdata '[m["id"] for m in d["moments"] if m.get("merged")]' | has -x "\[\]" || fail "moment toujours fusionné après « Séparer »"
+  [ "$(pdata 'len(d["moments"])')" = "$N0" ] || fail "moment toujours coupé après « Recoller »"
+  echo "  moment $FIRST coupé ($PART), puis recollé"
 else
-  echo "  (un seul moment de parole : étape passée)"
+  echo "  (pas de moment de deux mots : étape passée)"
 fi
 
 echo "Tout est bon."

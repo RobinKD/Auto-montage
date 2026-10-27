@@ -1,9 +1,8 @@
-//! Scinder ou fusionner des moments de parole (page des moments, interface locale).
+//! Couper un moment de parole en deux, ou recoller une partie (page des moments, interface locale :
+//! « Couper », « Recoller »).
 //!
-//! Usage : auto-montage decoupage merge <id>        fusionne le moment avec le suivant
-//!         auto-montage decoupage split <id> <t>    scinde à l'instant t (s depuis le début
-//!                                                  de l'extrait du moment ; coupe entre deux mots)
-//!         auto-montage decoupage unmerge <id>      sépare un moment fusionné
+//! Usage : auto-montage decoupage split <id> <t>    coupe à l'instant t (s depuis le début de
+//!                                                  l'extrait du moment ; avant le mot le plus proche)
 //!         auto-montage decoupage unsplit <id>      recolle une partie au moment précédent
 //! Écrit work/decoupage.json (moments_lib : la transcription ne change pas, les ids restent
 //! stables) et reporte les réglages de la page (work/local_db : moments gardés de chaque variante,
@@ -18,7 +17,7 @@ use std::collections::{BTreeSet, HashMap};
 use std::fs;
 use std::path::PathBuf;
 
-/// Refus d'une scission ou d'une fusion (message pour l'utilisateur).
+/// Refus d'une coupe (message pour l'utilisateur).
 #[derive(Debug, Clone)]
 pub struct Refus(pub String);
 
@@ -179,29 +178,6 @@ fn state() -> Result<State, Refus> {
     Ok(State { raw, eff, deco, pos })
 }
 
-fn ids(v: Option<&Value>) -> Vec<i64> {
-    v.and_then(Value::as_array).map(|a| a.iter().filter_map(|x| x.as_i64().or_else(|| x.as_f64().map(|f| f as i64))).collect()).unwrap_or_default()
-}
-
-/// Membres d'un moment : ceux de sa fusion, ou lui seul.
-fn members_of(m: &Value) -> Vec<i64> {
-    let merged = ids(m.get("merged"));
-    if merged.is_empty() {
-        vec![inum(m, "id")]
-    } else {
-        merged
-    }
-}
-
-fn text_of(m: &Value) -> String {
-    m.get("text").and_then(Value::as_str).unwrap_or("").to_string()
-}
-
-/// Les 40 premiers caractères (`texte[:40]`).
-fn head40(s: &str) -> String {
-    s.chars().take(40).collect()
-}
-
 /// `a or b` de Python sur deux valeurs d'un document (b, ou None, si a est faux).
 fn or_value(a: Option<&Value>, b: Option<&Value>) -> Value {
     if truthy(a) {
@@ -211,101 +187,20 @@ fn or_value(a: Option<&Value>, b: Option<&Value>) -> Value {
     }
 }
 
-/// `str(x)` d'un texte de document (pour les textes corrigés mis bout à bout).
-fn text_value(v: Option<&Value>, fallback: &str) -> String {
-    match v {
-        Some(Value::String(s)) if !s.is_empty() => s.clone(),
-        Some(v) if truthy(Some(v)) => pyjson::dumps_utf8(v),
-        _ => fallback.to_string(),
-    }
-}
-
 fn list_or_empty(v: Option<&Value>) -> Vec<Value> {
     v.and_then(Value::as_array).cloned().unwrap_or_default()
 }
 
-pub fn merge(mid: i64) -> Result<String, Refus> {
-    let State { eff, mut deco, pos, .. } = state()?;
-    let Some(&i) = pos.get(&mid) else { return refus("Moment introuvable.") };
-    if i + 1 >= eff.len() {
-        return refus("C'est le dernier moment : rien à fusionner après lui.");
-    }
-    let (a, b) = (&eff[i], &eff[i + 1]);
-    let (aid, bid) = (inum(a, "id"), inum(b, "id"));
-    let mut members = members_of(a);
-    members.extend(members_of(b));
-    deco.merges.retain(|g| !g.first().map(|x| *x == aid || *x == bid).unwrap_or(false));
-    deco.merges.push(members);
-    save_decoupage(&paths::work(), &deco);
-    // Réglages : ceux du 1er moment, plus ceux du suivant décalés ; textes corrigés mis bout à bout.
-    let (da, dbm) = (read_doc(aid), read_doc(bid));
-    let dt = base(b) - base(a);
-    let mut out = da.clone();
-    out.insert("rush".into(), or_value(da.get("rush"), dbm.get("rush")));
-    for key in ["sfx", "vfx"] {
-        if dbm.get(key).map(Value::is_array).unwrap_or(false) {
-            let mut list = list_or_empty(da.get(key));
-            list.extend(shifted(dbm.get(key), dt, &|_| true));
-            out.insert(key.into(), Value::Array(list));
-        }
-    }
-    if truthy(da.get("text")) || truthy(dbm.get("text")) {
-        let t = format!("{} {}", text_value(da.get("text"), &text_of(a)), text_value(dbm.get("text"), &text_of(b)));
-        out.insert("text".into(), json!(t.trim()));
-    }
-    let nosub = truthy(da.get("nosub")) && truthy(dbm.get("nosub"));
-    out.insert("nosub".into(), if nosub { json!(true) } else { Value::Null });
-    out.insert("cuts".into(), Value::Null); // coupes « Couper ici » : à refaire sur le moment entier
-    if truthy(out.get("rush")) {
-        write_doc(aid, &out);
-    }
-    update_keep(&|keep: Vec<Value>| {
-        let either = kept_in(&keep, aid) || kept_in(&keep, bid);
-        let mut k: Vec<Value> =
-            keep.into_iter().filter(|x| !(kept_in(std::slice::from_ref(x), aid) || kept_in(std::slice::from_ref(x), bid))).collect();
-        if either {
-            k.push(json!(aid));
-        }
-        k
-    });
-    Ok(format!("Moments fusionnés : « {} » + « {} »", head40(&text_of(a)), head40(&text_of(b))))
+/// Début (« in ») ou fin (« out ») gardés d'un moment (poignées de la page), s'il y en a.
+fn trim_at(d: &Map<String, Value>, k: &str) -> Option<f64> {
+    d.get("trim").and_then(|t| t.get(k)).filter(|v| !v.is_null()).map(pyfloat)
 }
 
-pub fn unmerge(mid: i64) -> Result<String, Refus> {
-    let State { raw, eff, mut deco, pos } = state()?;
-    let m = pos.get(&mid).map(|&i| &eff[i]);
-    let Some(m) = m.filter(|m| truthy(m.get("merged"))) else {
-        return refus("Ce moment n'est pas une fusion.");
-    };
-    deco.merges.retain(|g| g.first() != Some(&mid));
-    save_decoupage(&paths::work(), &deco);
-    // Le 1er moment retrouve sa durée : ses effets au-delà (venus des autres) sont retirés, les
-    // autres moments retrouvent leurs propres réglages.
-    let parts = effective_segments(&raw, &deco);
-    let Some(first) = parts.iter().find(|x| inum(x, "id") == mid) else {
-        return refus("Moment introuvable.");
-    };
-    let length = fnum(first, "end") + 0.05 - base(first);
-    let mut d = read_doc(mid);
-    if !d.is_empty() {
-        for key in ["sfx", "vfx"] {
-            if d.get(key).map(Value::is_array).unwrap_or(false) {
-                let v = shifted(d.get(key), 0.0, &|at| at < length);
-                d.insert(key.into(), Value::Array(v));
-            }
-        }
-        d.insert("text".into(), Value::Null); // texte corrigé de l'ensemble : ne correspond plus
-        write_doc(mid, &d);
+fn trim_value(a: Option<f64>, b: Option<f64>) -> Value {
+    if a.is_none() && b.is_none() {
+        return Value::Null;
     }
-    let members = ids(m.get("merged"));
-    update_keep(&|mut keep: Vec<Value>| {
-        if kept_in(&keep, mid) {
-            let add: Vec<i64> = members.iter().skip(1).copied().filter(|x| !contains(&keep, *x)).collect();
-            keep.extend(add.into_iter().map(|x| json!(x)));
-        }
-        keep
-    });
-    Ok("Moment séparé en ses moments d'origine.".into())
+    json!({"in": a.map(|x| util::num(round_to(x.max(0.0), 2))), "out": b.map(|x| util::num(round_to(x.max(0.0), 2)))})
 }
 
 pub fn split(mid: i64, t: f64) -> Result<String, Refus> {
@@ -314,10 +209,11 @@ pub fn split(mid: i64, t: f64) -> Result<String, Refus> {
     let m = &eff[pi];
     let words = util::arr(m, "words");
     if words.len() < 2 {
-        return refus("Un seul mot dans ce moment : rien à scinder.");
+        return refus("Un seul mot dans ce moment : rien à couper.");
     }
     let at = base(m) + t;
-    // Mot le plus proche de l'instant (le premier en cas d'égalité, comme min()).
+    // Mot le plus proche de l'instant (le premier en cas d'égalité, comme min()), pas le premier :
+    // chaque partie garde au moins un mot.
     let mut w = 1;
     for k in 2..words.len() {
         if (fnum(&words[k], "a") - at).abs() < (fnum(&words[w], "a") - at).abs() {
@@ -325,37 +221,15 @@ pub fn split(mid: i64, t: f64) -> Result<String, Refus> {
         }
     }
     let (o, oi) = (inum(&words[w], "o"), inum(&words[w], "oi"));
-    // Parties sans les fusions : la partie qui contient le mot de coupe.
-    let parts = effective_segments(&raw, &Decoupage { splits: deco.splits.clone(), merges: vec![] });
-    let members = members_of(m);
-    let Some(holder) = parts.iter().find(|p| {
-        members.contains(&inum(p, "id")) && util::arr(p, "words").iter().any(|x| inum(x, "o") == o && inum(x, "oi") == oi)
-    }) else {
-        return refus("Moment introuvable.");
-    };
-    let hw0 = &util::arr(holder, "words")[0];
-    let at_boundary = inum(hw0, "o") == o && inum(hw0, "oi") == oi;
-    let hid = inum(holder, "id");
-    let k = members.iter().position(|x| *x == hid).unwrap_or(0);
-    let (groups, second) = if at_boundary {
-        (vec![members[..k].to_vec(), members[k..].to_vec()], hid)
-    } else {
-        let mut set: BTreeSet<i64> = deco.splits.get(&o.to_string()).cloned().unwrap_or_default().into_iter().collect();
-        set.insert(oi);
-        deco.splits.insert(o.to_string(), set.into_iter().collect());
-        let second = part_id(o, oi);
-        let mut g2 = vec![second];
-        g2.extend_from_slice(&members[k + 1..]);
-        (vec![members[..k + 1].to_vec(), g2], second)
-    };
-    let mid_id = inum(m, "id");
-    deco.merges.retain(|g| g.first() != Some(&mid_id));
-    deco.merges.extend(groups.into_iter().filter(|g| g.len() > 1));
+    let mut set: BTreeSet<i64> = deco.splits.get(&o.to_string()).cloned().unwrap_or_default().into_iter().collect();
+    set.insert(oi);
+    deco.splits.insert(o.to_string(), set.into_iter().collect());
+    let second = part_id(o, oi);
     save_decoupage(&paths::work(), &deco);
     let new: HashMap<i64, Value> = effective_segments(&raw, &deco).into_iter().map(|x| (inum(&x, "id"), x)).collect();
     let t_cut = fnum(&words[w], "a") - base(m);
     let dt = new.get(&second).map(base).unwrap_or(0.0) - base(m);
-    let mut d = read_doc(mid_id);
+    let mut d = read_doc(mid);
     if !d.is_empty() {
         let mut moved = Map::new();
         for key in ["sfx", "vfx"] {
@@ -367,11 +241,17 @@ pub fn split(mid: i64, t: f64) -> Result<String, Refus> {
             let v = shifted(d.get(key), 0.0, &|x| x < t_cut);
             d.insert(key.clone(), Value::Array(v));
         }
+        // Début gardé : celui de la 1re partie ; fin gardée : celle de la 2e (décalée).
+        let (t_in, t_out) = (trim_at(&d, "in"), trim_at(&d, "out"));
+        let had_trim = d.get("trim").map(|v| !v.is_null()).unwrap_or(false);
+        if had_trim {
+            d.insert("trim".into(), trim_value(t_in.filter(|x| *x < t_cut), None));
+        }
         d.insert("text".into(), Value::Null);
-        d.insert("cuts".into(), Value::Null);
-        write_doc(mid_id, &d);
+        write_doc(mid, &d);
         let focus = truthy(d.get("focus"));
-        if !at_boundary && (!moved.is_empty() || focus) {
+        let out2 = t_out.map(|x| x - dt).filter(|x| *x > 0.0);
+        if !moved.is_empty() || focus || out2.is_some() {
             // cadrage : gardé sur les deux parties
             let mut nd = Map::new();
             nd.insert("rush".into(), d.get("rush").cloned().unwrap_or(Value::Null));
@@ -381,23 +261,27 @@ pub fn split(mid: i64, t: f64) -> Result<String, Refus> {
             if focus {
                 nd.insert("focus".into(), d["focus"].clone());
             }
+            if out2.is_some() {
+                nd.insert("trim".into(), trim_value(None, out2));
+            }
             write_doc(second, &nd);
         }
     }
     update_keep(&|mut keep: Vec<Value>| {
-        if kept_in(&keep, mid_id) && !contains(&keep, second) {
+        if kept_in(&keep, mid) && !contains(&keep, second) {
             keep.push(json!(second));
         }
         keep
     });
-    Ok(format!("Moment scindé avant « {} ».", words[w].get("w").and_then(Value::as_str).unwrap_or("")))
+    Ok(format!("Moment coupé avant « {} ».", words[w].get("w").and_then(Value::as_str).unwrap_or("")))
 }
 
 pub fn unsplit(mid: i64) -> Result<String, Refus> {
     let State { eff, mut deco, pos, .. } = state()?;
     let m = pos.get(&mid).map(|&i| &eff[i]);
-    let Some(m) = m.filter(|m| m.get("splitFrom").map(|v| !v.is_null()).unwrap_or(false) && !truthy(m.get("merged"))) else {
-        return refus("Cette partie ne peut pas être recollée (pas une partie scindée, ou fusionnée).");
+    // La première partie garde l'id du moment d'origine : rien avant elle à quoi la recoller.
+    let Some(m) = m.filter(|m| m.get("splitFrom").map(|v| !v.is_null()).unwrap_or(false) && inum(m, "splitFrom") != mid) else {
+        return refus("Ce moment n'est pas une partie coupée : rien à recoller.");
     };
     let i = pos[&mid];
     let o = inum(m, "splitFrom");
@@ -421,7 +305,8 @@ pub fn unsplit(mid: i64) -> Result<String, Refus> {
             let r = or_value(dp.get("rush"), dm.get("rush"));
             dp.insert("rush".into(), r);
             dp.insert("text".into(), Value::Null);
-            dp.insert("cuts".into(), Value::Null);
+            // début gardé du moment d'avant, fin gardée de la partie recollée
+            dp.insert("trim".into(), trim_value(trim_at(&dp, "in"), trim_at(&dm, "out").map(|x| x + dt)));
             write_doc(pid, &dp);
         }
         update_keep(&|keep: Vec<Value>| {
@@ -438,14 +323,12 @@ pub fn unsplit(mid: i64) -> Result<String, Refus> {
 
 pub fn main(args: &[String]) -> i32 {
     let usage = || {
-        eprintln!("Usage : auto-montage decoupage merge|unmerge|unsplit <id>  ou  decoupage split <id> <t>");
+        eprintln!("Usage : auto-montage decoupage unsplit <id>  ou  decoupage split <id> <t>");
         2
     };
     let (Some(action), Some(id)) = (args.first(), args.get(1)) else { return usage() };
     let Ok(mid) = id.trim().parse::<i64>() else { return usage() };
     let res = match action.as_str() {
-        "merge" => merge(mid),
-        "unmerge" => unmerge(mid),
         "unsplit" => unsplit(mid),
         "split" => match args.get(2).and_then(|t| t.trim().parse::<f64>().ok()) {
             Some(t) => split(mid, t),

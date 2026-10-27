@@ -139,15 +139,25 @@ interne : les changements attendent la prochaine version.
   `src/data/edit.json` et `face.json` du dépôt sont ceux du rush de démonstration
   (`tests/make_demo_rush.py`) : n'y jamais versionner un vrai rush ; `update` garde ceux de
   l'utilisateur.
-- Modes de l'interface locale (bandeau du haut, `local/menu.js`) : « Dérushage » ou
-  « Auto-montage », dans `work/mode.txt` (commun à tous les rushes, `moments_lib.app_mode`, PUT
-  `/api/mode`). Le serveur l'écrit sur `<html data-mode>` (`with_mode` de `local_server`) ; en
-  dérushage, les parties marquées `data-mode-montage` sont masquées (consignes, style, effets,
-  son, cadrage ; pages Claude retirées du menu), la page des moments (`DERUSH`) ne montre que le
-  choix et la découpe des moments, et les sous-titres : case « Sous-titres » (cochée par défaut,
-  `work/derush.json`, `moments_lib.derush_subtitles`, PUT `/api/derush`, `<html data-subtitles>` ;
-  « Corriger » et « Style des sous-titres », marqué `data-subtitles-only`, seulement cochée). La
-  préparation se fait sans Claude (discussion et analyse du style refusées), et `build_edit`
+- Mode du montage (pas de bouton pour en changer) : « Dérushage » ou « Auto-montage », dans
+  `work/mode.txt`, propre à chaque montage (rangé avec lui par `project`, `moments_lib.app_mode` ;
+  sans ce fichier : Auto-montage). L'interface locale prépare un nouveau rush en dérushage
+  (`prepare --mode derush`, écrit pour un nouveau rush ; `--mode montage` avec des consignes
+  appliquées par Claude) ; « Valider le dérush » (page des moments, dérushage seulement) génère et
+  télécharge la vidéo (« Générer », puis menu « Télécharger »), ou passe à l'auto-montage
+  (`POST /api/derush/valider`, tâche `derush` : use_selection, build_edit, `rust/src/derush_video.rs`
+  (moments gardés d'edit.json mis bout à bout depuis le rush d'origine → `public/rushes/<rush>
+  (dérush).mp4`, et `work/derush_segments.json` : un seul segment avec les mots gardés et corrigés,
+  `derushWords` d'edit.json écrit en dérushage), `prepare --mode montage --transcription
+  work/derush_segments.json` (sans Whisper), make_moments : un seul moment ; le dérush reste dans
+  « Montages »). Le serveur l'écrit sur `<html data-mode>`
+  (`with_mode` de `local_server`) ; en dérushage, les parties marquées `data-mode-montage` sont
+  masquées (consignes, style, effets, son, cadrage ; pages Claude retirées du menu), la page des
+  moments (`DERUSH`) ne montre que le choix et la coupe des moments, et les sous-titres (« Corriger »
+  et piste « Sous-titres » de la frise du moment toujours là ; onglet « Paramètres sous-titres ») :
+  case « Sous-titres » (cochée par défaut, `work/derush.json`, `moments_lib.derush_subtitles`, PUT
+  `/api/derush`, `<html data-subtitles>` ; « Style des sous-titres », marqué `data-subtitles-only`,
+  seulement cochée). La préparation se fait sans Claude (discussion et analyse du style refusées), et `build_edit`
   (`DERUSH`) ignore effets, voix, cadrage, son.json, zooms, rebond et karaoké, et les sous-titres
   si la case est décochée (choix gardés pour le mode Auto-montage). Une nouvelle partie liée aux effets ou à Claude
   doit recevoir `data-mode-montage`.
@@ -155,6 +165,10 @@ interne : les changements attendent la prochaine version.
   `local_server` à toutes ses pages (liste `PAGES`) ; pas de liens de navigation dans les pages.
   Il marque aussi les parties qui ont besoin de Claude Code (attribut `data-needs-claude`) :
   pastille « Nécessite Claude Code », grisées et `inert` sans connexion (`/api/status`).
+  Bouton « Raccourcis » (à gauche de « Menu ») sur les pages qui déclarent `window.AM_RACCOURCIS`
+  (seule la page des moments : `SHORTCUTS`, `keyMap` gardé dans localStorage `am-raccourcis`,
+  fenêtre `keys-dlg` où chaque raccourci se change, conflits refusés). Un nouveau raccourci de la
+  page va dans `SHORTCUTS` (gestionnaire unique : `actionOf`).
   Il pose `--am-top` (hauteur du bandeau) : le lecteur et la synthèse de la page des moments, figés
   en haut pendant le défilement (`.viewer`, `.bar`, `--fix-top`), se placent dessous ; bouton
   « haut de la page » (`to-top`) en bas à droite.
@@ -182,10 +196,10 @@ interne : les changements attendent la prochaine version.
 - Sous-titres en fichiers (`rust/src/subtitles.rs`) : `out/montage.srt` et `.vtt` écrits après chaque rendu
   d'après les sous-titres d'edit.json (fin au plus 1,2 s après le dernier mot, sans chevauchement),
   copiés par `make_downloads` et proposés dans le menu « Télécharger » ; `./am subtitles`.
-- Annuler / Rétablir sur la page des moments (boutons du haut, Ctrl+Z, Ctrl+Maj+Z / Ctrl+Y ; 50 pas,
+- Annuler / Rétablir sur la page des moments (boutons du haut, Ctrl+Z, Ctrl+Maj+Z / Ctrl+Y par défaut ; 50 pas,
   `sessionStorage` `am-historique:<rush>`) : `remember` note chaque changement (moment : document avant /
   après ; sélection ; réglage global : PUT de l'URL de `GLOBAL` avec l'ancienne valeur, `rememberGlobal`) ;
-  scission et fusion : instantané pris par le serveur avant l'action (`work/historique/`, 40 gardés,
+  coupe et recollage : instantané pris par le serveur avant l'action (`work/historique/`, 40 gardés,
   `POST /api/moments` `restore`). Un nouveau réglage de la page doit appeler `remember` / `rememberGlobal`.
 - Couleurs, effets d'image et transitions (repris de FilmCraft) : `selection/hf_look.js`, le même code pour
   le rendu (`render_hyperframes` : chaque plan dans `box<i>` / `zb<i>` dans `#look`) et l'aperçu de la page
@@ -200,9 +214,9 @@ interne : les changements attendent la prochaine version.
   (vérifiées contre hf_look.js par un test).
 - Commandes MCP (`rust/src/mcp.rs`, `./am mcp`, JSON-RPC sur stdio ; déclaré pour Claude Code dans `.mcp.json`
   à la racine, ou `claude mcp add auto-montage -- ./am mcp`) : etat, catalogue, liste_moments, garder_moments,
-  regler_moment, scinder_moment, fusionner_moments, lire_reglages / changer_reglages (couleurs, transitions,
+  regler_moment, couper_moment, lire_reglages / changer_reglages (couleurs, transitions,
   habillage, son, sous_titres, effets), annuler, generer_video, rendu_4k, sous_titres, mesurer_volume,
-  exporter_plateforme (POST /api/export), preparer_rush. Les modifications passent par l'interface locale (lancée au besoin, `AM_URL`), donc mêmes
+  exporter_plateforme (POST /api/export), valider_derush (POST /api/derush/valider), preparer_rush. Les modifications passent par l'interface locale (lancée au besoin, `AM_URL`), donc mêmes
   fichiers et mêmes tâches que la page ; journal pour « annuler » dans `work/historique/mcp.json`. Un nouveau
   réglage ou une nouvelle action de la page doit y avoir sa commande.
 - Effets fournis par défaut : liste unique dans `rust/src/moments_lib.rs` (`SOUNDS` : sons de
@@ -228,25 +242,29 @@ interne : les changements attendent la prochaine version.
   exemples sur /rush/ : `local/tutoriel/voix/<voix>.mp3` (`tests/make_voice_demo.py`, voix Piper,
   filtres ffmpeg pour toutes les voix).
 - Page des moments façon CapCut (`selection/page.html`, sombre) : barre du haut (`.bar`), lecteur
-  et inspecteur (`renderInspector` : moment ouvert, sélection, onglet « Tout le montage » avec les
-  panneaux globaux), barre d'outils (`renderToolbar`), frise du rush sur une ligne (`renderMain` :
-  `clipBlock` avec les images du rush de `filmstrip`, poignées `addHandles` → `trimEdge`, forme
+  et inspecteur (`renderInspector` : moment ouvert, sélection, onglet des panneaux globaux,
+  « Paramètres sous-titres » en dérushage, « Paramètres effets et son » ensuite), barre d'outils
+  (`renderToolbar` : Couper, Recoller, Garder, Retirer, Corriger), frise du rush sur une ligne (`renderMain` :
+  `clipBlock` avec les images du rush de `filmstrip`, poignées `addHandles` → `trimEdge` (`trim` du
+  document du moment : début et fin gardés, plans sans parole comme moments de parole), forme
   d'onde `drawWave`, zoom `frise.pps` gardé dans localStorage, `scrubRush`) et frise du moment
   ouvert (`renderMomentTl` : règle, puis piste « Effets » s'il y en a (bandes nommées, rangées
   sans chevauchement), « Sous-titres » s'il y en a (groupes de `captionGroups`, chaque mot à sa
-  place, clic : son début), et toujours la ligne « Coupe » en bas, seule sans effet ni sous-titre ;
-  parties retirées hachurées sur toute la hauteur, coupes, zoom `frise.zoom`). Images : planches `work/moments/frames/sNNN.jpg` (une image toutes les
+  place, clic : son début, aussi en dérushage), et toujours la ligne « Vidéo » (images du moment) en
+  bas ; début et fin retirés hachurés sur toute la hauteur, zoom `frise.zoom`). Molette ou deux doigts
+  sur une frise : défilement (`wheelPan`) ; Ctrl + molette ou pincement : zoom (`setRushPps`,
+  `setZoom`). Images : planches `work/moments/frames/sNNN.jpg` (une image toutes les
   0,5 s, `moments_lib.timeline_strip`, DATA `strip`) ; forme d'onde : `timeline_wave` (DATA
-  `wave`, 20 crêtes par seconde). Sélection Maj / Ctrl + clic (`pickMoment`, fusion
-  `/api/moments/merge` avec `count`) ; clavier : Espace, ← →, Maj + ← →, Échap. Effets réglés dans
+  `wave`, 20 crêtes par seconde). Sélection Maj / Ctrl + clic (`pickMoment` : garder ou retirer
+  d'un coup) ; clavier (modifiable, « Raccourcis ») : Espace, ← →, Maj + ← →, C (couper), Échap. Effets réglés dans
   l'inspecteur (`momentExtras`, absent en dérushage) ; `renderList` redessine tout,
   `renderOpen` seulement ce qui dépend du moment ouvert.
 - Onglet « Vidéo entière » de la page des moments (mode `live`) : les parties gardées des moments
   jouées bout à bout en direct depuis leurs extraits (`livePlan`, mêmes règles que `build_edit` :
   parole seule, parties contiguës réunies, plans sans parole réduits), chacune avec l'habillage de
   l'aperçu du moment (`buildOverlay`, `drawOverlay` → `liveFollow` passe à la partie suivante) ;
-  recalculé à chaque image, donc à jour dès qu'un moment change. « Vidéo générée » (`showWork`)
-  montre le MP4 de la dernière vidéo entière générée.
+  recalculé à chaque image, donc à jour dès qu'un moment change. Le MP4 généré n'est pas montré sur
+  la page (menu « Télécharger » ; « Écouter » des bruits du panneau « Son de la voix » le joue).
 - Calage des effets sur la page des moments : `fxBar` (bande déplaçable, poignées début/fin,
   clavier image par image), dans la ligne de l'effet de l'inspecteur. Sons : durée d'une répétition = `len` du catalogue
   (`moments_lib.sound_catalog`, `wav_len`), répétitions = `repeat`, `gap` = durée + `pause` ;
@@ -257,20 +275,19 @@ interne : les changements attendent la prochaine version.
   d'un cadre sur l'image du lecteur (`openFramer` : molette, pincement, glisser), losanges `kf`
   sur la frise du moment ; `build_edit` → `zoomFx` de type `key` (instants `a`, `b` du rush,
   sur tout le moment) ; `render_hyperframes` `draw` (`kz`), même calcul.
-- Moments scindés ou fusionnés (page des moments, interface locale : « Scinder ici »,
-  « Fusionner », « Fusionner avec le suivant », « Fusionner en un seul » pour une sélection,
-  « Séparer », « Recoller ») : `work/decoupage.json` (`splits` : segment ->
-  mots de coupe ; `merges` : ids consécutifs), `rust/src/decoupage.rs` (report des réglages de
-  `local_db` : effets décalés, moments gardés), puis `make_moments` (extraits refaits
-  seulement si leurs bornes changent : `clips/.bornes.json`). `segments.json` ne change pas :
+- Moments coupés (page des moments, interface locale : « Couper » de la barre d'outils,
+  « Couper ici », touche C : deux moments séparés, avant le mot le plus proche de la tête de
+  lecture ; « Recoller » défait la coupe ; pas de fusion de moments) : `work/decoupage.json`
+  (`splits` : segment -> mots de coupe), `rust/src/decoupage.rs` (report des réglages de
+  `local_db` : effets décalés, début et fin gardés, moments gardés), puis `make_moments` (extraits
+  refaits seulement si leurs bornes changent : `clips/.bornes.json`). `segments.json` ne change pas :
   `moments_lib.load_segments` / `effective_segments` donnent les moments effectifs (partie
-  scindée : `part_id(segment, mot)` ≥ `SPLIT_BASE` ; fusion : id du premier) ; `build_edit`
-  convertit les choix d'edit_choices (ids et mots d'origine) avec `word_map`. Une fusion garde
-  la pause entre les moments (extrait continu).
+  coupée : `part_id(segment, mot)` ≥ `SPLIT_BASE`) ; `build_edit` convertit les choix
+  d'edit_choices (ids et mots d'origine) avec `word_map`.
 - Moments changés depuis la version de travail (page des moments) : `use_selection` garde la
   sélection et les documents des moments (`page` de selection.json), `build_edit` les copie
   dans edit.json, `make_moments` dans `DATA.working.page` ; la page compare (`workChange`,
-  `settingsOf` : en dérushage, seulement découpe, début et fin, sous-titres) et montre la
+  `settingsOf` : en dérushage, seulement début et fin, sous-titres) et montre la
   pastille « Modifié » (au survol, `chg-tip` : version de travail datée et ce qui a changé) et un
   point sur la frise.
 - Sous-titres supprimés pour un moment (page des moments, « Corriger » : texte vide ou
