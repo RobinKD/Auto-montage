@@ -6,14 +6,13 @@
 //!   moments/<id>.json          {"rush", "text"?: texte corrigé, "nosub"?: true (sans sous-titres),
 //!                               "sfx"?: ["cash", …] ou [{"kind", "at", "repeat", "gap", "dur"}, …],
 //!                               "vfx"?: [{"kind": "typed" | "chip", "text", "at", "type", "dur", "sound"}, …],
-//!                               "trim"?: {"in", "out"} pour un plan sans parole (id >= 1000),
-//!                               "cuts"?: [instants de coupe en s],
+//!                               "trim"?: {"in", "out"} : début et fin gardés (s depuis le début
+//!                               de l'extrait ; poignées de la page),
 //!                               "focus"?: n (cadrage sur la personne n de detect_face), "auto"
 //!                               (personne qui parle, diarize) ou "tous" (tout le monde),
 //!                               "transition"?: {"kind", "dur"} (coupe avant ce moment, look.rs)}
 //! Les documents des moments sont aussi gardés tels quels (« page » : sélection et réglages),
 //! repris par build_edit dans edit.json, pour que la page montre ce qui a changé depuis.
-//!   Dans « keep », « id/k » désigne la partie k d'un moment découpé (« Couper ici »).
 //! Écrit work/selection.json, que build_edit utilise à la place de KEEP, avec les
 //! corrections de sous-titres et les effets sonores choisis par moment.
 
@@ -106,11 +105,11 @@ pub fn main(args: &[String]) -> i32 {
         return 1;
     };
 
-    let (mut corrections, mut sfx, mut vfx, mut trims, mut cuts, mut gains, mut focus, mut transitions) =
-        (Map::new(), Map::new(), Map::new(), Map::new(), Map::new(), Map::new(), Map::new(), Map::new());
+    let (mut corrections, mut sfx, mut vfx, mut trims, mut gains, mut focus, mut transitions) =
+        (Map::new(), Map::new(), Map::new(), Map::new(), Map::new(), Map::new(), Map::new());
     // Réglages de la page tels qu'ils partent dans la version de travail : la page les compare
     // aux réglages du moment pour signaler « Modifié depuis la version de travail ».
-    const PAGE_FIELDS: [&str; 9] = ["text", "nosub", "sfx", "vfx", "trim", "cuts", "gain", "focus", "transition"];
+    const PAGE_FIELDS: [&str; 8] = ["text", "nosub", "sfx", "vfx", "trim", "gain", "focus", "transition"];
     let mut page = Map::new();
     // Ordre du dossier, comme glob.glob (os.scandir).
     let entries: Vec<_> = fs::read_dir(export_dir.join("moments"))
@@ -147,15 +146,8 @@ pub fn main(args: &[String]) -> i32 {
             let kept: Vec<Value> = list.iter().filter(|s| s.is_string() || s.is_object()).cloned().collect();
             sfx.insert(seg.clone(), Value::Array(kept));
         }
-        if let Some(list) = m.get("cuts").and_then(Value::as_array) {
-            if !list.is_empty() {
-                let mut c: Vec<f64> = list.iter().filter_map(as_number).collect();
-                c.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
-                cuts.insert(seg.clone(), Value::Array(c.into_iter().map(num).collect()));
-            }
-        }
         if let Some(Value::Object(t)) = m.get("trim") {
-            // plan sans parole : {"in", "out"} en s
+            // début et fin gardés : {"in", "out"} en s
             let mut out = Map::new();
             for k in ["in", "out"] {
                 if let Some(x) = t.get(k).and_then(as_number) {
@@ -193,11 +185,11 @@ pub fn main(args: &[String]) -> i32 {
     }
 
     let n_keep = keep.as_array().map(|a| a.len()).unwrap_or(0);
-    let (n_corr, n_sfx, n_vfx, n_cuts) = (corrections.len(), sfx.len(), vfx.len(), cuts.len());
+    let (n_corr, n_sfx, n_vfx, n_trims) = (corrections.len(), sfx.len(), vfx.len(), trims.len());
     let name = doc.get("name").cloned().unwrap_or(Value::Null);
     let out = json!({
         "name": name, "keep": keep, "corrections": corrections, "sfx": sfx, "vfx": vfx,
-        "trims": trims, "cuts": cuts, "gains": gains, "focus": focus,
+        "trims": trims, "gains": gains, "focus": focus,
         "transitions": transitions, "page": {"keep": keep, "moments": page},
     });
     let text = pyjson::dumps_with(&out, pyjson::Opts { indent: Some(1), ensure_ascii: false, ..Default::default() });
@@ -212,7 +204,7 @@ pub fn main(args: &[String]) -> i32 {
     };
     println!(
         "Variante « {shown} » : {n_keep} moments, {n_corr} textes corrigés, {n_sfx} moments avec effets sonores et \
-         {n_vfx} avec effets visuels choisis, {n_cuts} découpés -> work/selection.json"
+         {n_vfx} avec effets visuels choisis, {n_trims} raccourcis -> work/selection.json"
     );
     0
 }

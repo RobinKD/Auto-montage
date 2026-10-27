@@ -5,6 +5,9 @@
 //!         assemblées dans l'ordre (join_rushes) puis préparées comme un seul rush
 //!         auto-montage prepare --langue en <fichier…>   rush en anglais (français par défaut ;
 //!         le choix est gardé pour les préparations suivantes : work/langue.txt)
+//!         auto-montage prepare --mode derush|montage <fichier…>   mode du montage (work/mode.txt) :
+//!         écrit pour un nouveau rush (ou s'il n'y en a pas encore) ; l'interface locale prépare un
+//!         nouveau rush en « derush » (Dérushage), « montage » avec des consignes appliquées par Claude
 //!         auto-montage prepare --reprendre <fichier…>   reprend une préparation interrompue (pause,
 //!         arrêt, panne) là où elle en était : morceaux de la version de travail (work/reprise/),
 //!         morceaux transcrits (work/seg/), positions du visage déjà trouvées. Sans cette option
@@ -16,7 +19,7 @@
 //! la mesure de la mémoire de l'interface locale les voient comme avant. Une étape qui échoue
 //! arrête la préparation avec son code (comme `set -e` du script d'origine).
 
-use crate::moments_lib::{audio_map_of, audio_streams, display_size, frame_size, language, language_label, work_size};
+use crate::moments_lib::{audio_map_of, audio_streams, display_size, frame_size, language, language_label, work_size, MODES};
 use crate::{paths, procs, progress, util};
 use std::fs;
 use std::path::Path;
@@ -77,6 +80,16 @@ pub fn main(args: &[String]) -> i32 {
         std::env::set_var("AM_REPRISE", "1");
         args.remove(0);
     }
+    let mut mode: Option<String> = None;
+    if args.first().map(String::as_str) == Some("--mode") {
+        let m = args.get(1).cloned().unwrap_or_default();
+        if !MODES.iter().any(|(c, _)| *c == m) {
+            eprintln!("Mode inconnu : {m} (derush ou montage)");
+            return 1;
+        }
+        mode = Some(m);
+        args.drain(..2);
+    }
     if args.first().map(String::as_str) == Some("--langue") {
         let lang = args.get(1).cloned().unwrap_or_default();
         if language_label(&lang).is_none() {
@@ -132,9 +145,16 @@ pub fn main(args: &[String]) -> i32 {
     let old = util::read_text(work.join("rush.txt")).unwrap_or_default();
     let key = file_key(&rush);
     let old_key = util::read_text(work.join("rush_key.txt")).unwrap_or_default();
-    if old != rush || (!old_key.is_empty() && old_key != key) {
+    let new_rush = old != rush || (!old_key.is_empty() && old_key != key);
+    if new_rush {
         check!(step(&["project", "save"]));
         util::mkdirs(&work);
+    }
+    // Mode du nouveau montage (dérushage ou auto-montage), gardé avec lui (project).
+    if let Some(m) = &mode {
+        if new_rush || !work.join("mode.txt").is_file() {
+            let _ = fs::write(work.join("mode.txt"), format!("{m}\n"));
+        }
     }
     if fs::write(work.join("rush.txt"), format!("{rush}\n")).is_err() || fs::write(work.join("rush_key.txt"), format!("{key}\n")).is_err() {
         eprintln!("Impossible d'écrire dans work/");

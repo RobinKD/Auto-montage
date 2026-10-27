@@ -1,7 +1,7 @@
 //! Plans sans parole : les intervalles entre les segments de parole du rush, et ce que partagent
 //! make_moments (page) et build_edit (montage) pour numéroter les plans de la même façon :
 //! id = GAP_BASE + rang, temps en secondes dans le rush. Aussi : formats d'image, langue, mode,
-//! pistes son, découpage (scissions et fusions), effets fournis par défaut, voix modifiées.
+//! pistes son, découpage (moments coupés en deux), effets fournis par défaut, voix modifiées.
 
 use crate::difflib::SequenceMatcher;
 use crate::paths;
@@ -208,9 +208,12 @@ pub fn language_from(work_dir: &Path, name: &str) -> String {
     }
 }
 
-// Mode de l'interface locale (bandeau du haut de chaque page) : « montage » (Auto-montage, tout)
-// ou « derush » (Dérushage : découper le rush en moments, sans effets, sous-titres ni Claude).
-// work/mode.txt, commun à tous les rushes ; build_edit en tire un montage sans habillage.
+// Mode du montage en cours : « derush » (Dérushage : couper le rush en moments, les choisir,
+// corriger les sous-titres ; sans effets ni Claude) ou « montage » (Auto-montage, tout).
+// work/mode.txt, propre à chaque montage (rangé avec lui par project) : une préparation lancée
+// depuis l'interface locale l'écrit (prepare --mode, « derush » pour un nouveau rush), « Valider
+// le dérush » donne un montage en « montage ». Sans ce fichier (préparation sans l'interface) :
+// « montage ». build_edit en tire, en dérushage, un montage sans habillage.
 pub const MODES: [(&str, &str); 2] = [("montage", "Auto-montage"), ("derush", "Dérushage")];
 
 pub fn app_mode(work_dir: &Path) -> String {
@@ -319,13 +322,11 @@ pub fn is_gap(moment_id: i64) -> bool {
     (GAP_BASE..SPLIT_BASE).contains(&moment_id)
 }
 
-// --- Moments scindés ou fusionnés (page des moments) ---------------------------------
+// --- Moments coupés en deux (« Couper » de la page des moments) -------------------------
 // work/segments.json (la transcription) ne change jamais. work/decoupage.json note :
-//   {"splits": {"<segment>": [indices des mots où commence une nouvelle partie]},
-//    "merges": [[id, id, …], …]}   (moments consécutifs fusionnés, ids effectifs)
-// Une partie scindée a l'id part_id(segment, mot) ; un moment fusionné garde l'id du premier.
-// Les ids ne dépendent que de ces réglages : annuler une scission ou une fusion rend les
-// anciens ids, et les réglages de la page qui vont avec.
+//   {"splits": {"<segment>": [indices des mots où commence une nouvelle partie]}}
+// Une partie coupée a l'id part_id(segment, mot) ; la première garde l'id du segment. Les ids ne
+// dépendent que de ces réglages : « Recoller » rend les anciens ids, et les réglages qui vont avec.
 pub const SPLIT_BASE: i64 = 1_000_000;
 
 pub fn part_id(seg: i64, word: i64) -> i64 {
@@ -336,7 +337,6 @@ pub fn part_id(seg: i64, word: i64) -> i64 {
 pub struct Decoupage {
     /// segment (texte de son id) -> rangs des mots où commence une nouvelle partie (triés, uniques)
     pub splits: BTreeMap<String, Vec<i64>>,
-    pub merges: Vec<Vec<i64>>,
 }
 
 fn as_int(v: &Value) -> Option<i64> {
@@ -356,15 +356,6 @@ pub fn load_decoupage(work_dir: &Path) -> Decoupage {
             out.splits.insert(k.clone(), set.into_iter().collect());
         }
     }
-    if let Some(Value::Array(ms)) = d.get("merges") {
-        for g in ms {
-            if let Some(a) = g.as_array() {
-                if a.len() > 1 {
-                    out.merges.push(a.iter().filter_map(as_int).collect());
-                }
-            }
-        }
-    }
     out
 }
 
@@ -375,15 +366,14 @@ pub fn decoupage_json(deco: &Decoupage) -> Value {
             splits.insert(k.clone(), json!(v));
         }
     }
-    let merges: Vec<&Vec<i64>> = deco.merges.iter().filter(|g| g.len() > 1).collect();
-    json!({"splits": splits, "merges": merges})
+    json!({"splits": splits})
 }
 
 pub fn save_decoupage(work_dir: &Path, deco: &Decoupage) {
     let _ = util::write_json(work_dir.join("decoupage.json"), &decoupage_json(deco), Some(1));
 }
 
-/// Moments de parole après scissions et fusions, dans l'ordre du rush. Chaque mot garde son
+/// Moments de parole après les coupes, dans l'ordre du rush. Chaque mot garde son
 /// origine (« o » : segment, « oi » : rang du mot) ; « origins » : segments d'origine.
 pub fn effective_segments(segments: &[Value], deco: &Decoupage) -> Vec<Value> {
     let mut parts: Vec<Option<Value>> = vec![];
@@ -433,36 +423,10 @@ pub fn effective_segments(segments: &[Value], deco: &Decoupage) -> Vec<Value> {
         let fb = fnum(b.as_ref().unwrap(), "start");
         fa.partial_cmp(&fb).unwrap_or(std::cmp::Ordering::Equal)
     });
-    let pos: HashMap<i64, usize> = parts.iter().enumerate().map(|(i, p)| (inum(p.as_ref().unwrap(), "id"), i)).collect();
-    for group in &deco.merges {
-        let mut idx: Vec<usize> = group.iter().filter_map(|g| pos.get(g).copied()).collect();
-        idx.sort();
-        if idx.len() < 2 || idx.iter().enumerate().any(|(k, &i)| i != idx[0] + k) {
-            continue; // moments disparus ou plus consécutifs : fusion ignorée
-        }
-        if idx.iter().any(|&i| parts[i].is_none()) {
-            continue;
-        }
-        let members: Vec<Value> = idx.iter().map(|&i| parts[i].clone().unwrap()).collect();
-        let merged = json!({
-            "id": members[0]["id"].clone(),
-            "start": members[0]["start"].clone(),
-            "end": members[members.len() - 1]["end"].clone(),
-            "text": members.iter().map(|m| m["text"].as_str().unwrap_or("").to_string()).collect::<Vec<_>>().join(" "),
-            "words": members.iter().flat_map(|m| util::arr(m, "words").to_vec()).collect::<Vec<_>>(),
-            "origins": members.iter().flat_map(|m| util::arr(m, "origins").to_vec()).collect::<Vec<_>>(),
-            "merged": members.iter().map(|m| m["id"].clone()).collect::<Vec<_>>(),
-        });
-        for &i in &idx {
-            parts[i] = None;
-        }
-        parts[idx[0]] = Some(merged);
-    }
     parts.into_iter().flatten().collect()
 }
 
-/// Plans sans parole : ceux de la transcription d'origine (ids stables), sauf ceux qu'une
-/// fusion a mis à l'intérieur d'un moment.
+/// Plans sans parole : ceux de la transcription d'origine (ids stables), hors des moments.
 pub fn effective_gaps(segments: &[Value], effective: &[Value], total: f64) -> Vec<Value> {
     gaps(segments, total)
         .into_iter()
@@ -532,7 +496,7 @@ pub fn suggested_keep(segments: &[Value], work_dir: &Path) -> (HashSet<i64>, BTr
             }
         }
         if segments.iter().any(|s| s.get("origins").is_some()) {
-            // moments scindés ou fusionnés : ids d'origine
+            // moments coupés : ids d'origine
             let (mut ek, mut er) = (HashSet::new(), BTreeMap::new());
             for s in segments {
                 let sid = inum(s, "id");
@@ -850,7 +814,7 @@ mod tests {
     }
 
     #[test]
-    fn split_and_merge() {
+    fn split() {
         let segs: Vec<Value> = serde_json::from_str(r#"[
           {"id": 0, "start": 0.0, "end": 2.0, "text": "a b c", "words": [{"w":"a","a":0.0,"b":0.5},{"w":"b","a":0.6,"b":1.0},{"w":"c","a":1.2,"b":2.0}]},
           {"id": 1, "start": 3.0, "end": 4.0, "text": "d", "words": [{"w":"d","a":3.0,"b":4.0}]}]"#).unwrap();
@@ -860,10 +824,8 @@ mod tests {
         assert_eq!(eff.len(), 3);
         assert_eq!(eff[1]["id"], json!(part_id(0, 2)));
         assert_eq!(eff[1]["text"], json!("c"));
-        deco.merges.push(vec![part_id(0, 2), 1]);
-        let eff = effective_segments(&segs, &deco);
-        assert_eq!(eff.len(), 2);
-        assert_eq!(eff[1]["merged"], json!([part_id(0, 2), 1]));
-        assert_eq!(eff[1]["end"], json!(4.0));
+        assert_eq!(eff[0]["end"], json!(1.0));
+        assert_eq!(eff[1]["splitFrom"], json!(0));
+        assert_eq!(decoupage_json(&deco), json!({"splits": {"0": [2]}}));
     }
 }

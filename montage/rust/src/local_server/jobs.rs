@@ -41,10 +41,11 @@ pub fn regen_steps() -> Vec<Step> {
 }
 
 /// Sans consignes, pas de rendu : la vidéo entière se joue en direct sur la page des moments
-/// (« Vidéo entière ») et n'est rendue qu'au premier « Générer la vidéo entière ».
+/// (« Vidéo entière ») et n'est rendue qu'au premier « Générer la vidéo entière ». Un nouveau rush
+/// commence en dérushage (prepare --mode derush, work/mode.txt du montage).
 pub fn prepare_steps() -> Vec<Step> {
     vec![
-        step("préparation du rush", &["prepare", "{args}"]), // une ou plusieurs vidéos
+        step("préparation du rush", &["prepare", "--mode", "derush", "{args}"]), // une ou plusieurs vidéos
         step("page des moments", &["make_moments"]),
     ]
 }
@@ -60,10 +61,11 @@ pub fn export_steps() -> Vec<Step> {
 }
 
 /// Avec les consignes de montage appliquées par Claude, entre la préparation et la page des
-/// moments : montage selon les consignes, puis rendu de la vidéo entière.
+/// moments : montage selon les consignes, puis rendu de la vidéo entière. Le montage est alors en
+/// mode Auto-montage (effets, Claude).
 pub fn prepare_with_instructions() -> Vec<Step> {
     let p = prepare_steps();
-    let mut v = vec![p[0].clone()];
+    let mut v = vec![step("préparation du rush", &["prepare", "--mode", "montage", "{args}"])];
     v.push(step("consignes de montage (Claude)", &["apply_instructions"]));
     v.push(step("montage selon les consignes", &["build_edit"]));
     v.push(step("rendu de la vidéo entière", &["render", "apercu"]));
@@ -1009,8 +1011,8 @@ pub fn busy() -> bool {
 /// Reprend la tâche en pause à l'étape où elle s'était arrêtée. Message d'erreur, ou None.
 pub fn resume_job() -> Option<String> {
     let Some(rec) = paused_task() else { return Some("Aucune tâche à reprendre.".into()) };
-    let every = prepare_with_instructions();
     let names: Vec<String> = rec["steps"].as_array().unwrap().iter().map(|s| s.as_str().unwrap_or("").to_string()).collect();
+    let every = if names.iter().any(|n| n == "consignes de montage (Claude)") { prepare_with_instructions() } else { prepare_steps() };
     if !names.iter().all(|n| every.iter().any(|(e, _)| e == n)) {
         return Some("Cette tâche ne peut pas être reprise : abandonnez-la.".into());
     }
@@ -1482,8 +1484,8 @@ mod tests {
 
     #[test]
     fn argv_expands() {
-        let cmd = vec!["prepare".to_string(), "{args}".into()];
-        assert_eq!(argv(&cmd, "x", &["a.mov".into(), "b.mov".into()]), vec!["prepare", "a.mov", "b.mov"]);
+        let cmd = vec!["prepare".to_string(), "--mode".into(), "derush".into(), "{args}".into()];
+        assert_eq!(argv(&cmd, "x", &["a.mov".into(), "b.mov".into()]), vec!["prepare", "--mode", "derush", "a.mov", "b.mov"]);
         let cmd = vec!["use_selection".to_string(), "db".into(), "{arg}".into()];
         assert_eq!(argv(&cmd, "travail", &[]), vec!["use_selection", "db", "travail"]);
     }

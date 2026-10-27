@@ -5,7 +5,7 @@ use super::claude;
 use super::common::*;
 use super::info::*;
 use super::jobs::{self, busy, busy_error, cancel_job, job_status, paused_task, resume_job, start_job, Step, JOB_LOCK};
-use crate::moments_lib::{app_mode, derush_subtitles, language_label, MODES};
+use crate::moments_lib::{app_mode, derush_subtitles, language_label};
 use crate::{decoupage, fonts_lib, memoire, paths, place, procs, pyjson, util};
 use regex::Regex;
 use serde_json::{json, Map, Value};
@@ -652,15 +652,6 @@ fn do_delete(req: &Req) -> Reply {
 // --- PUT --------------------------------------------------------------------------------
 fn do_put(req: &Req, body: &mut dyn Read) -> Reply {
     let route = req.raw_path.as_str();
-    if route == "/api/mode" {
-        // bandeau : Dérushage ou Auto-montage
-        let b = read_obj(req, body);
-        let mode = b.get("mode").and_then(Value::as_str).filter(|m| MODES.iter().any(|(c, _)| c == m));
-        let Some(mode) = mode else { return err_json("Mode inconnu.", 400) };
-        util::mkdirs(work());
-        let _ = fs::write(work().join("mode.txt"), format!("{mode}\n"));
-        return send_json(&json!({"mode": mode}), 200);
-    }
     if route == "/api/derush" {
         // dérushage : sous-titres oui / non
         let b = read_obj(req, body);
@@ -726,7 +717,7 @@ const POST_ROUTES: &[&str] = &[
     "/api/claude/login", "/api/claude/code", "/api/claude/logout",
     "/api/update/check", "/api/update/apply", "/api/update/reset", "/api/restart", "/api/quit", "/api/style/analyse", "/api/son/analyse",
     "/api/tutorial/seen",
-    "/api/moments/merge", "/api/moments/split", "/api/moments/unmerge", "/api/moments/unsplit", "/api/moments/restore",
+    "/api/moments/split", "/api/moments/unsplit", "/api/moments/restore",
 ];
 
 fn do_post(req: &Req, body_reader: &mut dyn Read) -> Reply {
@@ -1042,9 +1033,7 @@ fn do_post(req: &Req, body_reader: &mut dyn Read) -> Reply {
     ok_json(202)
 }
 
-/// Scinder ou fusionner des moments (decoupage), puis refaire la page des moments (seuls les
-/// extraits touchés sont recalculés).
-// --- Historique de la page des moments (Annuler / Rétablir une scission ou une fusion) -----------
+// --- Historique de la page des moments (Annuler / Rétablir une coupe ou un recollage) ------------
 // Instantané de work/decoupage.json et des documents de la page (local_db : moments, variantes),
 // dans work/historique/<nom>.json (HISTORY_KEEP gardés) : remettre un instantané rend exactement
 // la découpe et les réglages d'avant, puis la page des moments est refaite.
@@ -1137,42 +1126,21 @@ fn post_moments(action: &str, body: &Map<String, Value>) -> Reply {
             Err(e) => err_json(&e, 400),
         };
     }
+    // Couper un moment en deux (« Couper » : avant le mot le plus proche de l'instant t), ou
+    // recoller une partie au moment précédent (decoupage), puis refaire la page des moments (seuls
+    // les extraits touchés sont recalculés).
     let snapshot = take_snapshot();
-    // Fusion de plusieurs moments sélectionnés sur la frise : « count » fusions de suite
-    // (le moment fusionné garde l'id du premier).
     let parsed = (|| {
         let mid = py_int(body.get("id")?)?;
         let t = if action == "split" { py_float(body.get("t").unwrap_or(&json!(0)))? } else { 0.0 };
-        let count = if action == "merge" { py_int(body.get("count").unwrap_or(&json!(1)))?.clamp(1, 100) } else { 1 };
-        Some((mid, t, count))
+        Some((mid, t))
     })();
-    let Some((mid, t, count)) = parsed else { return err_json("Moment invalide.", 400) };
-    let mut done = 0;
-    let mut message = String::new();
-    for _ in 0..count {
-        let r = match action {
-            "merge" => decoupage::merge(mid),
-            "unmerge" => decoupage::unmerge(mid),
-            "split" => decoupage::split(mid, t),
-            _ => decoupage::unsplit(mid),
-        };
-        match r {
-            Ok(m) => {
-                message = m;
-                done += 1;
-            }
-            Err(e) => {
-                if done == 0 {
-                    return err_json(&e.to_string(), 400);
-                }
-                message = format!("{} moments fusionnés en un seul (pas plus : {e})", done + 1);
-                break;
-            }
-        }
-    }
-    if count > 1 && done == count {
-        message = format!("{} moments fusionnés en un seul.", count + 1);
-    }
+    let Some((mid, t)) = parsed else { return err_json("Moment invalide.", 400) };
+    let r = if action == "split" { decoupage::split(mid, t) } else { decoupage::unsplit(mid) };
+    let message = match r {
+        Ok(m) => m,
+        Err(e) => return err_json(&e.to_string(), 400),
+    };
     let steps: Vec<Step> = vec![("page des moments".into(), vec!["make_moments".into()])];
     if !start_job("decoupage", steps, &message, None, None, false) {
         return err_json(&busy_error(), 409);

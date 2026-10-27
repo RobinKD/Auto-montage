@@ -41,7 +41,7 @@ use crate::pyjson;
 use crate::util::{self, round_int, round_to, truthy};
 use regex::Regex;
 use serde_json::{json, Map, Value};
-use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
+use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::Path;
 use std::process::{Command, Stdio};
@@ -400,7 +400,7 @@ fn run() -> Result<(), String> {
     let work = paths::work();
     let fps_i = FPS as i64;
 
-    // Moments de parole : la transcription, avec les scissions et fusions faites sur la page
+    // Moments de parole : la transcription, avec les coupes faites sur la page
     // (work/decoupage.json). SEG : id -> moment ; les choix ci-dessous (KEEP, FIXES…) désignent
     // les segments d'origine et leurs mots, convertis plus bas (word_map).
     let (raw_segments, segments, deco) = load_segments(&work)?;
@@ -499,8 +499,8 @@ fn run() -> Result<(), String> {
         }
     }
     let same_rush = edit_rush.as_deref() == Some(current_rush.as_str());
-    if same_rush && (!deco.splits.is_empty() || !deco.merges.is_empty()) {
-        // Choix écrits pour les segments d'origine : vers les moments scindés ou fusionnés.
+    if same_rush && !deco.splits.is_empty() {
+        // Choix écrits pour les segments d'origine : vers les moments coupés.
         let at = |seg: i64, i: i64| wmap.get(&(seg, i)).copied();
         let mut new_keep = vec![];
         for k in &keep {
@@ -638,10 +638,9 @@ fn run() -> Result<(), String> {
     for (seg, v) in voice_defaults.iter() {
         sfx_defaults.entry(*seg, Vec::new).push(v.clone());
     }
-    // Découpes faites sur la page : segment -> instants de coupe (s depuis le début de l'extrait),
-    // et parties gardées : segment -> {indices} (None = tout le segment).
-    let mut cuts: HashMap<i64, Vec<f64>> = HashMap::new();
-    let mut parts: BTreeMap<i64, Option<BTreeSet<i64>>> = BTreeMap::new();
+    // Début et fin gardés d'un moment de parole (poignées de la page) : segment -> (début, fin) en s
+    // depuis le début de son extrait (None : le bord du moment).
+    let mut speech_trims: HashMap<i64, (Option<f64>, Option<f64>)> = HashMap::new();
     // Effets choisis sur la page : segment -> liste d'effets. Chaque effet est soit un nom
     // ("cash", "bop", "clavier" : réglages par défaut), soit un réglage précis
     // {"kind", "at": départ en s depuis le début de l'extrait du moment, "repeat", "gap", "dur"}.
@@ -665,39 +664,16 @@ fn run() -> Result<(), String> {
         None
     };
     if let Some(selection) = &selection {
-        // « keep » : ids de moments, ou « id/k » pour la partie k d'un moment découpé.
+        // « keep » : ids des moments gardés.
+        let mut kept_ids: Vec<i64> = vec![];
         for item in util::arr(selection, "keep") {
-            match item.as_str().filter(|s| s.contains('/')) {
-                Some(s) => {
-                    let mut it = s.split('/').map(|x| x.trim().parse::<i64>());
-                    let (Some(Ok(mid)), Some(Ok(k))) = (it.next(), it.next()) else { continue };
-                    match parts.get_mut(&mid) {
-                        Some(None) => {}
-                        Some(Some(set)) => {
-                            set.insert(k);
-                        }
-                        None => {
-                            parts.insert(mid, Some(BTreeSet::from([k])));
-                        }
-                    }
-                }
-                None => {
-                    if let Some(mid) = pyint(Some(item)) {
-                        parts.insert(mid, None);
-                    }
+            if let Some(mid) = pyint(Some(item)) {
+                if !kept_ids.contains(&mid) {
+                    kept_ids.push(mid);
                 }
             }
         }
-        if let Some(Value::Object(c)) = selection.get("cuts") {
-            for (k, v) in c {
-                let Ok(k) = k.trim().parse::<i64>() else { continue };
-                if truthy(Some(v)) && !is_gap(k) {
-                    let mut list: Vec<f64> = v.as_array().map(|a| a.iter().map(|x| pyfloat(Some(x), 0.0)).collect()).unwrap_or_default();
-                    list.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
-                    cuts.insert(k, list);
-                }
-            }
-        }
+        kept_ids.sort();
         if let Some(Value::Object(g)) = selection.get("gains") {
             for (k, v) in g {
                 if let Ok(k) = k.trim().parse::<i64>() {
@@ -739,14 +715,18 @@ fn run() -> Result<(), String> {
             }
         }
         keep = vec![];
-        for &mid in parts.keys() {
+        for &mid in &kept_ids {
             if !is_gap(mid) && !ctx.seg.contains_key(&mid) {
-                continue; // moment qui n'existe plus (scindé ou fusionné depuis)
+                continue; // moment qui n'existe plus (coupé ou recollé depuis)
             }
             if !is_gap(mid) {
                 // Moment entier, comme sur la page : les coupes au mot de KEEP ne valent que pour le
-                // montage par défaut ; sur la page, on coupe avec « Couper ici ».
+                // montage par défaut ; sur la page, on raccourcit le début ou la fin (poignées).
                 keep.push(Keep { seg: mid, first: 0.0, last: None });
+                if let Some(t) = page_trims.get(&mid) {
+                    let get = |k: &str| t.get(k).filter(|v| !v.is_null()).map(|v| pyfloat(Some(v), 0.0));
+                    speech_trims.insert(mid, (get("in"), get("out")));
+                }
             } else if let Some(&(gs, ge)) = ctx.gaps.get(&mid) {
                 // Plan sans parole : début et fin choisis sur la page, en s depuis le début du plan.
                 let length = ge - gs;
@@ -914,64 +894,46 @@ fn run() -> Result<(), String> {
         };
         let start = if first == 0 { fnum(seg, "start") } else { refine(fnum(&words[first as usize], "a")) };
         let end = if k.last.is_none() { fnum(seg, "end") } else { refine(fnum(&words[last_i as usize], "b")) };
-        // Découpe faite sur la page : parties [0, coupe 1], [coupe 1, coupe 2]… de l'extrait,
-        // coupes à l'image près où elles ont été placées (curseur de la page, image par image) ;
-        // parties gardées contiguës fusionnées.
-        let mut spans: Vec<(f64, f64, Option<BTreeSet<usize>>)> = vec![(start, end, None)]; // (début, fin, parties ; None = tout)
-        let mut bounds: Vec<f64> = vec![];
-        if let Some(cs) = cuts.get(&seg_id) {
-            bounds.push(-1e9);
-            for c in cs {
-                bounds.push(round_int((ctx.page_start(seg_id) + c) * FPS) as f64 / FPS);
+        // Début et fin gardés sur la page (poignées), à l'image près où ils ont été placés.
+        let (mut start, mut end) = (start, end);
+        let trimmed = speech_trims.get(&seg_id).copied();
+        if let Some((t_in, t_out)) = trimmed {
+            let at = |t: f64| round_int((ctx.page_start(seg_id) + t) * FPS) as f64 / FPS;
+            if let Some(t) = t_in {
+                start = start.max(at(t));
             }
-            bounds.push(1e9);
-            let kept_parts = parts.get(&seg_id).cloned().flatten();
-            spans.clear();
-            for kk in 0..bounds.len() - 1 {
-                let (a, b) = (start.max(bounds[kk]), end.min(bounds[kk + 1]));
-                if b - a < 0.1 || kept_parts.as_ref().map(|p| !p.contains(&(kk as i64))).unwrap_or(false) {
-                    continue;
-                }
-                match spans.last_mut() {
-                    Some(last) if (last.1 - a).abs() < 1e-6 => {
-                        last.1 = b;
-                        last.2.get_or_insert_with(BTreeSet::new).insert(kk);
-                    }
-                    _ => spans.push((a, b, Some(BTreeSet::from([kk])))),
-                }
+            if let Some(t) = t_out {
+                end = end.min(at(t));
+            }
+            if end - start < 0.1 {
+                continue;
             }
         }
-        for (span_start, span_end, span_parts) in spans {
-            let f_in = round_int(span_start * FPS);
-            let f_out = round_int(span_end * FPS);
-            let dur = f_out - f_in;
-            clips.push(Clip { seg: seg_id, trim_before: f_in, dur, from: out_frame, text: String::new(), trim_before_hd: None });
-            let n_before = word_events.len();
-            for i in first..=last_i {
-                let Some(w) = words.get(i as usize) else { continue };
-                if let Some(sp) = &span_parts {
-                    // moment découpé : mot rangé dans sa partie par son milieu
-                    let mid = (fnum(w, "a") + fnum(w, "b")) / 2.0;
-                    let part = (0..bounds.len() - 1).find(|&kk| mid < bounds[kk + 1]);
-                    if !part.map(|p| sp.contains(&p)).unwrap_or(false) {
-                        continue;
-                    }
-                }
-                let text = fixes_get(&fixes, (seg_id, i)).unwrap_or_else(|| w.get("w").and_then(Value::as_str).unwrap_or("").to_string());
-                let a = fnum(w, "a").max(f_in as f64 / FPS).min(f_out as f64 / FPS);
-                let b = fnum(w, "b").max(a + 0.05).min(f_out as f64 / FPS);
-                word_events.push(WordEvent {
-                    seg: seg_id,
-                    i,
-                    text,
-                    start: out_frame as f64 / FPS + (a - f_in as f64 / FPS),
-                    end: out_frame as f64 / FPS + (b - f_in as f64 / FPS),
-                });
+        let f_in = round_int(start * FPS);
+        let f_out = round_int(end * FPS);
+        let dur = f_out - f_in;
+        clips.push(Clip { seg: seg_id, trim_before: f_in, dur, from: out_frame, text: String::new(), trim_before_hd: None });
+        let n_before = word_events.len();
+        for i in first..=last_i {
+            let Some(w) = words.get(i as usize) else { continue };
+            let middle = (fnum(w, "a") + fnum(w, "b")) / 2.0;
+            if trimmed.is_some() && (middle < start || middle > end) {
+                continue; // mot hors de la partie gardée (par son milieu)
             }
-            let joined: Vec<&str> = word_events[n_before..].iter().filter(|x| !x.text.is_empty()).map(|x| x.text.as_str()).collect();
-            clips.last_mut().unwrap().text = joined.join(" ");
-            out_frame += dur;
+            let text = fixes_get(&fixes, (seg_id, i)).unwrap_or_else(|| w.get("w").and_then(Value::as_str).unwrap_or("").to_string());
+            let a = fnum(w, "a").max(f_in as f64 / FPS).min(f_out as f64 / FPS);
+            let b = fnum(w, "b").max(a + 0.05).min(f_out as f64 / FPS);
+            word_events.push(WordEvent {
+                seg: seg_id,
+                i,
+                text,
+                start: out_frame as f64 / FPS + (a - f_in as f64 / FPS),
+                end: out_frame as f64 / FPS + (b - f_in as f64 / FPS),
+            });
         }
+        let joined: Vec<&str> = word_events[n_before..].iter().filter(|x| !x.text.is_empty()).map(|x| x.text.as_str()).collect();
+        clips.last_mut().unwrap().text = joined.join(" ");
+        out_frame += dur;
     }
     let total_frames = out_frame;
     let total = total_frames as f64 / FPS;

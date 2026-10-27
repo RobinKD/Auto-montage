@@ -324,7 +324,7 @@
 </main>
 
 <script>
-  const $ = (id) => document.getElementById(id);
+  // Montage en cours en dérushage (work/mode.txt) : ni consignes, ni style, ni Claude ; la section 2 est masquée.
   // Mode Dérushage (bandeau du haut) : ni consignes, ni style, ni Claude ; la section 2 est masquée.
   const DERUSH = document.documentElement.dataset.mode === "derush";
   if (DERUSH) $("prepare-num").textContent = "2";
