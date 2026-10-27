@@ -1,4 +1,4 @@
-# Test de bout en bout d'Auto-montage installé directement sur la machine (sans Docker), sur
+# Test de bout en bout d'Auto-montage installé directement sur la machine, sur
 # Linux, macOS et Windows : le programme est compilé, « auto-montage start » installe ce qui
 # manque (Node, paquets, navigateur de rendu, Whisper, modèles) et lance l'interface, puis un rush
 # de synthèse est envoyé, préparé (transcription, montage, rendu, page des moments) et une

@@ -59,9 +59,8 @@ interne : les changements attendent la prochaine version.
 
 ## À savoir
 
-- Programme : un seul exécutable Rust (`montage/rust/`, règles dans `montage/rust/PORTAGE.md`), lancé
-  par `./am <commande>` depuis `montage/` (compilé au besoin) ; chaque ancien script est une commande
-  du même nom. Plus de Python ni de bash dans `montage/scripts/` (supprimé).
+- Programme : un seul exécutable Rust (`montage/rust/`, règles dans `montage/rust/CONVENTIONS.md`), lancé
+  par `./am <commande>` depuis `montage/` (compilé au besoin).
 - Les rushes, fichiers de travail (`work/`) et rendus (`out/`) ne sont pas versionnés.
 - La police Oliver n'est pas versionnée (licence usage personnel) : `./am fetch_fonts`.
 - Visages (`rust/src/detect_face.rs`, YuNet et SFace de `./am fetch_face_model`, lus par tract-onnx, sans OpenCV) :
@@ -124,7 +123,7 @@ interne : les changements attendent la prochaine version.
   `rust/src/claude_tasks.rs` fait écrire à Claude `work/style/analyse/resultat.json` (éléments
   repérés, reproductibles ou non, style de sous-titres proposé), repris par la préparation.
 - Sécurité de l'interface locale (`local_server`) : seuls les noms localhost, 127.0.0.1,
-  [::1] (et `AM_ALLOWED_HOSTS`) sont servis, les écritures d'une autre origine sont refusées
+  [::1] sont servis, les écritures d'une autre origine sont refusées
   (`parse_request`). Claude sans interaction (discussion, `apply_instructions`,
   `style_claude`) n'écrit que dans `montage/work/`, avec les interdits de `CHAT_DENIED`
   (conversation, pages servies). Données insérées dans une page : `<` échappé.
@@ -204,8 +203,7 @@ interne : les changements attendent la prochaine version.
   habillage de tout le montage dans `work/habillage.json` (`autoZoom`, `pop`, `karaoke`).
   Tous les effets par défaut (sons, « voix », effets visuels) et « gainvoix » (curseur de
   volume de la voix par moment) sont écartés (`hidden`) tant que l'utilisateur ne les coche pas
-  (`moments_lib.hidden_effects`, `DEFAULT_HIDDEN` par version, marque `"defauts"` dans
-  effets_page.json). Voix
+  (`moments_lib.hidden_effects` : sans `hidden` dans effets_page.json, `default_hidden`). Voix
   modifiées (effet « voix », champ `voice`) : `moments_lib.VOICES` (tremblement, robot,
   écureuil, lutin, géant, mégaphone, téléphone, grande salle, batterie faible, vieille radio,
   chœur). Celles de `moments_lib.HF_VOICES` (mégaphone, téléphone, grande salle, écureuil,

@@ -7,8 +7,7 @@
 //! Unités : pixels CSS de l'image de la composition, 1080 x 1920 (portrait) ou 1920 x 1080 (rush en
 //! paysage) ; le rendu 4K multiplie par 2.
 //!
-//! Mesure du texte : mise en forme HarfBuzz (rustybuzz), comme Pillow avec libraqm dans la version
-//! Python (crénage compris), en 1/64 de pixel.
+//! Mesure du texte : mise en forme HarfBuzz (rustybuzz, crénage compris), en 1/64 de pixel.
 
 use crate::fonts_lib;
 use crate::paths;
@@ -106,8 +105,6 @@ pub struct Montage {
     pub frames: i64,
     pub width: i64,
     pub height: i64,
-    #[allow(dead_code)]
-    pub landscape: bool,
     pub hab: Map<String, Value>,
     pub typed: Vec<Value>,
     pub font_file: PathBuf,
@@ -157,7 +154,6 @@ impl Montage {
             frames,
             width,
             height,
-            landscape: width > height,
             hab,
             typed,
             font_file,

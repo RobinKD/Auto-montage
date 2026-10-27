@@ -6,7 +6,6 @@
 //!
 //! - `auto-montage setup` : tout (paquets Node, navigateur de rendu, Whisper, police, modèles des
 //!   visages). Appelé par le hook de session Claude Code sur le web et par `auto-montage start`.
-//!   (Plus de paquets Python à installer, ni de modèle Haar : les visages passent par YuNet.)
 //! - `setup_whisper` : whisper.cpp compilé pour le CPU (sauf s'il est déjà là, compilé ou livré
 //!   dans `montage/bin/` ; version publiée : téléchargé déjà compilé) et ses modèles.
 //! - `fetch_node` : Node.js autonome dans `montage/node/` si la machine n'a pas Node 20 ou plus.
@@ -138,7 +137,7 @@ pub fn main(_args: &[String]) -> i32 {
         }
     }
 
-    // ffmpeg livré avec Auto-montage (celui d'imageio-ffmpeg, comme la version Python).
+    // ffmpeg livré avec Auto-montage (celui d'imageio-ffmpeg).
     if sub("fetch_ffmpeg") != 0 {
         println!("ffmpeg non installé (réessayé au prochain démarrage) : celui de la machine sera utilisé.");
     }
@@ -549,12 +548,11 @@ pub fn check_network(_args: &[String]) -> i32 {
     0
 }
 
-/// Version d'imageio-ffmpeg dont le ffmpeg est repris (celui de la version Python d'Auto-montage).
+/// Version d'imageio-ffmpeg dont le ffmpeg est repris.
 const IMAGEIO_FFMPEG: &str = "0.6.0";
 
 /// ffmpeg livré avec Auto-montage (montage/bin/ffmpeg) : le ffmpeg statique que le paquet Python
-/// imageio-ffmpeg fournit pour chaque système (le même que la version Python utilisait, avec les
-/// filtres des voix modifiées : rubberband…), pris dans son archive sur PyPI. Rien à faire s'il est
+/// imageio-ffmpeg fournit pour chaque système (avec les filtres des voix modifiées : rubberband…), pris dans son archive sur PyPI. Rien à faire s'il est
 /// déjà là ou si AM_FFMPEG en désigne un autre ; système sans archive : celui du PATH.
 pub fn fetch_ffmpeg(_args: &[String]) -> i32 {
     let exe = if cfg!(windows) { "ffmpeg.exe" } else { "ffmpeg" };

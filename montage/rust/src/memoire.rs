@@ -78,7 +78,7 @@ fn part(v: &VideoInfo) -> f64 {
     }
 }
 
-/// Opérations connues, dans l'ordre de la version Python.
+/// Opérations connues.
 pub const OPERATIONS: [&str; 15] = [
     "Assemblage des vidéos",
     "Assemblage des vidéos (réencodage)",

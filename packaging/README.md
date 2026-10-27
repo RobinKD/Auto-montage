@@ -18,7 +18,7 @@ premier lancement (Node, paquets npm, ffmpeg, navigateur du rendu, whisper.cpp, 
 Claude Code : 10 à 20 min), sert l'interface sur 127.0.0.1 et l'ouvre dans le navigateur ; il reste
 ouvert dans sa fenêtre de terminal tant que l'interface tourne (fermer la fenêtre l'arrête).
 `auto-montage stop` l'arrête. Claude Code : celui de la machine, sinon
-`montage/claude/node_modules/.bin/claude` (avec Node de `montage/node`). Pas de Docker.
+`montage/claude/node_modules/.bin/claude` (avec Node de `montage/node`).
 
 - **Linux** : `linux/AppRun` installe le projet, crée l'entrée du menu (avec ses actions) qui
   pointe vers l'AppImage, puis lance `auto-montage start` dans une fenêtre de terminal (gardée

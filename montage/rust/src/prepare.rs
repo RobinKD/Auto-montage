@@ -160,7 +160,7 @@ pub fn main(args: &[String]) -> i32 {
     //    pas un fichier incomplet que la suivante prendrait pour bon.)
     let size = display_size(&rush_path).map(|(w, h)| work_size(w, h, 1080)).unwrap_or((1080, 1920));
     let work_video = paths::rushes().join("rush_1080.mp4");
-    // Version de travail d'une autre taille (même rush préparé avant la 0.43, étiré en 1080x1920) : refaite.
+    // Version de travail d'une autre taille que celle attendue pour ce rush : refaite.
     if work_video.is_file() && frame_size(root) != size {
         let _ = fs::remove_file(&work_video);
     }

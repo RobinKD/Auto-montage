@@ -61,7 +61,7 @@ fn manifest() -> PathBuf {
     project().join(".auto-montage-files")
 }
 /// Jamais remplacés ni effacés : les données de l'utilisateur et ce qui est installé à part.
-const KEEP: [&str; 12] = [
+const KEEP: [&str; 11] = [
     "montage/work/",
     "montage/out/",
     "montage/public/rushes/",
@@ -75,7 +75,6 @@ const KEEP: [&str; 12] = [
     // Montage en cours (réécrits par build_edit) : pas remplacés par ceux du dépôt.
     "montage/src/data/edit.json",
     "montage/src/data/face.json",
-    "montage/src/data/landmarks.json",
 ];
 const SKIP: [&str; 2] = ["packaging/", ".github/"]; // pas dans les installations
 
@@ -301,7 +300,7 @@ fn unpack(buf: &[u8], tmp: &Path) -> Result<(PathBuf, Vec<String>), String> {
         }
         files.push(rel);
     }
-    if !files.iter().any(|f| f == "VERSION") || !(src.join("montage").join("rust").join("Cargo.toml").exists() || src.join("montage").join("scripts").join("local_server.py").exists()) {
+    if !files.iter().any(|f| f == "VERSION") || !src.join("montage").join("rust").join("Cargo.toml").exists() {
         return Err("L'archive ne ressemble pas à Auto-montage : rien n'est remplacé.".into());
     }
     files.sort();
@@ -675,7 +674,7 @@ mod tests {
     fn keep_list() {
         assert!(protected("montage/work/edit.json"));
         assert!(protected("montage/public/fonts/Oliver-Regular.ttf"));
-        assert!(!protected("montage/scripts/update.py"));
+        assert!(!protected("montage/selection/page.html"));
         assert!(skipped(".github/workflows/tests.yml"));
     }
 }

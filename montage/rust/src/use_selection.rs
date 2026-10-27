@@ -7,7 +7,7 @@
 //!                               "sfx"?: ["cash", …] ou [{"kind", "at", "repeat", "gap", "dur"}, …],
 //!                               "vfx"?: [{"kind": "typed" | "chip", "text", "at", "type", "dur", "sound"}, …],
 //!                               "trim"?: {"in", "out"} pour un plan sans parole (id >= 1000),
-//!                               "cuts"?: [instants de coupe en s], "fxv"?: 2,
+//!                               "cuts"?: [instants de coupe en s],
 //!                               "focus"?: n (cadrage sur la personne n de detect_face), "auto"
 //!                               (personne qui parle, diarize) ou "tous" (tout le monde),
 //!                               "transition"?: {"kind", "dur"} (coupe avant ce moment, look.rs)}
@@ -108,10 +108,9 @@ pub fn main(args: &[String]) -> i32 {
 
     let (mut corrections, mut sfx, mut vfx, mut trims, mut cuts, mut gains, mut focus, mut transitions) =
         (Map::new(), Map::new(), Map::new(), Map::new(), Map::new(), Map::new(), Map::new(), Map::new());
-    let mut sfx_legacy: Vec<Value> = vec![];
     // Réglages de la page tels qu'ils partent dans la version de travail : la page les compare
     // aux réglages du moment pour signaler « Modifié depuis la version de travail ».
-    const PAGE_FIELDS: [&str; 10] = ["text", "nosub", "sfx", "vfx", "trim", "cuts", "fxv", "gain", "focus", "transition"];
+    const PAGE_FIELDS: [&str; 9] = ["text", "nosub", "sfx", "vfx", "trim", "cuts", "gain", "focus", "transition"];
     let mut page = Map::new();
     // Ordre du dossier, comme glob.glob (os.scandir).
     let entries: Vec<_> = fs::read_dir(export_dir.join("moments"))
@@ -147,10 +146,6 @@ pub fn main(args: &[String]) -> i32 {
         if let Some(list) = m.get("sfx").and_then(Value::as_array) {
             let kept: Vec<Value> = list.iter().filter(|s| s.is_string() || s.is_object()).cloned().collect();
             sfx.insert(seg.clone(), Value::Array(kept));
-            if m.get("fxv") != Some(&json!(2)) && m.get("fxv").and_then(Value::as_f64) != Some(2.0) {
-                // enregistré avant l'effet « voix » : voix par défaut gardée
-                sfx_legacy.push(json!(seg));
-            }
         }
         if let Some(list) = m.get("cuts").and_then(Value::as_array) {
             if !list.is_empty() {
@@ -202,7 +197,7 @@ pub fn main(args: &[String]) -> i32 {
     let name = doc.get("name").cloned().unwrap_or(Value::Null);
     let out = json!({
         "name": name, "keep": keep, "corrections": corrections, "sfx": sfx, "vfx": vfx,
-        "trims": trims, "cuts": cuts, "sfx_legacy": sfx_legacy, "gains": gains, "focus": focus,
+        "trims": trims, "cuts": cuts, "gains": gains, "focus": focus,
         "transitions": transitions, "page": {"keep": keep, "moments": page},
     });
     let text = pyjson::dumps_with(&out, pyjson::Opts { indent: Some(1), ensure_ascii: false, ..Default::default() });

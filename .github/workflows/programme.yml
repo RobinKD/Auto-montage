@@ -2,7 +2,7 @@
 #   linux-x86_64, linux-aarch64, macos-arm64, macos-x86_64, windows-x86_64.exe
 # et whisper.cpp compilé pour chaque système (whisper-<système>.tar.gz : whisper-cli et
 # vad-speech-segments, sans bibliothèque à part), téléchargé par « auto-montage setup ».
-# Lancé à chaque envoi sur la branche rust (ou à la main : Actions > Programme > Run workflow),
+# Lancé à chaque envoi sur main ou rust (ou à la main : Actions > Programme > Run workflow),
 # et par installateurs.yml pour une version publiée : les programmes y sont joints à la version
 # (fichiers auto-montage-<système>), où la mise à jour de l'interface va les chercher.
 # Chaque programme est aussi gardé 14 jours dans les « artifacts » de l'exécution
@@ -11,7 +11,7 @@ name: Programme
 
 on:
   push:
-    branches: [rust]
+    branches: [main, rust]
     paths:
       - "montage/rust/**"
       - "VERSION"

@@ -673,7 +673,7 @@
     document.documentElement.style.setProperty(k, v);
   if (FRAME_W > FRAME_H) document.querySelectorAll(".layout, .screen").forEach((e) => e.classList.add("paysage"));
   // Point de cadrage et zoom maximal à l'instant t de l'extrait d'un moment (même règle que faceAt
-  // dans render_hyperframes) ; ancienne page sans faceTrack : point fixe du moment.
+  // dans render_hyperframes) ; sans suivi des visages : point fixe du moment.
   // Moment cadré sur une personne (« Cadrage ») : son visage, en plan rapproché, centré quand c'est
   // possible, gardé dans son cadre (écran partagé, incrustation) quand elle en a un (même règle que
   // focusFrame dans render_hyperframes).
@@ -996,9 +996,7 @@
     return (e && Array.isArray(e.vfx)) ? e.vfx : vfxDefaults(m, first);
   }
   function sfxOf(m, e = edits[m.id]) {
-    let list = (e && Array.isArray(e.sfx)) ? e.sfx : m.sfx;
-    // Effets enregistrés avant l'effet « voix » : la voix proposée reste cochée.
-    if (list !== m.sfx && !e.fxv) list = [...list, ...m.sfx.filter((f) => f && f.kind === "voix")];
+    const list = (e && Array.isArray(e.sfx)) ? e.sfx : m.sfx;
     return list.map((f) => (typeof f === "string" ? defaultFx(m, f) : { ...defaultFx(m, f.kind), ...f }));
   }
   // --- Écart avec la vidéo entière ---------------------------------------------
@@ -3379,7 +3377,7 @@ ${HFAudio.voiceElements(spec)}
         : removed && !added ? `${removed} moment${removed > 1 ? "s" : ""} retiré${removed > 1 ? "s" : ""}` : "moments gardés";
     }
     const m = byId.get(it.id);
-    const what = it.keys.split(",").filter((k) => k !== "fxv").map((k) => FIELD[k] || k).join(", ");
+    const what = it.keys.split(",").filter(Boolean).map((k) => FIELD[k] || k).join(", ");
     return `${what || "réglages"} du moment${m ? ` à ${fmt(m.start)}` : ""}`;
   }
   function remember(item) {
@@ -3491,10 +3489,8 @@ ${HFAudio.voiceElements(spec)}
   }
   async function saveMoment(id, patch) {
     const before = edits[id] || {};
-    // Effets enregistrés avant l'effet « voix » : on garde la voix proposée en réenregistrant.
-    if (Array.isArray(before.sfx) && !before.fxv && !("sfx" in patch)) patch = { ...patch, sfx: sfxOf(byId.get(id)) };
     const prev = edits[id] ? clone(edits[id]) : null;
-    edits[id] = { ...before, ...patch, fxv: 2 };
+    edits[id] = { ...before, ...patch };
     remember({ kind: "moment", id, prev, next: clone(edits[id]), keys: Object.keys(patch).sort().join(",") });
     await writeMoment(id);
   }
@@ -3516,7 +3512,6 @@ ${HFAudio.voiceElements(spec)}
         transition: e.transition && typeof e.transition === "object" ? e.transition : null,  // avant ce moment (look.rs)
         trim: e.trim || null,
         cuts: Array.isArray(e.cuts) && e.cuts.length ? e.cuts : null,
-        fxv: 2,  // effets enregistrés avec l'effet « voix » au catalogue
         updatedAt: new Date().toISOString(),
       });
       setStatus(`Moment à ${fmt(m.start)} enregistré`, "ok");
@@ -3535,7 +3530,6 @@ ${HFAudio.voiceElements(spec)}
       vfx: Array.isArray(d.vfx) ? d.vfx : undefined,
       trim: d.trim && typeof d.trim === "object" ? d.trim : undefined,
       cuts: Array.isArray(d.cuts) ? d.cuts.filter(Number.isFinite) : undefined,
-      fxv: d.fxv || undefined,
       gain: typeof d.gain === "number" ? d.gain : undefined,
       focus: focusValue(d.focus) ?? undefined,
       transition: d.transition && typeof d.transition === "object" ? d.transition : undefined,

@@ -3,7 +3,7 @@
 
 use super::common::*;
 use super::jobs::{self, load_rates, rate, RATES};
-use crate::moments_lib::{self, edit_size, hf_preview_files, hidden_effects, res_label, sound_catalog, wav_len, DEFAULTS_VERSION, SOUNDS as DEFAULT_SOUNDS, VISUALS, VOICES};
+use crate::moments_lib::{self, edit_size, hf_preview_files, hidden_effects, res_label, sound_catalog, wav_len, SOUNDS as DEFAULT_SOUNDS, VISUALS, VOICES};
 use crate::{fonts_lib, memoire, paths, procs, pyjson, util};
 use regex::Regex;
 use serde_json::{json, Map, Value};
@@ -249,7 +249,7 @@ pub fn save_effects(body: &Map<String, Value>) -> Value {
     };
     let _ = write_json(
         effects_path(),
-        &json!({"hidden": hidden, "purge": purge, "volume": util::num(util::round_to(volume, 2)), "defauts": DEFAULTS_VERSION}),
+        &json!({"hidden": hidden, "purge": purge, "volume": util::num(util::round_to(volume, 2))}),
         Some(1),
         true,
     );

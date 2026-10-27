@@ -1,10 +1,8 @@
 //! Auto-montage, version native : un seul programme pour toutes les étapes (préparation d'un rush,
-//! montage, rendu, interface locale), qui remplace les scripts Python et bash de `scripts/`.
+//! montage, rendu, interface locale).
 //!
 //! Usage : auto-montage <commande> [arguments…]   (`auto-montage aide` pour la liste)
-//! Chaque commande garde le nom du script qu'elle remplace : `python3 scripts/build_edit.py`
-//! devient `auto-montage build_edit` (les formes `scripts/build_edit.py` et `build_edit.py` sont
-//! aussi acceptées). Lancé sous le nom `ffmpeg_limite`, le programme fait le ffmpeg donné à
+//! Lancé sous le nom `ffmpeg_limite`, le programme fait le ffmpeg donné à
 //! HyperFrames (extractions d'images limitées, voir ffmpeg_limite.rs).
 
 mod analyze_sound;
@@ -56,8 +54,8 @@ type Cmd = fn(&[String]) -> i32;
 const COMMANDS: &[(&str, Cmd, &str)] = &[
     ("start", lanceur::start, "installe ce qui manque, lance l'interface et l'ouvre dans le navigateur"),
     ("stop", lanceur::stop, "arrête l'interface"),
-    ("prepare", prepare::main, "prépare un rush (remplace prepare.sh)"),
-    ("render", render::main, "rendu apercu|final (remplace render.sh)"),
+    ("prepare", prepare::main, "prépare un rush"),
+    ("render", render::main, "rendu apercu|final"),
     ("local_server", local_server::main, "interface web locale (port 8080)"),
     ("make_moments", make_moments::main, "page des moments"),
     ("build_edit", build_edit::main, "montage : src/data/edit.json"),
@@ -125,9 +123,7 @@ fn main() {
         std::process::exit(ffmpeg_limite::main(&args[1..]));
     }
     let Some(first) = args.get(1) else { std::process::exit(usage()) };
-    let name = first.trim_start_matches("./").trim_start_matches("scripts/");
-    let name = name.strip_suffix(".py").or_else(|| name.strip_suffix(".sh")).unwrap_or(name);
-    let code = match COMMANDS.iter().find(|(n, _, _)| *n == name) {
+    let code = match COMMANDS.iter().find(|(n, _, _)| n == first) {
         Some((_, f, _)) => f(&args[2..]),
         None => usage(),
     };

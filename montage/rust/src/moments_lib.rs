@@ -85,7 +85,7 @@ pub fn timeline_wave(work_dir: &Path) -> Option<Vec<i64>> {
     let rate = r.spec().sample_rate;
     let step = (rate / WAVE_RATE).max(1) as usize;
     let samples: Vec<i32> = r.samples::<i16>().filter_map(Result::ok).map(i32::from).collect();
-    // Lu par blocs de step * 2000 images comme la version Python : mêmes fenêtres.
+    // Lu par blocs de step * 2000 images.
     let mut peaks = vec![];
     for chunk in samples.chunks(step * 2000) {
         for part in chunk.chunks(step) {
@@ -747,38 +747,20 @@ pub fn batterie_warp(x: &[f64], force: f64) -> Vec<f64> {
         .collect()
 }
 
-// Effets écartés de la page des moments (work/effets_page.json, « hidden ») : tous les effets
-// fournis par défaut le sont tant que l'utilisateur ne les a pas cochés. « defauts » note la
-// dernière liste appliquée : un fichier plus ancien reçoit les effets écartés depuis, en plus
-// de ses propres choix (2 : sons par défaut ; 3 : voix modifiée, volume de la voix par moment
-// et effets visuels ; 4 : effet d'image).
-pub const DEFAULTS_VERSION: i64 = 4;
-
-pub fn default_hidden() -> Vec<(i64, Vec<&'static str>)> {
-    let mut v3 = vec!["voix", "gainvoix"];
-    v3.extend(VISUALS.iter().map(|v| v.0).filter(|v| *v != "filtre"));
-    vec![(2, SOUNDS.iter().map(|s| s.0).collect()), (3, v3), (4, vec!["filtre"])]
+// Effets écartés de la page des moments (work/effets_page.json, « hidden ») : sans ce fichier, tous
+// les effets fournis par défaut le sont, tant que l'utilisateur ne les a pas cochés.
+pub fn default_hidden() -> Vec<&'static str> {
+    let mut v: Vec<&'static str> = SOUNDS.iter().map(|s| s.0).collect();
+    v.extend(["voix", "gainvoix"]);
+    v.extend(VISUALS.iter().map(|v| v.0));
+    v
 }
 
 pub fn hidden_effects(path: &Path) -> Vec<String> {
-    let data = match read_json(path) {
-        Some(Value::Object(m)) => m,
-        _ => Map::new(),
+    let hidden: BTreeSet<String> = match read_json(path).as_ref().and_then(|d| d.get("hidden")).and_then(Value::as_array) {
+        Some(a) => a.iter().filter_map(|h| h.as_str().map(String::from)).collect(),
+        None => default_hidden().into_iter().map(String::from).collect(),
     };
-    let mut hidden: BTreeSet<String> = data
-        .get("hidden")
-        .and_then(Value::as_array)
-        .map(|a| a.iter().filter_map(|h| h.as_str().map(String::from)).collect())
-        .unwrap_or_default();
-    let done = match data.get("defauts") {
-        Some(Value::Number(n)) if n.is_i64() => n.as_i64().unwrap(),
-        _ => 0,
-    };
-    for (version, ids) in default_hidden() {
-        if done < version {
-            hidden.extend(ids.iter().map(|s| s.to_string()));
-        }
-    }
     hidden.into_iter().collect()
 }
 

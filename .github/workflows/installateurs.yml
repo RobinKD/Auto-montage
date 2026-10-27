@@ -113,9 +113,6 @@ jobs:
           test -d "$AUTO_MONTAGE_HOME/montage/public/rushes"
           test "$(cat "$AUTO_MONTAGE_HOME/.auto-montage-version")" = "$V"
           grep -q "Exec=" "$XDG_DATA_HOME/applications/auto-montage.desktop"
-          if grep -qi docker "$XDG_DATA_HOME/applications/auto-montage.desktop"; then
-            echo "Action Docker dans l'entrée du menu"; exit 1
-          fi
           test "$("$AM" version)" = "$(tr -d '[:space:]' < VERSION)"
           OUT="$("$AM" stop)"; echo "$OUT"
           echo "$OUT" | grep -q "n'est pas lancé"

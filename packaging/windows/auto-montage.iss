@@ -47,11 +47,6 @@ Source: "{#Payload}\*"; DestDir: "{app}"; Flags: recursesubdirs createallsubdirs
 [Dirs]
 Name: "{app}\montage\public\rushes"; Flags: uninsneveruninstall
 
-[InstallDelete]
-; Raccourcis des anciennes versions (lancement par Docker).
-Type: files; Name: "{group}\Terminal du conteneur.lnk"
-Type: files; Name: "{group}\Nettoyer Docker.lnk"
-
 [Icons]
 Name: "{group}\Auto-montage"; Filename: "{app}\montage\bin\auto-montage.exe"; Parameters: "start"; WorkingDir: "{app}\montage"; IconFilename: "{app}\icons\icon.ico"; Comment: "Version de travail, moments, corrections et effets"
 Name: "{group}\Téléchargements"; Filename: "{app}\montage\bin\auto-montage.exe"; Parameters: "start downloads/"; WorkingDir: "{app}\montage"; IconFilename: "{app}\icons\icon.ico"; Comment: "Versions 720p, 1080p et 4K"

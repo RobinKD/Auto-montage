@@ -426,7 +426,7 @@ mod tests {
 
     #[test]
     fn times_like_python() {
-        // Valeurs de la version Python : frame_times(10, [2.5, 6.0]).
+        // frame_times(10, [2.5, 6.0]).
         let t = frame_times(10.0, &[2.5, 6.0]);
         assert_eq!(t.len(), 20);
         assert_eq!(t[0], 0.28);

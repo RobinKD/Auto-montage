@@ -95,7 +95,6 @@ dependencies = [
  "unicode-normalization",
  "ureq",
  "walkdir",
- "windows-sys 0.59.0",
  "woff2-patched",
  "zip",
 ]

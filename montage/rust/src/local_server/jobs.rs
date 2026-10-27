@@ -94,7 +94,7 @@ pub fn plan_json() -> Value {
     Value::Object(PLAN.iter().map(|(s, ops)| (s.to_string(), json!(ops))).collect())
 }
 
-/// (clé, échelle, secondes par seconde d'échelle, entier dans la version Python).
+/// (clé, échelle, secondes par seconde d'échelle, écrit en entier dans timings.json).
 pub const RATES: [(&str, &str, f64, bool); 21] = [
     ("Copie du rush en 1080p", "rush", 0.3, false),
     ("Extraction du son", "rush", 0.01, false),
@@ -167,7 +167,7 @@ fn resumable(kind: &str) -> bool {
     RESUMABLE.contains(&kind)
 }
 
-/// État de la tâche : le dictionnaire `job` de la version Python (clés JSON dans l'ordre), plus
+/// État de la tâche (clés JSON dans l'ordre), plus
 /// ce qui n'est pas du JSON (programme lancé, journal ouvert, vidéo de la mesure de mémoire).
 pub struct Job {
     pub m: Map<String, Value>,
@@ -184,7 +184,7 @@ pub static JOB: LazyLock<Mutex<Job>> = LazyLock::new(|| {
     Mutex::new(Job { m, pid: None, log_file: None, mem_info: None })
 });
 
-/// Le `job_lock` de la version Python : vérifier puis lancer (ou supprimer) sans qu'une autre
+/// Verrou des tâches : vérifier puis lancer (ou supprimer) sans qu'une autre
 /// demande passe entre les deux.
 pub static JOB_LOCK: Mutex<()> = Mutex::new(());
 

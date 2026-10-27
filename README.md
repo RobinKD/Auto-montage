@@ -28,8 +28,7 @@ Télécharger le fichier de votre système dans les
 | macOS | `Auto-montage-…-macOS.dmg` | glisser Auto-montage dans Applications ; à la première ouverture, autoriser l'application (voir ci-dessous) |
 | Linux (x86_64) | `Auto-montage-…-x86_64.AppImage` | rendre le fichier exécutable et l'ouvrir |
 
-Auto-montage s'installe directement sur l'ordinateur : pas de Docker ni d'autre logiciel à
-installer avant. Les installateurs ne sont pas signés : Windows affiche « Windows a protégé
+Auto-montage s'installe directement sur l'ordinateur, sans autre logiciel à installer avant. Les installateurs ne sont pas signés : Windows affiche « Windows a protégé
 votre ordinateur » (Informations complémentaires > Exécuter quand même) et macOS refuse la
 première ouverture (« Apple n'a pas pu vérifier… » : Réglages Système > Confidentialité et
 sécurité > Ouvrir quand même, ou dans le Terminal

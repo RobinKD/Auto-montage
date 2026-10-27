@@ -642,8 +642,6 @@ fn run() -> Result<(), String> {
     // et parties gardées : segment -> {indices} (None = tout le segment).
     let mut cuts: HashMap<i64, Vec<f64>> = HashMap::new();
     let mut parts: BTreeMap<i64, Option<BTreeSet<i64>>> = BTreeMap::new();
-    // Moments dont les effets ont été enregistrés avant l'effet « voix » : défaut de FUNNY gardé.
-    let mut sfx_legacy: HashSet<i64> = HashSet::new();
     // Effets choisis sur la page : segment -> liste d'effets. Chaque effet est soit un nom
     // ("cash", "bop", "clavier" : réglages par défaut), soit un réglage précis
     // {"kind", "at": départ en s depuis le début de l'extrait du moment, "repeat", "gap", "dur"}.
@@ -700,7 +698,6 @@ fn run() -> Result<(), String> {
                 }
             }
         }
-        sfx_legacy = util::arr(selection, "sfx_legacy").iter().filter_map(|x| pyint(Some(x))).collect();
         if let Some(Value::Object(g)) = selection.get("gains") {
             for (k, v) in g {
                 if let Ok(k) = k.trim().parse::<i64>() {
@@ -1153,7 +1150,7 @@ fn run() -> Result<(), String> {
     for k in &keep {
         let seg_id = k.seg;
         let default = voice_defaults.get(&seg_id);
-        if !page_sfx.contains(&seg_id) || sfx_legacy.contains(&seg_id) {
+        if !page_sfx.contains(&seg_id) {
             if let Some(d) = default {
                 add_voice(&mut funny, seg_id, fnum(d, "at"), fnum(d, "dur"), 1.0, &voice_of(d));
             }

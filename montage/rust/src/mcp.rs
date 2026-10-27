@@ -241,7 +241,7 @@ fn liste_moments(a: &Map<String, Value>) -> Result<Value, String> {
                            "garde": kept, "sans_parole": m.get("gap").and_then(Value::as_bool).unwrap_or(false)});
         if let Some(d) = doc("moments", &id.to_string()) {
             let set: Map<String, Value> = d.as_object().into_iter().flatten()
-                .filter(|(k, v)| !v.is_null() && !["rush", "fxv", "updatedAt"].contains(&k.as_str()))
+                .filter(|(k, v)| !v.is_null() && !["rush", "updatedAt"].contains(&k.as_str()))
                 .map(|(k, v)| (k.clone(), v.clone())).collect();
             if !set.is_empty() {
                 o["reglages"] = Value::Object(set);
@@ -304,7 +304,6 @@ fn regler(a: &Map<String, Value>) -> Result<Value, String> {
     for (k, v) in patch {
         o.insert(k.clone(), v.clone());
     }
-    o.insert("fxv".into(), json!(2));
     o.insert("updatedAt".into(), json!(chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Millis, true)));
     put_doc("moments", &id.to_string(), &d, &format!("réglages du moment {id}"))?;
     Ok(json!({"id": id, "document": d}))
@@ -346,7 +345,7 @@ fn annuler() -> Result<Value, String> {
             let prev = if e["prev"].is_null() {
                 // document créé ici : remis vide (aucun réglage)
                 json!({"rush": rush(), "text": null, "nosub": null, "sfx": null, "vfx": null, "gain": null, "focus": null,
-                       "transition": null, "trim": null, "cuts": null, "fxv": 2})
+                       "transition": null, "trim": null, "cuts": null})
             } else {
                 e["prev"].clone()
             };

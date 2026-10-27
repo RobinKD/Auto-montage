@@ -4,8 +4,6 @@
 //! bop.wav, key-1.wav..key-4.wav, cash.wav, et les sons courants des vidéos courtes :
 //! whoosh, pop, ding, boum, montee, glitch, photo, faux, juste (liste : moments_lib::SOUNDS).
 //!
-//! (Synthèse de la version Python refaite sans numpy ; le générateur de hasard n'est pas celui de
-//! numpy : les bruits diffèrent d'un tirage, pas leur caractère ni les durées.)
 
 use crate::moments_lib::sfx_dir;
 use std::f64::consts::PI;

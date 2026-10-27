@@ -15,9 +15,7 @@
 //!
 //! Reprise (préparation mise en pause ou coupée, AM_REPRISE=1, prepare --reprendre) : les morceaux
 //! déjà transcrits (work/seg/<morceau>.wav.json) sont gardés si le son, les segments et la langue
-//! n'ont pas changé (work/seg/cle.txt) ; Whisper ne transcrit que les autres. La clé est la même
-//! que celle de la version Python (sha1 du même texte) : une préparation commencée avec elle se
-//! reprend ici.
+//! n'ont pas changé (work/seg/cle.txt) ; Whisper ne transcrit que les autres.
 
 use crate::moments_lib::language_from;
 use crate::progress::report_every;
@@ -87,7 +85,7 @@ fn transcribed(path: &Path) -> bool {
     matches!(crate::util::read_json(json_path(path)), Some(Value::Object(m)) if m.contains_key("transcription"))
 }
 
-/// Clé de reprise, la même que celle de la version Python :
+/// Clé de reprise :
 /// sha1(f"{len(audio)} {sr} {LANG} {PAD} {GAP} {CHUNK} {segs}") (segs : liste de tuples).
 fn key(len: usize, sr: u32, lang: &str, segs: &[(f64, f64)]) -> String {
     let list: Vec<String> = segs.iter().map(|(a, b)| format!("({}, {})", float_repr(*a), float_repr(*b))).collect();

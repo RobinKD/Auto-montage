@@ -6,8 +6,7 @@
 //!   - « Système »      : polices installées là où tourne le rendu (dossiers de polices du
 //!                        système de la machine).
 //! Formats lisibles par le navigateur de rendu seulement (ttf, otf, woff, woff2), sans italique.
-//! Famille, graisse et italique sont lus dans le fichier de la police (tables name et OS/2), comme
-//! fontconfig le faisait pour la version Python.
+//! Famille, graisse et italique sont lus dans le fichier de la police (tables name et OS/2).
 //!
 //! Style des sous-titres : work/caption_style.json (montage en cours ; mis de côté et rouvert
 //! avec lui), et work/caption_style_default.json (dernier style choisi, repris par les montages
@@ -15,8 +14,7 @@
 //! "uppercase": true, "color": "#f4e2c2", "shadow": 50, "blur": 14, "ox": 0, "oy": 0} (ombre :
 //! intensité de 0 à 100 (plus ou moins sombre), diffusion du flou en pixels de 0 à 60, et décalage
 //! ox (vers la droite) et oy (vers le bas) en pixels, à 40 px au plus du texte, choisi dans le cercle
-//! de la page des moments ; tout en pixels sur une image de 1080 px de large ; l'ancienne direction
-//! dx/dy de -1 à 1, d'avant la 0.42, est convertie en décalage), "lines": 2, "lineSizes": [100, 100, 100]
+//! de la page des moments ; tout en pixels sur une image de 1080 px de large), "lines": 2, "lineSizes": [100, 100, 100]
 //! (nombre de lignes au plus, de 1 à 3, et taille de chaque ligne en % de la première, de 50 à 200 ;
 //! réglés sur la page des moments et sur « Rushes et montages »). build_edit le copie dans edit.json
 //! (« captionStyle ») avec les fichiers de la police, copiés dans public/fonts/choisie/.
@@ -400,8 +398,7 @@ pub fn caption_limits(style: &Map<String, Value>) -> (i64, i64) {
     caption_limits_for(if (1..=3).contains(&lines) { lines } else { 2 })
 }
 
-/// Décalage de l'ombre (ox, oy) en pixels, dans le cercle de rayon OFFSET_MAX. Un style d'avant la 0.42
-/// n'a qu'une direction dx/dy (-1 à 1) : décalage de 3 px à 50 % d'intensité, plus la moitié du flou.
+/// Décalage de l'ombre (ox, oy) en pixels, dans le cercle de rayon OFFSET_MAX.
 pub fn shadow_offset(style: &Map<String, Value>) -> (i64, i64) {
     let num = |k: &str| -> Option<f64> {
         match style.get(k) {
@@ -410,25 +407,7 @@ pub fn shadow_offset(style: &Map<String, Value>) -> (i64, i64) {
             v => as_f(v),
         }
     };
-    let (mut ox, mut oy);
-    if style.contains_key("ox") || style.contains_key("oy") {
-        let (Some(a), Some(b)) = (num("ox"), num("oy")) else { return (0, 0) };
-        ox = a;
-        oy = b;
-    } else {
-        let (Some(dx), Some(dy)) = (num("dx"), num("dy")) else { return (0, 0) };
-        let n = (dx * dx + dy * dy).sqrt();
-        let shadow = as_f(style.get("shadow")).unwrap_or(50.0);
-        let blur = as_f(style.get("blur")).unwrap_or(14.0);
-        let d = 3.0 * shadow / 50.0 + blur / 2.0;
-        if n != 0.0 {
-            ox = dx / n * d;
-            oy = dy / n * d;
-        } else {
-            ox = 0.0;
-            oy = 0.0;
-        }
-    }
+    let (Some(mut ox), Some(mut oy)) = (num("ox"), num("oy")) else { return (0, 0) };
     let r = (ox * ox + oy * oy).sqrt();
     if r > OFFSET_MAX {
         ox = ox * OFFSET_MAX / r;
@@ -441,11 +420,6 @@ pub fn shadow_offset(style: &Map<String, Value>) -> (i64, i64) {
 /// n'envoie que les lignes).
 pub fn save_style(data: &Map<String, Value>) -> Map<String, Value> {
     let mut base = read_style();
-    if (data.contains_key("dx") || data.contains_key("dy")) && !data.contains_key("ox") && !data.contains_key("oy") {
-        // direction d'avant la 0.42 : convertie par shadow_offset
-        base.remove("ox");
-        base.remove("oy");
-    }
     for (k, v) in data {
         base.insert(k.clone(), v.clone());
     }

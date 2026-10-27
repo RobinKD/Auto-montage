@@ -1,5 +1,5 @@
 //! Téléchargements (mises à jour, modèles, police) : HTTPS avec les certificats du système et le
-//! proxy de l'environnement (HTTPS_PROXY), comme curl et urllib dans la version Python.
+//! proxy de l'environnement (HTTPS_PROXY).
 
 use std::io::Read;
 use std::path::Path;

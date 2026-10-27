@@ -18,15 +18,14 @@
 //! pour le cadrage : ceux d'au moins 30 % de la taille du plus grand (pas le public ni les gens au
 //! fond). Les trous (visage caché par une main, etc.) sont comblés par interpolation.
 //!
-//! Sans OpenCV : les images sont lues par ffmpeg (images brutes BGR sur un tube, aux instants que
-//! prenait la version Python), les deux réseaux (YuNet, SFace) tournent avec tract (moteur ONNX
+//! Sans OpenCV : les images sont lues par ffmpeg (images brutes BGR sur un tube, toutes les 0,5 s),
+//! les deux réseaux (YuNet, SFace) tournent avec tract (moteur ONNX
 //! écrit en Rust, sans bibliothèque du système), et ce que faisaient cv2.FaceDetectorYN
 //! (remplissage aux multiples de 32, décodage des sorties cls/obj/bbox/kps, NMS) et
 //! cv2.FaceRecognizerSF (alignCrop : similitude des 5 repères vers le modèle 112x112 d'ArcFace,
 //! warpAffine bilinéaire) est refait ici, ainsi que cv2.resize (bilinéaire et INTER_AREA) et
-//! cv2.Sobel, aux mêmes arrondis. La cascade de Haar d'OpenCV (secours quand le modèle YuNet
-//! manquait) n'existe plus : sans le modèle, aucun visage n'est détecté et les zooms sont centrés
-//! sur l'image, comme le faisait la version Python quand rien n'était trouvé.
+//! cv2.Sobel, aux mêmes arrondis. Sans le modèle YuNet, aucun visage n'est détecté et les zooms
+//! sont centrés sur l'image.
 //!
 //! Reprise : les détections sont enregistrées au fil de l'eau (work/reprise/visage.json) ; une
 //! préparation mise en pause ou coupée (AM_REPRISE=1) repart de la dernière ; elles restent là
@@ -397,7 +396,7 @@ fn probe(path: &Path) -> (f64, i64, f64, f64) {
 }
 
 /// ffmpeg qui sort, en images brutes BGR, l'image n° int(k·0,5·fps) pour k = first, first + 1, …
-/// (celles que lisait la version Python avec CAP_PROP_POS_FRAMES). Le filtre select garde un
+/// Le filtre select garde un
 /// compteur (variable 1) : une image est prise quand son numéro atteint celui du prochain instant.
 struct Frames {
     child: Child,
@@ -1475,7 +1474,7 @@ pub fn main(_args: &[String]) -> i32 {
             p.s = round_to(caps[lo..hi].iter().copied().fold(f64::INFINITY, f64::min), 3);
         }
     }
-    // Ordre des clés comme la version Python : « s » après « faces » quand une zone a été calculée.
+    // Ordre des clés : « s » après « faces » quand une zone a été calculée.
     let out: Vec<Value> = res
         .iter()
         .map(|p| {

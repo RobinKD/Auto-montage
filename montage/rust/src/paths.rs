@@ -120,7 +120,7 @@ fn bundled(name: &str) -> Option<PathBuf> {
 
 /// ffmpeg : `AM_FFMPEG`, celui livré avec Auto-montage (`montage/bin/`), sinon celui du PATH.
 pub static FFMPEG: LazyLock<PathBuf> = LazyLock::new(|| {
-    if let Ok(p) = env::var("AM_FFMPEG").or_else(|_| env::var("IMAGEIO_FFMPEG_EXE")) {
+    if let Ok(p) = env::var("AM_FFMPEG") {
         return PathBuf::from(p);
     }
     bundled("ffmpeg").or_else(|| which("ffmpeg")).unwrap_or_else(|| PathBuf::from("ffmpeg"))

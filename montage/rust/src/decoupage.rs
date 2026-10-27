@@ -95,7 +95,6 @@ fn write_doc(mid: i64, d: &Map<String, Value>) {
         util::mkdirs(dir);
     }
     let mut d = d.clone();
-    d.insert("fxv".into(), json!(2));
     d.insert("updatedAt".into(), json!(now_iso()));
     let _ = fs::write(&path, dump(&Value::Object(d)));
 }

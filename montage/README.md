@@ -60,8 +60,7 @@ npm i
    durée ; par défaut la caisse reste sur son mot et le clavier fait 6 frappes.
    « Voix modifiée » (voix qui tremble : vibrato et trémolo) se règle par départ, durée et
    force (curseur de 0 à 200 %, 100 % = réglage d'origine, audible en direct dans l'aperçu) ;
-   elle est pré-cochée sur les moments drôles (`FUNNY`). Les moments dont les effets ont été
-   enregistrés avant cet effet (sans `fxv: 2`) gardent la voix proposée.
+   elle est pré-cochée sur les moments drôles (`FUNNY`).
    La page ressemble à un logiciel de montage : frise du rush sur une ligne qui défile (images de
    chaque moment, forme d'onde de la voix, case garder / retirer, poignées pour raccourcir le
    début ou la fin du moment choisi), et frise du moment choisi dessous (ses effets et ses sous-titres mot à mot
@@ -118,8 +117,8 @@ sauf si la case « Sous-titres » est décochée, `work/derush.json`) et **Auto-
 Tout le traitement (préparation, montage, rendu, interface locale) est un seul programme Rust,
 `rust/` : `./am <commande>` (Windows : `am <commande>`) le compile au premier lancement
 (`cargo build --release`, Rust de <https://rustup.rs>) puis le lance ; `./am aide` liste les
-commandes, qui reprennent le nom des anciens scripts (`./am prepare`, `./am build_edit`,
-`./am render apercu`…). Règles du portage : [`rust/PORTAGE.md`](rust/PORTAGE.md). Il faut
+commandes (`./am prepare`, `./am build_edit`, `./am render apercu`…). Conventions du code :
+[`rust/CONVENTIONS.md`](rust/CONVENTIONS.md). Il faut
 encore Node (HyperFrames et son navigateur) et whisper.cpp, installés par `./am setup`, et
 ffmpeg, livré dans `bin/` par `./am fetch_ffmpeg`.
 
@@ -187,7 +186,7 @@ entrées) a toutes ses pistes lisibles mélangées (`moments_lib.audio_map`, dan
 `build_edit` et `join_rushes`). Une vidéo sans son est refusée avec un message : le
 découpage se fait d'après la parole.
 
-| Étape | Script | Sortie |
+| Étape | Commande | Sortie |
 | --- | --- | --- |
 | Version de travail 1080×1920 (MP4), par morceaux d'une minute | `version_travail` (via `prepare`) | `public/rushes/` |
 | Source 4K des images gardées (rendu final) | `make_hd` via `render final` | `public/rushes/rush_2160.webm` |
@@ -196,10 +195,10 @@ découpage se fait d'après la parole.
 | Bruitages provisoires | `make_sfx` | `public/sfx/` |
 | Dérush, sous-titres, zooms, effets, piste voix | `build_edit` | `src/data/edit.json`, `public/audio/voice.wav` |
 
-Les choix de montage sont en tête de `rust/src/build_edit.rs` : `KEEP` (segments gardés),
-`FIXES` (corrections des sous-titres), `FUNNY` (voix qui tremble), `CASH`, `CHIPS` et `INTRO_TEXT`.
-Ces listes désignent des segments de la transcription du rush en cours (`work/segments.json`) :
-elles sont à refaire pour chaque nouveau rush. Relancer `./am build_edit` après modification.
+Les choix de montage du rush en cours sont dans `work/edit_choices.json` (format en tête de
+`rust/src/build_edit.rs`) : segments gardés, corrections des sous-titres, voix modifiées, caisse,
+pastilles et intro, qui désignent des segments de `work/segments.json`. Ils sont à refaire pour
+chaque nouveau rush ; relancer `./am build_edit` après modification.
 
 ## À remplacer
 

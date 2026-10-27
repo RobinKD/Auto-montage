@@ -1,7 +1,6 @@
 //! JSON écrit exactement comme `json.dumps` de Python (séparateurs « , » et « : », flottants à la
-//! façon de `repr`, `ensure_ascii`), pour que les fichiers de `work/` et les données insérées dans
-//! les pages restent identiques à ceux de la version Python (les pages et les tests les lisent tels
-//! quels, ex. `"rush": "essai.mov"`).
+//! façon de `repr`, `ensure_ascii`) : les pages et les tests lisent les fichiers de `work/` et les données insérées
+//! dans les pages tels quels (ex. `"rush": "essai.mov"`).
 
 use serde_json::Value;
 use std::fmt::Write;

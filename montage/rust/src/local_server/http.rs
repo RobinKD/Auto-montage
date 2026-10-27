@@ -14,14 +14,8 @@ use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
 use std::sync::LazyLock;
 
-/// Noms sous lesquels l'interface est ouverte (navigateur de la machine, lanceurs) ; d'autres
-/// avec AM_ALLOWED_HOSTS="nom1,nom2".
-static ALLOWED_HOSTS: LazyLock<Vec<String>> = LazyLock::new(|| {
-    let mut v: Vec<String> = ["localhost", "127.0.0.1", "[::1]"].iter().map(|s| s.to_string()).collect();
-    let extra = std::env::var("AM_ALLOWED_HOSTS").unwrap_or_default().to_lowercase().replace(' ', "");
-    v.extend(extra.split(',').filter(|s| !s.is_empty()).map(String::from));
-    v
-});
+/// Noms sous lesquels l'interface est ouverte (navigateur de la machine, lanceurs).
+const ALLOWED_HOSTS: [&str; 3] = ["localhost", "127.0.0.1", "[::1]"];
 const JSON_MAX: u64 = 5 << 20; // corps JSON des requêtes : 5 Mo au plus
 
 pub enum Body {
@@ -1256,7 +1250,7 @@ fn post_prepare(body: &Map<String, Value>) -> Reply {
 fn check_request(req: &Req) -> Option<Reply> {
     let host = req.header("Host").unwrap_or("").trim().to_lowercase();
     let name = if host.ends_with(']') { host.clone() } else { host.rsplit_once(':').map(|(a, _)| a.to_string()).unwrap_or(host.clone()) };
-    if !ALLOWED_HOSTS.contains(&name) {
+    if !ALLOWED_HOSTS.contains(&name.as_str()) {
         return Some(error(403, Some("Adresse non autorisée : ouvrez http://localhost")));
     }
     if req.method != "GET" && req.method != "HEAD" {

@@ -1,6 +1,5 @@
 //! `difflib.SequenceMatcher` de Python, à l'identique (mêmes blocs, mêmes opérations, même
-//! rapport) : les corrections de sous-titres (build_edit) et les reprises (moments_lib) doivent
-//! tomber sur les mêmes mots que la version Python.
+//! rapport), pour les corrections de sous-titres (build_edit) et les reprises (moments_lib).
 
 use std::collections::{HashMap, HashSet};
 use std::hash::Hash;

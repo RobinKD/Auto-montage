@@ -52,6 +52,13 @@ const BROWSER_BYTES: f64 = 300.0;
 const OUT_BYTES: f64 = 0.5; // par pixel et par seconde de montage
 const DISK_SHARE: f64 = 0.8; // part du disque libre que le rendu peut prendre
 const MIN_PART: f64 = 20.0; // secondes de montage : partie la plus courte, sinon disque trop plein pour rendre
+// 4K : chaque navigateur garde en mémoire les images des plans qu'il a affichées, environ 4 Mo par
+// image 4K (0,5 octet par pixel de l'image rendue, mesuré en 16:9 ; 30 fois moins par pixel en
+// 1080p), jusqu'à la fin de la partie. Une partie de 1 min 30 dépassait 7,7 Go et le rendu
+// s'arrêtait (« capture stalled », code 1) : la partie est raccourcie pour que cette mémoire tienne
+// à côté du reste du rendu (memory_part), sans descendre sous MIN_MEM_PART.
+const CAPTURE_BYTES: f64 = 0.5;
+const MIN_MEM_PART: f64 = 30.0;
 
 fn cpus() -> usize {
     std::thread::available_parallelism().map(|n| n.get()).unwrap_or(1)
@@ -75,7 +82,7 @@ fn hd_preset(w: i64, h: i64) -> Option<&'static str> {
     }
 }
 
-/// Durée d'un WAV en secondes (1e9 s'il est illisible, comme la version Python).
+/// Durée d'un WAV en secondes (1e9 s'il est illisible).
 fn wav_len(path: &Path) -> f64 {
     match hound::WavReader::open(path) {
         Ok(r) => r.duration() as f64 / r.spec().sample_rate as f64,
@@ -382,6 +389,11 @@ fn tools(hd: bool) -> Result<Vec<(String, String)>, String> {
     // bout d'une heure, toutes parties comprises (un montage de 22 min : plus de 13 Go, disque
     // plein). Sans cache, celles d'une partie vont dans son dossier de travail, effacé à sa fin.
     env.push(("HYPERFRAMES_EXTRACT_CACHE_DIR".into(), "off".into()));
+    // Images capturées envoyées à l'encodeur au fil du rendu, même à plusieurs navigateurs en
+    // capture par copie d'écran (4K par « --resolution » : image agrandie dans le navigateur, sans
+    // BeginFrame). Sinon HyperFrames écrit chaque image sur le disque avant d'encoder : environ
+    // 4 Mo par image 4K, 18 Go pour une partie de 2 min 30, et le rendu s'arrête (code 1).
+    env.push(("HF_CAPTURE_PARALLEL_STREAM".into(), "true".into()));
     // ffmpeg_limite (verrous de fichiers, sur les trois systèmes) : son chemin est donné à chaque
     // partie (limiter_exe, le dossier du rendu est refait) ; ici le vrai ffmpeg par défaut.
     env.push(("AM_FFMPEG_REAL".into(), ff.clone()));
@@ -471,6 +483,24 @@ fn run_hyperframes(cmd: &[String], env: &[(String, String)], done: f64, part_len
 fn disk_part(fps: f64, pixels: f64, free: f64, workers: usize, total: f64) -> Option<f64> {
     let room = DISK_SHARE * free - workers as f64 * BROWSER_BYTES * pixels - total * OUT_BYTES * pixels;
     let longest = room / (fps * pixels * FRAME_BYTES);
+    if longest >= 1.5 * PART_SECONDS {
+        None
+    } else {
+        Some(longest)
+    }
+}
+
+/// Durée de partie la plus longue (secondes de montage) dont les images gardées par les
+/// navigateurs tiennent dans la mémoire libre, à côté du reste du rendu ; None si la mémoire ne
+/// limite pas (1080p, ou mémoire libre inconnue).
+fn memory_part(fps: f64, pixels: f64, hd: bool, info: &VideoInfo, workers: usize) -> Option<f64> {
+    let avail = memoire::available().0?;
+    if !hd {
+        return None;
+    }
+    let v = VideoInfo { montage: 0.0, workers: Some(workers), ..info.clone() };
+    let base = memoire::need("Rendu 4K", &v, &memoire::load_measures()) as f64;
+    let longest = MIN_MEM_PART.max((memoire::RENDER_SHARE * avail as f64 - base) / (fps * pixels * CAPTURE_BYTES));
     if longest >= 1.5 * PART_SECONDS {
         None
     } else {
@@ -612,6 +642,17 @@ pub fn main(args: &[String]) -> i32 {
             memoire::go(need as i64)
         ));
     }
+    let mut why = if longest.map(|l| l != 0.0).unwrap_or(false) {
+        format!(" (place sur le disque : {} libres)", memoire::go(free as i64))
+    } else {
+        String::new()
+    };
+    if let Some(by_memory) = memory_part(fps, pixels, hd, &info, workers) {
+        if longest.map(|l| by_memory < l).unwrap_or(true) {
+            longest = Some(by_memory);
+            why = " (mémoire des navigateurs en 4K)".into();
+        }
+    }
     let parts = parts_of(m.frames, fps, longest);
     if parts.len() > 1 && 2.0 * total * OUT_BYTES * pixels > DISK_SHARE * free {
         say(&format!(
@@ -645,11 +686,7 @@ pub fn main(args: &[String]) -> i32 {
             "Rendu en {} parties d'environ {} s{}",
             parts.len(),
             round_int(total / parts.len() as f64),
-            if longest.map(|l| l != 0.0).unwrap_or(false) {
-                format!(" (place sur le disque : {} libres)", memoire::go(free as i64))
-            } else {
-                String::new()
-            }
+            why
         ));
     }
     let mut env = match tools(hd) {
@@ -809,12 +846,12 @@ const faceAt = (t, person) => {
   const k = clamp((t - a.t) / ((b.t - a.t) || 1), 0, 1);
   const focused = person && focusFrame(a, b, k, person);
   if (focused) return focused;
-  // s : zoom maximal qui garde tous les visages retenus dans l'image (detect_face.py).
+  // s : zoom maximal qui garde tous les visages retenus dans l'image (detect_face).
   return { x: a.x + (b.x - a.x) * k, y: a.y + (b.y - a.y) * k, s: Math.min(a.s, b.s) };
 };
 // Moment cadré sur une personne (page des moments) : son visage, à la taille d'un plan rapproché
 // (visage sur FOCUS_H de la hauteur, zoom jusqu'à ×2,5 au plus), centré quand c'est possible.
-// Personne dans un cadre (écran partagé, incrustation : x0, y0, x1, y1 de detect_face.py) : zoom
+// Personne dans un cadre (écran partagé, incrustation : x0, y0, x1, y1 de detect_face) : zoom
 // d'au moins la taille du cadre (×PANEL_MAX au plus) et image visible gardée dans le cadre.
 // Même règle dans la page des moments (faceInClip de selection/page.html).
 const FOCUS_H = 0.22, PANEL_MAX = 4;
@@ -1019,7 +1056,7 @@ mod tests {
         }
     }
 
-    /// Page écrite pour un montage préparé (AM_ROOT), à comparer avec celle de la version Python :
+    /// Page écrite pour un montage préparé (AM_ROOT), pour l'examiner sans lancer le rendu :
     /// AM_ROOT=… cargo test page_seule -- --ignored  (avec AM_PART=début,fin pour une partie).
     #[test]
     #[ignore]
