@@ -306,7 +306,9 @@ interne : les changements attendent la prochaine version.
   1080p) : `memoire.choose_workers`, un par cœur (8 au plus) tant que le besoin (mesures comprises)
   tient dans 80 % de la mémoire libre (`RENDER_SHARE`), ligne « Navigateurs du
   rendu : N » lue par `local_server` ; page prête en 15 min au plus. Whisper : `./am setup_whisper` (whisper.cpp 1.7.6
-  compilé, modèles de Hugging Face).
+  compilé, modèles de Hugging Face) ; un seul whisper-cli, un fil par cœur (8 au plus,
+  `transcribe_segments::threads`) ; VAD sur un fil (`-t 1` : l'attente active d'OpenMP le bloquait sur
+  une machine occupée).
 - Tutoriel (/tutoriel/, `local/tutorial.html`) : ouvert une fois au premier lancement (menu.js,
   `work/tutoriel_vu`) ; trois onglets (sans Claude Code, avec, « Fonctionnalités en détail » :
   une fiche par sujet, sons et voix à écouter) ; captures et vidéos dans `local/tutoriel/`,

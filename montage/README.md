@@ -191,7 +191,7 @@ découpage se fait d'après la parole.
 | --- | --- | --- |
 | Version de travail 1080×1920 (MP4), par morceaux d'une minute | `version_travail` (via `prepare`) | `public/rushes/` |
 | Source 4K des images gardées (rendu final) | `make_hd` via `render final` | `public/rushes/rush_2160.mp4` |
-| Segments de parole (VAD Silero) et transcription mot à mot par segment (Whisper large-v3-turbo, segments transcrits ensemble par morceaux de 28 s) | `setup_whisper`, `transcribe_segments` | `work/segments.json` |
+| Segments de parole (VAD Silero) et transcription mot à mot par segment (Whisper large-v3-turbo, segments transcrits ensemble par morceaux de 28 s, un fil par cœur, 8 au plus) | `setup_whisper`, `transcribe_segments` | `work/segments.json` |
 | Visages et cadrage des zooms (YuNet, tous les visages, zoom plafonné pour que personne ne sorte de l'image ; personnes reconnues par SFace, vignettes pour le « Cadrage » par moment) | `detect_face`, `fetch_face_model` | `src/data/face.json`, `work/visages/` |
 | Bruitages provisoires | `make_sfx` | `public/sfx/` |
 | Dérush, sous-titres, zooms, effets, piste voix | `build_edit` | `src/data/edit.json`, `public/audio/voice.wav` |

@@ -34,6 +34,20 @@ use std::process::{Command, Stdio};
 const PAD: f64 = 0.15; // son gardé autour de chaque segment
 const GAP: f64 = 1.0; // silence entre deux segments d'un morceau
 const CHUNK: f64 = 28.0; // longueur maximale d'un morceau (fenêtre de Whisper : 30 s)
+/// Fils d'exécution de Whisper au plus : au-delà, il ne va presque plus vite (mémoire).
+const MAX_THREADS: usize = 8;
+
+/// Fils de Whisper : tous les cœurs (les étapes de la préparation se suivent, rien d'autre ne
+/// tourne), MAX_THREADS au plus. available_parallelism suit sous Linux l'affinité et le quota de
+/// processeur du cgroup (conteneur).
+///
+/// Un seul Whisper : plusieurs à la fois sur une machine à beaucoup de cœurs ne donneraient pas
+/// le même texte. Whisper reprend, quand un passage est douteux, avec un tirage au hasard dont
+/// l'état passe d'un fichier au suivant ; le texte d'un morceau dépend donc des morceaux transcrits
+/// avant lui dans le même whisper-cli (mesuré : 4 morceaux transcrits seuls, 8 % de mots changés).
+fn threads() -> usize {
+    std::thread::available_parallelism().map(|n| n.get()).unwrap_or(1).clamp(1, MAX_THREADS)
+}
 
 struct Ctx {
     audio: Vec<u8>, // PCM 16 bits mono, comme readframes()
@@ -105,7 +119,7 @@ impl Ctx {
         }
         let model = paths::whisper_dir().join("ggml-large-v3-turbo.bin");
         let mut cmd = Command::new(paths::whisper_bin("whisper-cli"));
-        cmd.arg("-m").arg(&model).args(["-l", &self.lang, "-t", "4", "-mc", "0", "-ml", "1", "-sow", "-ojf", "-dtw", "large.v3.turbo"]);
+        cmd.arg("-m").arg(&model).args(["-l", &self.lang, "-t", &threads().to_string(), "-mc", "0", "-ml", "1", "-sow", "-ojf", "-dtw", "large.v3.turbo"]);
         for f in &files {
             cmd.arg("-f").arg(f);
         }
