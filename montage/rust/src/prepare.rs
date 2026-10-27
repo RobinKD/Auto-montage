@@ -201,7 +201,11 @@ pub fn main(args: &[String]) -> i32 {
             }
         };
         let model = paths::whisper_dir().join("ggml-silero-v5.1.2.bin");
+        // Un seul fil : le VAD fait des milliers de tout petits calculs, chacun suivi d'une attente
+        // active d'OpenMP entre fils ; sur une machine occupée, 4 fils prenaient plus de 60 s pour
+        // 30 s de son (0,1 s avec un fil ; 1,3 s pour un rush de 6 min).
         let status = Command::new(paths::whisper_bin("vad-speech-segments"))
+            .args(["-t", "1"])
             .arg("-f")
             .arg(&wav)
             .arg("-vm")
