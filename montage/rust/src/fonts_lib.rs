@@ -332,9 +332,15 @@ fn clamp(x: i64, r: (i64, i64)) -> i64 {
     x.clamp(r.0, r.1)
 }
 
+/// Couleur « #rrggbb » : seule forme acceptée des couleurs lues dans work/ (elles partent dans le
+/// style des pages : rien d'autre ne doit pouvoir s'y glisser).
+pub fn is_color(c: &str) -> bool {
+    static COLOR: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^#[0-9a-fA-F]{6}$").unwrap());
+    COLOR.is_match(c)
+}
+
 pub fn clean(data: &Map<String, Value>) -> Map<String, Value> {
     static FONT: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^[a-z0-9-]{1,60}$").unwrap());
-    static COLOR: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^#[0-9a-fA-F]{6}$").unwrap());
     let mut style = default_style();
     if let Some(f) = data.get("font").and_then(Value::as_str) {
         if FONT.is_match(f) {
@@ -351,7 +357,7 @@ pub fn clean(data: &Map<String, Value>) -> Map<String, Value> {
     }
     style.insert("uppercase".into(), json!(data.get("uppercase").map(|v| util::truthy(Some(v))).unwrap_or(true)));
     if let Some(c) = data.get("color").and_then(Value::as_str) {
-        if COLOR.is_match(c) {
+        if is_color(c) {
             style.insert("color".into(), json!(c.to_lowercase()));
         }
     }

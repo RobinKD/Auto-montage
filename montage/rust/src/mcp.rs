@@ -381,6 +381,11 @@ fn tool(name: &str, a: &Map<String, Value>) -> Result<Value, String> {
         "liste_moments" => return liste_moments(a),
         "mesurer_volume" => {
             let f = a.get("fichier").and_then(Value::as_str).map(PathBuf::from).unwrap_or_else(|| paths::out().join("montage_apercu.mp4"));
+            // un fichier du disque seulement : ni adresse (ffmpeg irait la chercher) ni option
+            let f = std::path::absolute(&f).map_err(|e| e.to_string())?;
+            if !f.is_file() {
+                return Err(format!("fichier introuvable : {}", f.display()));
+            }
             let s = crate::loudness::measure_file(&f)?;
             return Ok(json!({"fichier": f, "lufs": util::round_to(s.integrated, 1), "plage_lu": util::round_to(s.range, 1),
                              "crete_dbtp": util::round_to(s.true_peak, 1)}));

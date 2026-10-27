@@ -233,7 +233,7 @@ fn build(m: &mut Montage, k: i64, part: Option<(i64, i64)>) -> Result<(), String
         // Même calcul que Montage.sfx (volume gardé tel qu'écrit : entier ou flottant).
         let start = round_int(num(s.get("start")) * fps) as f64 / fps;
         let dur = round_int(fps * s.get("dur").and_then(Value::as_f64).unwrap_or(1.5)).max(1) as f64 / fps;
-        let vol = s.get("volume").cloned().unwrap_or(json!(1));
+        let vol = s.get("volume").filter(|v| v.is_number()).cloned().unwrap_or(json!(1)); // nombre seulement (attribut)
         let rel = s.get("src").and_then(Value::as_str).unwrap_or("");
         let path = rel.split('/').fold(public.clone(), |p, x| p.join(x));
         // Bruitage commencé avant la partie : sa suite (data-media-start).
@@ -575,7 +575,8 @@ fn join_parts(paths_: &[PathBuf], lengths: &[f64], out: &Path) -> i32 {
         for (name, items) in [("images.txt", paths_), ("son.txt", &wavs[..])] {
             let text: String = items
                 .iter()
-                .map(|p| format!("file '{}'\n", std::path::absolute(p).unwrap_or_else(|_| p.clone()).display()))
+                // apostrophe du chemin échappée comme dans join_rushes (liste de concat de ffmpeg)
+                .map(|p| format!("file '{}'\n", std::path::absolute(p).unwrap_or_else(|_| p.clone()).display().to_string().replace('\'', "'\\''")))
                 .collect();
             if fs::write(tmp.join(name), text).is_err() {
                 return 1;
@@ -877,7 +878,6 @@ const centeredOrigin = (c, scale, lo = 0, hi = 1) => {
   const v = 1 / scale, left = hi - lo >= v ? clamp(c - v / 2, lo, hi - v) : (lo + hi - v) / 2;
   return clamp(left / (1 - v), 0, 1);
 };
-const esc = (s) => s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
 // Ombre : intensité (0-100, plus ou moins sombre), diffusion du flou et décalage (ox, oy), en px sur 1080.
 // Même formule dans la page des moments (captionShadow de selection/page.html).
 const captionShadow = (shadow = 50, blur = 14, ox = 0, oy = 0) => {
@@ -892,7 +892,15 @@ const capStyle = `font-family:"AM Sous-titres";font-weight:${C.weight};color:${C
   `text-align:center;line-height:1.05;white-space:nowrap;text-shadow:${captionShadow(C.shadow ?? 50, C.blur ?? 14, C.ox ?? 0, C.oy ?? 0)};`;
 const el = (id) => document.getElementById(id);
 const last = {};
-const put = (id, html) => { if (last[id] !== html) { last[id] = html; el(id).innerHTML = html; } };
+// Contenu de l'élément id remplacé par les nœuds de make() quand key change. Pas de HTML fait des
+// données : textes par textContent, couleurs et tailles par style (une valeur invalide est ignorée).
+const put = (id, key, make) => { if (last[id] !== key) { last[id] = key; el(id).replaceChildren(...(make ? [make()] : [])); } };
+const node = (tag, css, text) => {
+  const n = document.createElement(tag);
+  if (css) n.style.cssText = css;
+  if (text) n.textContent = text;
+  return n;
+};
 
 function draw(frame) {
   const t = frame / FPS, H = D.hab;
@@ -946,14 +954,18 @@ function draw(frame) {
     for (const ch of ty.text) { if (ch === "\n") { visible += ch; continue; } if (count >= shown) break; visible += ch; count++; }
     const cursor = Math.floor(t * 3) % 2 === 0 || shown < chars;
     el("typed").style.opacity = clamp((ty.end - t) / 0.15, 0, 1);
-    put("typed", `<div>${esc(visible)}<span style="opacity:${cursor ? 1 : 0}">|</span></div>`);
+    put("typed", JSON.stringify([visible, cursor]), () => {
+      const d = node("div", "", visible);
+      d.append(node("span", `opacity:${cursor ? 1 : 0}`, "|"));
+      return d;
+    });
   } else put("typed", "");
 
   // Pastille.
   const chip = D.chips.find((c) => inRange(t, c));
   if (chip) {
     const s = spring(frame - Math.round(chip.start * FPS), 11, 0.6) * clamp((chip.end - t) / 0.15, 0, 1);
-    put("chips", `<div style="transform:scale(${s})">${esc(chip.text)}</div>`);
+    put("chips", JSON.stringify([s, chip.text]), () => node("div", `transform:scale(${s})`, chip.text));
   } else put("chips", "");
 
   // Sous-titres (pas pendant un texte tapé).
@@ -962,11 +974,21 @@ function draw(frame) {
     let cur = -1;
     if (H.karaoke) cap.times.forEach((x, i) => { if (t >= x) cur = i; });
     const pop = H.pop ? spring(frame - Math.round(cap.start * FPS), 10, 0.5, 0.75, 1) : 1;
-    const html = cap.lines.map(([a, b, k]) => `<div style='${capStyle}font-size:${C.size * k * cap.scale}px'>` + cap.words.slice(a, b).map((w, j) => {
-      const i = a + j, c = i === cur ? H.karaokeColor : cap.colors[i];
-      return `<span style="${c ? `color:${c};` : ""}${cap.colors[i] ? `font-size:${HL}em;` : ""}">${j ? " " : ""}${esc(w)}</span>`;
-    }).join("") + "</div>").join("");
-    put("caps", `<div style="transform:scale(${pop})">${html}</div>`);
+    put("caps", JSON.stringify([cap.start, cap.words, cur, pop]), () => {
+      const box = node("div", `transform:scale(${pop})`);
+      for (const [a, b, k] of cap.lines) {
+        const line = node("div", `${capStyle}font-size:${C.size * k * cap.scale}px`);
+        cap.words.slice(a, b).forEach((w, j) => {
+          const i = a + j, c = i === cur ? H.karaokeColor : cap.colors[i];
+          const sp = node("span", "", `${j ? " " : ""}${w}`);
+          if (c) sp.style.color = c;
+          if (cap.colors[i]) sp.style.fontSize = `${HL}em`;
+          line.append(sp);
+        });
+        box.append(line);
+      }
+      return box;
+    });
     // Lignes nombreuses ou grandes : sous-titre remonté pour finir à 40 px au moins du bas de l'image.
     const over = el("caps").offsetTop + el("caps").firstElementChild.offsetHeight - (%H% - 40);
     el("caps").style.translate = over > 0 ? `0 ${-over}px` : "";

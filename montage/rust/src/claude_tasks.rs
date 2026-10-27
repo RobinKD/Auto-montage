@@ -29,15 +29,127 @@ use serde_json::Value;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-/// Interdits d'écriture, comme CHAT_DENIED (local_server) : conversation et pages servies.
-const DENIED: [&str; 6] = [
-    "Edit(montage/work/chat/**)",
-    "Edit(montage/work/**/*.html)",
-    "Edit(montage/work/**/*.js)",
-    "Write(montage/work/chat/**)",
-    "Write(montage/work/**/*.html)",
-    "Write(montage/work/**/*.js)",
+/// Fichiers de montage/work/ que Claude peut écrire (consignes, discussion, analyse du style) :
+/// ceux que ses consignes lui demandent, et les réglages de la page. Rien d'autre : ni les pages
+/// servies et leurs scripts, ni la conversation, ni les montages enregistrés (work/projets/, que
+/// « project open » remet en place), ni la tâche en pause (work/tache.json, relancée par la
+/// reprise). Noms exacts plutôt qu'un motif et des interdits : sur un disque qui ne distingue pas
+/// les majuscules, « TACHE.json » échapperait à un interdit « tache.json », pas à cette liste.
+pub const WRITABLE: [&str; 14] = [
+    "suggestions.json",
+    "edit_choices.json",
+    "caption_style.json",
+    "habillage.json",
+    "son.json",
+    "couleur.json",
+    "transitions.json",
+    "effets_page.json",
+    "decoupage.json",
+    "derush.json",
+    "instructions.md",
+    "analyse_style.md",
+    "local_db/**/*.json",
+    "style/analyse/resultat.json",
 ];
+
+/// Interdits d'écriture gardés en plus de la liste : conversation et pages servies.
+pub fn denied_rules() -> Vec<String> {
+    let mut v = vec![];
+    for t in ["Edit", "Write"] {
+        for p in ["montage/work/chat/**", "montage/work/**/*.html", "montage/work/**/*.js"] {
+            v.push(format!("{t}({p})"));
+        }
+    }
+    v
+}
+
+/// Dossier montage/ tel que l'écrivent les règles de Claude Code : « montage » (relatif au
+/// dossier où Claude est lancé), puis son chemin absolu (« //home/… », « //c/Users/… » sous
+/// Windows), qui vaut encore après un « cd montage » de Claude. Chemin absolu laissé de côté
+/// s'il contient des caractères de motif ou de liste (règle mal comprise).
+fn rule_roots() -> Vec<String> {
+    let mut v = vec!["montage".to_string()];
+    let root = paths::root();
+    let mut forms: Vec<PathBuf> = vec![];
+    if let Ok(p) = std::path::absolute(&root) {
+        forms.push(p);
+    }
+    if let Ok(p) = std::fs::canonicalize(&root) {
+        forms.push(p);
+    }
+    for p in forms {
+        let mut s = p.to_string_lossy().replace('\\', "/");
+        if let Some(rest) = s.strip_prefix("//?/") {
+            s = rest.to_string();
+        }
+        let b = s.as_bytes();
+        if b.len() >= 2 && b[1] == b':' && b[0].is_ascii_alphabetic() {
+            s = format!("/{}{}", (b[0] as char).to_ascii_lowercase(), &s[2..]);
+        }
+        let s = s.trim_end_matches('/');
+        if !s.starts_with('/') || s.chars().any(|c| "*?[]{}()!,\\\"'\n\r\t".contains(c)) {
+            continue;
+        }
+        let rule = format!("/{s}");
+        if !v.contains(&rule) {
+            v.push(rule);
+        }
+    }
+    v
+}
+
+/// Lecture (Read, Glob, Grep) limitée au dossier montage/ (le dossier où Claude est lancé reste
+/// lisible, comme toujours avec Claude Code) : plus de lecture ailleurs sur le disque.
+pub fn read_rules() -> Vec<String> {
+    let mut v = vec![];
+    for r in rule_roots() {
+        for t in ["Read", "Glob", "Grep"] {
+            v.push(format!("{t}({r}/**)"));
+        }
+    }
+    v
+}
+
+/// Écriture limitée aux fichiers de WRITABLE.
+pub fn write_rules() -> Vec<String> {
+    let mut v = vec![];
+    for r in rule_roots() {
+        for f in WRITABLE {
+            for t in ["Edit", "Write"] {
+                v.push(format!("{t}({r}/work/{f})"));
+            }
+        }
+    }
+    v
+}
+
+/// Options qui fixent les permissions de « claude -p », quels que soient les réglages de
+/// l'utilisateur dans ~/.claude (mode « accepter les modifications » ou « sans permission »,
+/// serveurs MCP) : mode par défaut (ce qui n'est pas permis est refusé, personne ne valide),
+/// pas de serveur MCP, et seulement les outils utiles (pas de web). Chaque option n'est passée
+/// que si la version de Claude Code installée la connaît (« claude --help », lu une fois).
+pub fn pinned_args(claude: &Path) -> Vec<String> {
+    static HELP: std::sync::OnceLock<String> = std::sync::OnceLock::new();
+    let help = HELP.get_or_init(|| {
+        let mut c = Command::new(claude);
+        c.arg("--help").stdin(std::process::Stdio::null());
+        c.output().map(|o| String::from_utf8_lossy(&o.stdout).into_owned()).unwrap_or_default()
+    });
+    let mut v: Vec<String> = vec![];
+    if help.contains("--permission-mode") {
+        // « default » s'appelle « manual » dans les versions récentes (l'ancien nom reste accepté)
+        let mode = if help.contains("\"default\"") || !help.contains("\"manual\"") { "default" } else { "manual" };
+        v.extend(["--permission-mode".into(), mode.into()]);
+    }
+    if help.contains("--strict-mcp-config") {
+        v.push("--strict-mcp-config".into());
+    }
+    if help.contains("--tools ") {
+        v.push("--tools".into());
+        v.extend(["Read", "Glob", "Grep", "Edit", "Write", "Bash", "Skill", "TodoWrite"].iter().map(|s| s.to_string()));
+    }
+    v
+}
 
 /// Fichiers d'un dossier dont le nom finit par `suffix` (comme `ls dossier/*suffix`, sans les
 /// fichiers cachés), triés.
@@ -51,7 +163,8 @@ fn described_in(name: &str) -> String {
 }
 
 /// Lance « claude -p » depuis le dossier qui contient montage/, avec auto-montage dans le PATH ;
-/// renvoie son code de sortie.
+/// renvoie son code de sortie. Permis : lire montage/, écrire les fichiers de WRITABLE, et les
+/// commandes `allowed`.
 fn run_claude(prompt: &str, allowed: &[&str]) -> i32 {
     let Some(claude) = paths::claude() else {
         eprintln!("Claude Code n'est pas installé.");
@@ -64,8 +177,11 @@ fn run_claude(prompt: &str, allowed: &[&str]) -> i32 {
     if let Some(p) = std::env::var_os("PATH") {
         path_dirs.extend(std::env::split_paths(&p));
     }
+    let pinned = pinned_args(&claude);
     let mut cmd = Command::new(claude);
-    cmd.arg("-p").arg(prompt).arg("--allowedTools").args(allowed).arg("--disallowedTools").args(DENIED);
+    cmd.arg("-p").arg(prompt).args(pinned);
+    cmd.arg("--allowedTools").args(read_rules()).args(write_rules()).args(allowed);
+    cmd.arg("--disallowedTools").args(denied_rules());
     if let Ok(p) = std::env::join_paths(path_dirs) {
         cmd.env("PATH", p);
     }
@@ -156,11 +272,6 @@ Ne modifie aucun autre fichier (sauf montage/work/analyse_style.md, montage/work
     run_claude(
         &prompt,
         &[
-            "Read",
-            "Write(montage/work/**)",
-            "Edit(montage/work/**)",
-            "Glob",
-            "Grep",
             "Bash(cd montage && auto-montage build_edit)",
             "Bash(auto-montage build_edit)",
             "Bash(cd montage && auto-montage fonts_lib)",
@@ -223,10 +334,6 @@ Ne modifie aucun autre fichier. Termine par une phrase de résumé."
     let code = run_claude(
         &prompt,
         &[
-            "Read",
-            "Glob",
-            "Write(montage/work/**)",
-            "Edit(montage/work/**)",
             "Bash(cd montage && auto-montage fonts_lib)",
             "Bash(auto-montage fonts_lib)",
         ],
@@ -256,6 +363,18 @@ fn check_result(path: &Path) -> Result<usize, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn rules_stay_in_project() {
+        let roots = rule_roots();
+        assert_eq!(roots[0], "montage");
+        // forme absolue « //chemin » de Claude Code (Unix : « //home/… »)
+        assert!(roots.iter().skip(1).all(|r| r.starts_with("//") && !r.ends_with('/')));
+        let w = write_rules();
+        assert!(w.contains(&"Edit(montage/work/suggestions.json)".to_string()));
+        assert!(w.iter().all(|r| r.contains("/work/") && !r.contains("work/**)")));
+        assert!(read_rules().iter().all(|r| r.ends_with("/**)")));
+    }
 
     #[test]
     fn result_check() {

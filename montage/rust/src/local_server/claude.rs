@@ -100,6 +100,28 @@ pub fn claude_connected(fresh: bool) -> bool {
     value
 }
 
+/// Connexion et compte pour la page /claude/ : relus à chaque demande, mais pas plus d'une fois
+/// toutes les 2 s (une page d'un autre site qui appellerait l'adresse en boucle ne lance pas
+/// « claude auth status » sans arrêt). Connexion et déconnexion relisent l'état aussitôt.
+pub fn claude_page_status() -> (bool, String) {
+    static ACCOUNT: Mutex<Option<(Instant, bool, String)>> = Mutex::new(None);
+    const FRESH: Duration = Duration::from_secs(2);
+    let recent = {
+        let s = CLAUDE_STATUS.lock().unwrap_or_else(|e| e.into_inner());
+        s.0.filter(|at| at.elapsed() < FRESH).map(|_| s.1)
+    };
+    let connected = recent.unwrap_or_else(|| claude_connected(true));
+    let mut a = ACCOUNT.lock().unwrap_or_else(|e| e.into_inner());
+    if let Some((at, c, account)) = a.as_ref() {
+        if at.elapsed() < FRESH && *c == connected {
+            return (connected, account.clone());
+        }
+    }
+    let account = if connected { claude_account() } else { String::new() };
+    *a = Some((Instant::now(), connected, account.clone()));
+    (connected, account)
+}
+
 fn credentials_exist() -> bool {
     let home = std::env::var_os("HOME").or_else(|| std::env::var_os("USERPROFILE")).map(PathBuf::from).unwrap_or_default();
     home.join(".claude").join(".credentials.json").exists()
@@ -349,6 +371,15 @@ pub fn logout() {
 fn chat_dir() -> PathBuf {
     work().join("chat")
 }
+/// Dossier créé au besoin, lisible par son seul propriétaire sous Unix (conversation, journaux).
+pub fn private_dir(dir: &std::path::Path) {
+    util::mkdirs(dir);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let _ = fs::set_permissions(dir, fs::Permissions::from_mode(0o700));
+    }
+}
 fn chat_history() -> PathBuf {
     chat_dir().join("history.json")
 }
@@ -366,9 +397,14 @@ pub const CHAT_SCRIPTS: [&str; 7] = [
     "auto-montage fonts_lib",   // polices utilisables (lecture seule)
 ];
 
+/// Outils permis : lire montage/, écrire les fichiers de claude_tasks::WRITABLE, et les commandes
+/// de montage (avec ou sans « cd montage && » : après un « cd montage », Claude reste dans ce
+/// dossier).
 pub fn chat_tools() -> Vec<String> {
-    let mut v: Vec<String> = ["Read", "Glob", "Grep", "Edit(montage/work/**)", "Write(montage/work/**)"].iter().map(|s| s.to_string()).collect();
+    let mut v = crate::claude_tasks::read_rules();
+    v.extend(crate::claude_tasks::write_rules());
     v.extend(CHAT_SCRIPTS.iter().map(|c| format!("Bash(cd montage && {c})")));
+    v.extend(CHAT_SCRIPTS.iter().map(|c| format!("Bash({c})")));
     v
 }
 
@@ -376,13 +412,7 @@ pub fn chat_tools() -> Vec<String> {
 /// « claude --resume ») et les pages servies par l'interface (un texte piégé ne doit pas pouvoir
 /// y glisser du code). Même liste pour apply_instructions et style_claude.
 pub fn chat_denied() -> Vec<String> {
-    let mut v = vec![];
-    for t in ["Edit", "Write"] {
-        for p in ["montage/work/chat/**", "montage/work/**/*.html", "montage/work/**/*.js"] {
-            v.push(format!("{t}({p})"));
-        }
-    }
-    v
+    crate::claude_tasks::denied_rules()
 }
 
 static SESSION_ID: LazyLock<Regex> =
@@ -439,7 +469,7 @@ pub fn chat_load() {
 }
 
 fn chat_save(c: &Chat) {
-    util::mkdirs(chat_dir());
+    private_dir(&chat_dir());
     let tmp = chat_dir().join("history.json.tmp");
     let start = c.messages.len().saturating_sub(300);
     if write_json(&tmp, &Value::Array(c.messages[start..].to_vec()), Some(1), false).is_ok() {
@@ -473,7 +503,7 @@ fn parts_mut(reply: &mut Value) -> &mut Vec<Value> {
 /// Ajoute à la réponse en cours ce qu'apporte un événement stream-json de claude -p.
 fn chat_event(reply: &mut Value, event: &Value) {
     if let Some(sid) = event.get("session_id").filter(|v| util::truthy(Some(v))) {
-        util::mkdirs(chat_dir());
+        private_dir(&chat_dir());
         let text = match sid {
             Value::String(s) => s.clone(),
             other => pyjson::dumps(other),
@@ -524,7 +554,7 @@ fn chat_event(reply: &mut Value, event: &Value) {
 
 /// Erreurs de la discussion avec Claude, dans le journal (work/logs/discussion.log).
 fn chat_log(text: &str) {
-    util::mkdirs(logs());
+    private_dir(&logs());
     if let Ok(mut f) = fs::OpenOptions::new().create(true).append(true).open(logs().join("discussion.log")) {
         let _ = write!(f, "\n== {}\n{text}\n", now_fmt("%d/%m/%Y %H:%M:%S"));
     }
@@ -543,6 +573,9 @@ fn run_chat(message: String, session: Option<String>) {
     // Le message passe par l'entrée standard : un texte commençant par « - » n'est pas une option.
     let mut cmd = claude_command();
     cmd.args(["-p", "--output-format", "stream-json", "--verbose", "--append-system-prompt"]).arg(chat_context());
+    if let Some(c) = paths::claude() {
+        cmd.args(crate::claude_tasks::pinned_args(&c));
+    }
     if let Some(s) = &session {
         cmd.args(["--resume", s]);
     }
@@ -696,5 +729,12 @@ mod tests {
     fn tools_use_auto_montage() {
         assert!(chat_tools().contains(&"Bash(cd montage && auto-montage build_edit)".to_string()));
         assert_eq!(chat_denied().len(), 6);
+        let tools = chat_tools();
+        // plus de lecture ni d'écriture libres
+        assert!(!tools.iter().any(|t| t == "Read" || t == "Glob" || t == "Grep" || t.contains("work/**)")));
+        assert!(tools.contains(&"Read(montage/**)".to_string()));
+        assert!(tools.contains(&"Edit(montage/work/edit_choices.json)".to_string()));
+        assert!(tools.contains(&"Edit(montage/work/local_db/**/*.json)".to_string()));
+        assert!(!tools.iter().any(|t| t.contains("tache.json") || t.contains("projets")));
     }
 }

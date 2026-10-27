@@ -353,6 +353,12 @@ enum Program {
 /// Adresse de téléchargement du fichier `name` joint à la version `tag` sur GitHub ; None si
 /// la version ou le fichier n'existe pas.
 pub fn release_asset(tag: &str, name: &str) -> Result<Option<String>, String> {
+    Ok(release_asset_info(tag, name)?.map(|(url, _)| url))
+}
+
+/// Comme release_asset, avec l'empreinte SHA-256 que GitHub donne pour ce fichier (« digest »
+/// des versions récentes ; None pour les plus anciennes).
+pub fn release_asset_info(tag: &str, name: &str) -> Result<Option<(String, Option<String>)>, String> {
     let release = match api(&format!("{}/repos/{}/releases/tags/{tag}", api_base(), repo())) {
         Ok(r) => {
             let mut body = String::new();
@@ -365,12 +371,17 @@ pub fn release_asset(tag: &str, name: &str) -> Result<Option<String>, String> {
     let asset = release.get("assets").and_then(Value::as_array).and_then(|a| {
         a.iter().find(|x| x.get("name").and_then(Value::as_str) == Some(name))
     });
-    Ok(asset.and_then(|a| a.get("browser_download_url")).and_then(Value::as_str).map(String::from))
+    let digest = asset
+        .and_then(|a| a.get("digest"))
+        .and_then(Value::as_str)
+        .and_then(|d| d.strip_prefix("sha256:"))
+        .map(|d| d.to_lowercase());
+    Ok(asset.and_then(|a| a.get("browser_download_url")).and_then(Value::as_str).map(|u| (u.to_string(), digest)))
 }
 
 fn fetch_program(tag: &str) -> Result<Option<PathBuf>, String> {
     let Some(name) = relance::asset_name() else { return Ok(None) };
-    let Some(url) = release_asset(tag, &name)? else { return Ok(None) };
+    let Some((url, digest)) = release_asset_info(tag, &name)? else { return Ok(None) };
     let url = url.as_str();
     say(&format!("Téléchargement du programme ({name})…"));
     let resp = match net::agent(Duration::from_secs(600)).get(url).call() {
@@ -384,6 +395,8 @@ fn fetch_program(tag: &str) -> Result<Option<PathBuf>, String> {
         fs::create_dir_all(dir).map_err(|e| format!("{} : {e}", dir.display()))?;
     }
     let result = (|| -> Result<(), String> {
+        use sha2::{Digest, Sha256};
+        let mut hash = Sha256::new();
         let mut file = fs::File::create(&dl).map_err(|e| format!("{} : {e}", dl.display()))?;
         let mut reader = resp.into_reader();
         let mut chunk = vec![0u8; 1 << 16];
@@ -394,8 +407,16 @@ fn fetch_program(tag: &str) -> Result<Option<PathBuf>, String> {
                 break;
             }
             std::io::Write::write_all(&mut file, &chunk[..n]).map_err(|e| format!("{} : {e}", dl.display()))?;
+            hash.update(&chunk[..n]);
             got += n as u64;
             report("Téléchargement du programme", got as f64, total.max(got).max(1) as f64);
+        }
+        // empreinte publiée par GitHub pour ce fichier : programme reçu tel quel
+        if let Some(expected) = &digest {
+            let got = hex::encode(hash.finalize());
+            if &got != expected {
+                return Err(format!("Programme téléchargé abîmé ou modifié (empreinte {got} au lieu de {expected}) : rien n'est remplacé."));
+            }
         }
         Ok(())
     })();

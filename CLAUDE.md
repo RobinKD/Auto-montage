@@ -113,7 +113,8 @@ interne : les changements attendent la prochaine version.
   boutons ; avec des consignes et Claude connecté, elle lance `rust/src/claude_tasks.rs`
   (Claude sans interaction : `work/suggestions.json` et `work/edit_choices.json`). La page
   <http://localhost:8080/chat/> discute avec Claude (`claude -p --resume`, outils limités à la
-  lecture, à `work/` et aux scripts de montage : liste `CHAT_TOOLS` de `local_server`).
+  lecture de `montage/`, à quelques fichiers de `work/` et aux scripts de montage : `chat_tools` de
+  `local_server/claude.rs`).
   Éléments de style : sons personnels dans `public/sfx/perso/<nom>.wav` (non versionnés,
   communs à tous les montages ; effets « perso-<nom> » de la page, `"sfx"` d'edit_choices),
   vidéos d'exemple dans `work/style/videos/` avec une planche `*.planche.jpg` que Claude lit ;
@@ -124,9 +125,17 @@ interne : les changements attendent la prochaine version.
   repérés, reproductibles ou non, style de sous-titres proposé), repris par la préparation.
 - Sécurité de l'interface locale (`local_server`) : seuls les noms localhost, 127.0.0.1,
   [::1] sont servis, les écritures d'une autre origine sont refusées
-  (`parse_request`). Claude sans interaction (discussion, `apply_instructions`,
-  `style_claude`) n'écrit que dans `montage/work/`, avec les interdits de `CHAT_DENIED`
-  (conversation, pages servies). Données insérées dans une page : `<` échappé.
+  (`check_request`). Claude sans interaction (discussion, `apply_instructions`,
+  `style_claude`) ne lit que dans `montage/` et n'écrit que les fichiers de `WRITABLE`
+  (`claude_tasks.rs` : `read_rules`, `write_rules`, règles relatives et absolues), avec les
+  interdits de `denied_rules` (conversation, pages servies) ; `pinned_args` fixe le mode de
+  permission, coupe les serveurs MCP et le web, quels que soient les réglages de ~/.claude. Un
+  nouveau fichier que Claude doit écrire va dans `WRITABLE`. Fichiers servis tels quels :
+  extensions de `SERVED_EXT` seulement (`common.rs`, pas de .html ni .svg ; .js de `local/` et
+  `work/moments/hf/`). Données insérées dans une page : `<` échappé ; page du rendu : textes par
+  `textContent`, couleurs par `style` (jamais d'`innerHTML` fait des données), couleurs lues
+  dans work/ vérifiées (`fonts_lib::is_color`). Téléchargements de setup vérifiés par SHA-256
+  (Node, ffmpeg, modèles des visages ; programme des mises à jour : `digest` de GitHub).
   `src/data/edit.json` et `face.json` du dépôt sont ceux du rush de démonstration
   (`tests/make_demo_rush.py`) : n'y jamais versionner un vrai rush ; `update` garde ceux de
   l'utilisateur.
