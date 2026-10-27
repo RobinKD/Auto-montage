@@ -1885,6 +1885,13 @@ ${HFAudio.voiceElements(spec)}
   // est d'abord enregistrée ; les réglages des moments suivent (effets décalés, moments gardés).
   async function momentAction(action, m, extra = {}) {
     if (dirty) { scheduleSave(0); for (let i = 0; i < 40 && dirty; i++) await new Promise((r) => setTimeout(r, 100)); }
+    // Sélection encore jamais enregistrée (suggestions affichées) : enregistrée d'abord, pour que
+    // la coupe la reporte telle quelle (sinon les suggestions seraient recalculées sur les
+    // nouveaux moments et la sélection changerait).
+    if (db && !variantSaved) {
+      await db.doc(`variantes/${state.variant}`).set({ name: state.names[state.variant] || state.variant, rush: DATA.rush,
+        keep: keepTokens(), updatedAt: new Date().toISOString() }).catch(() => {});
+    }
     setStatus("Découpage des moments…");
     const r = await fetch(`/api/moments/${action}`, { method: "POST", headers: { "content-type": "application/json" },
       body: JSON.stringify({ id: m.id, ...extra }) }).catch(() => null);
@@ -2291,7 +2298,8 @@ ${HFAudio.voiceElements(spec)}
     : m && m.gap ? "Un plan sans parole se raccourcit avec ses poignées (début et fin), il ne se coupe pas"
       : m && m.words.length < 2 ? "Un seul mot : rien à couper"
         : `Couper le moment en deux à la tête de lecture, avant le mot le plus proche : deux moments séparés, gardés ou retirés chacun (${keyLabel("couper")})`);
-  const isPart = (m) => !!m && m.splitFrom !== undefined && m.splitFrom !== null;
+  // Partie coupée qui se recolle au moment d'avant (la première partie garde l'id du moment d'origine).
+  const isPart = (m) => !!m && m.splitFrom !== undefined && m.splitFrom !== null && m.id !== m.splitFrom;
   // Barre d'outils : couper, recoller, garder, retirer, corriger ; temps ; zoom.
   function renderToolbar() {
     const bar = $("toolbar"), om = openMoment(), list = frise.sel.size > 1 ? selected() : om ? [om] : [];
@@ -3679,12 +3687,14 @@ ${HFAudio.voiceElements(spec)}
     });
   }
 
+  let variantSaved = false;  // document de la variante déjà écrit (sinon : suggestions affichées)
   function watchVariant() {
     if (!db) return;
     if (docUnsub) docUnsub();
     docUnsub = db.doc(`variantes/${state.variant}`).onSnapshot((snap) => {
       if (snap.metadata.hasPendingWrites || dirty) return;
       const data = snap.exists ? snap.data() : null;
+      variantSaved = snap.exists;
       if (data && Array.isArray(data.keep) && data.rush === DATA.rush) {
         state.keep = new Set(data.keep);
         keepShadow = [...state.keep];
@@ -4421,7 +4431,10 @@ ${HFAudio.voiceElements(spec)}
     if (after === "telecharger" && working) {
       afterRegen(null);
       openDownloadMenu().then(() => $("dl-menu").scrollIntoView({ block: "nearest" }));
-      setStatus("Vidéo générée : choisissez la qualité à télécharger.", "ok");
+      // (redit après le chargement de la sélection, qui écrit son propre message)
+      const said = () => setStatus("Vidéo générée : choisissez la qualité à télécharger.", "ok");
+      said();
+      setTimeout(said, 2000);
     }
   }
 

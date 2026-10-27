@@ -206,7 +206,7 @@ if [ -n "$FIRST" ]; then
   curl -fsS -X POST -H "content-type: application/json" -d "{\"id\": $FIRST, \"t\": $T}" "$URL/api/moments/split" >/dev/null || fail "« Couper » un moment"
   wait_job
   [ "$(pdata 'len(d["moments"])')" = "$((N0 + 1))" ] || fail "pas de moment de plus après « Couper »"
-  PART="$(pdata '[m["id"] for m in d["moments"] if m.get("splitFrom") == '"$FIRST"'][0]')"
+  PART="$(pdata '[m["id"] for m in d["moments"] if m.get("splitFrom") == '"$FIRST"' and m["id"] != '"$FIRST"'][0]')"
   curl -fsS -X POST -H "content-type: application/json" -d "{\"id\": $PART}" "$URL/api/moments/unsplit" >/dev/null || fail "« Recoller » la partie coupée"
   wait_job
   [ "$(pdata 'len(d["moments"])')" = "$N0" ] || fail "moment toujours coupé après « Recoller »"

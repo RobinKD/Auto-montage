@@ -279,7 +279,8 @@ pub fn split(mid: i64, t: f64) -> Result<String, Refus> {
 pub fn unsplit(mid: i64) -> Result<String, Refus> {
     let State { eff, mut deco, pos, .. } = state()?;
     let m = pos.get(&mid).map(|&i| &eff[i]);
-    let Some(m) = m.filter(|m| m.get("splitFrom").map(|v| !v.is_null()).unwrap_or(false)) else {
+    // La première partie garde l'id du moment d'origine : rien avant elle à quoi la recoller.
+    let Some(m) = m.filter(|m| m.get("splitFrom").map(|v| !v.is_null()).unwrap_or(false) && inum(m, "splitFrom") != mid) else {
         return refus("Ce moment n'est pas une partie coupée : rien à recoller.");
     };
     let i = pos[&mid];
