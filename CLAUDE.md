@@ -144,7 +144,13 @@ interne : les changements attendent la prochaine version.
   sans ce fichier : Auto-montage). L'interface locale prépare un nouveau rush en dérushage
   (`prepare --mode derush`, écrit pour un nouveau rush ; `--mode montage` avec des consignes
   appliquées par Claude) ; « Valider le dérush » (page des moments, dérushage seulement) génère et
-  télécharge la vidéo, ou passe à l'auto-montage. Le serveur l'écrit sur `<html data-mode>`
+  télécharge la vidéo (« Générer », puis menu « Télécharger »), ou passe à l'auto-montage
+  (`POST /api/derush/valider`, tâche `derush` : use_selection, build_edit, `rust/src/derush_video.rs`
+  (moments gardés d'edit.json mis bout à bout depuis le rush d'origine → `public/rushes/<rush>
+  (dérush).mp4`, et `work/derush_segments.json` : un seul segment avec les mots gardés et corrigés,
+  `derushWords` d'edit.json écrit en dérushage), `prepare --mode montage --transcription
+  work/derush_segments.json` (sans Whisper), make_moments : un seul moment ; le dérush reste dans
+  « Montages »). Le serveur l'écrit sur `<html data-mode>`
   (`with_mode` de `local_server`) ; en dérushage, les parties marquées `data-mode-montage` sont
   masquées (consignes, style, effets, son, cadrage ; pages Claude retirées du menu), la page des
   moments (`DERUSH`) ne montre que le choix et la coupe des moments, et les sous-titres (« Corriger »
@@ -210,7 +216,7 @@ interne : les changements attendent la prochaine version.
   à la racine, ou `claude mcp add auto-montage -- ./am mcp`) : etat, catalogue, liste_moments, garder_moments,
   regler_moment, couper_moment, lire_reglages / changer_reglages (couleurs, transitions,
   habillage, son, sous_titres, effets), annuler, generer_video, rendu_4k, sous_titres, mesurer_volume,
-  exporter_plateforme (POST /api/export), preparer_rush. Les modifications passent par l'interface locale (lancée au besoin, `AM_URL`), donc mêmes
+  exporter_plateforme (POST /api/export), valider_derush (POST /api/derush/valider), preparer_rush. Les modifications passent par l'interface locale (lancée au besoin, `AM_URL`), donc mêmes
   fichiers et mêmes tâches que la page ; journal pour « annuler » dans `work/historique/mcp.json`. Un nouveau
   réglage ou une nouvelle action de la page doit y avoir sa commande.
 - Effets fournis par défaut : liste unique dans `rust/src/moments_lib.rs` (`SOUNDS` : sons de

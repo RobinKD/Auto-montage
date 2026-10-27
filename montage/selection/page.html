@@ -673,7 +673,7 @@
     <button type="button" class="dlg-choice regen" id="valider-dl"><b>Générer et télécharger la vidéo</b>
       <span>Les moments gardés mis bout à bout, avec leurs sous-titres si la case « Sous-titres » est cochée ; le menu « Télécharger » s'ouvre à la fin.</span></button>
     <button type="button" class="dlg-choice" id="valider-montage" hidden><b>Passer à l'auto-montage</b>
-      <span>Les moments gardés deviennent une seule vidéo, sur laquelle vous réglez ensuite les effets et le son.</span></button>
+      <span>Les moments gardés deviennent une seule vidéo, un seul moment avec ses sous-titres corrigés, sur lequel vous réglez ensuite les effets et le son. Le dérush reste dans « Montages » (page « Rushes et montages »).</span></button>
   </div>
   <div class="dlg-foot"><span class="sub" id="valider-msg" role="status"></span><button type="button" id="valider-close">Annuler</button></div>
 </dialog>
@@ -3551,7 +3551,7 @@ ${HFAudio.voiceElements(spec)}
     // Mémoire juste ou insuffisante pour l'étape en cours (rust/src/memoire.rs) : dit sous la barre.
     const mem = job.stepMemory && job.stepMemory.level !== "ok" ? job.stepMemory.message : "";
     if (mem) $("gen-label").textContent += ` · ${mem}`;
-    $("gen-all-label").textContent = job.kind === "final" ? "Ensemble de la création 4K" : job.kind === "export" ? "Ensemble de l'export" : "Ensemble de la génération";
+    $("gen-all-label").textContent = job.kind === "final" ? "Ensemble de la création 4K" : job.kind === "export" ? "Ensemble de l'export" : job.kind === "derush" ? "Ensemble du passage à l'auto-montage" : "Ensemble de la génération";
     $("gen-all").value = job.overall || 0;
     $("gen-all-facts").textContent = `${Math.floor((job.overall || 0) * 100)} %${remaining(job.remaining)}`;
   }
@@ -3566,12 +3566,17 @@ ${HFAudio.voiceElements(spec)}
       await new Promise((r) => setTimeout(r, 1500));
       const job = await (await fetch("/api/regen")).json();
       showGenProgress(job);
-      if (job.state === "running") { setStatus(`Génération en cours : ${job.step}…`); continue; }
-      if (job.state === "done") { setStatus("Nouvelle version prête, rechargement…", "ok"); location.reload(); return; }
+      const what = job.kind === "derush" ? "Passage à l'auto-montage" : "Génération";
+      if (job.state === "running") { setStatus(`${what} en cours : ${job.step}…`); continue; }
+      if (job.state === "done") {
+        setStatus(job.kind === "derush" ? "Vidéo du dérush prête : ouverture de l'auto-montage…" : "Nouvelle version prête, rechargement…", "ok");
+        location.reload();
+        return;
+      }
       btn.disabled = false;
       afterRegen(null);  // rien à télécharger
-      if (job.state === "cancelled") { setStatus("Génération annulée : la version précédente reste en place"); return; }
-      setStatus(`La génération a échoué à l'étape « ${job.step} » : ${job.error || "erreur inconnue"} (détail : lien « Journal »)`, "err");
+      if (job.state === "cancelled") { setStatus(`${what} annulé${job.kind === "derush" ? "" : "e"} : la version précédente reste en place`); return; }
+      setStatus(`${what} : échec à l'étape « ${job.step} » : ${job.error || "erreur inconnue"} (détail : lien « Journal »)`, "err");
       return;
     }
   }
@@ -3648,6 +3653,29 @@ ${HFAudio.voiceElements(spec)}
       dlg.close();
       afterRegen("telecharger");
       await startRegen();
+    });
+    // Passer à l'auto-montage (interface locale) : les moments gardés deviennent une vidéo, nouveau
+    // rush préparé sans nouvelle transcription (POST /api/derush/valider) ; le dérush reste dans
+    // « Montages » (page « Rushes et montages »).
+    $("valider-montage").hidden = !window.AUTO_MONTAGE_LOCAL;
+    $("valider-montage").addEventListener("click", async () => {
+      const btn = $("valider-montage");
+      btn.disabled = true;
+      for (let i = 0; i < 25 && dirty; i++) await new Promise((r) => setTimeout(r, 200));
+      try {
+        const r = await fetch("/api/derush/valider", { method: "POST", headers: { "content-type": "application/json" },
+          body: JSON.stringify({ variant: state.variant, name: state.names[state.variant] || state.variant, keep: keepTokens() }) });
+        const res = await r.json().catch(() => ({}));
+        if (!r.ok) throw new Error(res.error || `erreur ${r.status}`);
+        dlg.close();
+        $("valider-derush").disabled = true;
+        setStatus(`Passage à l'auto-montage : vidéo du dérush « ${res.rush} » en préparation…`);
+        await followRegen($("valider-derush"));
+      } catch (e) {
+        $("valider-msg").textContent = `Impossible de passer à l'auto-montage : ${(e && e.message) || "serveur local injoignable"}`;
+      } finally {
+        btn.disabled = false;
+      }
     });
   }
 
@@ -4433,6 +4461,7 @@ ${HFAudio.voiceElements(spec)}
     if (window.AUTO_MONTAGE_LOCAL) {
       const job = await fetch("/api/job").then((r) => r.json()).catch(() => null);
       if (job && job.state === "running" && job.kind === "regen") { $("regen").disabled = true; followRegen($("regen")); }
+      if (job && job.state === "running" && job.kind === "derush") { $("valider-derush").disabled = true; followRegen($("valider-derush")); }
       if (job && job.state === "running" && job.kind === "final") followFinal();
       if (job && job.state === "running" && job.kind === "export") followExport();
     }

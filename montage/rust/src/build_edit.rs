@@ -1697,6 +1697,20 @@ fn run() -> Result<(), String> {
     // Nettoyage fait au rendu par HyperFrames (selection/hf_audio.js) : graves parasites, clarté.
     edit.insert("son".into(), json!({"highpass": truthy(sound.get("highpass")), "clarity": truthy(sound.get("clarity"))}));
     edit.insert("chips".into(), Value::Array(chips));
+    if derush {
+        // Mots gardés, corrigés, en temps du montage (même sous-titres masqués) : transcription
+        // de la vidéo du dérush quand il passe à l'auto-montage (derush_video).
+        edit.insert(
+            "derushWords".into(),
+            Value::Array(
+                word_events
+                    .iter()
+                    .filter(|w| !w.text.trim().is_empty())
+                    .map(|w| json!({"w": w.text.trim(), "a": r3(w.start), "b": r3(w.end)}))
+                    .collect(),
+            ),
+        );
+    }
     edit.insert(
         "sfx".into(),
         Value::Array(

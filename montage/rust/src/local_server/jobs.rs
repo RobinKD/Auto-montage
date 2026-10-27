@@ -79,7 +79,7 @@ pub fn prepare_with_instructions() -> Vec<Step> {
 // poste, rush de 26 s sur 2 cœurs) ; elles sont recalées après chaque tâche réussie sur les
 // durées réelles de la machine (work/timings.json), et l'opération en cours suit sa propre
 // vitesse dès qu'elle a avancé.
-pub const PLAN: [(&str, &[&str]); 9] = [
+pub const PLAN: [(&str, &[&str]); 10] = [
     ("préparation du rush", &["Copie du rush en 1080p", "Extraction du son", "Transcription", "Position du visage", "Locuteurs"]),
     ("rendu de la vidéo entière", &["Rendu de la vidéo"]),
     ("rendu 1080p", &["Rendu de la vidéo"]),
@@ -89,6 +89,7 @@ pub const PLAN: [(&str, &[&str]); 9] = [
     ("rendu 4K", &["Rendu 4K"]),
     ("mesures des vidéos d'exemple", &["Analyse des vidéos d'exemple"]),
     ("export pour les plateformes", &["Export pour les plateformes"]),
+    ("vidéo du dérush", &["Vidéo du dérush"]),
 ];
 
 fn plan_of(step: &str) -> &'static [&'static str] {
@@ -100,7 +101,7 @@ pub fn plan_json() -> Value {
 }
 
 /// (clé, échelle, secondes par seconde d'échelle, écrit en entier dans timings.json).
-pub const RATES: [(&str, &str, f64, bool); 21] = [
+pub const RATES: [(&str, &str, f64, bool); 22] = [
     ("Copie du rush en 1080p", "rush", 0.3, false),
     ("Extraction du son", "rush", 0.01, false),
     ("Transcription", "rush", 0.3, false),
@@ -130,6 +131,9 @@ pub const RATES: [(&str, &str, f64, bool); 21] = [
     // copies demandées : vitesse recalée sur la machine).
     ("Export pour les plateformes", "montage", 1.2, false),
     ("étape:export pour les plateformes", "fixe", 5.0, true),
+    // Dérush validé (derush_video) : moments gardés réencodés depuis le rush d'origine (H.264
+    // « veryfast »), échelle = durée du montage du dérush.
+    ("Vidéo du dérush", "montage", 0.8, false),
 ];
 
 fn rates_table() -> impl Iterator<Item = &'static (&'static str, &'static str, f64, bool)> {
@@ -1159,6 +1163,7 @@ pub fn kind_name(kind: &str) -> Option<&'static str> {
         "reset" => "Réinitialisation",
         "style" => "Analyse du style",
         "export" => "Export pour les plateformes",
+        "derush" => "Passage à l'auto-montage",
         _ => return None,
     })
 }

@@ -10,6 +10,7 @@ mod analyze_style;
 mod build_edit;
 mod claude_tasks;
 mod decoupage;
+mod derush_video;
 mod detect_face;
 mod diarize;
 mod difflib;
@@ -60,7 +61,8 @@ const COMMANDS: &[(&str, Cmd, &str)] = &[
     ("make_moments", make_moments::main, "page des moments"),
     ("build_edit", build_edit::main, "montage : src/data/edit.json"),
     ("use_selection", use_selection::main, "choix de la page -> work/selection.json"),
-    ("decoupage", decoupage::main, "scinder ou fusionner des moments"),
+    ("decoupage", decoupage::main, "couper un moment en deux, recoller"),
+    ("derush_video", derush_video::main, "vidéo des moments gardés du dérush (nouveau rush pour l'auto-montage)"),
     ("loudness", loudness::main, "volume perçu d'un fichier (LUFS), normalisation"),
     ("subtitles", subtitles::main, "sous-titres du montage en fichiers .srt et .vtt (out/)"),
     ("mcp", mcp::main, "serveur MCP : Claude pilote le montage (claude mcp add auto-montage -- ./am mcp)"),

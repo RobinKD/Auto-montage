@@ -166,6 +166,8 @@ fn tools() -> Value {
          "inputSchema": {"type": "object", "properties": {}}},
         {"name": "generer_video", "description": "Génère la vidéo entière (aperçu 1080p) d'après la variante, avec couleurs, effets, transitions, volume normalisé et sous-titres en fichiers. attendre : jusqu'à la fin (sinon suivre avec etat).",
          "inputSchema": {"type": "object", "properties": {"variante": {"type": "string"}, "attendre": {"type": "boolean"}, "delai_max": {"type": "integer", "description": "secondes (1800 par défaut)"}}}},
+        {"name": "valider_derush", "description": "Dérushage terminé, passage à l'auto-montage : les moments gardés de la variante deviennent une seule vidéo (nouveau rush, un seul moment, sous-titres corrigés repris sans nouvelle transcription), en mode Auto-montage ; le dérush reste dans les montages enregistrés. Seulement en dérushage. attendre : jusqu'à la fin.",
+         "inputSchema": {"type": "object", "properties": {"variante": {"type": "string"}, "attendre": {"type": "boolean"}, "delai_max": {"type": "integer", "description": "secondes (1800 par défaut)"}}}},
         {"name": "rendu_4k", "description": "Crée la version 4K de la vidéo entière générée (long).",
          "inputSchema": {"type": "object", "properties": {}}},
         {"name": "sous_titres", "description": "Fichiers de sous-titres de la dernière vidéo générée (SRT et WebVTT) : chemins et contenu SRT.",
@@ -444,6 +446,21 @@ fn tool(name: &str, a: &Map<String, Value>) -> Result<Value, String> {
                 return Ok(json!({"tache": job_summary(&st), "video": out, "volume": util::read_obj(paths::work().join("volume.json")).get("montage_apercu.mp4")}));
             }
             Ok(json!({"lance": true, "suivi": "outil etat"}))
+        }
+        "valider_derush" => {
+            let variant = safe(arg_str(a, "variante", "travail"))?.to_string();
+            let mut body = json!({"variant": variant});
+            if doc("variantes", &variant).is_none() {
+                if let Ok(Value::Object(l)) = liste_moments(&Map::new()) {
+                    body["keep"] = json!(util::arr(&Value::Object(l), "moments").iter().filter(|m| m["garde"] == json!(true)).map(|m| m["id"].clone()).collect::<Vec<_>>());
+                }
+            }
+            let res = call("POST", "/api/derush/valider", Some(&body))?;
+            if a.get("attendre").and_then(Value::as_bool).unwrap_or(false) {
+                let st = wait_job(a.get("delai_max").and_then(Value::as_u64).unwrap_or(1800));
+                return Ok(json!({"tache": job_summary(&st), "rush": res.get("rush")}));
+            }
+            Ok(json!({"lance": true, "rush": res.get("rush"), "suivi": "outil etat"}))
         }
         "rendu_4k" => {
             call("POST", "/api/final", Some(&json!({})))?;

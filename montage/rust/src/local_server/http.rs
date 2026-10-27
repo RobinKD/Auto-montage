@@ -717,7 +717,7 @@ const POST_ROUTES: &[&str] = &[
     "/api/claude/login", "/api/claude/code", "/api/claude/logout",
     "/api/update/check", "/api/update/apply", "/api/update/reset", "/api/restart", "/api/quit", "/api/style/analyse", "/api/son/analyse",
     "/api/tutorial/seen",
-    "/api/moments/split", "/api/moments/unsplit", "/api/moments/restore",
+    "/api/moments/split", "/api/moments/unsplit", "/api/moments/restore", "/api/derush/valider",
 ];
 
 fn do_post(req: &Req, body_reader: &mut dyn Read) -> Reply {
@@ -996,7 +996,48 @@ fn do_post(req: &Req, body_reader: &mut dyn Read) -> Reply {
     if let Some(action) = route.strip_prefix("/api/moments/") {
         return post_moments(action, &body);
     }
+    let variant = match save_variant(&body) {
+        Ok(v) => v,
+        Err(reply) => return reply,
+    };
+    if route == "/api/derush/valider" {
+        return post_derush_valider(&variant);
+    }
     // /api/regen
+    if !start_job("regen", jobs::regen_steps(), &variant, None, None, false) {
+        return err_json(&busy_error(), 409);
+    }
+    ok_json(202)
+}
+
+/// « Valider le dérush » → auto-montage : les moments gardés du dérush mis bout à bout en une
+/// vidéo (derush_video), nouveau rush préparé sans Whisper (sa transcription est celle du dérush,
+/// corrections comprises), en mode Auto-montage, comme un seul moment. Le dérush reste dans
+/// « Montages » (project save, au changement de rush).
+fn post_derush_valider(variant: &str) -> Reply {
+    if app_mode(&work()) != "derush" {
+        return err_json("Ce montage n'est pas en dérushage.", 400);
+    }
+    let rush = read_text(work().join("rush.txt")).unwrap_or_default();
+    let name = crate::derush_video::output_name(&rush);
+    let db = db().to_string_lossy().into_owned();
+    let segs = "work/derush_segments.json";
+    let steps = vec![
+        ("lecture de la sélection".to_string(), vec!["use_selection".to_string(), db, "{arg}".into()]),
+        ("montage".into(), vec!["build_edit".into()]),
+        ("vidéo du dérush".into(), vec!["derush_video".into(), "{args}".into()]),
+        ("préparation du rush".into(), ["prepare", "--mode", "montage", "--transcription", segs, "{args}"].iter().map(|s| s.to_string()).collect()),
+        ("page des moments".into(), vec!["make_moments".into()]),
+    ];
+    if !start_job("derush", steps, variant, Some(vec![name.clone()]), None, false) {
+        return err_json(&busy_error(), 409);
+    }
+    send_json(&json!({"ok": true, "rush": name}), 202)
+}
+
+/// Variante demandée (« travail » par défaut), enregistrée avec la sélection envoyée si la page
+/// ne l'a jamais modifiée (rush tout juste préparé).
+fn save_variant(body: &Map<String, Value>) -> Result<String, Reply> {
     let variant = {
         let v = body_str(&body, "variant");
         if v.is_empty() {
@@ -1006,14 +1047,14 @@ fn do_post(req: &Req, body_reader: &mut dyn Read) -> Reply {
         }
     };
     if !safe_id(&variant) {
-        return err_json("variante invalide", 400);
+        return Err(err_json("variante invalide", 400));
     }
     let doc = db().join("variantes").join(format!("{variant}.json"));
     if !doc.exists() {
         // Variante jamais modifiée sur la page (rush tout juste préparé) : sa sélection
         // actuelle (les suggestions) est envoyée avec la demande.
         let Some(keep) = body.get("keep").filter(|k| k.is_array()) else {
-            return err_json(&format!("variante « {variant} » pas encore enregistrée"), 400);
+            return Err(err_json(&format!("variante « {variant} » pas encore enregistrée"), 400));
         };
         util::mkdirs(doc.parent().unwrap());
         let name = {
@@ -1027,10 +1068,7 @@ fn do_post(req: &Req, body_reader: &mut dyn Read) -> Reply {
         let rush = basename(&read_text(work().join("rush.txt")).unwrap_or_default()).to_string();
         let _ = write_json(&doc, &json!({"name": name, "keep": keep, "rush": rush, "updatedAt": now_iso()}), Some(1), false);
     }
-    if !start_job("regen", jobs::regen_steps(), &variant, None, None, false) {
-        return err_json(&busy_error(), 409);
-    }
-    ok_json(202)
+    Ok(variant)
 }
 
 // --- Historique de la page des moments (Annuler / Rétablir une coupe ou un recollage) ------------
