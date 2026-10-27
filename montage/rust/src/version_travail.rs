@@ -6,10 +6,13 @@
 //! traite en FLAC (un son coupé en morceaux se décalerait de quelques centièmes de seconde à chaque
 //! reprise de la lecture), puis les morceaux sont mis bout à bout et le son encodé en AAC. Une
 //! préparation mise en pause, arrêtée ou coupée reprend au premier morceau manquant (mêmes rush,
-//! taille et réglages : work/reprise/travail/cle.txt).
+//! taille et réglages : work/reprise/travail/cle.txt). Encodage par la carte graphique si elle
+//! marche (gpu.rs, encodeur dans la clé), sinon par le processeur ; un échec sur la carte refait
+//! les morceaux par le processeur.
 //!
 //! Usage : auto-montage version_travail <rush>
 
+use crate::gpu::{self, Encoder, Rate};
 use crate::moments_lib::{audio_map, display_size, work_size};
 use crate::{paths, procs, progress, util};
 use regex::Regex;
@@ -219,84 +222,67 @@ pub fn run(rush: &Path) -> i32 {
         Err(_) => (0, 0),
     };
     let name = rush.file_name().map(|s| s.to_string_lossy().into_owned()).unwrap_or_default();
-    let key = format!("{name} {size} {mtime} {w}x{h} {fps} {frames} 2\n");
-    util::mkdirs(&dir);
-    let key_file = dir.join("cle.txt");
-    if fs::read_to_string(&key_file).ok().as_deref() != Some(key.as_str()) {
-        util::remove_all(&dir);
-        util::mkdirs(&dir);
-        let _ = fs::write(&key_file, &key);
-    }
+    // Encodeur : carte graphique si elle marche (gpu.rs), sinon processeur ; tous les morceaux du
+    // même (clé de reprise), et un échec sur la carte refait tous les morceaux par le processeur.
+    let mut enc = gpu::h264();
     let chunk_path = |i: usize| -> PathBuf { dir.join(format!("{i:04}.mkv")) };
-    let done = (0..count).filter(|i| chunk_path(*i).exists()).count();
-    if done > 0 {
-        progress::say(&format!("Reprise de la copie du rush : {done} morceau(x) sur {count} déjà faits"));
-    }
-    progress::say(&format!("Copie du rush {w}x{h}, {:.3} images/s, {count} morceau(x)", fps.f()));
     let sound = dir.join("son.flac");
     let rush_s = paths::display(rush);
-    if !sound.exists() {
-        let part = dir.join("son.part.flac");
-        let mut cmd = vec![ffmpeg.clone(), "-v".into(), "error".into(), "-y".into(), "-i".into(), rush_s.clone()];
-        cmd.extend(amap.iter().cloned());
-        cmd.extend(["-c:a".into(), "flac".into(), paths::display(&part)]);
-        if run_quiet(&cmd) != 0 {
-            return fail("Échec de l'extraction du son du rush");
-        }
-        if fs::rename(&part, &sound).is_err() {
-            return fail("Échec de l'extraction du son du rush");
-        }
-    }
     let stepf = step.f();
-    for i in 0..count {
-        let chunk = chunk_path(i);
-        let start = Frac::int(i as i128).mul(step).f();
-        let length = if i < count - 1 { stepf } else { (duration - start + 1.0).max(0.1) };
-        if chunk.exists() {
-            continue;
+    loop {
+        let key = format!("{name} {size} {mtime} {w}x{h} {fps} {frames} 2{}\n", if enc.is_gpu() { format!(" {}", enc.name) } else { String::new() });
+        util::mkdirs(&dir);
+        let key_file = dir.join("cle.txt");
+        if fs::read_to_string(&key_file).ok().as_deref() != Some(key.as_str()) {
+            util::remove_all(&dir);
+            util::mkdirs(&dir);
+            let _ = fs::write(&key_file, &key);
         }
-        let part = dir.join(format!("{i:04}.part.mkv"));
-        let cmd: Vec<String> = [
-            ffmpeg.as_str(),
-            "-v",
-            "error",
-            "-y",
-            "-ss",
-            &format!("{start:.6}"),
-            "-i",
-            &rush_s,
-            "-t",
-            &format!("{length:.6}"),
-            "-map",
-            "0:v:0",
-            "-an",
-            "-vf",
-            &format!("scale={w}:{h},setsar=1"),
-            "-fps_mode",
-            "cfr",
-            "-r",
-            &fps.to_string(),
-            "-c:v",
-            "libx264",
-            "-preset",
-            "veryfast",
-            "-crf",
-            "18",
-            "-g",
-            "15",
-            "-pix_fmt",
-            "yuv420p",
-            &paths::display(&part),
-        ]
-        .iter()
-        .map(|s| s.to_string())
-        .collect();
-        let code = progress::ffmpeg(LABEL, &cmd, Some(length.min((duration - start).max(0.1))), start, Some(duration));
-        if code != 0 {
-            return fail(&format!("Échec de la copie du rush (morceau {} sur {count})", i + 1));
+        let done = (0..count).filter(|i| chunk_path(*i).exists()).count();
+        if done > 0 {
+            progress::say(&format!("Reprise de la copie du rush : {done} morceau(x) sur {count} déjà faits"));
         }
-        if fs::rename(&part, &chunk).is_err() {
-            return fail(&format!("Échec de la copie du rush (morceau {} sur {count})", i + 1));
+        progress::say(&format!("Copie du rush {w}x{h}, {:.3} images/s, {count} morceau(x)", fps.f()));
+        if !sound.exists() {
+            let part = dir.join("son.part.flac");
+            let mut cmd = vec![ffmpeg.clone(), "-v".into(), "error".into(), "-y".into(), "-i".into(), rush_s.clone()];
+            cmd.extend(amap.iter().cloned());
+            cmd.extend(["-c:a".into(), "flac".into(), paths::display(&part)]);
+            if run_quiet(&cmd) != 0 {
+                return fail("Échec de l'extraction du son du rush");
+            }
+            if fs::rename(&part, &sound).is_err() {
+                return fail("Échec de l'extraction du son du rush");
+            }
+        }
+        let mut failed = None;
+        for i in 0..count {
+            let chunk = chunk_path(i);
+            let start = Frac::int(i as i128).mul(step).f();
+            let length = if i < count - 1 { stepf } else { (duration - start + 1.0).max(0.1) };
+            if chunk.exists() {
+                continue;
+            }
+            let part = dir.join(format!("{i:04}.part.mkv"));
+            let mut cmd: Vec<String> = vec![ffmpeg.clone(), "-v".into(), "error".into(), "-y".into(), "-ss".into(), format!("{start:.6}")];
+            cmd.extend(enc.input_args());
+            cmd.extend(["-i".into(), rush_s.clone(), "-t".into(), format!("{length:.6}"), "-map".into(), "0:v:0".into(), "-an".into()]);
+            cmd.extend(["-vf".into(), format!("scale={w}:{h},setsar=1{}", enc.filter_tail()), "-fps_mode".into(), "cfr".into(), "-r".into(), fps.to_string()]);
+            cmd.extend(enc.video_args(Rate::Crf(18), "veryfast"));
+            cmd.extend(["-g".into(), "15".into(), paths::display(&part)]);
+            let code = progress::ffmpeg(LABEL, &cmd, Some(length.min((duration - start).max(0.1))), start, Some(duration));
+            if code != 0 || fs::rename(&part, &chunk).is_err() {
+                failed = Some(i);
+                break;
+            }
+        }
+        match failed {
+            None => break,
+            Some(_) if enc.is_gpu() => {
+                gpu::give_up(&enc);
+                enc = Encoder::cpu();
+            }
+            Some(i) => return fail(&format!("Échec de la copie du rush (morceau {} sur {count})", i + 1)),
         }
     }
     // Morceaux bout à bout (chacun dure exactement « step » secondes), son encodé en AAC.

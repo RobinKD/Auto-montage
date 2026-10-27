@@ -16,6 +16,7 @@ mod difflib;
 mod export;
 mod ffmpeg_limite;
 mod fonts_lib;
+mod gpu;
 mod join_rushes;
 mod local_server;
 mod look;
@@ -67,6 +68,7 @@ const COMMANDS: &[(&str, Cmd, &str)] = &[
     ("export", export::main, "copies pour les plateformes (YouTube, TikTok, Instagram…) : out/export/"),
     ("make_downloads", make_downloads::main, "page des téléchargements"),
     ("make_hd", make_hd::main, "source 4K des images gardées"),
+    ("gpu", gpu::main, "carte graphique pour encoder (essai, résultat dans work/gpu.json)"),
     ("project", project::main, "montages enregistrés (save, open, delete)"),
     ("place", place::main, "libérer de la place"),
     ("memoire", memoire::main, "mémoire nécessaire à la préparation"),

@@ -172,7 +172,8 @@ pub fn main(_args: &[String]) -> i32 {
     0
 }
 
-/// Installe whisper.cpp (compilé pour le CPU) et télécharge les modèles utilisés par
+/// Installe whisper.cpp (version publiée compilée pour le CPU, ou compilé ici : avec CUDA ou Vulkan
+/// si leur boîte à outils est installée, `gpu::whisper_flag`) et télécharge les modèles utilisés par
 /// transcribe_segments et prepare. Ne refait rien si tout est déjà là ; des programmes déjà
 /// compilés trouvés par `paths::whisper_bin` (montage/bin/, PATH) suffisent.
 pub fn setup_whisper(_args: &[String]) -> i32 {
@@ -210,9 +211,29 @@ pub fn setup_whisper(_args: &[String]) -> i32 {
         // Même compilation que « make » de whisper.cpp (CMake dans build/, binaires dans build/bin/).
         let jobs = std::thread::available_parallelism().map(|n| n.get()).unwrap_or(2).to_string();
         let cmake = tool("cmake");
-        let mut code = call_in(&whisper, &cmake, &["-B", "build"]);
-        if code == 0 {
-            code = call_in(&whisper, &cmake, &["--build", "build", "--config", "Release", "-j", &jobs]);
+        let build = |flag: Option<&str>| -> i32 {
+            let mut code = call_in(&whisper, &cmake, &[&["-B", "build"][..], flag.as_slice()].concat());
+            if code == 0 {
+                code = call_in(&whisper, &cmake, &["--build", "build", "--config", "Release", "-j", &jobs]);
+            }
+            code
+        };
+        // Calcul par la carte graphique (CUDA, Vulkan) si sa boîte à outils est là (gpu.rs,
+        // AM_GPU=0 : non) ; échec : compilation pour le processeur seul.
+        let mut code = match crate::gpu::whisper_flag() {
+            Some((flag, name)) => {
+                println!("Compilation de whisper.cpp avec {name} (carte graphique)");
+                let code = build(Some(flag));
+                if code != 0 {
+                    println!("Échec de la compilation avec {name} : compilation pour le processeur");
+                    util::remove_all(whisper.join("build"));
+                }
+                code
+            }
+            None => 1,
+        };
+        if code != 0 {
+            code = build(None);
         }
         if code != 0 {
             eprintln!("Échec de la compilation de whisper.cpp (cmake, code {code})");

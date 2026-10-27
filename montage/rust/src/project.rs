@@ -41,10 +41,11 @@ pub const SHARED: [&str; 21] = [
     "rendu_parties", "memoire_mesures.json", "tache.json", "reprise",
 ];
 /// Hors de work/ : déplacés (lourds) ou copiés (suivis par git, restent en place).
-pub const MOVED: [&str; 7] = [
+pub const MOVED: [&str; 8] = [
     "public/rushes/rush_1080.mp4",
     "public/rushes/rush_1080.webm",
-    "public/rushes/rush_2160.webm",
+    "public/rushes/rush_2160.mp4",
+    "public/rushes/rush_2160.webm", // source 4K des versions précédentes (VP9)
     "public/audio",
     "out/montage_apercu.mp4",
     "out/montage_4k.mp4",

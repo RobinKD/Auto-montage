@@ -111,13 +111,14 @@ pub const RATES: [(&str, &str, f64, bool); 21] = [
     ("étape:rendu de la vidéo entière", "fixe", 20.0, true),
     ("étape:rendu 1080p", "fixe", 20.0, true),
     // 4K, mesuré sur 4 cœurs (rush de 5 min, montage de 39 s) : la source 4K relit tout le rush
-    // (décodage 4K, ~1,9 s par seconde de rush) ; rendu 4K HyperFrames (2 navigateurs) ~13 à 30 s
+    // (décodage 4K, ~1,9 s par seconde de rush en VP9 ; en H.264 depuis, 6 à 8 fois plus rapide sur 4
+    // cœurs : 20 s gardées sur 30 s de rush en 47 s au lieu de 383 s) ; rendu 4K HyperFrames (2 navigateurs) ~13 à 30 s
     // par seconde de montage (montage de 18 s en 4 à 9 min sur 4 cœurs).
     // Analyse du style : échelle = durée totale des vidéos d'exemple ; Claude, durée fixe.
     ("Analyse des vidéos d'exemple", "rush", 0.6, false),
     ("étape:mesures des vidéos d'exemple", "fixe", 3.0, true),
     ("étape:analyse par Claude", "fixe", 150.0, true),
-    ("Source 4K", "rush", 1.9, false),
+    ("Source 4K", "rush", 0.4, false),
     ("Rendu 4K", "montage", 20.0, true),
     ("étape:rendu 4K", "fixe", 20.0, true),
     // Export pour les plateformes (export.rs) : échelle = durée du montage pour chaque copie,
