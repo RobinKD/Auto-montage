@@ -39,6 +39,12 @@
   .tabs { display: flex; gap: 6px; }
   /* Le lecteur occupe la place libre, aux proportions du rush. */
   .screen-box { flex: 1; min-height: 120px; container-type: size; display: grid; place-items: center; }
+  /* Frise du moment ouverte : lecteur à la taille qu'il a sans elle (« Vidéo entière ») ; la page
+     s'allonge au lieu de le rétrécir (lockScreen). */
+  .app.locked { height: auto; min-height: calc(100vh - var(--am-top, 0px)); }
+  .app.locked .stage { flex: none; }
+  .app.locked .screen-box { flex: none; height: var(--screen-h); }
+  .app.locked .inspector { contain: size; }
   .screen { background: var(--frame); border-radius: 6px; overflow: hidden; aspect-ratio: var(--ar, 9 / 16);
     width: min(100cqw, calc(100cqh * var(--arn, 0.5625))); height: auto; }
   .screen { position: relative; container-type: inline-size; }
@@ -2085,7 +2091,8 @@ ${HFAudio.voiceElements(spec)}
     const film = el("div", "film");
     if (width <= 0) return film;
     if (!STRIP) {
-      if (fallback) { const sp = el("span"); Object.assign(sp.style, { width: "100%", backgroundImage: `url(${fallback})`, backgroundSize: "cover", backgroundPosition: "center" }); film.append(sp); }
+      // Vignette du moment répétée à sa taille (étirée sur toute la largeur, elle devenait floue).
+      if (fallback) { const sp = el("span"); Object.assign(sp.style, { width: "100%", backgroundImage: `url(${fallback})`, backgroundSize: `${(height * FRAME_W) / FRAME_H}px ${height}px`, backgroundRepeat: "repeat-x" }); film.append(sp); }
       return film;
     }
     const tw = (height * STRIP.w) / STRIP.h, per = STRIP.tile * STRIP.tile, n = Math.max(1, Math.ceil(width / tw));
@@ -2102,6 +2109,24 @@ ${HFAudio.voiceElements(spec)}
     return film;
   }
   // Règle d'une frise (len secondes à pps pixels par seconde) ; glisser : la tête de lecture suit.
+  // Tête de lecture glissée près d'un bord de la frise du moment (5 % de sa largeur, ou au-delà) :
+  // la frise défile, d'autant plus vite que le pointeur est près du bord, et la tête suit le pointeur.
+  function edgePan(sc, seekAt) {
+    let x = null, raf = 0;
+    const tick = () => {
+      raf = 0;
+      if (x === null || !sc) return;
+      const r = sc.getBoundingClientRect(), zone = Math.max(8, r.width * 0.05);
+      const depth = x < r.left + zone ? -(r.left + zone - x) / zone : x > r.right - zone ? (x - (r.right - zone)) / zone : 0;
+      if (!depth) return;
+      const before = sc.scrollLeft;
+      sc.scrollLeft += Math.sign(depth) * Math.ceil(14 * Math.min(1, Math.abs(depth)));
+      if (sc.scrollLeft === before) return;  // au bout de la frise
+      seekAt(x);
+      raf = requestAnimationFrame(tick);
+    };
+    return { move(cx) { x = cx; if (!raf) raf = requestAnimationFrame(tick); }, stop() { x = null; cancelAnimationFrame(raf); raf = 0; } };
+  }
   function ruler(len, pps, onSeek, long) {
     const r = el("div", "ruler");
     const steps = [0.1, 0.25, 0.5, 1, 2, 5, 10, 15, 30, 60, 120, 300, 600];
@@ -2118,9 +2143,11 @@ ${HFAudio.voiceElements(spec)}
       ev.preventDefault();
       r.setPointerCapture(ev.pointerId);
       const at = (e) => { const b = r.getBoundingClientRect(); onSeek(Math.max(0, Math.min(len, (e.clientX - b.left) / pps))); };
-      at(ev);
-      const up = () => { r.removeEventListener("pointermove", at); r.removeEventListener("pointerup", up); };
-      r.addEventListener("pointermove", at);
+      const pan = long ? null : edgePan(r.closest(".tlk-scroll"), (x) => at({ clientX: x }));
+      const move = (e) => { at(e); if (pan) pan.move(e.clientX); };
+      move(ev);
+      const up = () => { if (pan) pan.stop(); r.removeEventListener("pointermove", move); r.removeEventListener("pointerup", up); };
+      r.addEventListener("pointermove", move);
       r.addEventListener("pointerup", up);
     });
     return r;
@@ -2421,11 +2448,27 @@ ${HFAudio.voiceElements(spec)}
 
   // Frise du moment ouvert : règle, effets, sous-titres mot à mot, images ; début et fin retirés
   // hachurés, repères des effets, losanges du zoom libre (clic : régler ce cadre).
+  // Lecteur à taille fixe : celle qu'il a quand la frise du moment est fermée (« Vidéo entière »).
+  // Sans cela, il prend la place laissée par cette frise, dont la hauteur change d'un moment à
+  // l'autre (effets, sous-titres). Mesurée frise cachée, sans repeindre entre les deux.
+  function lockScreen() {
+    const app = document.querySelector(".app"), sb = document.querySelector(".screen-box"), tlk = $("tlk");
+    if (!app || !sb) return;
+    const open = !tlk.hidden;
+    app.classList.remove("locked");
+    tlk.style.display = "none";  // .tlk { display: grid } passe avant l'attribut hidden
+    const h = sb.clientHeight;
+    tlk.style.display = "";
+    if (open && !matchMedia("(max-width: 900px)").matches) {
+      app.style.setProperty("--screen-h", `${h}px`);
+      app.classList.add("locked");
+    }
+  }
   function renderMomentTl() {
     const box = $("tlk"), om = openMoment();
     const old = box.querySelector(".tlk-scroll"), keep = old ? old.scrollLeft : 0;
     box.hidden = !om;
-    if (!om) { box.replaceChildren(); return; }
+    if (!om) { box.replaceChildren(); lockScreen(); return; }
     const m = om, len = momentLen(m), s0 = clipStart(m);
     const avail = Math.max(200, $("tlm-scroll").clientWidth - 16), kpps = (avail * frise.zoom) / len;
     // En-tête : moment, texte, navigation, lecture image par image, début / fin, couper, zoom, fermer.
@@ -2546,10 +2589,12 @@ ${HFAudio.voiceElements(spec)}
       ev.preventDefault();
       track.setPointerCapture(ev.pointerId);
       const at = (e) => { const r = inner.getBoundingClientRect(); seekMoment(m, (e.clientX - r.left) / kpps); };
+      const pan = edgePan(sc, (x) => at({ clientX: x }));
+      const move = (e) => { at(e); pan.move(e.clientX); };
       const wd = ev.target.closest && ev.target.closest(".wd");
       if (wd) seekMoment(m, Number(wd.dataset.a)); else at(ev);
-      const up = () => { track.removeEventListener("pointermove", at); track.removeEventListener("pointerup", up); };
-      track.addEventListener("pointermove", at);
+      const up = () => { pan.stop(); track.removeEventListener("pointermove", move); track.removeEventListener("pointerup", up); };
+      track.addEventListener("pointermove", move);
       track.addEventListener("pointerup", up);
     });
     inner.append(ruler(len, kpps, (t) => seekMoment(m, t), false), track, el("span", "phead"));
@@ -2563,6 +2608,7 @@ ${HFAudio.voiceElements(spec)}
       setZoom(d);
     });
     box.replaceChildren(head, labels, sc);
+    lockScreen();
     sc.scrollLeft = keep;
     drawPlayheads();
   }
@@ -2715,6 +2761,15 @@ ${HFAudio.voiceElements(spec)}
     const w = words.find((x) => t >= x.a && t < x.b), prev = [...words].reverse().find((x) => x.b <= t);
     return `${t.toFixed(2)} s · ${w ? `« ${w.text} »` : prev ? `après « ${prev.text} »` : "avant la parole"}`;
   }
+  // Tête de lecture déplacée (pas pendant la lecture) : chaque frise est centrée sur elle, sauf
+  // celle où on vient de cliquer ou de glisser (scrubFrom ; clavier ou ailleurs : les deux).
+  let scrubFrom = null;
+  const centered = { rush: null, moment: null };
+  function center(which, sc, x, t) {
+    if (centered[which] !== null && Math.abs(centered[which] - t) < 1e-3) return;  // pas bougé : défilement de l'utilisateur gardé
+    centered[which] = t;
+    if (scrubFrom !== which) sc.scrollLeft = Math.max(0, x - sc.clientWidth / 2);
+  }
   function drawPlayheads() {
     const om = openMoment(), playing = !player.paused;
     const kin = document.querySelector("#tlk .tlk-in");
@@ -2727,6 +2782,8 @@ ${HFAudio.voiceElements(spec)}
       if (play) { play.textContent = here ? "❚❚" : "▶"; play.setAttribute("aria-label", here ? "Pause" : "Lecture du moment"); }
       const sc = kin.parentElement;
       if (here && ph && (ph.offsetLeft < sc.scrollLeft || ph.offsetLeft > sc.scrollLeft + sc.clientWidth - 16)) sc.scrollLeft = ph.offsetLeft - sc.clientWidth / 4;
+      if (!playing && ph) center("moment", sc, t * kpps, clipStart(om) + t);
+      if (playing) centered.moment = null;
     }
     let rt = null;
     if (mode === "moment" && currentMoment !== null) {
@@ -2738,7 +2795,7 @@ ${HFAudio.voiceElements(spec)}
       ph.style.display = rt === null ? "none" : "";
       if (rt !== null) {
         ph.style.left = `${rt * frise.pps}px`;
-        if (playing) revealRush(rt);
+        if (playing) { revealRush(rt); centered.rush = null; } else center("rush", $("tlm-scroll"), rt * frise.pps, rt);
       }
     }
     const tcEl = $("tl-tc");
@@ -2782,6 +2839,11 @@ ${HFAudio.voiceElements(spec)}
   const actionOf = (e) => { const c = comboOf(e); return c ? (SHORTCUTS.find(([id]) => keyMap[id].includes(c)) || [null])[0] : null; };
   const keyLabel = (id) => (keyMap[id] && keyMap[id].length ? keyMap[id].join(" ou ") : "sans raccourci");
   let keysCapture = null;  // action dont la nouvelle combinaison est attendue (fenêtre « Raccourcis »)
+  document.addEventListener("keydown", () => { scrubFrom = null; }, true);
+  document.addEventListener("pointerdown", (e) => {
+    const t = e.target.closest ? e.target : null;
+    scrubFrom = t && t.closest("#tlm-scroll") ? "rush" : t && t.closest("#tlk .tlk-scroll") ? "moment" : null;
+  }, true);
   document.addEventListener("keydown", (e) => {
     if (e.defaultPrevented || keysCapture) return;
     const act = actionOf(e), t = e.target;

@@ -256,7 +256,9 @@ interne : les changements attendent la prochaine version.
   place, clic : son début, aussi en dérushage), et toujours la ligne « Vidéo » (images du moment) en
   bas ; début et fin retirés hachurés sur toute la hauteur, zoom `frise.zoom`). Molette ou deux doigts
   sur une frise : défilement (`wheelPan`) ; Ctrl + molette ou pincement : zoom (`setRushPps`,
-  `setZoom`). Images : planches `work/moments/frames/sNNN.jpg` (une image toutes les
+  `setZoom`). Tête de lecture déplacée : l'autre frise se centre sur elle (`center`, `scrubFrom`) ;
+  glissée dans les 5 % du bord de la frise du moment, celle-ci défile (`edgePan`). Moment ouvert :
+  lecteur à la taille qu'il a sans la frise du moment (`lockScreen`, la page s'allonge). Images : planches `work/moments/frames/sNNN.jpg` (une image toutes les
   0,5 s, `moments_lib.timeline_strip`, DATA `strip`) ; forme d'onde : `timeline_wave` (DATA
   `wave`, 20 crêtes par seconde). Sélection Maj / Ctrl + clic (`pickMoment` : garder ou retirer
   d'un coup) ; clavier (modifiable, « Raccourcis ») : Espace, ← →, Maj + ← →, C (couper), Échap. Effets réglés dans
