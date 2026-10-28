@@ -59,8 +59,29 @@ installateurs (voir `packaging/README.md`).
   du montage en cours à tout moment (par exemple pour revenir au dérushage).
 - En dérushage, le bouton « À vérifier » et les mots à vérifier n'apparaissent que si les
   sous-titres sont montrés, et suivent tout de suite la case « Sous-titres ».
+- Le mode développeur de la 0.69 (page « Mises à jour ») n'est pas repris dans cette version.
 - Au premier lancement de cette version, le nouveau modèle se télécharge (2,5 Go) et l'ancien
   modèle de Whisper (1,6 Go) est remplacé par sa version allégée : 3,4 Go en tout.
+
+## 0.70
+
+- **La 4K d'une longue vidéo ne s'arrête plus en route** (« Échec du rendu HyperFrames (code 1) ») :
+  en 4K, le navigateur du rendu garde en mémoire chaque image de la vidéo qu'il a affichée (environ
+  4 Mo par image), et au bout de 45 s de vidéo environ, une machine de 8 Go était pleine et le rendu
+  se bloquait. La 4K est maintenant rendue par parties plus courtes (30 s sur une machine de 8 Go,
+  plus longues s'il y a plus de mémoire), chacune avec un navigateur neuf, puis assemblées.
+- Avec plusieurs navigateurs en 4K, les images ne sont plus écrites sur le disque avant d'être
+  encodées (18 Go pour une partie de 2 min 30) : elles vont directement dans la vidéo.
+
+## 0.69
+
+- **Mode développeur** : caché par défaut ; comme sur Android, toucher 7 fois de suite le numéro
+  de version de la page « Mises à jour » le fait apparaître. Il permet de choisir une branche du
+  dépôt GitHub (par exemple `dev`) et d'installer son dernier état pour essayer du code pas encore
+  publié. Montages, rushes, rendus et réglages sont gardés comme pour
+  une mise à jour. La page dit quelle branche et quel commit sont installés, propose « Mettre à jour
+  depuis la branche » quand elle a changé, et « Revenir à la version publiée ». Le menu montre
+  « branche … » à côté de « Mises à jour » tant qu'une branche est installée.
 
 ## 0.68
 
