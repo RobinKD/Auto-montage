@@ -24,9 +24,12 @@ wait_job() {  # attend la fin de la tâche en cours, affiche les étapes
     state="$(echo "$job" | json 'd["state"]')"
     step="$(echo "$job" | json 'd["step"]')"
     [ "$step" != "$last" ] && echo "  [$((SECONDS - t0)) s] $step" && last="$step"
-    # Barres de progression : opérations vues pendant la tâche (vérifiées après).
-    label="$(echo "$job" | json '(d.get("progress") or {}).get("label", "")')"
-    [ -n "$label" ] && case "$LABELS" in *"|$label|"*) ;; *) LABELS="${LABELS:-|}$label|" ; echo "    barre : $label" ;; esac
+    # Barres de progression : opérations vues pendant la tâche (vérifiées après). Celle en
+    # cours, et toutes celles de la tâche (ops) : une opération plus courte que l'intervalle
+    # entre deux lectures (transcription reprise de morceaux gardés) y figure aussi.
+    while IFS= read -r label; do
+      [ -n "$label" ] && case "$LABELS" in *"|$label|"*) ;; *) LABELS="${LABELS:-|}$label|" ; echo "    barre : $label" ;; esac
+    done < <(echo "$job" | json '"\n".join([(d.get("progress") or {}).get("label", "")] + list(d.get("ops") or {}))')
     case "$state" in
       done) return 0 ;;
       error) echo "$job" | json '"\n".join(d["log"][-30:])' >&2; fail "tâche en erreur : $(echo "$job" | json 'd["error"]')" ;;
