@@ -24,9 +24,12 @@ wait_job() {  # attend la fin de la tâche en cours, affiche les étapes
     state="$(echo "$job" | json 'd["state"]')"
     step="$(echo "$job" | json 'd["step"]')"
     [ "$step" != "$last" ] && echo "  [$((SECONDS - t0)) s] $step" && last="$step"
-    # Barres de progression : opérations vues pendant la tâche (vérifiées après).
-    label="$(echo "$job" | json '(d.get("progress") or {}).get("label", "")')"
-    [ -n "$label" ] && case "$LABELS" in *"|$label|"*) ;; *) LABELS="${LABELS:-|}$label|" ; echo "    barre : $label" ;; esac
+    # Barres de progression : opérations vues pendant la tâche (vérifiées après). Celle en
+    # cours, et toutes celles de la tâche (ops) : une opération plus courte que l'intervalle
+    # entre deux lectures (transcription reprise de morceaux gardés) y figure aussi.
+    while IFS= read -r label; do
+      [ -n "$label" ] && case "$LABELS" in *"|$label|"*) ;; *) LABELS="${LABELS:-|}$label|" ; echo "    barre : $label" ;; esac
+    done < <(echo "$job" | json '"\n".join([(d.get("progress") or {}).get("label", "")] + list(d.get("ops") or {}))')
     case "$state" in
       done) return 0 ;;
       error) echo "$job" | json '"\n".join(d["log"][-30:])' >&2; fail "tâche en erreur : $(echo "$job" | json 'd["error"]')" ;;
@@ -98,9 +101,6 @@ echo "  préparée à nouveau avec ce qui était gardé, en pause ($label), repr
 curl -fsS -X POST "$URL/api/job/resume" >/dev/null || fail "reprise"
 wait_job
 curl -fsS "$URL/api/logs/rapport" | has "Parties gardées" || fail "parties gardées non signalées au journal"
-# Mémoire mesurée (pas pour l'étape reprise en route : une partie était déjà faite).
-curl -fsS "$URL/api/memoire?rush=$NAME" | json '[o["op"] for o in d["operations"] if o["measured"]]' | has "Rendu de la vidéo" \
-  || fail "mémoire du rendu non mesurée"
 curl -fsS "$URL/api/job" | json 'd["paused"]' | has -x None || fail "tâche en pause restée après la reprise"
 case "$LABELS" in *Transcription*) ;; *) fail "pas de barre de progression « Transcription » (vu : ${LABELS:-aucune})" ;; esac
 
@@ -112,14 +112,12 @@ N="$(echo "$DATA" | json 'len([m for m in d["moments"] if not m.get("gap")])')"
 [ "$N" -ge 3 ] || fail "seulement $N moments de parole"
 echo "  $N moments de parole"
 echo "$DATA" | json '[c["id"] for c in d["sfxCatalog"]]' | has "perso-bip-essai" || fail "son personnel absent des effets de la page"
-for f in /montage.mp4 /out/montage_apercu.mp4 "$(echo "$DATA" | json 'd["moments"][0]["clip"]' | sed 's|^|/|')"; do
-  [ "$(curl -s -o /dev/null -w '%{http_code}' -H 'Range: bytes=0-99' "$URL$f")" = 206 ] || fail "vidéo $f"
-done
+[ "$(curl -s -o /dev/null -w '%{http_code}' -H 'Range: bytes=0-99' "$URL$(echo "$DATA" | json 'd["moments"][0]["clip"]' | sed 's|^|/|')")" = 206 ] \
+  || fail "extrait du premier moment"
 # Frises de la page : images du rush et forme d'onde.
 SHEET="$(echo "$DATA" | json 'd["strip"]["sheets"][0]')"
 curl -fsS -o /dev/null "$URL/$SHEET" || fail "images de la frise ($SHEET)"
 echo "$DATA" | json 'len(d["wave"]) > 0' | has -x True || fail "forme d'onde absente de la page"
-curl -fsS "$URL/downloads/" | has "1080p" || fail "page des téléchargements"
 curl -fsS "$URL/chat/" | has "Discuter\|Claude" || fail "page de discussion"
 curl -fsS "$URL/logs/" | has "Journal" || fail "page Journal"
 curl -fsS "$URL/tutoriel/" | has "Sans Claude Code" || fail "page Tutoriel"
@@ -146,6 +144,22 @@ echo "  police des sous-titres : $FONT"
 # Vidéo d'exemple : durée prévue de son analyse (l'analyse elle-même demande Claude).
 curl -fsS -X PUT --data-binary "@$RUSH" "$URL/api/style/videos/exemple.mov" >/dev/null || fail "envoi d'une vidéo d'exemple"
 curl -fsS "$URL/api/style/analyse" | json 'd["videos"], d["estimate"] > 0' | has "exemple.mov" || fail "analyse du style (estimation)"
+# Préparation sans consignes : pas de rendu, la vidéo entière se joue en direct sur la page.
+if [ "$WITH_CLAUDE" = false ]; then
+  echo "$DATA" | json 'd["working"]' | has -x None || fail "vidéo entière rendue pendant une préparation sans consignes"
+  echo "5a. Générer la vidéo entière avec les moments suggérés"
+  KEEP="$(echo "$DATA" | json 'json.dumps([m["id"] for m in d["moments"] if m["suggested"]])')"
+  curl -fsS -X POST -H "content-type: application/json" \
+    -d "{\"variant\": \"suggestions\", \"name\": \"Suggestions\", \"keep\": $KEEP}" "$URL/api/regen" >/dev/null || fail "lancement de la génération"
+  LABELS=""
+  wait_job
+  DATA="$(curl -fsS "$URL/" | sed -n 's/^  const DATA = \(.*\);$/\1/p')"
+fi
+for f in /montage.mp4 /out/montage_apercu.mp4; do
+  [ "$(curl -s -o /dev/null -w '%{http_code}' -H 'Range: bytes=0-99' "$URL$f")" = 206 ] || fail "vidéo $f"
+done
+curl -fsS "$URL/api/logs/rapport" | has "Mémoire mesurée : .*Rendu de la vidéo" || fail "mémoire du rendu non mesurée"
+curl -fsS "$URL/downloads/" | has "1080p" || fail "page des téléchargements"
 D1="$(echo "$DATA" | json 'd["working"]["duration"]')"
 echo "  vidéo entière : $D1 s"
 
@@ -185,18 +199,22 @@ case "$LABELS" in *"Assemblage des vidéos"*) ;; *) fail "pas de barre « Assemb
 curl -fsS "$URL/" | has '"rush": "essai (assemblage de 2).mov"' || fail "page des moments du rush assemblé"
 curl -fsS "$URL/api/projects" | json '[p["rush"] for p in d["saved"]]' | has "essai.mov" || fail "montage d'essai.mov pas mis de côté"
 
-echo "8. Fusionner deux moments, puis les séparer (page des moments)"
+echo "8. Couper un moment en deux, puis recoller la partie (page des moments)"
 pdata() { curl -fsS "$URL/" | python3 -c "import json,re,sys; d=json.loads(re.search(r'^  const DATA = (\{.*\});$', sys.stdin.read(), re.M).group(1)); print($1)"; }
-FIRST="$(pdata '[m["id"] for m in d["moments"] if not m.get("gap")][0] if sum(1 for m in d["moments"] if not m.get("gap")) > 1 else ""')"
+FIRST="$(pdata 'next((m["id"] for m in d["moments"] if not m.get("gap") and len(m["words"]) > 1), "")')"
 if [ -n "$FIRST" ]; then
-  curl -fsS -X POST -H "content-type: application/json" -d "{\"id\": $FIRST}" "$URL/api/moments/merge" >/dev/null || fail "fusion de deux moments"
+  N0="$(pdata 'len(d["moments"])')"
+  T="$(pdata 'next(m["words"][1]["a"] for m in d["moments"] if m["id"] == '"$FIRST"')')"
+  curl -fsS -X POST -H "content-type: application/json" -d "{\"id\": $FIRST, \"t\": $T}" "$URL/api/moments/split" >/dev/null || fail "« Couper » un moment"
   wait_job
-  pdata '[m["id"] for m in d["moments"] if m.get("merged")]' | has -x "\[$FIRST\]" || fail "moment fusionné absent de la page"
-  curl -fsS -X POST -H "content-type: application/json" -d "{\"id\": $FIRST}" "$URL/api/moments/unmerge" >/dev/null || fail "séparation du moment fusionné"
+  [ "$(pdata 'len(d["moments"])')" = "$((N0 + 1))" ] || fail "pas de moment de plus après « Couper »"
+  PART="$(pdata '[m["id"] for m in d["moments"] if m.get("splitFrom") == '"$FIRST"' and m["id"] != '"$FIRST"'][0]')"
+  curl -fsS -X POST -H "content-type: application/json" -d "{\"id\": $PART}" "$URL/api/moments/unsplit" >/dev/null || fail "« Recoller » la partie coupée"
   wait_job
-  pdata '[m["id"] for m in d["moments"] if m.get("merged")]' | has -x "\[\]" || fail "moment toujours fusionné après « Séparer »"
+  [ "$(pdata 'len(d["moments"])')" = "$N0" ] || fail "moment toujours coupé après « Recoller »"
+  echo "  moment $FIRST coupé ($PART), puis recollé"
 else
-  echo "  (un seul moment de parole : étape passée)"
+  echo "  (pas de moment de deux mots : étape passée)"
 fi
 
 echo "Tout est bon."

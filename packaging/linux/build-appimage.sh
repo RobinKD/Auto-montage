@@ -1,5 +1,7 @@
 #!/bin/bash
 # Construit Auto-montage-<version>-x86_64.AppImage (Linux).
+# Le projet doit contenir le programme Linux x86_64 (make-payload.sh <dossier> <version>
+# <auto-montage-linux-x86_64> : montage/bin/auto-montage).
 # Usage : packaging/linux/build-appimage.sh <dossier du projet (make-payload.sh)> <dossier de sortie>
 set -euo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
@@ -7,6 +9,8 @@ ROOT="$(cd "$HERE/../.." && pwd)"
 PAYLOAD="$(cd "$1" && pwd)"
 OUT="$(mkdir -p "$2" && cd "$2" && pwd)"
 VERSION="$(cat "$PAYLOAD/VERSION")"
+[ -x "$PAYLOAD/montage/bin/auto-montage" ] \
+  || { echo "Programme absent du projet : $PAYLOAD/montage/bin/auto-montage (make-payload.sh, 3e argument)." >&2; exit 1; }
 WORKDIR="$(mktemp -d)"
 APPDIR="$WORKDIR/Auto-montage.AppDir"
 
@@ -14,8 +18,8 @@ mkdir -p "$APPDIR"
 cp "$HERE/AppRun" "$APPDIR/AppRun"
 chmod +x "$APPDIR/AppRun"
 cp "$HERE/auto-montage.desktop" "$APPDIR/"
-cp "$ROOT/docker/icon.png" "$APPDIR/auto-montage.png"
-cp "$ROOT/docker/icon.png" "$APPDIR/.DirIcon"
+cp "$ROOT/icons/icon.png" "$APPDIR/auto-montage.png"
+cp "$ROOT/icons/icon.png" "$APPDIR/.DirIcon"
 cp -a "$PAYLOAD" "$APPDIR/payload"
 
 TOOL="${APPIMAGETOOL:-$WORKDIR/appimagetool}"

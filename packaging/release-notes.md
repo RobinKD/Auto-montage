@@ -6,18 +6,21 @@
 | macOS (Intel et Apple Silicon) | `Auto-montage-…-macOS.dmg` |
 | Linux (x86_64) | `Auto-montage-…-x86_64.AppImage` |
 
-Auto-montage fonctionne dans un conteneur : il faut **Docker Desktop** (Windows, macOS ; gratuit
-pour un usage personnel) ou **Docker / Podman** (Linux). Le premier lancement installe le
-reste (10 à 20 min, environ 5 Go) ; les suivants prennent quelques secondes.
+Les installateurs contiennent le programme ; rien d'autre à installer avant. Le premier
+lancement télécharge et installe le reste (10 à 20 min, environ 5 Go, connexion Internet
+nécessaire) ; les suivants prennent quelques secondes. Auto-montage tourne dans une fenêtre de
+terminal qui reste ouverte pendant qu'on l'utilise (la fermer l'arrête) et ouvre l'interface dans
+le navigateur.
 
 ### Windows
 
 1. Lancer l'installateur. Windows affiche « Windows a protégé votre ordinateur » (l'installateur
    n'est pas signé) : cliquer sur **Informations complémentaires**, puis **Exécuter quand même**.
-2. À la fin, laisser cochée « Vérifier Docker Desktop et lancer Auto-montage ». S'il manque,
-   l'installateur propose d'installer Docker Desktop ; redémarrer ensuite l'ordinateur.
-3. Lancer **Auto-montage** depuis le bureau. Les autres actions (téléchargements, dossier des
-   rushes, Claude Code, arrêt) sont dans le menu Démarrer > Auto-montage.
+2. À la fin, laisser cochée « Lancer Auto-montage » : une fenêtre montre l'installation du
+   reste, puis le navigateur s'ouvre sur l'interface.
+3. Les fois suivantes, lancer **Auto-montage** depuis le bureau. Les autres actions
+   (téléchargements, dossier des rushes, Claude Code, arrêt) sont dans le menu Démarrer >
+   Auto-montage.
 
 Le projet est installé dans `Documents\Auto-montage` ; les rushes vont dans
 `Documents\Auto-montage\montage\public\rushes` (raccourci « Dossier des rushes »).
@@ -36,9 +39,8 @@ Le projet est installé dans `Documents\Auto-montage` ; les rushes vont dans
    - ou, dans le **Terminal** (Applications > Utilitaires), coller cette ligne puis Entrée :
      `xattr -dr com.apple.quarantine /Applications/Auto-montage.app`, et ouvrir l'application.
    À refaire une seule fois par version.
-3. Installer [Docker Desktop](https://www.docker.com/products/docker-desktop/) si l'application
-   le demande, le lancer une fois, puis rouvrir Auto-montage.
-4. Accepter que l'application contrôle le Terminal (il affiche l'avancement).
+3. Accepter que l'application contrôle le Terminal : Auto-montage y tourne et y affiche
+   l'avancement.
 
 Le projet est copié dans `~/Auto-montage` (dossier personnel).
 
@@ -47,11 +49,8 @@ Le projet est copié dans `~/Auto-montage` (dossier personnel).
 1. Rendre le fichier exécutable : clic droit > Propriétés > Autoriser l'exécution, ou
    `chmod +x Auto-montage-*.AppImage`.
 2. L'ouvrir. Il copie le projet dans `~/Auto-montage`, ajoute **Auto-montage** au menu des
-   applications (clic droit : téléchargements, dossier des rushes, Claude Code, terminal, arrêt)
-   et ouvre l'interface.
-3. Docker ou Podman est nécessaire : par exemple `sudo apt install podman podman-compose`
-   (Debian, Ubuntu) ou `sudo dnf install podman podman-compose` (Fedora). Podman est utilisé
-   automatiquement si Docker n'est pas disponible.
+   applications (clic droit : téléchargements, dossier des rushes, Claude Code, arrêt) et
+   lance Auto-montage dans une fenêtre de terminal, qui ouvre l'interface dans le navigateur.
 
 Si l'AppImage ne s'ouvre pas (message sur FUSE) : `sudo apt install libfuse2` (Ubuntu 22.04 et
 plus récent), ou lancer `./Auto-montage-*.AppImage --appimage-extract-and-run`.

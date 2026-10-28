@@ -4,6 +4,65 @@ Chaque version publiée reprend sa section dans ses notes (onglet Releases). Une
 section, le numéro dans `VERSION` et le tag `v<numéro>` poussé publient la version avec ses
 installateurs (voir `packaging/README.md`).
 
+## 1.0
+
+- **Auto-montage tourne directement sur l'ordinateur**, sans Docker : un seul programme fait toutes
+  les étapes, s'installe avec les installateurs Windows, macOS et Linux, et télécharge ce qui lui
+  manque au premier lancement.
+- **Dérushage d'abord** : un nouveau rush s'ouvre en dérushage (choix et découpe des moments,
+  sous-titres à regarder et corriger). Les boutons « Dérushage » et « Auto-montage » du bandeau
+  disparaissent : « Valider le dérush », en haut de la page des moments, propose soit « Télécharger derush »
+  (les moments gardés mis bout à bout, puis le menu « Télécharger »), soit de passer à
+  l'auto-montage ; « Générer la vidéo entière » n'apparaît plus qu'en auto-montage. Les moments gardés deviennent alors une
+  seule vidéo, d'un seul moment, sur laquelle on règle effets et son (le dérush reste dans
+  « Montages »).
+- **Couper** sépare maintenant le moment en deux moments, de chaque côté de la tête de lecture,
+  chacun gardé ou retiré à part ; « Recoller » les réunit. « Scinder » et les fusions de moments
+  disparaissent, ainsi que le bouton « Vidéo générée ».
+- **Raccourcis** : nouveau bouton à gauche de « Menu » sur la page des moments, qui liste les
+  raccourcis clavier et permet de les changer (touche C : couper).
+- La molette ou le pavé tactile font défiler les frises (Ctrl + molette : zoom). Les sous-titres
+  se corrigent et se voient sur la frise du moment aussi en dérushage. L'onglet « Tout le montage »
+  devient « Paramètres sous-titres » en dérushage et « Paramètres effets et son » en auto-montage.
+  « Revenir aux suggestions » devient « Revenir au derush initial ».
+- **Préparation plus courte** : sans consignes, la vidéo entière n'est plus rendue pendant la
+  préparation ; elle se joue en direct sur la page des moments et n'est rendue qu'au premier
+  « Générer ».
+- **4K 6 à 8 fois plus rapide à préparer** : la source 4K est faite en H.264 à partir du rush
+  d'origine (ses propres images quand il est en 4K), au lieu de VP9.
+- **Carte graphique** utilisée pour encoder les vidéos quand il y en a une qui marche (sinon le
+  processeur, comme avant), et Whisper utilise tous les cœurs de la machine (8 au plus).
+- Volume normalisé pour les plateformes, sous-titres en fichiers SRT et WebVTT, annuler / rétablir
+  sur la page des moments, couleurs, effets d'image et transitions, cadrage sur la personne qui
+  parle, copies pour les plateformes (YouTube, TikTok, Instagram…).
+- **Sécurité** : Claude ne lit plus que les fichiers du projet et n'écrit que les fichiers de
+  montage prévus ; l'interface ne sert plus de fichier qu'un navigateur pourrait exécuter ; les
+  téléchargements de Node, ffmpeg et des modèles de visages sont vérifiés ; bibliothèques mises à
+  jour (failles connues corrigées).
+- **Transcription 5 fois plus rapide et plus juste** : Parakeet (NVIDIA) remplace Whisper. Sur un
+  exposé de 6 min, la transcription passe de 5 min 30 à environ 1 min, et le début de chaque mot est
+  placé deux fois plus précisément, pour couper au mot près. Les noms comme « Wikipédia » et les
+  accords sont mieux écrits, et un passage dans une autre langue est transcrit dans sa langue au lieu
+  d'être traduit de travers. Whisper reste en secours (modèle allégé, 0,9 Go) pour les passages que
+  Parakeet laisse vides (hésitations isolées) ou sort dans une autre langue que celle du rush.
+- **Mots à vérifier** : sur la page des moments, les mots dont la transcription est incertaine sont
+  soulignés en orange sur la frise du moment et dans le texte du moment, avec une pastille
+  « À vérifier » et un point orange sur la frise du rush. Le bouton « À vérifier » en haut de la
+  page, ou la touche V (Maj + V pour revenir), passe d'un mot douteux au suivant. Corriger le texte
+  du moment, ou « Texte juste », les valide.
+- **Sous-titres sur moins de lignes quand il y a peu de mots** : avec 2 lignes (ou 3) demandées
+  dans le style des sous-titres, un sous-titre de 2 ou 3 mots courts tient maintenant sur une seule
+  ligne au lieu d'être coupé (« la connaissance. » au lieu de « la / connaissance. ») ; il prend
+  autant de lignes qu'il lui en faut, jusqu'au nombre demandé. Pareil sur la page des moments et
+  dans la vidéo rendue.
+- **Choix du mode dans le menu** : en tête du menu, « Dérushage » / « Auto-montage » change le mode
+  du montage en cours à tout moment (par exemple pour revenir au dérushage).
+- En dérushage, le bouton « À vérifier » et les mots à vérifier n'apparaissent que si les
+  sous-titres sont montrés, et suivent tout de suite la case « Sous-titres ».
+- Le mode développeur de la 0.69 (page « Mises à jour ») n'est pas repris dans cette version.
+- Au premier lancement de cette version, le nouveau modèle se télécharge (2,5 Go) et l'ancien
+  modèle de Whisper (1,6 Go) est remplacé par sa version allégée : 3,4 Go en tout.
+
 ## 0.70
 
 - **La 4K d'une longue vidéo ne s'arrête plus en route** (« Échec du rendu HyperFrames (code 1) ») :

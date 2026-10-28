@@ -17,44 +17,61 @@ moment, puis à regarder et télécharger la vidéo entière (1080p) et la versi
 | Téléchargements | <http://localhost:8080/downloads/>, fichiers complets | page claude.ai (fichiers découpés en morceaux de 14 Mo) |
 | Fichiers (rushes, rendus) | sur votre machine | dans la session cloud, perdus quand elle se ferme |
  
-## Installation
- 
+## Installer
+
 Télécharger le fichier de votre système dans les
 [versions publiées (Releases)](https://github.com/RobinKD/Auto-montage/releases) :
- 
+
 | Système | Fichier | Installation |
 | --- | --- | --- |
-| Windows 10/11 | `Auto-montage-…-Windows-installateur.exe` | lancer l'installateur ; il propose d'installer Docker Desktop s'il manque ; raccourci « Auto-montage » sur le bureau |
-| macOS | `Auto-montage-…-macOS.dmg` | glisser Auto-montage dans Applications ; à la première ouverture, autoriser l'application (voir ci-dessous) ; installer [Docker Desktop](https://www.docker.com/products/docker-desktop/) |
-| Linux (x86_64) | `Auto-montage-…-x86_64.AppImage` | rendre le fichier exécutable et l'ouvrir ; Docker ou Podman nécessaire |
- 
-Les installateurs ne sont pas signés : Windows affiche « Windows a protégé votre ordinateur »
-(Informations complémentaires > Exécuter quand même) et macOS refuse la première ouverture
-(« Apple n'a pas pu vérifier… » : Réglages Système > Confidentialité et sécurité > Ouvrir quand
-même, ou dans le Terminal `xattr -dr com.apple.quarantine /Applications/Auto-montage.app`). Le
-pas à pas est dans les notes de chaque version et dans le fichier LISEZ-MOI du `.dmg`.
- 
-Prérequis : un moteur de conteneurs, [Docker Desktop](https://www.docker.com/products/docker-desktop/)
-sous Windows et macOS (gratuit pour un usage personnel), Docker ou Podman sous Linux (par
-exemple `sudo apt install podman podman-compose` ou `sudo dnf install podman podman-compose`).
-Prévoir environ 8 Go de mémoire pour Docker Desktop (Réglages > Resources) et 5 Go d'espace
-disque (image 2 Go, Whisper 1,7 Go, paquets Node 0,5 Go), plus la place des rushes et des rendus.
- 
-Le projet est installé dans `~/Auto-montage` (Linux, macOS) ou `Documents\Auto-montage`
-(Windows). Les rushes vont dans `montage/public/rushes/` (action « Dossier des rushes »).
-Mises à jour : depuis la 0.20, la page « Mises à jour » de l'interface les détecte et les
-installe en un clic (montages et réglages gardés, rien à réautoriser sur Mac). Depuis la 0.51,
-elle peut aussi réinitialiser le programme : si Claude Code lancé dans le dossier a modifié des
-fichiers et cassé quelque chose, « Réinitialiser Auto-montage » les retélécharge depuis GitHub
-(données de l'utilisateur gardées). Depuis la 0.69, son « Mode développeur » installe le dernier
-état d'une branche GitHub (par exemple `dev`) pour essayer du code pas encore publié, et en revient.
-On peut aussi installer une nouvelle version par-dessus :
-rushes, rendus et sélections sont gardés.
- 
-Les actions (clic droit sur le raccourci sous Linux, menu de l'application sous macOS, menu
-Démarrer > Auto-montage sous Windows) : moments et vidéo entière, téléchargements,
-dossier des rushes, Claude Code, terminal du conteneur, arrêt.
- 
+| Windows 10/11 | `Auto-montage-…-Windows-installateur.exe` | lancer l'installateur ; raccourci « Auto-montage » sur le bureau |
+| macOS | `Auto-montage-…-macOS.dmg` | glisser Auto-montage dans Applications ; à la première ouverture, autoriser l'application (voir ci-dessous) |
+| Linux (x86_64) | `Auto-montage-…-x86_64.AppImage` | rendre le fichier exécutable et l'ouvrir |
+
+Auto-montage s'installe directement sur l'ordinateur, sans autre logiciel à installer avant. Les installateurs ne sont pas signés : Windows affiche « Windows a protégé
+votre ordinateur » (Informations complémentaires > Exécuter quand même) et macOS refuse la
+première ouverture (« Apple n'a pas pu vérifier… » : Réglages Système > Confidentialité et
+sécurité > Ouvrir quand même, ou dans le Terminal
+`xattr -dr com.apple.quarantine /Applications/Auto-montage.app`). Le pas à pas est dans les
+notes de chaque version.
+
+**Premier lancement** : Auto-montage télécharge ce qui lui manque (Node.js s'il n'y en a pas de
+version 20 ou plus, paquets de HyperFrames et son navigateur de rendu, ffmpeg, Parakeet, Whisper et leurs
+modèles, environ 3,4 Go, polices, modèles des visages, Claude Code), soit 10 à 20 min. Une
+fenêtre de terminal montre l'avancement (aussi écrit dans `montage/work/logs/demarrage.log`),
+puis le navigateur s'ouvre sur l'interface (<http://localhost:8080/>). Les lancements suivants
+prennent quelques secondes. Prévoir environ 8 Go de mémoire et 3 Go d'espace disque, plus la
+place des rushes et des rendus.
+
+Les rushes vont dans `montage/public/rushes/` du dossier d'installation (la page « Rushes et
+montages » les y copie). Mises à jour : la page « Mises à jour » de l'interface les détecte et
+les installe en un clic : nouveaux fichiers et programme compilé pour votre système, puis
+Auto-montage se relance (montages et réglages gardés, rien à réautoriser sur Mac). Elle peut
+aussi réinitialiser le programme : si Claude Code lancé dans le dossier a modifié des fichiers
+et cassé quelque chose, « Réinitialiser Auto-montage » les retélécharge depuis GitHub (données
+de l'utilisateur gardées). On peut aussi installer une nouvelle version par-dessus : rushes,
+rendus et sélections sont gardés.
+
+**Connexion à Claude Code** (une fois) : page « Connexion à Claude »
+(<http://localhost:8080/claude/>, lien dans les avertissements) : ouvrir la page d'autorisation
+(claude.ai, dans votre navigateur déjà connecté), « Autoriser », coller le code. Une clé d'API
+marche aussi (variable `ANTHROPIC_API_KEY`).
+
+### Depuis le dépôt (développement)
+
+Il faut [Rust](https://rustup.rs) (la première compilation prend quelques minutes) :
+
+```bash
+git clone https://github.com/RobinKD/Auto-montage.git
+cd Auto-montage
+montage/am start                 # Windows : montage\am.cmd start
+```
+
+`start` compile le programme, installe ce qui manque (comme au premier lancement ci-dessus),
+puis lance l'interface sur <http://127.0.0.1:8080/> et ouvre le navigateur (déjà lancée : ouvre
+seulement la page) ; `montage/am stop` l'arrête. Construire les installateurs : voir
+[`packaging/README.md`](packaging/README.md).
+
 ### Sur claude.ai (Claude Code sur le web)
  
 Claude Code sur le web ouvre un dépôt GitHub de votre compte. Le plus simple est d'en faire une
@@ -66,34 +83,12 @@ copie (fork), une fois :
 3. Sur [claude.ai/code](https://claude.ai/code), connecter votre compte GitHub et installer
    l'application Claude sur cette copie (« Only select repositories » > Auto-montage).
 4. Créer un environnement avec un accès réseau qui autorise les domaines de
-   [`montage/env/allowed-domains.txt`](montage/env/allowed-domains.txt) (modèles Whisper,
+   [`montage/env/allowed-domains.txt`](montage/env/allowed-domains.txt) (modèles de transcription,
    polices, HyperFrames…).
 5. Ouvrir une session sur votre copie, puis donner à Claude le rush (fichier ou lien de
    téléchargement) et vos consignes : il suit `CLAUDE.md`.
 Nouvelle version d'Auto-montage : sur la page de votre copie, **Sync fork** > « Update branch »,
 puis ouvrir une nouvelle session.
- 
-### Depuis le dépôt (développement)
- 
-```bash
-git clone https://github.com/RobinKD/Auto-montage.git
-cd Auto-montage
-./docker/install-desktop.sh      # Linux ; macOS : ./docker/install-macos.sh ;
-                                 # Windows : docker\install-windows.bat
-```
- 
-Sous Windows, cloner avec Git for Windows : `.gitattributes` garde les scripts au format
-attendu par le conteneur. Construire les installateurs : voir [`packaging/README.md`](packaging/README.md).
- 
-**Premier lancement** : construction de l'image puis installation de HyperFrames et de son navigateur, de Whisper
-(compilé avec ses modèles, environ 1,7 Go) et des polices, soit 10 à 20 min. Une fenêtre de
-terminal montre l'avancement, puis le navigateur s'ouvre sur la page des moments. Les
-lancements suivants prennent quelques secondes.
- 
-**Connexion à Claude Code** (une fois) : page « Connexion à Claude »
-(<http://localhost:8080/claude/>, lien dans les avertissements) : ouvrir la page d'autorisation
-(claude.ai, dans votre navigateur déjà connecté), « Autoriser », coller le code. Ou le lanceur
-« Claude Code » (terminal). Une clé d'API marche aussi (variable `ANTHROPIC_API_KEY`).
  
 ## Monter une vidéo
  
@@ -107,7 +102,7 @@ lancements suivants prennent quelques secondes.
    Consignes et style (facultatif) : écrire le montage voulu dans la zone de texte (ou choisir
    un fichier), ajouter des effets sonores (bibliothèque de sons, utilisable sur tous les
    montages) et des vidéos d'exemple dont Claude s'inspire. Si Claude Code est connecté
-   (lanceur « Claude Code », une fois), il les applique pendant la préparation ; sinon, une
+   (page « Connexion à Claude », une fois), il les applique pendant la préparation ; sinon, une
    bannière indique ce qui ne fonctionne pas.
 2. **Avec Claude** (facultatif, ou sur claude.ai) : lui donner le rush (fichier ou lien de téléchargement)
    et les consignes de montage (`instructions.md`) ; il suit `CLAUDE.md` : suggestions de
@@ -129,27 +124,28 @@ lancements suivants prennent quelques secondes.
 ## Fonctionnement
  
 ```
-rush ──prepare.sh──> transcription par segment (Whisper) + visage + bruitages
-     ──make_moments.py──> page des moments (extraits vidéo, habillage calculé dans la page)
-page ──choix (sélection, corrections, effets, découpes)──> use_selection.py
-     ──build_edit.py──> montage (clips, sous-titres, zooms, effets, voix : src/data/edit.json)
-     ──render.sh apercu | final──> rendu HyperFrames : out/montage_apercu.mp4 (1080x1920), out/montage_4k.mp4
+rush ──prepare──> transcription par segment (Parakeet) + visage + bruitages
+     ──make_moments──> page des moments (extraits vidéo, habillage calculé dans la page)
+page ──choix (sélection, corrections, effets, découpes)──> use_selection
+     ──build_edit──> montage (clips, sous-titres, zooms, effets, voix : src/data/edit.json)
+     ──render apercu | final──> rendu HyperFrames : out/montage_apercu.mp4 (1080x1920), out/montage_4k.mp4
 ```
  
 - `montage/` : scripts du montage et du rendu HyperFrames, gabarits des pages ; le détail de chaque étape
   est dans [`montage/README.md`](montage/README.md).
 - `CLAUDE.md` : déroulé suivi par Claude pour un nouveau rush.
-- `docker/` : image, lanceurs et raccourcis ; détails dans [`docker/README.md`](docker/README.md).
-- `tests/` : test de bout en bout (rush de synthèse, préparation et génération par l'interface),
-  lancé par GitHub Actions à chaque modification sur main (`.github/workflows/tests.yml`) avec
-  Docker et Podman, ou sur sa machine (`tests/e2e.sh`). Les machines Windows et macOS de GitHub ne font pas tourner de
-  conteneurs Linux : on y vérifie les installateurs et les lanceurs (`installateurs.yml`).
+- `montage/rust/` : le programme `auto-montage` (Rust), lancé par `montage/am <commande>`
+  (`montage\am.cmd` sous Windows) ; `start` et `stop` lancent et arrêtent l'interface locale.
+- `tests/` : test de bout en bout (rush de synthèse, installation par `auto-montage start`,
+  préparation et génération par l'interface), lancé par GitHub Actions sur Linux, macOS et
+  Windows à chaque modification sur main et rust (`.github/workflows/tests.yml`), ou sur sa
+  machine (`tests/e2e.sh`).
 - `packaging/` : installateurs (AppImage, .exe, .dmg) construits et publiés par GitHub Actions
   quand un tag de version `v*` est poussé (`.github/workflows/installateurs.yml`) ; voir
   [`packaging/README.md`](packaging/README.md).
 - Non versionnés : rushes (`montage/public/rushes/`), fichiers de travail (`montage/work/`),
   rendus (`montage/out/`) et la police Oliver (usage personnel, téléchargée par
-  `scripts/fetch_fonts.sh`).
+  `./am fetch_fonts`).
 ## Licence
  
 Auto-montage est distribué sous licence [GNU GPL version 3](LICENSE). La police Oliver n'est

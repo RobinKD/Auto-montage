@@ -1,0 +1,23 @@
+#!/bin/sh
+# Lance une commande d'Auto-montage (programme Rust de montage/rust/), depuis n'importe où :
+#   ./am start      ./am prepare MonRush.mov      ./am render apercu      ./am aide
+# Programme : montage/bin/auto-montage s'il a été livré (version installée), sinon celui compilé
+# ici, recompilé au besoin (cargo ne refait que ce qui a changé).
+# Les chemins donnés gardent leur sens : la commande tourne dans le dossier d'où elle est lancée.
+set -e
+D="$(cd "$(dirname "$0")" && pwd)"
+if [ -x "$D/bin/auto-montage" ]; then
+  exec "$D/bin/auto-montage" "$@"
+fi
+if command -v cargo >/dev/null 2>&1; then
+  cargo build --release --quiet --manifest-path "$D/rust/Cargo.toml"
+  exec "${CARGO_TARGET_DIR:-$D/rust/target}/release/auto-montage" "$@"
+fi
+cat >&2 <<'MSG'
+Auto-montage n'est pas encore compilé dans ce dossier, et Rust (cargo) n'est pas installé.
+- Pour l'utiliser simplement : prenez l'installateur de votre système sur la page des versions,
+  https://github.com/RobinKD/Auto-montage/releases
+- Pour le lancer depuis ce dossier : installez Rust (https://rustup.rs), puis relancez cette
+  commande (la première compilation prend quelques minutes).
+MSG
+exit 1

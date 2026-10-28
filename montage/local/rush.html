@@ -320,13 +320,12 @@
       <span class="facts" id="space-total"></span>
     </div>
     <p class="status" id="space-status" role="status"></p>
-    <p class="note">La place prise par Docker lui-même (anciennes versions d'Auto-montage) se libère avec « Nettoyer Docker », dans le menu de l'application Auto-montage.</p>
   </section>
 </main>
 
 <script>
   const $ = (id) => document.getElementById(id);
-  // Mode Dérushage (bandeau du haut) : ni consignes, ni style, ni Claude ; la section 2 est masquée.
+  // Montage en cours en dérushage (work/mode.txt) : ni consignes, ni style, ni Claude ; la section 2 est masquée.
   const DERUSH = document.documentElement.dataset.mode === "derush";
   if (DERUSH) $("prepare-num").textContent = "2";
   // Temps restant estimé par le serveur (durée du rush, vitesse mesurée de la machine).
@@ -523,7 +522,7 @@
     await refresh();
   }
 
-  // Libérer de la place (scripts/place.py) : montages enregistrés, vidéos envoyées, copies, restes.
+  // Libérer de la place (rust/src/place.rs) : montages enregistrés, vidéos envoyées, copies, restes.
   const SPACE_GROUPS = { montages: "Montages enregistrés", videos: "Vidéos gardées par Auto-montage", autres: "Autres fichiers" };
   let space = null;
   async function showSpace() {
@@ -611,7 +610,7 @@
     choose(chosen);
   }
 
-  // Langue parlée (transcription Whisper) : français par défaut ; le dernier choix est gardé
+  // Langue parlée (transcription) : français par défaut ; le dernier choix est gardé
   // pour les préparations suivantes (work/langue.txt).
   let languageShown = false;
   function showLanguage() {
@@ -957,7 +956,7 @@
   $("pick").addEventListener("click", () => $("file").click());
   $("existing").addEventListener("change", (e) => { if (e.target.value) addPart(e.target.value); e.target.value = ""; });
 
-  // Plusieurs vidéos : assemblées dans l'ordre par la préparation (scripts/join_rushes.py),
+  // Plusieurs vidéos : assemblées dans l'ordre par la préparation (rust/src/join_rushes.rs),
   // sous le nom « <première> (assemblage de N).mov » (même règle que joined_name).
   const joinedName = (names) => `${names[0].replace(/\.[^.]*$/, "").slice(0, 150)} (assemblage de ${names.length}).mov`;
   function addPart(name) { parts.push(name); showParts(); }
@@ -1140,7 +1139,7 @@
       ? `La préparation de ${t.arg} est en pause ${where}. Elle reprendra là où elle en était, même après avoir fermé Auto-montage ou redémarré l'ordinateur.`
       : t.state === "error"
         ? `La préparation de ${t.arg} s'est arrêtée sur une erreur ${where}${t.error ? ` : ${t.error}` : ""}. Une fois le problème réglé (mémoire, place sur le disque…), elle peut reprendre là où elle en était.`
-        : `La préparation de ${t.arg} a été coupée ${where} (Auto-montage, Docker ou l'ordinateur arrêté). Elle peut reprendre là où elle en était.`;
+        : `La préparation de ${t.arg} a été coupée ${where} (Auto-montage ou l'ordinateur arrêté). Elle peut reprendre là où elle en était.`;
     showSteps(t, false);
   }
   $("pause").addEventListener("click", async () => {

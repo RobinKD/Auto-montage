@@ -9,9 +9,10 @@ out
 public/rushes
 work
 whisper.cpp
-# Voix montée, régénérée par scripts/build_edit.py
+parakeet-tdt-0.6b-v3
+# Voix montée, régénérée par rust/src/build_edit.rs
 public/audio
-# Police Oliver : usage personnel uniquement, non redistribuable (scripts/fetch_fonts.sh)
+# Police Oliver : usage personnel uniquement, non redistribuable (rust/src/setup.rs)
 public/fonts/Oliver*
 __pycache__/
 # Sons personnels de l’utilisateur (page « Rushes et montages »)
@@ -19,3 +20,12 @@ public/sfx/perso
 # Police des sous-titres choisie (copie, peut être une police personnelle) et polices ajoutées
 public/fonts/choisie
 public/fonts/perso
+# Programme Rust compilé (cargo build)
+rust/target
+# Programmes livrés à côté de la version native (ffmpeg : auto-montage fetch_ffmpeg)
+bin
+
+# Node.js autonome et Claude Code installés par auto-montage setup
+node/
+node.installation/
+claude/

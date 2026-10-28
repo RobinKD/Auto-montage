@@ -1,5 +1,5 @@
 // Remplace, en local, ce que claude.ai fournit aux pages (window.claude.use) :
-//   db        documents JSON enregistrés par scripts/local_server.py (work/local_db/)
+//   db        documents JSON enregistrés par rust/src/local_server.rs (work/local_db/)
 //   downloads enregistrement direct d'un fichier par le navigateur
 //   mcp       présent pour activer le bouton « Générer » (la page appelle /api/regen)
 // Même interface que sur claude.ai pour ce que les pages utilisent.

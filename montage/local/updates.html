@@ -82,10 +82,6 @@
   progress { width: 100%; height: 10px; accent-color: var(--accent); }
   details summary { cursor: pointer; font-weight: 600; font-size: 14px; }
   ol.how { margin: 6px 0 0; padding-left: 22px; font-size: 14px; display: flex; flex-direction: column; gap: 4px; }
-  select { font: inherit; font-family: var(--mono); font-size: 14px; color: var(--fg); background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; flex: 1 1 260px; min-width: 0; }
-  /* Numéro de version : 7 appuis activent le mode développeur (comme le numéro de build d'Android). */
-  button.build { all: unset; font-family: var(--mono); font-size: 12px; color: var(--muted); cursor: default; user-select: none; -webkit-tap-highlight-color: transparent; }
-  .warnbox { font-size: 14px; color: var(--warn); background: var(--warn-soft); border-radius: 8px; padding: 8px 12px; margin: 0; }
 </style>
 
 <main>
@@ -110,7 +106,6 @@
       <progress id="p-bar" max="1" value="0"></progress>
     </div>
     <p id="msg" role="status"></p>
-    <p class="note" style="margin: 0;"><button type="button" class="build" id="build" aria-label="Numéro de version">Auto-montage …</button> <span id="build-msg" role="status"></span></p>
   </section>
 
   <section aria-labelledby="h-reset">
@@ -125,31 +120,6 @@
       <progress id="r-bar" max="1" value="0"></progress>
     </div>
     <p id="reset-msg" role="status"></p>
-  </section>
-
-  <!-- Mode développeur : installer le dernier état d'une branche du dépôt GitHub (code pas encore
-       publié) au lieu d'une version publiée. Caché par défaut : montré après 7 appuis sur le
-       numéro de version (gardé dans ce navigateur), ou si une branche est installée. -->
-  <section aria-labelledby="h-dev" id="dev" hidden>
-    <h2 id="h-dev" class="note" style="margin: 0;">Mode développeur</h2>
-    <p id="dev-state" role="status" style="margin: 0;"></p>
-    <p class="warnbox">Le code d'une branche n'est pas une version publiée : il peut être inachevé ou cassé. Vos montages, rushes, rendus et réglages sont gardés comme pour une mise à jour, et « Revenir à la version publiée » remet le programme publié.</p>
-    <div class="row">
-      <label for="dev-branch" class="note">Branche</label>
-      <select id="dev-branch"><option value="">Chargement des branches…</option></select>
-      <button type="button" id="dev-refresh">Actualiser la liste</button>
-    </div>
-    <p class="note" id="dev-info" style="margin: 0;"></p>
-    <div class="row">
-      <button type="button" class="primary" id="dev-install" disabled>Installer cette branche</button>
-      <button type="button" id="dev-release" hidden>Revenir à la version publiée</button>
-      <button type="button" id="dev-off">Désactiver le mode développeur</button>
-    </div>
-    <div id="dev-progress" hidden>
-      <p class="note" id="d-label" style="margin: 0 0 4px;"></p>
-      <progress id="d-bar" max="1" value="0"></progress>
-    </div>
-    <p id="dev-msg" role="status"></p>
   </section>
 </main>
 
@@ -208,127 +178,18 @@
       renderNotes($("notes"), r.notes || "");
       $("notes").hidden = !r.notes;
       $("apply").hidden = false;
-    } else if (r.branch) {
-      say("state", `Installé depuis la branche ${r.branch.branch} (version ${r.current}), pas depuis une version publiée.`);
     } else if (r.latest) {
       say("state", `Vous avez la dernière version (${r.current}).`, "ok");
     }
     $("reset-version").textContent = st.version || r.current || "?";
-    $("build").textContent = `Auto-montage ${st.version || r.current || "?"}`;
-    showDev(r.branch || null);
   }
-
-  // --- Mode développeur ------------------------------------------------------------------
-  let installed = null, branchList = [];
-  const DEV_KEY = "am-mode-developpeur";
-  const devOn = () => { try { return localStorage.getItem(DEV_KEY) === "1"; } catch { return false; } };
-  const shortDate = (iso) => iso ? new Date(iso).toLocaleString("fr-FR", { dateStyle: "medium", timeStyle: "short" }) : "";
-
-  function showDev(branch) {
-    installed = branch;
-    $("dev").hidden = !(devOn() || installed);
-    $("dev-release").hidden = !installed;
-    $("dev-off").hidden = !!installed;  // à cacher seulement une fois revenu à la version publiée
-    if (installed) {
-      const when = installed.date ? `, du ${shortDate(installed.date)}` : "";
-      const msg = installed.message ? ` : « ${installed.message} »` : "";
-      say("dev-state", `Installé depuis la branche ${installed.branch}, commit ${installed.sha.slice(0, 7)}${when}${msg}.`, "ok");
-    } else {
-      say("dev-state", "Installé depuis une version publiée.");
-    }
-    if (!$("dev").hidden && !branchList.length) loadBranches();
-    else devInfo();
-  }
-
-  async function loadBranches() {
-    $("dev-refresh").disabled = true;
-    const data = await fetch("/api/update/branches", { cache: "no-store" }).then((r) => r.json()).catch(() => null);
-    $("dev-refresh").disabled = false;
-    const sel = $("dev-branch");
-    if (!data || data.error) {
-      sel.replaceChildren(new Option("Branches indisponibles", ""));
-      say("dev-info", (data && data.error) || "Le serveur Auto-montage ne répond pas.", "err");
-      return;
-    }
-    branchList = data.branches;
-    const keep = sel.value || (installed && installed.branch) || "dev";
-    sel.replaceChildren(...branchList.map((b) => new Option(b.name, b.name)));
-    if (branchList.some((b) => b.name === keep)) sel.value = keep;
-    devInfo();
-  }
-
-  // Ce que ferait le bouton : installer une autre branche, ou mettre à jour celle installée.
-  function devInfo() {
-    const b = branchList.find((x) => x.name === $("dev-branch").value);
-    $("dev-install").disabled = !b;
-    if (!b) return;
-    if (installed && installed.branch === b.name) {
-      const same = installed.sha === b.sha;
-      $("dev-install").textContent = same ? "Réinstaller cette branche" : "Mettre à jour depuis la branche";
-      say("dev-info", same ? "Vous avez déjà le dernier état de cette branche."
-                           : `La branche a changé depuis l'installation (dernier commit ${b.sha.slice(0, 7)}).`, same ? "note" : "ok");
-    } else {
-      $("dev-install").textContent = "Installer cette branche";
-      say("dev-info", `Dernier commit de la branche : ${b.sha.slice(0, 7)}.`, "note");
-    }
-  }
-
-  const setDev = (on) => { try { localStorage.setItem(DEV_KEY, on ? "1" : "0"); } catch {} };
-  // 7 appuis rapprochés (moins de 1,5 s entre deux) sur le numéro de version, comme Android :
-  // le compte à rebours s'affiche à partir du 3e.
-  let taps = 0, lastTap = 0, tapMsg = null;
-  $("build").addEventListener("click", () => {
-    const now = Date.now();
-    taps = now - lastTap < 1500 ? taps + 1 : 1;
-    lastTap = now;
-    clearTimeout(tapMsg);
-    tapMsg = setTimeout(() => say("build-msg", ""), 2500);
-    if (devOn()) { say("build-msg", "Le mode développeur est déjà activé.", "note"); return; }
-    if (taps >= 7) {
-      taps = 0;
-      setDev(true);
-      say("build-msg", "Mode développeur activé.", "ok");
-      showDev(installed);
-      $("dev").scrollIntoView({ behavior: "smooth", block: "start" });
-    } else if (taps >= 3) {
-      const left = 7 - taps;
-      say("build-msg", `Encore ${left} appui${left > 1 ? "s" : ""} pour activer le mode développeur.`, "note");
-    }
-  });
-  $("dev-off").addEventListener("click", () => {
-    setDev(false);
-    showDev(installed);
-    say("build-msg", "Mode développeur désactivé.", "note");
-    clearTimeout(tapMsg);
-    tapMsg = setTimeout(() => say("build-msg", ""), 2500);
-  });
-  $("dev-refresh").addEventListener("click", loadBranches);
-  $("dev-branch").addEventListener("change", devInfo);
-
-  $("dev-install").addEventListener("click", async () => {
-    const name = $("dev-branch").value;
-    if (!confirm(`Installer le code de la branche ${name} ?\n\nCe n'est pas une version publiée : il peut être inachevé ou cassé. Vos montages, rushes, rendus et réglages sont gardés.\n\nAuto-montage redémarre ensuite (environ une minute).`)) return;
-    $("dev-install").disabled = true;
-    const { ok, data } = await post("/api/update/branch", { branch: name });
-    if (!ok) { say("dev-msg", data.error || "L'installation n'a pas pu démarrer.", "err"); $("dev-install").disabled = false; return; }
-    follow("dev");
-  });
-
-  $("dev-release").addEventListener("click", async () => {
-    if (!confirm("Revenir à la dernière version publiée ? Le code de la branche est remplacé ; vos montages et réglages sont gardés. Auto-montage redémarre ensuite (environ une minute).")) return;
-    $("dev-release").disabled = true;
-    const { ok, data } = await post("/api/update/release");
-    if (!ok) { say("dev-msg", data.error || "Le retour à la version publiée n'a pas pu démarrer.", "err"); $("dev-release").disabled = false; return; }
-    follow("dev");
-  });
 
   async function load() {
     const st = await fetch("/api/update", { cache: "no-store" }).then((r) => r.json()).catch(() => null);
     if (!st) { say("state", "Le serveur Auto-montage ne répond pas.", "err"); return; }
     show(st);
     const job = await fetch("/api/job").then((r) => r.json()).catch(() => null);
-    // Une branche (nom sans « v1.2 ») ou le retour à la version publiée depuis le mode développeur.
-    if (job && job.kind === "update" && job.state === "running") follow(installed || !/^v\d/.test(job.arg || "") ? "dev" : "update");
+    if (job && job.kind === "update" && job.state === "running") follow();
     if (job && job.kind === "reset" && job.state === "running") follow("reset");
   }
 
@@ -381,15 +242,14 @@
     follow("reset");
   });
 
-  // Suit la tâche « update » (mise à jour, ou branche du mode développeur : « dev ») ou « reset »
-  // (réinitialisation) jusqu'au redémarrage du serveur.
+  // Suit la tâche « update » (mise à jour) ou « reset » (réinitialisation) jusqu'au
+  // redémarrage du serveur.
   async function follow(kind = "update") {
-    const reset = kind === "reset", dev = kind === "dev";
+    const reset = kind === "reset";
     const ids = reset ? { btn: "reset", box: "reset-progress", label: "r-label", bar: "r-bar", msg: "reset-msg" }
-              : dev ? { btn: "dev-install", box: "dev-progress", label: "d-label", bar: "d-bar", msg: "dev-msg" }
-                    : { btn: "apply", box: "progress-box", label: "p-label", bar: "p-bar", msg: "msg" };
-    const buttons = ["apply", "reset", "dev-install", "dev-release", "dev-off"];
-    buttons.forEach((b) => { $(b).disabled = true; });
+                      : { btn: "apply", box: "progress-box", label: "p-label", bar: "p-bar", msg: "msg" };
+    $("apply").disabled = true;
+    $("reset").disabled = true;
     $(ids.box).hidden = false;
     const start = await fetch("/api/version").then((r) => r.json()).catch(() => ({}));
     const before = start.version;
@@ -399,13 +259,13 @@
       if (!job) break;  // serveur arrêté : redémarrage en cours
       if (job.state === "running") {
         const p = job.progress;
-        $(ids.label).textContent = p ? `${p.label}…` : (reset ? "Réinitialisation…" : dev ? "Installation…" : "Mise à jour…");
+        $(ids.label).textContent = p ? `${p.label}…` : (reset ? "Réinitialisation…" : "Mise à jour…");
         $(ids.bar).value = p && p.total ? p.done / p.total : 0;
         continue;
       }
       if (job.state === "error") {
-        say(ids.msg, `${reset ? "La réinitialisation" : dev ? "L'installation" : "La mise à jour"} a échoué : ${job.error} (détail : page « Journal »).${dev ? "" : " Les fichiers d'Auto-montage n'ont pas été changés."}`, "err");
-        buttons.forEach((b) => { $(b).disabled = false; }); $(ids.box).hidden = true;
+        say(ids.msg, `${reset ? "La réinitialisation" : "La mise à jour"} a échoué : ${job.error} (détail : page « Journal »). Les fichiers d'Auto-montage n'ont pas été changés.`, "err");
+        $("apply").disabled = false; $("reset").disabled = false; $(ids.box).hidden = true;
         return;
       }
       if (job.state === "done") break;
@@ -416,8 +276,7 @@
     for (;;) {  // attend le serveur redémarré (nouvelle version, ou même version après réinitialisation)
       await new Promise((r) => setTimeout(r, 3000));
       const v = await fetch("/api/version", { cache: "no-store" }).then((r) => r.json()).catch(() => null);
-      // Même numéro possible (réinitialisation, branche) : le serveur a redémarré.
-      if (v && v.version && (v.version !== before || (v.started && v.started !== start.started))) {
+      if (v && v.version && (v.version !== before || (reset && v.started && v.started !== start.started))) {
         say(ids.msg, reset ? `Auto-montage ${v.version} est réinitialisé (détail des fichiers remis : page « Journal »). Rechargement…`
                            : `Auto-montage ${v.version} est installé. Rechargement…`, "ok");
         setTimeout(() => location.reload(), 1500);

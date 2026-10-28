@@ -1,7 +1,10 @@
-# Fins de ligne : les scripts lancés dans le conteneur Linux doivent rester en LF, même
+# Fins de ligne : les scripts lancés sous Linux et macOS doivent rester en LF, même
 # après un clone sous Windows (core.autocrlf) ; les lanceurs Windows restent en CRLF.
 * text=auto
 *.sh text eol=lf
+*.rs text eol=lf
+*.toml text eol=lf
+montage/am text eol=lf
 *.py text eol=lf
 *.mjs text eol=lf
 *.js text eol=lf
@@ -11,7 +14,6 @@
 *.command text eol=lf
 *.applescript text eol=lf
 *.desktop.in text eol=lf
-Dockerfile text eol=lf
 *.yaml text eol=lf
 *.ps1 text eol=crlf
 *.bat text eol=crlf

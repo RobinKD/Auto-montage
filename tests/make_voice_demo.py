@@ -1,8 +1,8 @@
 """Échantillons des voix modifiées (page « Rushes et montages », effet « Voix modifiée ») : la même
 phrase, dite par une voix de synthèse neuronale (Piper, voix française « upmc »), d'abord normale
-puis avec chaque voix modifiée du montage (moments_lib.voice_filter, force 100 %).
+puis avec chaque voix modifiée du montage (filtres de `auto-montage voix`, force 100 %).
 Usage : python3 tests/make_voice_demo.py <dossier de sortie>   (ex. montage/local/tutoriel/voix)
-  -> <voix>.mp3 pour chaque voix de moments_lib.VOICES.
+  -> <voix>.mp3 pour chaque voix de moments_lib::VOICES (programme auto-montage, montage/am).
 Besoin : pip install piper-tts ; le modèle de voix (63 Mo, huggingface.co) est téléchargé dans
 ~/.cache/auto-montage/ s'il manque.
 """
@@ -15,8 +15,9 @@ import wave
 
 import numpy as np
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "montage", "scripts"))
-from moments_lib import VOICES, batterie_warp, voice_filter  # noqa: E402
+import json
+
+AM = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "montage", "am")
 
 PHRASE = "Voici un outil de montage pratique."
 MODEL = "fr_FR-upmc-medium"
@@ -27,11 +28,14 @@ NATURAL = "atempo=0.97,aecho=0.8:0.5:28:0.12,highpass=f=80,loudnorm=I=-18:TP=-2"
 
 
 def ffmpeg():
-    try:
-        import imageio_ffmpeg
-        return imageio_ffmpeg.get_ffmpeg_exe()
-    except ImportError:
-        return "ffmpeg"
+    bundled = os.path.join(os.path.dirname(AM), "bin", "ffmpeg.exe" if os.name == "nt" else "ffmpeg")
+    return bundled if os.path.exists(bundled) else "ffmpeg"
+
+
+def am(*args):
+    """Commande du programme auto-montage (montage/am le compile s'il manque)."""
+    cmd = [AM + ".cmd"] if os.name == "nt" else ["sh", AM]
+    return subprocess.run(cmd + list(args), check=True, capture_output=True, text=True).stdout
 
 
 def model_path():
@@ -74,13 +78,11 @@ def main():
         subprocess.run([ffmpeg(), "-v", "error", "-y", "-i", raw, "-af", NATURAL, "-ar", str(SR), "-ac", "1", normal],
                        check=True)
         dry = read(normal)
-        for voice, label, _ in VOICES:
+        for voice, label, graph in json.loads(am("voix")):
             src, wet = os.path.join(tmp, "src.wav"), os.path.join(tmp, "wet.wav")
-            graph = voice_filter(voice, 1.0)
-            if voice == "batterie":  # comme build_edit.py : ralenti, puis remis à la durée d'origine
-                slow = batterie_warp(dry, 1.0)
-                write(src, slow)
-                graph = graph.replace("[0:a]", f"[0:a]rubberband=tempo={len(slow) / len(dry):.4f},", 1)
+            if voice == "batterie":  # comme build_edit : ralenti, puis remis à la durée d'origine
+                tempo = am("voix", "batterie", normal, src, "1").strip()
+                graph = graph.replace("[0:a]", f"[0:a]rubberband=tempo={tempo},", 1)
             else:
                 write(src, dry)
             subprocess.run([ffmpeg(), "-v", "error", "-y", "-i", src, "-filter_complex", graph, "-map", "[r]",

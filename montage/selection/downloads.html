@@ -148,6 +148,53 @@
     list.append(li);
   }
 
+  // Sous-titres du montage en fichiers (subtitles.rs : SRT et WebVTT), à côté des vidéos.
+  for (const t of DATA.subtitles || []) {
+    const li = document.createElement("li");
+    li.innerHTML = `<div class="q">Sous-titres<small></small></div><div class="info"><span class="facts"></span><span class="note"></span></div>`;
+    li.querySelector("small").textContent = t.label;
+    li.querySelector(".facts").textContent = `${t.count} sous-titres · ${Math.max(1, Math.round(t.size / 1024))} Ko · ${when(t.renderedAt)}`;
+    li.querySelector(".note").textContent = t.note;
+    const btn = Object.assign(document.createElement("button"), { type: "button", textContent: "Télécharger", disabled: true });
+    const progress = Object.assign(document.createElement("div"), { className: "progress" });
+    progress.setAttribute("role", "status");
+    btn.addEventListener("click", () => download(t, btn, progress));
+    buttons.push(btn);
+    li.append(btn, progress);
+    list.querySelector(".empty")?.remove();
+    list.append(li);
+  }
+
+  // Copies pour les plateformes (export.rs : YouTube, TikTok, Instagram…), à leur format, débit
+  // et volume. Trop lourdes pour la page publiée : seulement dans out/export/ sur l'ordinateur.
+  const num = (x) => String(x).replace(".", ",");
+  for (const e of DATA.exports || []) {
+    const li = document.createElement("li");
+    li.innerHTML = `<div class="q"><small></small></div><div class="info"><span class="facts"></span><span class="note"></span></div>`;
+    li.querySelector(".q").prepend(e.label);
+    li.querySelector("small").textContent = `${e.width}x${e.height} · ${e.format}`;
+    li.querySelector(".q").style.fontSize = "16px";
+    li.querySelector(".facts").textContent = `${Number(e.duration || 0).toFixed(1)} s · ${mb(e.size)} · ${Math.round(e.videoKbps || 0)} kb/s`
+      + (e.lufs !== null && e.lufs !== undefined ? ` · ${num(e.lufs)} LUFS, crête ${num(e.peak)} dBTP` : "") + ` · ${when(e.at)}`;
+    li.querySelector(".note").textContent = `Pour ${e.label} : ${e.framing}.`;
+    const flags = document.createElement("div");
+    flags.className = "flags";
+    for (const w of e.warnings || []) flags.append(Object.assign(document.createElement("span"), { className: "flag old", textContent: w }));
+    if (e.stale) flags.append(Object.assign(document.createElement("span"), { className: "flag old", textContent: "Faite depuis une vidéo entière précédente" }));
+    if (!(e.parts || []).length) flags.append(Object.assign(document.createElement("span"), { className: "flag info2", textContent: `Trop lourde pour cette page : ${e.file} sur l'ordinateur` }));
+    if (flags.childElementCount) li.querySelector(".info").append(flags);
+    if ((e.parts || []).length) {
+      const btn = Object.assign(document.createElement("button"), { type: "button", textContent: "Télécharger", disabled: true });
+      const progress = Object.assign(document.createElement("div"), { className: "progress" });
+      progress.setAttribute("role", "status");
+      btn.addEventListener("click", () => download(e, btn, progress));
+      buttons.push(btn);
+      li.append(btn, progress);
+    }
+    list.querySelector(".empty")?.remove();
+    list.append(li);
+  }
+
   // Interface locale : création de la 4K à la demande (source 4K + rendu final, long).
   const minutes = (s) => (s < 90 ? "1 à 2 min" : `environ ${Math.round(s / 60)} min`);
   const v4k = DATA.versions.find((v) => v.id === "4k");
@@ -216,7 +263,7 @@
         if (!res.ok) throw new Error(`morceau ${k + 1} introuvable (${res.status})`);
         chunks.push(await res.blob());
       }
-      const blob = new Blob(chunks, { type: "video/mp4" });
+      const blob = new Blob(chunks, { type: v.type || "video/mp4" });
       if (blob.size !== v.size) throw new Error(`taille reçue ${mb(blob.size)} au lieu de ${mb(v.size)}`);
       progress.textContent = "Confirmez l'enregistrement dans la fenêtre de claude.ai…";
       await downloads.save({ filename: v.filename, data: blob });
