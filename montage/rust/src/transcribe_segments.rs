@@ -499,13 +499,25 @@ fn run() -> Result<(), String> {
 }
 
 pub fn main(_args: &[String]) -> i32 {
-    match run() {
+    let code = match run() {
         Ok(()) => 0,
         Err(e) => {
             eprintln!("{e}");
             1
         }
+    };
+    // ONNX Runtime (Parakeet) sur macOS : ses destructeurs de fin de programme s'arrêtent sur
+    // « mutex lock failed: Invalid argument » (SIGABRT, code 134) alors que tout est écrit ;
+    // sortie sans eux.
+    #[cfg(target_os = "macos")]
+    {
+        use std::io::Write;
+        let _ = std::io::stdout().flush();
+        let _ = std::io::stderr().flush();
+        unsafe { libc::_exit(code) }
     }
+    #[allow(unreachable_code)]
+    code
 }
 
 #[cfg(test)]
