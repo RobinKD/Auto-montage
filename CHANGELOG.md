@@ -4,6 +4,16 @@ Chaque version publiée reprend sa section dans ses notes (onglet Releases). Une
 section, le numéro dans `VERSION` et le tag `v<numéro>` poussé publient la version avec ses
 installateurs (voir `packaging/README.md`).
 
+## 1.1
+
+- **Le lecteur ne change plus de taille d'un moment à l'autre** : il garde celle qu'il a dans
+  « Vidéo entière », et la page s'allonge un peu quand la frise du moment est ouverte.
+- **Têtes de lecture centrées** : quand on déplace la tête de lecture sur une frise, l'autre défile
+  pour la garder au centre ; avec le clavier, les deux frises la suivent.
+- **Défilement par le bord** : en glissant la tête de lecture tout près du bord gauche ou droit de
+  la frise du moment, la frise défile, plus vite près du bord.
+- Les vignettes de la frise du moment ne sont plus étirées ni floues quand ses images manquent.
+
 ## 1.0
 
 - **Auto-montage tourne directement sur l'ordinateur**, sans Docker : un seul programme fait toutes
