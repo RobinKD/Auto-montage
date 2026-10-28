@@ -7,7 +7,7 @@
 | Linux (x86_64) | `Auto-montage-…-x86_64.AppImage` |
 
 Les installateurs contiennent le programme ; rien d'autre à installer avant. Le premier
-lancement télécharge et installe le reste (10 à 20 min, environ 5 Go, connexion Internet
+lancement télécharge et installe le reste (10 à 20 min, environ 7 Go, connexion Internet
 nécessaire) ; les suivants prennent quelques secondes. Auto-montage tourne dans une fenêtre de
 terminal qui reste ouverte pendant qu'on l'utilise (la fermer l'arrête) et ouvre l'interface dans
 le navigateur.

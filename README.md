@@ -40,7 +40,7 @@ version 20 ou plus, paquets de HyperFrames et son navigateur de rendu, ffmpeg, P
 modèles, environ 3,4 Go, polices, modèles des visages, Claude Code), soit 10 à 20 min. Une
 fenêtre de terminal montre l'avancement (aussi écrit dans `montage/work/logs/demarrage.log`),
 puis le navigateur s'ouvre sur l'interface (<http://localhost:8080/>). Les lancements suivants
-prennent quelques secondes. Prévoir environ 8 Go de mémoire et 3 Go d'espace disque, plus la
+prennent quelques secondes. Prévoir environ 8 Go de mémoire et 8 Go d'espace disque, plus la
 place des rushes et des rendus.
 
 Les rushes vont dans `montage/public/rushes/` du dossier d'installation (la page « Rushes et
