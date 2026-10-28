@@ -143,8 +143,9 @@ interne : les changements attendent la prochaine version.
   `work/mode.txt`, propre à chaque montage (rangé avec lui par `project`, `moments_lib.app_mode` ;
   sans ce fichier : Auto-montage). L'interface locale prépare un nouveau rush en dérushage
   (`prepare --mode derush`, écrit pour un nouveau rush ; `--mode montage` avec des consignes
-  appliquées par Claude) ; « Valider le dérush » (page des moments, dérushage seulement) génère et
-  télécharge la vidéo (« Générer », puis menu « Télécharger »), ou passe à l'auto-montage
+  appliquées par Claude) ; « Valider le dérush » (page des moments, dérushage seulement) propose
+  « Télécharger derush » (« Générer », puis menu « Télécharger » ; « Générer la vidéo entière »,
+  `#regen`, est caché en dérushage), ou passe à l'auto-montage
   (`POST /api/derush/valider`, tâche `derush` : use_selection, build_edit, `rust/src/derush_video.rs`
   (moments gardés d'edit.json mis bout à bout depuis le rush d'origine → `public/rushes/<rush>
   (dérush).mp4`, et `work/derush_segments.json` : un seul segment avec les mots gardés et corrigés,

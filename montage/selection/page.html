@@ -528,7 +528,7 @@
       <div class="insp-pane" id="insp-all" role="tabpanel" aria-labelledby="itab-all" hidden>
       <div class="cap-style derush-subs" id="derush-subs-row" hidden>
         <label><input type="checkbox" id="derush-subs"> Sous-titres dans la vidéo entière</label>
-        <span class="sub" id="derush-subs-status" role="status">Le texte se corrige avec « Corriger » sur chaque moment ; appliqué à la prochaine « Générer la vidéo entière ».</span>
+        <span class="sub" id="derush-subs-status" role="status">Le texte se corrige avec « Corriger » sur chaque moment ; appliqué au prochain « Télécharger derush » (« Valider le dérush »).</span>
       </div>
       <details class="cap-style" id="cap-style" hidden data-subtitles-only>
         <summary>Style des sous-titres</summary>
@@ -670,7 +670,7 @@
   <h2 id="valider-title">Valider le dérush</h2>
   <p id="valider-sum"></p>
   <div class="dlg-choices">
-    <button type="button" class="dlg-choice regen" id="valider-dl"><b>Générer et télécharger la vidéo</b>
+    <button type="button" class="dlg-choice regen" id="valider-dl"><b>Télécharger derush</b>
       <span>Les moments gardés mis bout à bout, avec leurs sous-titres si la case « Sous-titres » est cochée ; le menu « Télécharger » s'ouvre à la fin.</span></button>
     <button type="button" class="dlg-choice" id="valider-montage" hidden><b>Passer à l'auto-montage</b>
       <span>Les moments gardés deviennent une seule vidéo, un seul moment avec ses sous-titres corrigés, sur lequel vous réglez ensuite les effets et le son. Le dérush reste dans « Montages » (page « Rushes et montages »).</span></button>
@@ -2558,7 +2558,7 @@ ${HFAudio.voiceElements(spec)}
         const tip = el("span", "chg-tip");
         tip.append(el("b", "", `Modifié depuis la vidéo entière générée${workStamp()}`),
           el("span", "", change.kind === "changed" ? `Changé : ${changeWhat(change)}` : `Moment ${changeWhat(change)}`),
-          el("small", "", "« Générer la vidéo entière » prend en compte ce changement."));
+          el("small", "", DERUSH ? "« Télécharger derush » prend en compte ce changement." : "« Générer la vidéo entière » prend en compte ce changement."));
         tag.append(tip);
         badges.append(tag);
       } else if (!m.reason && (change ? change.kind === "same" : inEdit.has(m.id))) badges.append(el("span", "badge", "Dans la vidéo générée"));
@@ -3742,8 +3742,8 @@ ${HFAudio.voiceElements(spec)}
         body: JSON.stringify({ subtitles: box.checked }) }).catch(() => null);
       if (!r || !r.ok) { box.checked = !box.checked; $("derush-subs-status").textContent = "Réglage non enregistré : Auto-montage ne répond pas."; return; }
       document.documentElement.dataset.subtitles = box.checked ? "1" : "0";
-      $("derush-subs-status").textContent = box.checked ? "Sous-titres ajoutés à la prochaine « Générer la vidéo entière »."
-        : "Pas de sous-titres à la prochaine « Générer la vidéo entière » (le texte corrigé reste gardé).";
+      $("derush-subs-status").textContent = box.checked ? "Sous-titres ajoutés au prochain « Télécharger derush »."
+        : "Pas de sous-titres au prochain « Télécharger derush » (le texte corrigé reste gardé).";
       editing = null;
       if (mode === "moment" && currentMoment !== null) showMoment(currentMoment, { autoplay: false }); else renderList();
     });
@@ -4469,7 +4469,7 @@ ${HFAudio.voiceElements(spec)}
   (async () => {
     if (!DATA.regenTrigger && !window.AUTO_MONTAGE_LOCAL) return;
     mcp = await window.claude?.use?.("mcp") ?? null;
-    if (mcp) $("regen").hidden = false;
+    if (mcp && !DERUSH) $("regen").hidden = false;  // en dérushage : « Télécharger derush » de « Valider le dérush »
     // Page rouverte pendant une génération locale : on reprend le suivi.
     if (window.AUTO_MONTAGE_LOCAL) {
       const job = await fetch("/api/job").then((r) => r.json()).catch(() => null);

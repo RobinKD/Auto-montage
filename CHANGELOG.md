@@ -11,8 +11,9 @@ installateurs (voir `packaging/README.md`).
   manque au premier lancement.
 - **Dérushage d'abord** : un nouveau rush s'ouvre en dérushage (choix et découpe des moments,
   sous-titres à regarder et corriger). Les boutons « Dérushage » et « Auto-montage » du bandeau
-  disparaissent : « Valider le dérush », en haut de la page des moments, propose soit de générer et
-  télécharger la vidéo, soit de passer à l'auto-montage. Les moments gardés deviennent alors une
+  disparaissent : « Valider le dérush », en haut de la page des moments, propose soit « Télécharger derush »
+  (les moments gardés mis bout à bout, puis le menu « Télécharger »), soit de passer à
+  l'auto-montage ; « Générer la vidéo entière » n'apparaît plus qu'en auto-montage. Les moments gardés deviennent alors une
   seule vidéo, d'un seul moment, sur laquelle on règle effets et son (le dérush reste dans
   « Montages »).
 - **Couper** sépare maintenant le moment en deux moments, de chaque côté de la tête de lecture,
