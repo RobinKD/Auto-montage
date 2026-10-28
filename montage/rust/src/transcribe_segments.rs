@@ -224,18 +224,39 @@ impl Ctx {
         let mut out = BTreeMap::new();
         for (i, mut ws) in by_seg {
             let (s, e) = self.segs[i];
-            for k in 0..ws.len() {
-                let prev = if k > 0 { ws[k - 1].1 } else { s };
-                ws[k].1 = ws[k].1.max(s).max(prev).min(e);
-            }
-            for k in 0..ws.len() {
-                // Fin d'un mot : début du suivant ; pour le dernier, fin donnée par le modèle (au
-                // moins 0,3 s), bornée au segment.
-                ws[k].2 = if k + 1 < ws.len() { ws[k + 1].1 } else { e.min(ws[k].2.max(ws[k].1 + 0.3)) };
-            }
+            place_in_segment(&mut ws, s, e);
             out.insert(i, ws.into_iter().map(|(t, a, b, p)| json!({"w": t, "a": round_to(a, 3), "b": round_to(b, 3), "p": round_to(p, 2)})).collect());
         }
         out
+    }
+}
+
+/// Durée la plus courte d'un mot prononcé : 40 ms par lettre, de 0,08 à 0,25 s.
+fn min_len(word: &str) -> f64 {
+    (0.04 * word.chars().filter(|c| c.is_alphanumeric()).count() as f64).clamp(0.08, 0.25)
+}
+
+/// Temps des mots d'un segment (texte, début, fin, confiance), bornés au segment [s, e]. Parakeet
+/// place le premier mot après un silence 0,2 à 0,45 s trop tôt, dans le silence (le second un
+/// peu aussi) : ramenés au début du segment, ils s'y empilaient sans durée. Les mots placés avant
+/// le début du segment, et le suivant, commencent donc chacun après la durée minimale du mot
+/// précédent ; les autres gardent le temps du modèle.
+fn place_in_segment(ws: &mut [(String, f64, f64, f64)], s: f64, e: f64) {
+    let mut piled = true;
+    for k in 0..ws.len() {
+        let raw = ws[k].1;
+        let earliest = match k {
+            0 => s,
+            _ if piled => ws[k - 1].1 + min_len(&ws[k - 1].0),
+            _ => ws[k - 1].1,
+        };
+        piled = piled && raw < s;
+        ws[k].1 = raw.max(earliest).min(e);
+    }
+    for k in 0..ws.len() {
+        // Fin d'un mot : début du suivant ; pour le dernier, fin donnée par le modèle (au
+        // moins 0,3 s), bornée au segment.
+        ws[k].2 = if k + 1 < ws.len() { ws[k + 1].1 } else { e.min(ws[k].2.max(ws[k].1 + 0.3)) };
     }
 }
 
@@ -542,6 +563,22 @@ mod tests {
         assert_eq!(w.iter().map(|x| x.0.as_str()).collect::<Vec<_>>(), ["Donc", "la", "communauté"]);
         assert!((w[2].3 - (-1f64).exp()).abs() < 1e-9);
         assert_eq!(words_from(&r, 1.2).iter().map(|x| x.0.as_str()).collect::<Vec<_>>(), ["la", "communauté"]);
+    }
+
+    #[test]
+    fn first_words_spread() {
+        // « So you guys have » : Parakeet donne 11.53, 11.85, 12.09, 12.41 pour un segment qui
+        // commence à 11.9 (début de la voix mesuré à 11.9, « you » vers 12.1, « guys » vers 12.25).
+        let mut ws: Vec<(String, f64, f64, f64)> =
+            [("So", 11.53), ("you", 11.85), ("guys", 12.09), ("have", 12.41)].iter().map(|(w, a)| (w.to_string(), *a, a + 0.16, 1.0)).collect();
+        place_in_segment(&mut ws, 11.9, 13.8);
+        let starts: Vec<f64> = ws.iter().map(|w| (w.1 * 100.0).round() / 100.0).collect();
+        assert_eq!(starts, [11.9, 11.98, 12.1, 12.41]);
+        assert!(ws.iter().all(|w| w.2 > w.1));
+        // Mots déjà espacés : temps du modèle gardés.
+        let mut ws = vec![("Bonjour".to_string(), 1.0, 1.2, 1.0), ("à".to_string(), 1.5, 1.6, 1.0)];
+        place_in_segment(&mut ws, 0.9, 3.0);
+        assert_eq!((ws[0].1, ws[1].1), (1.0, 1.5));
     }
 
     #[test]

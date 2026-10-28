@@ -2455,6 +2455,9 @@ ${HFAudio.voiceElements(spec)}
     const app = document.querySelector(".app"), sb = document.querySelector(".screen-box"), tlk = $("tlk");
     if (!app || !sb) return;
     const open = !tlk.hidden;
+    // Pendant la mesure, la page raccourcit : sans hauteur gardée, le navigateur la remonterait
+    // (et la frise du moment disparaîtrait de l'écran à chaque action sur le moment).
+    document.body.style.minHeight = `${document.documentElement.scrollHeight}px`;
     app.classList.remove("locked");
     tlk.style.display = "none";  // .tlk { display: grid } passe avant l'attribut hidden
     const h = sb.clientHeight;
@@ -2463,6 +2466,7 @@ ${HFAudio.voiceElements(spec)}
       app.style.setProperty("--screen-h", `${h}px`);
       app.classList.add("locked");
     }
+    document.body.style.minHeight = "";
   }
   function renderMomentTl() {
     const box = $("tlk"), om = openMoment();
