@@ -4,6 +4,17 @@ Chaque version publiée reprend sa section dans ses notes (onglet Releases). Une
 section, le numéro dans `VERSION` et le tag `v<numéro>` poussé publient la version avec ses
 installateurs (voir `packaging/README.md`).
 
+## 1.2
+
+- **Les premiers mots d'un moment ne se superposent plus** : après un silence, la transcription
+  plaçait le premier mot trop tôt et les premiers sous-titres s'empilaient au début du moment. Le
+  premier mot commence maintenant avec la voix et les suivants viennent l'un après l'autre. Pour
+  un rush déjà préparé, il faut le préparer à nouveau.
+- **La page des moments ne remonte plus** quand on agit sur le moment ouvert (boutons de la frise,
+  zoom, garder, retirer…) : la partie du moment reste à l'écran.
+- Tailles du premier lancement corrigées dans les notes : environ 7 Go à télécharger, 8 Go
+  d'espace disque.
+
 ## 1.1
 
 - **Le lecteur ne change plus de taille d'un moment à l'autre** : il garde celle qu'il a dans
