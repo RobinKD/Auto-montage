@@ -9,6 +9,7 @@ out
 public/rushes
 work
 whisper.cpp
+parakeet-tdt-0.6b-v3
 # Voix montée, régénérée par rust/src/build_edit.rs
 public/audio
 # Police Oliver : usage personnel uniquement, non redistribuable (rust/src/setup.rs)

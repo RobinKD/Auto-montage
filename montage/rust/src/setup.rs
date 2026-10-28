@@ -148,7 +148,7 @@ pub fn main(_args: &[String]) -> i32 {
         println!("Navigateur de rendu non installé (réessayé au prochain démarrage et à chaque rendu).");
     }
 
-    // Whisper compilé pour le CPU + modèles (environ 1,7 Go en tout, seulement la première fois).
+    // Whisper compilé pour le CPU + modèles Parakeet et Whisper (environ 3,4 Go en tout, seulement la première fois).
     let code = sub("setup_whisper");
     if code != 0 {
         return code;
@@ -244,7 +244,9 @@ pub fn setup_whisper(_args: &[String]) -> i32 {
     // Téléchargés par net (passe par le proxy de l'environnement s'il y en a un).
     util::mkdirs(&whisper);
     for (name, url) in [
-        ("ggml-large-v3-turbo.bin", "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-large-v3-turbo.bin"),
+        // Whisper en secours de Parakeet (segments restés vides, ou mêlés d'une autre langue) : q8_0,
+        // moitié moins lourd que f16 et aussi juste.
+        ("ggml-large-v3-turbo-q8_0.bin", "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-large-v3-turbo-q8_0.bin"),
         ("ggml-silero-v5.1.2.bin", "https://huggingface.co/ggml-org/whisper-vad/resolve/main/ggml-silero-v5.1.2.bin"),
     ] {
         let out = whisper.join(name);
@@ -256,8 +258,72 @@ pub fn setup_whisper(_args: &[String]) -> i32 {
             return 1;
         }
     }
-    println!("whisper.cpp prêt dans {}", paths::display(&whisper));
+    let _ = fs::remove_file(whisper.join("ggml-large-v3-turbo.bin")); // ancien modèle (f16), remplacé par q8_0
+    if let Err(e) = fetch_parakeet() {
+        eprintln!("{e}");
+        return 1;
+    }
+    println!("whisper.cpp prêt dans {}, Parakeet dans {}", paths::display(&whisper), paths::display(&paths::parakeet_dir()));
     0
+}
+
+/// Révision fixée des fichiers de `istupakov/parakeet-tdt-0.6b-v3-onnx` (fichiers vérifiés).
+const PARAKEET_REV: &str = "8f23f0c03c8761650bdb5b40aaf3e40d2c15f1ce";
+
+/// Modèle Parakeet (transcribe_segments) et bibliothèque ONNX Runtime de ce système, extraite seule
+/// de l'archive de Microsoft dans `<parakeet>/onnxruntime/`.
+fn fetch_parakeet() -> Result<(), String> {
+    use crate::parakeet::{ort_archive, ort_lib, ort_lib_name, FILES, ORT_VERSION};
+    let dir = paths::parakeet_dir();
+    util::mkdirs(&dir);
+    for name in FILES {
+        let out = dir.join(name);
+        if out.is_file() {
+            continue;
+        }
+        let url = format!("https://huggingface.co/istupakov/parakeet-tdt-0.6b-v3-onnx/resolve/{PARAKEET_REV}/{name}");
+        download_file(&url, &out, 4).map_err(|e| format!("Échec du téléchargement de {name} (Parakeet) : {e}"))?;
+    }
+    let lib = ort_lib();
+    if lib.is_file() {
+        return Ok(());
+    }
+    let archive = ort_archive().ok_or("ONNX Runtime : pas de version pour ce système")?;
+    let url = format!("https://github.com/microsoft/onnxruntime/releases/download/v{ORT_VERSION}/{archive}");
+    let ort_dir = lib.parent().unwrap().to_path_buf();
+    util::mkdirs(&ort_dir);
+    let tmp = ort_dir.join(format!("{archive}.dl"));
+    download_file(&url, &tmp, 4).map_err(|e| format!("Échec du téléchargement d'ONNX Runtime : {e}"))?;
+    let inner = format!("{}/lib/{}", archive.trim_end_matches(".zip").trim_end_matches(".tgz"), ort_lib_name());
+    let part = ort_dir.join(format!("{}.part", ort_lib_name()));
+    let result = (|| -> Result<(), String> {
+        let f = fs::File::open(&tmp).map_err(|e| e.to_string())?;
+        let mut out = fs::File::create(&part).map_err(|e| e.to_string())?;
+        if archive.ends_with(".zip") {
+            let mut zip = zip::ZipArchive::new(f).map_err(|e| e.to_string())?;
+            let mut entry = zip.by_name(&inner).map_err(|e| format!("{inner} : {e}"))?;
+            std::io::copy(&mut entry, &mut out).map_err(|e| e.to_string())?;
+        } else {
+            let mut tar = tar::Archive::new(flate2::read::GzDecoder::new(f));
+            let mut found = false;
+            for entry in tar.entries().map_err(|e| e.to_string())? {
+                let mut entry = entry.map_err(|e| e.to_string())?;
+                if entry.header().entry_type().is_file() && entry.path().map_err(|e| e.to_string())?.to_string_lossy() == inner {
+                    std::io::copy(&mut entry, &mut out).map_err(|e| e.to_string())?;
+                    found = true;
+                    break;
+                }
+            }
+            if !found {
+                return Err(format!("{inner} absent de l'archive"));
+            }
+        }
+        drop(out);
+        fs::rename(&part, &lib).map_err(|e| e.to_string())
+    })();
+    let _ = fs::remove_file(&tmp);
+    let _ = fs::remove_file(&part);
+    result.map_err(|e| format!("ONNX Runtime : {e}"))
 }
 
 /// Programmes de whisper.cpp compilés pour ce système, joints à la version installée sur GitHub

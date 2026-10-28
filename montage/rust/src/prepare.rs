@@ -214,7 +214,7 @@ pub fn main(args: &[String]) -> i32 {
     if transcription.is_some() {
         progress::say("Étape 2/4 : son du rush (transcription du dérush reprise)");
     } else {
-        progress::say(&format!("Étape 2/4 : transcription en {label} (Whisper, le plus long : environ la durée du rush)"));
+        progress::say(&format!("Étape 2/4 : transcription en {label} (Parakeet, environ le cinquième de la durée du rush)"));
     }
     // 2. Audio 16 kHz mono, segments de parole (VAD Silero) et transcription par segment.
     //    (Reprise : son et segments déjà faits gardés, morceaux déjà transcrits aussi.)

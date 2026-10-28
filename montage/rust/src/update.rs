@@ -61,13 +61,14 @@ fn manifest() -> PathBuf {
     project().join(".auto-montage-files")
 }
 /// Jamais remplacés ni effacés : les données de l'utilisateur et ce qui est installé à part.
-const KEEP: [&str; 11] = [
+const KEEP: [&str; 12] = [
     "montage/work/",
     "montage/out/",
     "montage/public/rushes/",
     "montage/public/sfx/perso/",
     "montage/node_modules/",
     "montage/whisper.cpp/",
+    "montage/parakeet-tdt-0.6b-v3/",
     "montage/public/audio/",
     // Programme compilé et ffmpeg livré (pas dans l'archive).
     "montage/bin/",

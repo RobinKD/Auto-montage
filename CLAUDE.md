@@ -139,7 +139,8 @@ interne : les changements attendent la prochaine version.
   `src/data/edit.json` et `face.json` du dépôt sont ceux du rush de démonstration
   (`tests/make_demo_rush.py`) : n'y jamais versionner un vrai rush ; `update` garde ceux de
   l'utilisateur.
-- Mode du montage (pas de bouton pour en changer) : « Dérushage » ou « Auto-montage », dans
+- Mode du montage (changé aussi en tête du menu de chaque page, `local/menu.js`, PUT `/api/mode` :
+  mode du montage en cours) : « Dérushage » ou « Auto-montage », dans
   `work/mode.txt`, propre à chaque montage (rangé avec lui par `project`, `moments_lib.app_mode` ;
   sans ce fichier : Auto-montage). L'interface locale prépare un nouveau rush en dérushage
   (`prepare --mode derush`, écrit pour un nouveau rush ; `--mode montage` avec des consignes
@@ -176,7 +177,8 @@ interne : les changements attendent la prochaine version.
 - Sous-titres : jusqu'à 6 mots sur 2 lignes par défaut, coupées là où les largeurs mesurées (multipliées
   par la taille de chaque ligne) sont les plus proches (`render_lib.caption_layout` et `captionLayout` de la
   page des moments) ; nombre de lignes au plus (`lines`, 1 à 3, mots par sous-titre :
-  `fonts_lib.CAPTION_LIMITS`) et taille de chaque ligne en % de la première (`lineSizes`), réglés sur la
+  `fonts_lib.CAPTION_LIMITS` ; peu de mots, moins de lignes : la plus petite limite qui les contient,
+  `render_lib::caption_lines` et `captionLines` de la page) et taille de chaque ligne en % de la première (`lineSizes`), réglés sur la
   page des moments et sur /rush/ ; sous-titre remonté s'il dépasse 40 px du bas. Style (police, graisse,
   taille, majuscules, couleur, lignes) : `work/caption_style.json` (`rust/src/fonts_lib.rs` : polices
   d'Auto-montage, de la machine de rendu via fontconfig, et `public/fonts/perso/`), copié par
@@ -306,8 +308,18 @@ interne : les changements attendent la prochaine version.
   à la fois, 2 en 4K ; délai de chaque ffmpeg porté à 6 h) ; cache d'extraction de HyperFrames coupé (`HYPERFRAMES_EXTRACT_CACHE_DIR=off` : il gardait dans /tmp les images de tout le montage pendant 1 h, disque plein), restes effacés (`place.extract_caches`). Long montage (plus de 3 min) : rendu par parties d'environ 2 min (`PART_SECONDS` = `memoire.RENDER_PART`), chaque partie dans sa propre page avec ses seuls plans (`build(m, k, part)`, temps décalé de `OFF` images), parties raccourcies (et navigateurs moins nombreux) si le disque ne suffit pas (`disk_part` : images extraites d'une partie, mémoire partagée des navigateurs écrite dans /tmp, vidéos rendues, dans 80 % du disque libre ; sinon arrêt avec un message), gardées dans `work/rendu_parties/<empreinte>_<image début>-<image fin>.mp4` (`parts_key` : edit.json, face.json, son.json, code du rendu) pour reprendre un rendu interrompu, puis `join_parts` (image copiée, son de chaque partie ramené à sa durée exacte). Navigateurs (plus de 1 Go chacun en
   1080p) : `memoire.choose_workers`, un par cœur (8 au plus) tant que le besoin (mesures comprises)
   tient dans 80 % de la mémoire libre (`RENDER_SHARE`), ligne « Navigateurs du
-  rendu : N » lue par `local_server` ; page prête en 15 min au plus. Whisper : `./am setup_whisper` (whisper.cpp 1.7.6
-  compilé, modèles de Hugging Face) ; un seul whisper-cli, un fil par cœur (8 au plus,
+  rendu : N » lue par `local_server` ; page prête en 15 min au plus. Transcription : `./am setup_whisper` (whisper.cpp 1.7.6
+  compilé pour le VAD et Whisper, modèles de Hugging Face, Parakeet en ONNX dans
+  `parakeet-tdt-0.6b-v3/` à côté de whisper.cpp avec la bibliothèque ONNX Runtime de Microsoft dans
+  `onnxruntime/`, chargée au lancement : crate `ort`, `rust/src/parakeet.rs`) ; `transcribe_segments` :
+  Parakeet TDT 0.6B v3 par morceaux de 28 s, puis Whisper large-v3-turbo q8_0 forcé dans la langue du
+  rush pour les segments restés vides ou sortis dans une autre langue (`foreign` : mots outils d'une
+  autre langue, autre alphabet ; Parakeet ne se force pas dans une langue et traduit parfois en
+  anglais : segment refait précédé de deux segments sûrs). Confiance de chaque mot `p` dans
+  segments.json ; sous `moments_lib::DOUBT` (0,5), mot « à vérifier » (`d` des mots de la page des
+  moments, `doubtsOf`) : souligné sur la frise du moment et dans l'inspecteur, point orange sur la
+  frise du rush, pastille « À vérifier », bouton du compte en haut et touche V (Maj + V : précédent,
+  `jumpDoubt`) ; un texte corrigé ou « Texte juste » (`checked` du document du moment) les valide. Whisper : un seul whisper-cli, un fil par cœur (8 au plus,
   `transcribe_segments::threads`) ; VAD sur un fil (`-t 1` : l'attente active d'OpenMP le bloquait sur
   une machine occupée).
 - Tutoriel (/tutoriel/, `local/tutorial.html`) : ouvert une fois au premier lancement (menu.js,

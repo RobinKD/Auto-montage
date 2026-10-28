@@ -35,6 +35,10 @@ walkdir = "2"
 zip = { version = "9", default-features = false, features = ["deflate-flate2"] }
 woff2-patched = "0.4"
 tract-onnx = { version = "0.23", default-features = false }
+# Transcription (Parakeet) : ONNX Runtime, bibliothèque téléchargée par setup_whisper (parakeet.rs),
+# chargée au lancement (load-dynamic) : rien à compiler ni à lier ici. tract est 3 fois plus lent
+# sur l'encodeur de Parakeet et ne lit pas son préprocesseur (STFT).
+ort = { version = "=2.0.0-rc.10", default-features = false, features = ["std", "load-dynamic"] }
 
 [target.'cfg(unix)'.dependencies]
 libc = "0.2"

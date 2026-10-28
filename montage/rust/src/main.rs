@@ -30,6 +30,7 @@ mod mcp;
 mod memoire;
 mod moments_lib;
 mod net;
+mod parakeet;
 mod paths;
 mod place;
 mod prepare;
@@ -79,7 +80,7 @@ const COMMANDS: &[(&str, Cmd, &str)] = &[
     ("voix", moments_lib::voix_main, "voix modifiées (exemples de tests/make_voice_demo.py)"),
     ("version_travail", version_travail::main, "version de travail 1080p"),
     ("join_rushes", join_rushes::main, "assemble plusieurs vidéos d'un rush"),
-    ("transcribe_segments", transcribe_segments::main, "transcription Whisper par segment"),
+    ("transcribe_segments", transcribe_segments::main, "transcription Parakeet par segment"),
     ("detect_face", detect_face::main, "visages et cadrage"),
     ("diarize", diarize::main, "qui parle : locuteurs et personne à l'image de chacun"),
     ("make_sfx", make_sfx::main, "bruitages par défaut"),
@@ -88,7 +89,7 @@ const COMMANDS: &[(&str, Cmd, &str)] = &[
     ("render_hyperframes", render_hyperframes::main, "rendu HyperFrames du montage"),
     ("update", update::main, "mises à jour (check, apply, reset)"),
     ("setup", setup::main, "installe ce qui manque (paquets Node, Whisper, police, modèles)"),
-    ("setup_whisper", setup::setup_whisper, "whisper.cpp et ses modèles"),
+    ("setup_whisper", setup::setup_whisper, "whisper.cpp, Parakeet, ONNX Runtime et leurs modèles"),
     ("fetch_fonts", setup::fetch_fonts, "police Oliver"),
     ("fetch_ffmpeg", setup::fetch_ffmpeg, "ffmpeg livré avec Auto-montage (montage/bin/)"),
     ("fetch_face_model", setup::fetch_face_model, "modèles des visages"),

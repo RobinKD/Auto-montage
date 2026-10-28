@@ -20,6 +20,6 @@ cargo build --release --quiet --manifest-path rust/Cargo.toml
 # Domaines réseau : signale ceux à autoriser, sans bloquer le démarrage.
 ./am check_network || echo "Certains domaines sont bloqués : voir env/allowed-domains.txt"
 
-# ffmpeg, paquets Node, navigateur de rendu, Whisper et ses modèles, police Oliver, modèles des
+# ffmpeg, paquets Node, navigateur de rendu, Whisper, Parakeet et leurs modèles, police Oliver, modèles des
 # visages : même étape que `auto-montage start` sur un ordinateur.
 ./am setup

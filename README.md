@@ -36,8 +36,8 @@ sécurité > Ouvrir quand même, ou dans le Terminal
 notes de chaque version.
 
 **Premier lancement** : Auto-montage télécharge ce qui lui manque (Node.js s'il n'y en a pas de
-version 20 ou plus, paquets de HyperFrames et son navigateur de rendu, ffmpeg, Whisper et ses
-modèles, environ 1,7 Go, polices, modèles des visages, Claude Code), soit 10 à 20 min. Une
+version 20 ou plus, paquets de HyperFrames et son navigateur de rendu, ffmpeg, Parakeet, Whisper et leurs
+modèles, environ 3,4 Go, polices, modèles des visages, Claude Code), soit 10 à 20 min. Une
 fenêtre de terminal montre l'avancement (aussi écrit dans `montage/work/logs/demarrage.log`),
 puis le navigateur s'ouvre sur l'interface (<http://localhost:8080/>). Les lancements suivants
 prennent quelques secondes. Prévoir environ 8 Go de mémoire et 3 Go d'espace disque, plus la
@@ -83,7 +83,7 @@ copie (fork), une fois :
 3. Sur [claude.ai/code](https://claude.ai/code), connecter votre compte GitHub et installer
    l'application Claude sur cette copie (« Only select repositories » > Auto-montage).
 4. Créer un environnement avec un accès réseau qui autorise les domaines de
-   [`montage/env/allowed-domains.txt`](montage/env/allowed-domains.txt) (modèles Whisper,
+   [`montage/env/allowed-domains.txt`](montage/env/allowed-domains.txt) (modèles de transcription,
    polices, HyperFrames…).
 5. Ouvrir une session sur votre copie, puis donner à Claude le rush (fichier ou lien de
    téléchargement) et vos consignes : il suit `CLAUDE.md`.
@@ -124,7 +124,7 @@ puis ouvrir une nouvelle session.
 ## Fonctionnement
  
 ```
-rush ──prepare──> transcription par segment (Whisper) + visage + bruitages
+rush ──prepare──> transcription par segment (Parakeet) + visage + bruitages
      ──make_moments──> page des moments (extraits vidéo, habillage calculé dans la page)
 page ──choix (sélection, corrections, effets, découpes)──> use_selection
      ──build_edit──> montage (clips, sous-titres, zooms, effets, voix : src/data/edit.json)

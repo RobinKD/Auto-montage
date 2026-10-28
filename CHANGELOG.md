@@ -4,7 +4,7 @@ Chaque version publiée reprend sa section dans ses notes (onglet Releases). Une
 section, le numéro dans `VERSION` et le tag `v<numéro>` poussé publient la version avec ses
 installateurs (voir `packaging/README.md`).
 
-## 0.71
+## 1.0
 
 - **Auto-montage tourne directement sur l'ordinateur**, sans Docker : un seul programme fait toutes
   les étapes, s'installe avec les installateurs Windows, macOS et Linux, et télécharge ce qui lui
@@ -39,6 +39,28 @@ installateurs (voir `packaging/README.md`).
   montage prévus ; l'interface ne sert plus de fichier qu'un navigateur pourrait exécuter ; les
   téléchargements de Node, ffmpeg et des modèles de visages sont vérifiés ; bibliothèques mises à
   jour (failles connues corrigées).
+- **Transcription 5 fois plus rapide et plus juste** : Parakeet (NVIDIA) remplace Whisper. Sur un
+  exposé de 6 min, la transcription passe de 5 min 30 à environ 1 min, et le début de chaque mot est
+  placé deux fois plus précisément, pour couper au mot près. Les noms comme « Wikipédia » et les
+  accords sont mieux écrits, et un passage dans une autre langue est transcrit dans sa langue au lieu
+  d'être traduit de travers. Whisper reste en secours (modèle allégé, 0,9 Go) pour les passages que
+  Parakeet laisse vides (hésitations isolées) ou sort dans une autre langue que celle du rush.
+- **Mots à vérifier** : sur la page des moments, les mots dont la transcription est incertaine sont
+  soulignés en orange sur la frise du moment et dans le texte du moment, avec une pastille
+  « À vérifier » et un point orange sur la frise du rush. Le bouton « À vérifier » en haut de la
+  page, ou la touche V (Maj + V pour revenir), passe d'un mot douteux au suivant. Corriger le texte
+  du moment, ou « Texte juste », les valide.
+- **Sous-titres sur moins de lignes quand il y a peu de mots** : avec 2 lignes (ou 3) demandées
+  dans le style des sous-titres, un sous-titre de 2 ou 3 mots courts tient maintenant sur une seule
+  ligne au lieu d'être coupé (« la connaissance. » au lieu de « la / connaissance. ») ; il prend
+  autant de lignes qu'il lui en faut, jusqu'au nombre demandé. Pareil sur la page des moments et
+  dans la vidéo rendue.
+- **Choix du mode dans le menu** : en tête du menu, « Dérushage » / « Auto-montage » change le mode
+  du montage en cours à tout moment (par exemple pour revenir au dérushage).
+- En dérushage, le bouton « À vérifier » et les mots à vérifier n'apparaissent que si les
+  sous-titres sont montrés, et suivent tout de suite la case « Sous-titres ».
+- Au premier lancement de cette version, le nouveau modèle se télécharge (2,5 Go) et l'ancien
+  modèle de Whisper (1,6 Go) est remplacé par sa version allégée : 3,4 Go en tout.
 
 ## 0.68
 

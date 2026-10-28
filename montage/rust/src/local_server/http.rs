@@ -5,7 +5,7 @@ use super::claude;
 use super::common::*;
 use super::info::*;
 use super::jobs::{self, busy, busy_error, cancel_job, job_status, paused_task, resume_job, start_job, Step, JOB_LOCK};
-use crate::moments_lib::{app_mode, derush_subtitles, language_label};
+use crate::moments_lib::{app_mode, derush_subtitles, language_label, MODES};
 use crate::{decoupage, fonts_lib, memoire, paths, place, procs, pyjson, util};
 use regex::Regex;
 use serde_json::{json, Map, Value};
@@ -652,6 +652,15 @@ fn do_delete(req: &Req) -> Reply {
 // --- PUT --------------------------------------------------------------------------------
 fn do_put(req: &Req, body: &mut dyn Read) -> Reply {
     let route = req.raw_path.as_str();
+    if route == "/api/mode" {
+        // menu : Dérushage ou Auto-montage, pour le montage en cours
+        let b = read_obj(req, body);
+        let mode = b.get("mode").and_then(Value::as_str).filter(|m| MODES.iter().any(|(c, _)| c == m));
+        let Some(mode) = mode else { return err_json("Mode inconnu.", 400) };
+        util::mkdirs(work());
+        let _ = fs::write(work().join("mode.txt"), format!("{mode}\n"));
+        return send_json(&json!({"mode": mode}), 200);
+    }
     if route == "/api/derush" {
         // dérushage : sous-titres oui / non
         let b = read_obj(req, body);

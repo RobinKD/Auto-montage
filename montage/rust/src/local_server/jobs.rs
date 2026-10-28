@@ -104,7 +104,7 @@ pub fn plan_json() -> Value {
 pub const RATES: [(&str, &str, f64, bool); 22] = [
     ("Copie du rush en 1080p", "rush", 0.3, false),
     ("Extraction du son", "rush", 0.01, false),
-    ("Transcription", "rush", 0.3, false),
+    ("Transcription", "rush", 0.16, false),
     ("Position du visage", "rush", 0.1, false),
     ("Locuteurs", "rush", 0.03, false),
     // Plusieurs vidéos pour un rush : mises bout à bout (copie) ou réencodées (réglages différents).

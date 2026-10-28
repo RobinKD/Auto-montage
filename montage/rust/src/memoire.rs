@@ -5,7 +5,7 @@
 //! Les étapes se suivent : le besoin d'une tâche est celui de son opération la plus gourmande.
 //! Mesures (6 octobre 2026, 4 cœurs, pic de la somme des PSS de tous les processus) : version de
 //! travail 185 à 410 Mo (1080p, 4K vers 1080p, 9:16), transcription 2,1 Go (Whisper large-v3-turbo,
-//! modèle de 1,6 Go), visage 120 Mo, montage (build_edit) 150 Mo pour 2 min de rush (son du rush
+//! modèle de 1,6 Go ; Parakeet le 28 octobre : 2,8 Go), visage 120 Mo, montage (build_edit) 150 Mo pour 2 min de rush (son du rush
 //! entier en mémoire). Rendu HyperFrames 1080p (7 octobre, programmes lancés compris, navigateurs
 //! dans leur propre session) avec 4 navigateurs : 4,6 Go pour 80 s de montage en 8 plans, 6 Go pour
 //! 5 min en 8 plans, 7 Go pour 5 min en 150 plans (navigateurs de 1,05 à 1,3 Go chacun). Rendu 4K :
@@ -111,8 +111,9 @@ fn formula(op: &str, v: &VideoInfo) -> Option<f64> {
         "Copie du rush en 1080p" => 150.0 + 124.0 * mpx(v.work) + 14.0 * mpx(v.source),
         "Extraction du son" => 60.0,
         "Détection de la parole" => 60.0,
-        // Modèle large-v3-turbo (1,6 Go) et ses calculs ; le son 16 kHz du rush entier en mémoire.
-        "Transcription" => 2300.0 + 0.1 * v.duration,
+        // Parakeet (2,5 Go en ONNX, mesuré à 2,8 Go) puis Whisper pour quelques segments seuls (2,1 Go,
+        // après Parakeet) ; le son 16 kHz du rush entier en mémoire.
+        "Transcription" => 3000.0 + 0.1 * v.duration,
         "Position du visage" => 100.0 + 10.0 * mpx(v.work),
         // Son 16 kHz du rush en flottants, MFCC de chaque image de 10 ms, images grises d'une fenêtre.
         "Locuteurs" => 80.0 + 0.08 * v.duration,

@@ -7,6 +7,7 @@
 // « Auto-montage » une fois le dérush validé (page des moments) ; en dérushage, les parties
 // marquées data-mode-montage sont masquées. Bouton « Raccourcis », à gauche du menu, sur les
 // pages qui en ont (page des moments : window.AM_RACCOURCIS).
+// Choix du mode en tête du menu déroulé (PUT /api/mode : mode du montage en cours).
 (() => {
   const MODE = document.documentElement.dataset.mode === "derush" ? "derush" : "montage";
   const DERUSH = MODE === "derush";
@@ -60,6 +61,12 @@
   .am-keys:hover { background: var(--bg, #f5f3ef); }
   .am-keys[hidden] { display: none; }
   .am-keys:not([hidden]) + .am-toggle { margin-left: 0; }
+  .am-panel-mode { max-width: 1100px; margin: 0 auto; padding: 10px 16px 0; display: flex; align-items: center; gap: 10px; font-size: 14px; font-weight: 600; color: var(--muted, #6f695f); }
+  .am-mode { display: inline-flex; flex: none; padding: 2px; gap: 2px; border-radius: 9px; background: var(--bg, #f5f3ef); border: 1px solid var(--line, #e4ded4); }
+  .am-mode button { font: inherit; font-size: 14px; font-weight: 600; color: var(--muted, #6f695f); background: none; border: 0; border-radius: 7px; padding: 5px 12px; cursor: pointer; white-space: nowrap; }
+  .am-mode button:hover { color: var(--fg, #1f1d1a); }
+  .am-mode button[aria-checked="true"] { background: var(--accent, #2d6a5a); color: #fff; cursor: default; }
+  .am-mode button:disabled:not([aria-checked="true"]) { opacity: 0.5; cursor: wait; }
   .am-off-page { max-width: 640px; margin: 48px auto; padding: 20px 22px; border: 1px solid var(--line, #e4ded4); border-radius: 12px;
     background: var(--surface, #fffdf9); font-family: var(--body, sans-serif); color: var(--fg, #1f1d1a); }
   .am-off-page h1 { font-size: 20px; margin: 0 0 8px; }
@@ -81,7 +88,12 @@
         <button type="button" class="am-toggle" aria-expanded="false" aria-controls="am-panel">
           <span class="am-dot" hidden></span>Menu<span class="am-chev" aria-hidden="true">▾</span></button>
       </div>
-      <div class="am-panel" id="am-panel" role="navigation" aria-label="Pages d'Auto-montage" hidden><ul></ul></div>`;
+      <div class="am-panel" id="am-panel" role="navigation" aria-label="Pages d'Auto-montage" hidden>
+        <div class="am-panel-mode"><span>Mode</span>
+          <div class="am-mode" role="radiogroup" aria-label="Mode">
+            <button type="button" role="radio" data-mode="derush" title="Découper le rush en moments : sans effets, sous-titres ni Claude">Dérushage</button>
+            <button type="button" role="radio" data-mode="montage" title="Toutes les fonctions : effets, sous-titres, consignes et Claude">Auto-montage</button>
+          </div></div><ul></ul></div>`;
     const toggle = bar.querySelector(".am-toggle");
     const panel = bar.querySelector(".am-panel");
     bar.querySelector(".am-here").textContent = (current ? current[1] : "") + (current && current[0] === "/" ? (DERUSH ? " · dérushage" : " · auto-montage") : "");
@@ -91,6 +103,10 @@
     keys.addEventListener("click", () => { if (window.AM_RACCOURCIS) window.AM_RACCOURCIS.open(); });
     showKeys();
     document.addEventListener("am-raccourcis", showKeys);
+    for (const btn of bar.querySelectorAll(".am-mode button")) {
+      btn.setAttribute("aria-checked", String(btn.dataset.mode === MODE));
+      btn.addEventListener("click", () => setMode(btn.dataset.mode, bar));
+    }
     for (const [href, label, montageHint, derushHint] of PAGES) {
       if (DERUSH && derushHint === null) continue;
       const hint = DERUSH && derushHint ? derushHint : montageHint;
@@ -132,6 +148,17 @@
       const badge = Object.assign(document.createElement("span"), { className: "am-badge", textContent: `${st.update.latest} disponible` });
       b.append(badge);
     }).catch(() => {});
+  }
+  // Changement de mode du montage en cours : enregistré par le serveur (work/mode.txt), puis la page
+  // est rechargée pour montrer ou masquer ses parties.
+  async function setMode(mode, bar) {
+    if (mode === MODE) return;
+    const buttons = bar.querySelectorAll(".am-mode button");
+    buttons.forEach((b) => { b.disabled = true; });
+    const r = await fetch("/api/mode", { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify({ mode }) }).catch(() => null);
+    if (r && r.ok) { location.reload(); return; }
+    buttons.forEach((b) => { b.disabled = false; });
+    alert("Le mode n'a pas pu être changé : Auto-montage ne répond pas.");
   }
   // Page réservée au mode Auto-montage (Claude), ouverte en dérushage : remplacée par un message.
   function offPage() {

@@ -1,6 +1,6 @@
 # Test de bout en bout d'Auto-montage installé directement sur la machine, sur
 # Linux, macOS et Windows : le programme est compilé, « auto-montage start » installe ce qui
-# manque (Node, paquets, navigateur de rendu, Whisper, modèles) et lance l'interface, puis un rush
+# manque (Node, paquets, navigateur de rendu, Whisper, Parakeet, modèles) et lance l'interface, puis un rush
 # de synthèse est envoyé, préparé (transcription, montage, rendu, page des moments) et une
 # version de travail est générée (tests/e2e.sh).
 # - quand une modification du projet arrive sur main ou sur rust ;
@@ -85,7 +85,7 @@ jobs:
           printf '#!/bin/sh\nexec python "$@"\n' > "$RUNNER_TEMP/shim/python3"
           chmod +x "$RUNNER_TEMP/shim/python3"
           echo "$RUNNER_TEMP/shim" >> "$GITHUB_PATH"
-      - name: Démarrage (installation de Node, Whisper, modèles…)
+      - name: Démarrage (installation de Node, modèles de transcription…)
         timeout-minutes: 60
         run: |
           montage/bin/auto-montage start --sans-navigateur > "$RUNNER_TEMP/serveur.log" 2>&1 &

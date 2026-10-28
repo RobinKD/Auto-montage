@@ -69,7 +69,7 @@ npm i
    l'instant choisi, « ‹ › » ou ← → une image, zoom jusqu'à ×16 pour placer chaque image à la
    souris) ; puis « Couper ici » découpe un moment en parties à garder ou retirer une à une
    (étiquette de chaque partie sur la ligne de coupe), par exemple pour retirer une
-   répétition que Whisper n'a pas transcrite. La coupe tombe sur l'image choisie (positions
+   répétition que la transcription n'a pas écrite. La coupe tombe sur l'image choisie (positions
    calées sur les images du rush, 30 i/s) ; dans la variante, la partie k du moment id s'écrit
    `"id/k"` et les instants de coupe sont dans le document du moment (`cuts`).
    Plans sans parole (hachurés sur la frise) : les plans entre deux phrases (id ≥ 1000),
@@ -107,7 +107,7 @@ l'interface web sur <http://localhost:8080/> (page des moments et téléchargeme
 `./am stop` l'arrête. Ce qui s'affiche au démarrage va aussi dans `work/logs/demarrage.log`
 (`rust/src/lanceur.rs`). Le programme tourne directement sur la machine, sans conteneur.
 
-Deux modes, choisis dans le bandeau du haut de chaque page (`work/mode.txt`) : **Dérushage**
+Deux modes, choisis en tête du menu de chaque page (`work/mode.txt`) : **Dérushage**
 (découpe du rush en moments seulement : pas d'effets, de cadrage, de réglages du son ni de
 Claude ; `build_edit` met les moments bout à bout tels quels, avec des sous-titres simples
 sauf si la case « Sous-titres » est décochée, `work/derush.json`) et **Auto-montage**
@@ -170,7 +170,7 @@ Pause et reprise : une préparation interrompue (pause, arrêt d'Auto-montage ou
 erreur) reprend là où elle en était avec `./am prepare --reprendre MonRush.mov` (ou
 « Reprendre la préparation » sur la page « Rushes et montages » ; la tâche est décrite dans
 `work/tache.json`). La version de travail est encodée par morceaux d'une minute
-(`rust/src/version_travail.rs`, morceaux dans `work/reprise/travail/`), Whisper ne transcrit que
+(`rust/src/version_travail.rs`, morceaux dans `work/reprise/travail/`), la transcription ne refait que
 les morceaux qui n'ont pas encore de texte (`work/seg/`), la détection du visage repart de sa
 dernière position enregistrée (`work/reprise/visage.json`) et la page des moments ne refait que
 les extraits manquants. Le rendu et l'application des consignes par Claude reprennent au début de
@@ -191,7 +191,7 @@ découpage se fait d'après la parole.
 | --- | --- | --- |
 | Version de travail 1080×1920 (MP4), par morceaux d'une minute | `version_travail` (via `prepare`) | `public/rushes/` |
 | Source 4K des images gardées (rendu final) | `make_hd` via `render final` | `public/rushes/rush_2160.mp4` |
-| Segments de parole (VAD Silero) et transcription mot à mot par segment (Whisper large-v3-turbo, segments transcrits ensemble par morceaux de 28 s, un fil par cœur, 8 au plus) | `setup_whisper`, `transcribe_segments` | `work/segments.json` |
+| Segments de parole (VAD Silero) et transcription mot à mot par segment (Parakeet TDT 0.6B v3 par ONNX Runtime, segments transcrits ensemble par morceaux de 28 s ; Whisper sur un fil par cœur, 8 au plus, Whisper large-v3-turbo q8_0 pour les segments restés vides ou sortis dans une autre langue ; confiance de chaque mot, mots incertains « à vérifier » sur la page des moments) | `setup_whisper`, `transcribe_segments` | `work/segments.json` |
 | Visages et cadrage des zooms (YuNet, tous les visages, zoom plafonné pour que personne ne sorte de l'image ; personnes reconnues par SFace, vignettes pour le « Cadrage » par moment) | `detect_face`, `fetch_face_model` | `src/data/face.json`, `work/visages/` |
 | Bruitages provisoires | `make_sfx` | `public/sfx/` |
 | Dérush, sous-titres, zooms, effets, piste voix | `build_edit` | `src/data/edit.json`, `public/audio/voice.wav` |

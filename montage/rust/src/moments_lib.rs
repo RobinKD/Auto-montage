@@ -29,6 +29,8 @@ pub fn rush_duration(work_dir: &Path) -> f64 {
 pub const STRIP_STEP: f64 = 0.5;
 pub const STRIP_TILE: i64 = 10;
 pub const WAVE_RATE: u32 = 20; // crêtes par seconde
+/// Confiance du modèle dans un mot (« p » de segments.json) sous laquelle il est « à vérifier » sur la page des moments. Rush Wikimania (Parakeet) : 3 % des mots.
+pub const DOUBT: f64 = 0.5;
 
 /// Planches d'images du rush pour les frises de la page (petit côté de 72 px). Refaites
 /// seulement si le rush ou le format changent (frames/.cle). Renvoie leur description pour la page.
@@ -187,7 +189,7 @@ pub fn display_size_of(out: &str) -> Option<(i64, i64)> {
     Some((w, h))
 }
 
-// Langue parlée dans le rush (transcription Whisper) : français sauf choix contraire sur la page
+// Langue parlée dans le rush (transcription) : français sauf choix contraire sur la page
 // « Rushes et montages » ou « prepare --langue en ». Fixée plutôt que détectée : la détection
 // ralentirait chaque morceau transcrit. work/langue.txt : choix pour la prochaine préparation
 // (commun à tous les rushes) ; work/langue_rush.txt : langue du rush en cours (rangée avec lui).

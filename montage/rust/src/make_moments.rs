@@ -18,7 +18,7 @@
 use crate::fonts_lib;
 use crate::moments_lib::{
     edit_size, effective_gaps, frame_layout, hf_preview_files, load_segments, res_label, rush_duration, sound_catalog, suggested_keep,
-    timeline_strip, timeline_wave, wav_len, SOUNDS, VOICES,
+    timeline_strip, timeline_wave, wav_len, DOUBT, SOUNDS, VOICES,
 };
 use crate::paths;
 use crate::procs;
@@ -364,7 +364,8 @@ fn run() -> Result<(), String> {
         let a = if start - 0.05 > 0.0 { T { x: start - 0.05, int: false } } else { T { x: 0.0, int: true } };
         let b = T { x: end + 0.05, int: false };
         pg.extract(&name, a, b, 28, "64k")?;
-        // Mots avec leurs temps dans l'extrait (qui commence à « a »), corrections du montage appliquées.
+        // Mots avec leurs temps dans l'extrait (qui commence à « a »), corrections du montage appliquées ;
+        // « d » : transcription incertaine (confiance sous DOUBT), à vérifier sur la page.
         let fixes = overlay.get("fixes").and_then(|f| f.get(sid.to_string())).unwrap_or(&empty);
         let words: Vec<Value> = util::arr(seg, "words")
             .iter()
@@ -375,6 +376,9 @@ fn run() -> Result<(), String> {
                     "a": sub_round(w.get("a").unwrap_or(&json!(0)), a, 3),
                     "b": sub_round(w.get("b").unwrap_or(&json!(0)), a, 3),
                 });
+                if w.get("p").and_then(Value::as_f64).unwrap_or(1.0) < DOUBT && fixes.get(i.to_string()).is_none() {
+                    o["d"] = json!(1);
+                }
                 if let Some(k) = w.get("spk").filter(|k| k.is_i64()) {
                     o["s"] = k.clone(); // locuteur du mot (diarize)
                 }

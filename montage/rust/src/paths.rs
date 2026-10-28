@@ -232,6 +232,14 @@ pub fn whisper_dir() -> PathBuf {
     env::var("WHISPER_DIR").map(PathBuf::from).unwrap_or_else(|_| root().join("whisper.cpp"))
 }
 
+/// Modèle Parakeet en ONNX et bibliothèque ONNX Runtime (`PARAKEET_DIR`, sinon à côté de whisper.cpp).
+pub fn parakeet_dir() -> PathBuf {
+    env::var("PARAKEET_DIR").map(PathBuf::from).unwrap_or_else(|_| {
+        let w = whisper_dir();
+        w.parent().map(Path::to_path_buf).unwrap_or_else(|| root().to_path_buf()).join(crate::parakeet::MODEL)
+    })
+}
+
 /// Programme de whisper.cpp (`whisper-cli`, `vad-speech-segments`) : compilé dans
 /// `whisper.cpp/build/bin/` (`build/bin/Release/` sous Windows), sinon livré (`montage/bin/`), sinon le PATH.
 pub fn whisper_bin(name: &str) -> PathBuf {

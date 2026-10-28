@@ -324,8 +324,8 @@
 </main>
 
 <script>
+  const $ = (id) => document.getElementById(id);
   // Montage en cours en dérushage (work/mode.txt) : ni consignes, ni style, ni Claude ; la section 2 est masquée.
-  // Mode Dérushage (bandeau du haut) : ni consignes, ni style, ni Claude ; la section 2 est masquée.
   const DERUSH = document.documentElement.dataset.mode === "derush";
   if (DERUSH) $("prepare-num").textContent = "2";
   // Temps restant estimé par le serveur (durée du rush, vitesse mesurée de la machine).
@@ -610,7 +610,7 @@
     choose(chosen);
   }
 
-  // Langue parlée (transcription Whisper) : français par défaut ; le dernier choix est gardé
+  // Langue parlée (transcription) : français par défaut ; le dernier choix est gardé
   // pour les préparations suivantes (work/langue.txt).
   let languageShown = false;
   function showLanguage() {

@@ -224,7 +224,9 @@ impl Montage {
 
     /// (lignes [(début, fin, taille relative)], réduction) : au plus « lines » lignes, coupées là où
     /// leurs largeurs (multipliées par la taille de chaque ligne) sont les plus proches ; réduites
-    /// ensemble si la plus large dépasse. Même règle dans la page des moments (captionLayout).
+    /// ensemble si la plus large dépasse. Peu de mots : moins de lignes, autant qu'il en faut pour
+    /// tenir dans les limites d'un sous-titre de ce nombre de lignes (`caption_lines`). Même règle
+    /// dans la page des moments (captionLayout).
     pub fn caption_layout(&mut self, words: &[String], big: &[bool]) -> (Vec<(usize, usize, f64)>, f64) {
         let space = self.measure(" ");
         let widths: Vec<f64> = words
@@ -234,7 +236,7 @@ impl Montage {
             .collect();
         let width = |a: usize, b: usize| widths[a..b].iter().sum::<f64>() + space * (b as f64 - a as f64 - 1.0).max(0.0);
         let lines_max = self.cap.get("lines").and_then(Value::as_i64).filter(|&l| l != 0).unwrap_or(2);
-        let n = (lines_max.min(words.len() as i64)).max(1) as usize;
+        let n = caption_lines(words, lines_max);
         let mut sizes: Vec<f64> = match self.cap.get("lineSizes").and_then(Value::as_array) {
             Some(a) if !a.is_empty() => a.iter().map(|s| s.as_f64().unwrap_or(100.0) / 100.0).collect(),
             _ => vec![1.0, 1.0, 1.0],
@@ -261,6 +263,21 @@ impl Montage {
         let widest = lines.iter().map(|&(a, b, s)| width(a, b) * s).fold(f64::MIN, f64::max);
         (lines, (1.0f64).min((self.width as f64 - CAPTION_MARGIN) / widest.max(1.0)))
     }
+}
+
+/// Lignes d'un sous-titre : le plus petit nombre de lignes dont le style aurait gardé ces mots en un
+/// seul sous-titre (limites de fonts_lib::caption_limits_for : mots, et lettres avant le dernier mot,
+/// comme le regroupement de build_edit), sans dépasser `lines_max`. 2 mots courts : une seule ligne
+/// même si le style en demande 2.
+pub fn caption_lines(words: &[String], lines_max: i64) -> usize {
+    let letters: i64 = words.iter().take(words.len().saturating_sub(1)).map(|w| w.chars().count() as i64).sum();
+    let n = (1..lines_max)
+        .find(|&k| {
+            let (mw, mc) = fonts_lib::caption_limits_for(k);
+            words.len() as i64 <= mw && letters <= mc
+        })
+        .unwrap_or(lines_max);
+    n.min(words.len() as i64).max(1) as usize
 }
 
 /// `itertools.combinations(range(lo, hi), k)` dans le même ordre.
@@ -296,6 +313,20 @@ pub fn combinations(lo: usize, hi: usize, k: usize) -> Vec<Vec<usize>> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn fewer_lines_for_few_words() {
+        let w = |t: &str| t.split(' ').map(String::from).collect::<Vec<_>>();
+        assert_eq!(caption_lines(&w("C'est bon."), 2), 1);
+        assert_eq!(caption_lines(&w("Une recette de"), 3), 1);
+        assert_eq!(caption_lines(&w("la connaissance."), 2), 1);
+        assert_eq!(caption_lines(&w("quantité très gigantesque"), 2), 1);
+        assert_eq!(caption_lines(&w("gigantesque quantité très"), 2), 2); // 20 lettres avant le dernier mot
+        assert_eq!(caption_lines(&w("Donc on a juste besoin d'une"), 3), 2);
+        assert_eq!(caption_lines(&w("Donc on a juste besoin d'une photo"), 3), 3);
+        assert_eq!(caption_lines(&w("Oui"), 3), 1);
+        assert_eq!(caption_lines(&w("Donc tout est disponible à nous"), 1), 1);
+    }
 
     #[test]
     fn combos() {

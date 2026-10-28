@@ -4,7 +4,7 @@
 # rust/src/setup.rs teste chaque ligne avec l'URL de la 2e colonne.
 #
 # domaine                              URL de test                                                                         usage
-huggingface.co                         https://huggingface.co/                                                             modèles Whisper et VAD
+huggingface.co                         https://huggingface.co/                                                             modèles Parakeet, Whisper et VAD
 *.hf.co                                https://cas-bridge.xethub.hf.co/                                                    modèles : fichiers servis par Hugging Face
 www.dafont.com                         https://www.dafont.com/                                                             police Oliver : page
 dl.dafont.com                          https://dl.dafont.com/                                                              police Oliver : téléchargement
