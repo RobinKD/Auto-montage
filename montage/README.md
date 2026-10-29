@@ -69,7 +69,7 @@ npm i
    chaque moment, forme d'onde de la voix, case garder / retirer, poignées pour raccourcir le
    début ou la fin du moment choisi), et frise du moment choisi dessous (ses effets et ses sous-titres mot à mot
    s'il en a, et une ligne de coupe ; règle : image et mot à
-   l'instant choisi, « ‹ › » ou ← → une image, zoom jusqu'à ×16 pour placer chaque image à la
+   l'instant choisi, « ‹ › » ou ← → une image, zoom ×2 par pas, au moins jusqu'à ×16 et jusqu'à environ 4 s sur toute la largeur, pour placer chaque image à la
    souris) ; puis « Couper ici » découpe un moment en parties à garder ou retirer une à une
    (étiquette de chaque partie sur la ligne de coupe), par exemple pour retirer une
    répétition que la transcription n'a pas écrite. La coupe tombe sur l'image choisie (positions

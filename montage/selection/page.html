@@ -2513,9 +2513,12 @@ ${HFAudio.voiceElements(spec)}
     head.append(btn("Début ici", "Commencer la partie gardée à la tête de lecture (le début est retiré)", () => trimEdge(m, "a", momentTime(m))),
       btn("Fin ici", "Finir la partie gardée à la tête de lecture (la fin est retirée)", () => trimEdge(m, "b", momentTime(m))));
     if (!m.gap) { const c = btn("✂ Couper ici", cutTitle(m), () => cutHere(m), "primary"); c.disabled = !canCut(m); head.append(c); }
-    const zoom = el("span", "zoom"), ZOOMS = [1, 2, 4, 8, 16];
+    // Zoom : ×2 par pas, jusqu'à ce qu'environ 4 secondes remplissent la largeur (×16 au moins) ;
+    // un long moment (la vidéo entière après « Valider le dérush ») se lit ainsi mot par mot.
+    const zoom = el("span", "zoom"), ZOOMS = [1];
+    while (ZOOMS[ZOOMS.length - 1] < Math.min(4096, Math.max(16, len / 4))) ZOOMS.push(ZOOMS[ZOOMS.length - 1] * 2);
     const setZoom = (d) => {
-      const k = Math.max(0, Math.min(ZOOMS.length - 1, ZOOMS.indexOf(frise.zoom) + d));
+      const k = Math.max(0, Math.min(ZOOMS.length - 1, Math.max(0, ZOOMS.indexOf(frise.zoom)) + d));
       if (ZOOMS[k] === frise.zoom) return;
       const sc = box.querySelector(".tlk-scroll"), x = momentTime(m) * kpps - sc.scrollLeft;
       frise.zoom = ZOOMS[k];

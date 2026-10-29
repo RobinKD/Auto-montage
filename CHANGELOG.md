@@ -6,6 +6,10 @@ installateurs (voir `packaging/README.md`).
 
 ## 1.3
 
+- **Zoom de la frise du moment bien plus grand pour un long moment** : après « Valider le dérush »,
+  le moment est la vidéo entière, et ses sous-titres et effets se chevauchaient même au zoom
+  maximal (×16). Le zoom va maintenant jusqu'à ne montrer que quelques secondes sur toute la
+  largeur, quelle que soit la durée du moment ; la tête de lecture et le défilement au bord suivent.
 - **Nombre de lignes des sous-titres au choix** : « Lignes au plus » devient un champ « Nombre de
   lignes » (2 par défaut, de 1 à 6), avec une taille réglable pour chaque ligne, sur la page des
   moments et sur « Rushes et montages ».
