@@ -105,6 +105,7 @@
       <p class="note" id="p-label" style="margin: 0 0 4px;"></p>
       <progress id="p-bar" max="1" value="0"></progress>
     </div>
+    <p class="note" id="busy-note" hidden></p>
     <p id="msg" role="status"></p>
   </section>
 
@@ -286,5 +287,26 @@
     }
   }
 
+  // Tâche en cours (préparation, génération, 4K…) : mise à jour, réinitialisation et redémarrage
+  // l'arrêteraient, et le serveur les refuse ; boutons grisés avec la raison. (Une préparation en
+  // pause n'empêche rien : elle reprend après la mise à jour.)
+  const NAMES = { prepare: "Une préparation", regen: "La génération de la vidéo entière", final: "La création de la 4K",
+    export: "L'export pour les plateformes", derush: "Le passage à l'auto-montage", decoupage: "Le découpage des moments",
+    style: "L'analyse des vidéos d'exemple" };
+  async function watchJob() {
+    const job = await fetch("/api/job", { cache: "no-store" }).then((r) => r.json()).catch(() => null);
+    const busy = job && job.state === "running" && job.kind !== "update" && job.kind !== "reset"
+      ? `${NAMES[job.kind] || "Une tâche"} est en cours : attendez sa fin.` : "";
+    for (const id of ["apply", "reset", "restart"]) {
+      const b = $(id);
+      if (b.dataset.title === undefined) b.dataset.title = b.title;
+      if (busy) { b.dataset.jobLocked = "1"; b.disabled = true; b.title = busy; }
+      else if (b.dataset.jobLocked) { delete b.dataset.jobLocked; b.disabled = false; b.title = b.dataset.title; }
+    }
+    $("busy-note").hidden = !busy;
+    $("busy-note").textContent = busy && `${busy} La mise à jour, la réinitialisation et le redémarrage l'arrêteraient : ils seront possibles à sa fin.`;
+    setTimeout(watchJob, busy ? 3000 : 6000);
+  }
   load();
+  watchJob();
 </script>

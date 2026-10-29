@@ -209,7 +209,8 @@
     const make = document.createElement("button");
     make.type = "button";
     make.textContent = DATA.final.running ? "Création en cours…" : v4k ? "Recréer la 4K" : "Créer la version 4K";
-    make.disabled = !!DATA.final.running;
+    make.disabled = !!DATA.final.running || !!DATA.final.busy;
+    if (DATA.final.busy && !DATA.final.running) make.title = DATA.final.busy;
     const box = document.createElement("div");
     box.className = "make";
     box.innerHTML = `<span class="hint">La création de la 4K prend du temps (${minutes(DATA.final.estimate || 0)} sur cet ordinateur). La page peut rester ouverte ou être fermée : la création continue.</span>`;
@@ -244,7 +245,9 @@
     };
     make.addEventListener("click", async () => {
       const mem = DATA.final.memory && DATA.final.memory.level !== "ok" ? `\n\n${DATA.final.memory.message}` : "";
-      if (!confirm(`Créer la version 4K ? Cela prend du temps (${minutes(DATA.final.estimate || 0)} sur cet ordinateur).${mem}`)) return;
+      // Choix de la page des moments changés depuis la vidéo entière : la 4K serait faite sans eux.
+      const stale = DATA.final.changed ? "Des moments ont changé sur la page des moments depuis la dernière vidéo entière : la 4K sera faite sans ces changements. Pour les inclure, générez d'abord la vidéo entière (page des moments).\n\n" : "";
+      if (!confirm(`${stale}Créer la version 4K${stale ? " quand même" : ""} ? Cela prend du temps (${minutes(DATA.final.estimate || 0)} sur cet ordinateur).${mem}`)) return;
       const r = await fetch("/api/final", { method: "POST" });
       if (!r.ok) { label.textContent = (await r.json().catch(() => ({}))).error || `erreur ${r.status}`; return; }
       follow();

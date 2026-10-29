@@ -490,7 +490,7 @@
           <progress id="gen-bar" max="1" value="0"></progress>
           <div><span id="gen-all-label">Ensemble de la génération</span><span id="gen-all-facts"></span></div>
           <progress id="gen-all" max="1" value="0"></progress>
-          <div><button type="button" id="gen-cancel">Annuler</button><span>la version précédente reste en place</span></div>
+          <div><button type="button" id="gen-cancel">Annuler</button><span id="gen-cancel-note">la version précédente reste en place</span></div>
         </div>
       </section>
   </header>
@@ -939,6 +939,8 @@
   const inEdit = new Set(working ? working.clips.map((c) => c.seg) : []);
   const suggested = moments.filter((m) => m.suggested).map((m) => m.id);
   const state = { variant: "travail", names: { travail: "Travail" }, keep: new Set(suggested) };
+  let jobBusy = "";           // raison pour laquelle les tâches sont refusées maintenant (setJobBusy), ou ""
+  let changedSinceWork = 0;   // moments changés depuis la vidéo entière générée (renderSummary)
   let db = null;
   let saveTimer = null;
   let dirty = false; // modification locale pas encore enregistrée
@@ -2395,9 +2397,10 @@ ${HFAudio.voiceElements(spec)}
 
   // Couper le moment ouvert à la tête de lecture (avant le mot le plus proche) : deux moments
   // séparés, chacun avec sa case « Garder ». Interface locale seulement (decoupage.rs).
-  const canCut = (m) => !!window.AUTO_MONTAGE_LOCAL && !!m && !m.gap && m.words.length > 1;
+  const canCut = (m) => !!window.AUTO_MONTAGE_LOCAL && !!m && !m.gap && m.words.length > 1 && !jobBusy;
   const cutHere = (m) => { if (canCut(m)) momentAction("split", m, { t: snapIn(m, momentTime(m)) }); };
   const cutTitle = (m) => (!window.AUTO_MONTAGE_LOCAL ? "Couper un moment : dans Auto-montage sur l'ordinateur"
+    : jobBusy ? jobBusy
     : m && m.gap ? "Un plan sans parole se raccourcit avec ses poignées (début et fin), il ne se coupe pas"
       : m && m.words.length < 2 ? "Un seul mot : rien à couper"
         : `Couper le moment en deux à la tête de lecture, avant le mot le plus proche : deux moments séparés, gardés ou retirés chacun (${keyLabel("couper")})`);
@@ -2409,10 +2412,12 @@ ${HFAudio.voiceElements(spec)}
     const tool = (text, title, onClick, ok) => { const b = btn(text, title, onClick); b.disabled = !ok; return b; };
     const items = [tool("✂ Couper", cutTitle(om), () => cutHere(om), canCut(om))];
     if (window.AUTO_MONTAGE_LOCAL && isPart(om))
-      items.push(tool("Recoller", "Recoller cette partie au moment précédent (défaire la coupe)", () => momentAction("unsplit", om), true));
+      items.push(tool("Recoller", jobBusy || "Recoller cette partie au moment précédent (défaire la coupe)", () => momentAction("unsplit", om), !jobBusy));
+    // Garder / Retirer : seulement s'il y a un moment à changer.
+    const keptN = list.filter((m) => isKept(m)).length;
     items.push(el("span", "sep"),
-      tool("✓ Garder", "Garder dans la vidéo entière", () => setKept(list, true), list.length > 0),
-      tool("⊘ Retirer", "Retirer de la vidéo entière", () => setKept(list, false), list.length > 0),
+      tool("✓ Garder", list.length && keptN === list.length ? "Déjà gardé dans la vidéo entière" : "Garder dans la vidéo entière", () => setKept(list, true), keptN < list.length),
+      tool("⊘ Retirer", list.length && !keptN ? "Déjà retiré de la vidéo entière" : "Retirer de la vidéo entière", () => setKept(list, false), keptN > 0),
       tool("✎ Corriger", "Corriger le texte des sous-titres du moment ouvert", fixText, !!om && !om.gap));
     if (frise.sel.size > 1) {
       const kept = list.filter((m) => isKept(m)).length;
@@ -2660,11 +2665,7 @@ ${HFAudio.voiceElements(spec)}
     if (frise.sel.size > 1) {
       const list = selected(), kept = list.filter((m) => isKept(m)).length;
       out.push(el("h2", "", `${list.length} moments sélectionnés`),
-        el("p", "sub", `${kept} gardés · ${fmt(list.reduce((t, m) => t + m.end - m.start, 0))} de rush. Maj + clic : une suite de moments ; Ctrl (⌘) + clic : un de plus ou de moins.`));
-      const acts = el("div", "at-acts");
-      acts.append(btn("Garder", "Garder tous les moments sélectionnés", () => setKept(list, true)), btn("Retirer", "Retirer tous les moments sélectionnés", () => setKept(list, false)));
-      acts.append(btn("Désélectionner", "", () => { frise.sel.clear(); frise.anchor = null; frise.open = null; renderOpen(); }));
-      out.push(acts);
+        el("p", "sub", `${kept} gardés · ${fmt(list.reduce((t, m) => t + m.end - m.start, 0))} de rush. Maj + clic : une suite de moments ; Ctrl (⌘) + clic : un de plus ou de moins. Garder, retirer ou désélectionner : barre d'outils au-dessus des frises.`));
     } else if (om) {
       const m = om, on = isKept(m);
       out.push(el("h2", "", `${m.gap ? "Plan sans parole" : "Moment"} à ${fmt(m.start)}`),
@@ -2734,14 +2735,6 @@ ${HFAudio.voiceElements(spec)}
             ok.append(btn("Texte juste", "Les mots soulignés sont justes : ce moment n'est plus à vérifier", () => saveMoment(m.id, { checked: true })));
             out.push(para, ok);
           }
-        }
-        if (window.AUTO_MONTAGE_LOCAL) {
-          const acts = el("div", "at-acts");
-          const c = btn("✂ Couper ici", cutTitle(m), () => cutHere(m));
-          c.disabled = !canCut(m);
-          acts.append(c);
-          if (isPart(m)) acts.append(btn("Recoller", "Recoller cette partie au moment précédent (défaire la coupe)", () => momentAction("unsplit", m)));
-          out.push(acts);
         }
       }
       if (!DERUSH) {
@@ -3463,6 +3456,11 @@ ${HFAudio.voiceElements(spec)}
     const total = speech.reduce((t, m) => t + m.end - m.start, 0);
     const gapsKept = kept.filter((m) => m.gap).length;
     const changed = moments.filter((m) => { const c = workChange(m); return c && c.kind !== "same"; }).length;
+    changedSinceWork = changed;
+    // Rien de gardé : rien à générer. Sélection de départ : rien à remettre.
+    lockBtn($("regen"), "kept", kept.length ? "" : "Gardez au moins un moment (case « Garder » ou barre d'outils) avant de générer la vidéo entière");
+    const atStart = state.keep.size === suggested.length && suggested.every((id) => state.keep.has(id));
+    lockBtn($("reset"), "same", atStart ? "La sélection est déjà celle de départ" : "");
     $("count").textContent = `${kept.length - gapsKept} moments de parole sur ${speech.length}`
       + (gapsKept ? ` + ${gapsKept} plan${gapsKept > 1 ? "s" : ""} sans parole` : "") + ` · parole totale ${fmt(total)}`
       + (changed ? ` · ${changed} moment${changed > 1 ? "s" : ""} changé${changed > 1 ? "s" : ""} depuis la vidéo entière générée` : "");
@@ -3475,9 +3473,64 @@ ${HFAudio.voiceElements(spec)}
 
   function render() { renderSummary(); renderList(); }
 
+  // Bouton grisé pour une ou plusieurs raisons (tâche en cours, rien de gardé…), la première au
+  // survol ; rendu actif quand plus aucune raison ne tient (le code qui le grise lui-même pendant
+  // une action garde la main : seul un bouton grisé par lockBtn est réactivé ici).
+  function lockBtn(b, key, reason) {
+    const locks = b._locks || (b._locks = {});
+    if (b.dataset.title === undefined) b.dataset.title = b.title;
+    const was = Object.values(locks).some(Boolean);
+    locks[key] = reason || "";
+    const now = Object.values(locks).filter(Boolean);
+    if (now.length) { b.disabled = true; b.title = now[0]; return; }
+    if (was) b.disabled = false;
+    b.title = b.dataset.title;
+  }
+
+  // Tâche en cours (lancée d'ici, d'une autre page, par Claude ou MCP) ou préparation en pause :
+  // les boutons qui lancent une tâche sont grisés avec la raison (le serveur la refuserait) ; une
+  // préparation de ce rush (« Tout refaire depuis le début ») est suivie dans le bandeau et la page
+  // se recharge à sa fin, puisqu'elle refait la page des moments.
+  const JOB_NAMES = { prepare: "Une préparation", regen: "La génération de la vidéo entière", final: "La création de la 4K",
+    export: "L'export pour les plateformes", derush: "Le passage à l'auto-montage", decoupage: "Le découpage des moments",
+    style: "L'analyse des vidéos d'exemple", update: "La mise à jour d'Auto-montage", reset: "La réinitialisation d'Auto-montage" };
+  function setJobBusy(job) {
+    const reason = !job ? "" : job.state === "running" ? `${JOB_NAMES[job.kind] || "Une tâche"} est en cours : attendez sa fin`
+      : job.paused ? `La préparation de ${job.paused.arg} est en pause : reprenez-la ou abandonnez-la d'abord (page « Rushes et montages »)` : "";
+    lockBtn($("regen"), "job", reason);
+    lockBtn($("valider-derush"), "job", reason);
+    if (reason === jobBusy) return;
+    jobBusy = reason;
+    renderToolbar();
+    renderOpen();
+  }
+  if (window.AUTO_MONTAGE_LOCAL) {
+    let preparing = false;
+    const watch = async () => {
+      const job = await fetch("/api/job", { cache: "no-store" }).then((r) => r.json()).catch(() => null);
+      if (job) {
+        setJobBusy(job);
+        const prep = job.kind === "prepare" && job.state === "running";
+        if (prep) {
+          showGenProgress(job);
+          setStatus(`Préparation de ${job.arg} en cours : la page des moments sera refaite à la fin, et ce qui y est changé maintenant sera perdu.`, "err");
+        }
+        if (preparing && !prep && job.kind === "prepare" && job.state === "done") { location.reload(); return; }
+        if (preparing && !prep) showGenProgress(job);
+        preparing = prep;
+      }
+      setTimeout(watch, preparing ? 1500 : 4000);
+    };
+    watch();
+  }
+
   function toggle(id, on) { setKept([byId.get(id)], on); }
 
   $("reset").addEventListener("click", () => { state.keep = new Set(suggested); render(); scheduleSave(); });
+  if (!DERUSH) {  // en auto-montage, les moments de départ sont ceux suggérés à la préparation
+    $("reset").textContent = "Revenir aux moments suggérés";
+    $("reset").title = $("reset").dataset.title = "Revenir aux moments gardés au départ (ceux suggérés à la préparation)";
+  }
 
   // --- Variantes et enregistrement ------------------------------------------
   $("new-variant").addEventListener("click", () => {
@@ -3734,7 +3787,9 @@ ${HFAudio.voiceElements(spec)}
     // Mémoire juste ou insuffisante pour l'étape en cours (rust/src/memoire.rs) : dit sous la barre.
     const mem = job.stepMemory && job.stepMemory.level !== "ok" ? job.stepMemory.message : "";
     if (mem) $("gen-label").textContent += ` · ${mem}`;
-    $("gen-all-label").textContent = job.kind === "final" ? "Ensemble de la création 4K" : job.kind === "export" ? "Ensemble de l'export" : job.kind === "derush" ? "Ensemble du passage à l'auto-montage" : "Ensemble de la génération";
+    $("gen-all-label").textContent = job.kind === "final" ? "Ensemble de la création 4K" : job.kind === "export" ? "Ensemble de l'export"
+      : job.kind === "derush" ? "Ensemble du passage à l'auto-montage" : job.kind === "prepare" ? "Ensemble de la préparation" : "Ensemble de la génération";
+    $("gen-cancel-note").textContent = job.kind === "prepare" ? "pour la mettre en pause : page « Rushes et montages »" : "la version précédente reste en place";
     $("gen-all").value = job.overall || 0;
     $("gen-all-facts").textContent = `${Math.floor((job.overall || 0) * 100)} %${remaining(job.remaining)}`;
   }
@@ -4379,6 +4434,7 @@ ${HFAudio.voiceElements(spec)}
       $("son-denoise").addEventListener("change", () => putSon({ denoise: Number($("son-denoise").value) }));
       $("son-loudness").addEventListener("change", () => putSon({ loudness: $("son-loudness").value === "off" ? false : Number($("son-loudness").value) }));
       for (const k of ["declick", "highpass", "clarity"]) $(`son-${k}`).addEventListener("change", () => putSon({ [k]: $(`son-${k}`).checked }));
+      if (!working) lockBtn($("son-analyse"), "work", "Générez d'abord la vidéo entière : la recherche se fait sur son son");
       $("son-analyse").addEventListener("click", async () => {
         $("son-analyse").disabled = true;
         $("son-status").textContent = "Recherche en cours (quelques secondes)…";
@@ -4518,6 +4574,14 @@ ${HFAudio.voiceElements(spec)}
     const data = await fetch("/api/downloads", { cache: "no-store" }).then((r) => r.json()).catch(() => null);
     menu.replaceChildren();
     if (!data) { menu.textContent = "Le serveur Auto-montage ne répond pas."; menu.hidden = false; return; }
+    // Rien de généré : une seule ligne qui dit quoi faire (pas de liste de « pas encore »).
+    if (!data.versions.length && !(data.final && data.final.available)) {
+      menu.append(Object.assign(document.createElement("div"), { className: "row", textContent: DERUSH
+        ? "Pas encore de vidéo : « Valider le dérush », puis « Télécharger derush »."
+        : "Pas encore de vidéo : « Générer la vidéo entière » d'abord." }));
+      menu.hidden = false;
+      return;
+    }
     const mb = (n) => `${(n / 1048576).toFixed(n < 10485760 ? 1 : 0)} Mo`;
     const byId = Object.fromEntries(data.versions.map((v) => [v.id, v]));
     for (const [id, label, what] of [["720p", "720p", "légère, pour le téléphone"], ["1080p", "1080p", "vidéo entière"], ["4k", "4K", "pour la publication"]]) {
@@ -4540,7 +4604,8 @@ ${HFAudio.voiceElements(spec)}
         const mk = document.createElement("button");
         mk.type = "button";
         mk.textContent = f.running ? "Création en cours…" : "Créer la version 4K";
-        mk.disabled = !f.available || !!f.running;
+        mk.disabled = !f.available || !!f.running || !!f.busy;
+        if (f.busy) mk.title = f.busy;
         mk.addEventListener("click", () => createFinal(mk, f.estimate));
         row.append(mk);
         const hint = document.createElement("div");
@@ -4615,9 +4680,10 @@ ${HFAudio.voiceElements(spec)}
     const cutLabel = Object.assign(document.createElement("label"), { htmlFor: "export-cut", textContent: " Couper à la durée maximale de la plateforme" });
     cutLabel.prepend(cut);
     const go = Object.assign(document.createElement("button"), { type: "button", textContent: ex.running ? "Export en cours…" : "Exporter", disabled: true });
+    if (jobBusy && !ex.running) go.title = jobBusy;
     const sync = () => {
       const n = boxes.filter((b) => b.checked).length;
-      go.disabled = !n || !ex.source || ex.running;
+      go.disabled = !n || !ex.source || ex.running || !!jobBusy;
       if (!ex.running) go.textContent = n > 1 ? `Exporter (${n})` : "Exporter";
     };
     boxes.forEach((b) => b.addEventListener("change", sync));
@@ -4647,7 +4713,9 @@ ${HFAudio.voiceElements(spec)}
     }
   }
   async function createFinal(btn, estimate) {
-    if (!confirm(`Créer la version 4K ? Cela prend du temps (${minutes(estimate || 0)} sur cet ordinateur). Vous pourrez continuer à utiliser la page pendant ce temps.`)) return;
+    const n = changedSinceWork;
+    const stale = n ? `${n} moment${n > 1 ? "s ont" : " a"} changé depuis la dernière vidéo entière : la 4K sera faite sans ${n > 1 ? "ces changements" : "ce changement"}. Pour ${n > 1 ? "les" : "l'"}inclure, générez d'abord la vidéo entière.\n\n` : "";
+    if (!confirm(`${stale}Créer la version 4K${n ? " quand même" : ""} ? Cela prend du temps (${minutes(estimate || 0)} sur cet ordinateur). Vous pourrez continuer à utiliser la page pendant ce temps.`)) return;
     btn.disabled = true;
     const r = await fetch("/api/final", { method: "POST" });
     if (!r.ok) { setStatus((await r.json().catch(() => ({}))).error || `erreur ${r.status}`, "err"); btn.disabled = false; return; }

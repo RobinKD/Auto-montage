@@ -7,7 +7,8 @@
 //! « claude » une fois, ou ANTHROPIC_API_KEY. Lancé par la préparation de la page « Rushes et
 //! montages » quand on le demande. Éléments de style : sons personnels (public/sfx/perso/) et
 //! planches des vidéos d'exemple (work/style/videos/*.planche.jpg) ; analyse écrite dans
-//! work/analyse_style.md.
+//! work/analyse_style.md. En dérushage (work/mode.txt), seulement les moments à garder
+//! (work/suggestions.json), d'après les consignes écrites : ni effets, ni style.
 //!
 //! `auto-montage style_claude` : analyse des vidéos d'exemple, seconde étape. Claude regarde les
 //! planches datées et les mesures d'analyze_style (work/style/analyse/faits.json) et écrit ce
@@ -21,7 +22,7 @@
 //! commandes d'auto-montage (build_edit, fonts_lib) : le dossier de ce programme est mis en tête
 //! du PATH de Claude pour qu'il les trouve sous le nom « auto-montage ».
 
-use crate::moments_lib::{hidden_effects, language_from, language_label};
+use crate::moments_lib::{app_mode, hidden_effects, language_from, language_label};
 use crate::paths;
 use crate::procs;
 use crate::util;
@@ -230,6 +231,9 @@ pub fn apply_instructions(_args: &[String]) -> i32 {
     let rush_txt = rush_txt.trim_end_matches('\n');
     let rush = rush_txt.rsplit(['/', '\\']).find(|s| !s.is_empty()).unwrap_or("").to_string();
     let langue = language_label(&language_from(&work, "langue_rush.txt")).unwrap_or("Français").to_lowercase();
+    if app_mode(&work) == "derush" {
+        return derush_instructions(has_text, &rush, &langue);
+    }
 
     let consignes = if has_text {
         "Applique les consignes de montage de montage/work/instructions.md"
@@ -278,6 +282,22 @@ Ne modifie aucun autre fichier (sauf montage/work/analyse_style.md, montage/work
             "Bash(auto-montage fonts_lib)",
         ],
     )
+}
+
+/// Dérushage : les consignes écrites servent à choisir les moments à garder (doublons, ratés,
+/// sujets à retirer…) ; rien d'autre (le montage reste en dérushage, sans effets).
+fn derush_instructions(has_text: bool, rush: &str, langue: &str) -> i32 {
+    if !has_text {
+        return fail("En dérushage, seules les consignes écrites (work/instructions.md) sont appliquées.");
+    }
+    let prompt = format!(
+        "Tu travailles dans le projet Auto-montage (interface locale : ne publie aucune page claude.ai, ne lance aucun rendu).
+Le rush « {rush} » vient d'être préparé pour un dérushage : choisir les moments à garder, sans effets ni habillage. Sa transcription par segment (un segment = un moment de la page) est dans montage/work/segments.json ; on y parle {langue}.
+Lis les consignes de montage/work/instructions.md et ne retiens que ce qui sert au choix des moments (sujets à garder ou à retirer, durée visée, prises à préférer…) ; ignore ce qui concerne les effets, les sons, l'intro ou le style des sous-titres.
+Écris montage/work/suggestions.json : {{\"keep\": [ids des segments à garder], \"reasons\": {{\"id\": \"raison du retrait, en quelques mots\"}}}} (doublon : garder la 2e prise ; ratés, apartés et ce que les consignes écartent retirés).
+Ne modifie aucun autre fichier. Termine par un résumé de deux ou trois lignes."
+    );
+    run_claude(&prompt, &[])
 }
 
 /// `auto-montage style_claude`

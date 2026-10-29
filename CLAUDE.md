@@ -144,7 +144,9 @@ interne : les changements attendent la prochaine version.
   `work/mode.txt`, propre à chaque montage (rangé avec lui par `project`, `moments_lib.app_mode` ;
   sans ce fichier : Auto-montage). L'interface locale prépare un nouveau rush en dérushage
   (`prepare --mode derush`, écrit pour un nouveau rush ; `--mode montage` avec des consignes
-  appliquées par Claude) ; « Valider le dérush » (page des moments, dérushage seulement) propose
+  appliquées par Claude quand le montage en cours est en auto-montage ; en dérushage, des consignes
+  écrites font choisir les moments par Claude, `jobs::prepare_plan`, étape « choix des moments
+  (Claude) », `claude_tasks::derush_instructions` : seulement work/suggestions.json) ; « Valider le dérush » (page des moments, dérushage seulement) propose
   « Télécharger derush » (« Générer », puis menu « Télécharger » ; « Générer la vidéo entière »,
   `#regen`, est caché en dérushage), ou passe à l'auto-montage
   (`POST /api/derush/valider`, tâche `derush` : use_selection, build_edit, `rust/src/derush_video.rs`
@@ -154,17 +156,22 @@ interne : les changements attendent la prochaine version.
   work/derush_segments.json` (sans Whisper), make_moments : un seul moment ; le dérush reste dans
   « Montages »). Le serveur l'écrit sur `<html data-mode>`
   (`with_mode` de `local_server`) ; en dérushage, les parties marquées `data-mode-montage` sont
-  masquées (consignes, style, effets, son, cadrage ; pages Claude retirées du menu), la page des
+  masquées (style, effets, son, cadrage ; « Discuter avec Claude » retirée du menu ; consignes réduites
+  au choix des moments sur /rush/), la page des
   moments (`DERUSH`) ne montre que le choix et la coupe des moments, et les sous-titres (« Corriger »
   et piste « Sous-titres » de la frise du moment toujours là ; onglet « Paramètres sous-titres ») :
   case « Sous-titres » (cochée par défaut, `work/derush.json`, `moments_lib.derush_subtitles`, PUT
   `/api/derush`, `<html data-subtitles>` ; « Style des sous-titres », marqué `data-subtitles-only`,
-  seulement cochée). La préparation se fait sans Claude (discussion et analyse du style refusées), et `build_edit`
+  seulement cochée). La préparation se fait sans Claude, sauf consignes écrites pour choisir les moments (discussion et analyse du style refusées), et `build_edit`
   (`DERUSH`) ignore effets, voix, cadrage, son.json, zooms, rebond et karaoké, et les sous-titres
   si la case est décochée (choix gardés pour le mode Auto-montage). Une nouvelle partie liée aux effets ou à Claude
   doit recevoir `data-mode-montage`.
 - Bandeau et menu des pages de l'interface locale : `local/menu.js`, ajouté par
   `local_server` à toutes ses pages (liste `PAGES`) ; pas de liens de navigation dans les pages.
+  Pendant une tâche (`job` de `/api/status`, `jobs::job_brief`), le choix du mode est grisé (PUT `/api/mode`
+  refusé) ; les pages grisent de même, avec la raison au survol, les boutons dont l'action serait refusée
+  (tâche en cours, préparation en pause : `busyReason` de /rush/, `setJobBusy` / `lockBtn` de la page des
+  moments, `final_info` `busy` / `changed`).
   Il marque aussi les parties qui ont besoin de Claude Code (attribut `data-needs-claude`) :
   pastille « Nécessite Claude Code », grisées et `inert` sans connexion (`/api/status`).
   Bouton « Raccourcis » (à gauche de « Menu ») sur les pages qui déclarent `window.AM_RACCOURCIS`

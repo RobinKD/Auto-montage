@@ -39,6 +39,29 @@ installateurs (voir `packaging/README.md`).
   45 s plus loin, même après un « attends, je recommence ». Les moments faits seulement de « euh »
   ou d'un aparté sont décochés. Deux phrases qui commencent pareil (« c'est pour ça que… ») ne sont
   plus prises pour une redite.
+- **Des consignes aussi pour le dérushage** : quand le montage en cours est en dérushage, la page
+  « Rushes et montages » garde une zone de consignes. Claude choisit alors les moments d'après elles
+  pendant la préparation (sujets à garder, prises à préférer), et le nouveau rush reste en dérushage,
+  sans effets. La page « Connexion à Claude » reste dans le menu en dérushage.
+- **Les boutons qui ne peuvent rien faire sont grisés, avec la raison au survol** : pendant une
+  tâche (préparation, génération, 4K, export) ou une préparation en pause, « Générer », « Valider le
+  dérush », « Couper », « Recoller », « Créer la version 4K », « Exporter », « Rouvrir » et
+  « Supprimer » un montage, « Analyser les vidéos d'exemple », « Mettre à jour », « Réinitialiser »,
+  « Redémarrer » et le choix du mode ne sont plus cliquables pour se faire refuser ensuite. Aussi
+  grisés : « Générer » sans aucun moment gardé, « Rechercher les bruits parasites » avant la première
+  vidéo entière, « Garder » ou « Retirer » quand rien ne changerait, et « Revenir aux moments
+  suggérés » (nouveau nom en auto-montage de « Revenir au derush initial ») quand la sélection est
+  déjà celle de départ.
+- **Décocher un effet proposé** (page « Rushes et montages ») ne demande plus s'il faut le retirer
+  de tous les moments quand il n'est placé sur aucun, ni pendant une préparation ; sinon la question
+  dit sur combien de moments il est placé.
+- **Préparation du même rush en cours** : la page des moments le dit, avec la barre d'avancement, et
+  se recharge à la fin.
+- **Créer la 4K** prévient quand des moments ont changé depuis la dernière vidéo entière (la 4K
+  serait faite sans eux). Le menu « Télécharger » sans vidéo générée dit simplement quoi faire.
+- « Couper ici », « Recoller » et « Garder / Retirer » ne sont plus en double dans le panneau du
+  moment (ils restent dans la barre d'outils et en tête du moment). La discussion avec Claude dit
+  quand il n'y a pas de montage en cours ou qu'une tâche tourne.
 
 ## 1.2
 

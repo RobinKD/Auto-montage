@@ -73,6 +73,25 @@ pub fn prepare_with_instructions() -> Vec<Step> {
     v
 }
 
+/// Dérushage avec des consignes : Claude choisit les moments à garder (work/suggestions.json)
+/// avant la page des moments ; le montage reste en dérushage (ni effets ni rendu).
+pub fn prepare_derush_with_instructions() -> Vec<Step> {
+    let p = prepare_steps();
+    let mut v = vec![p[0].clone(), step("choix des moments (Claude)", &["apply_instructions"])];
+    v.extend(p[1..].iter().cloned());
+    v
+}
+
+/// Étapes d'une préparation : avec ou sans consignes appliquées par Claude, en dérushage ou en
+/// auto-montage (mode du montage en cours, celui de la page « Rushes et montages »).
+pub fn prepare_plan(with_claude: bool, derush: bool) -> Vec<Step> {
+    match (with_claude, derush) {
+        (false, _) => prepare_steps(),
+        (true, true) => prepare_derush_with_instructions(),
+        (true, false) => prepare_with_instructions(),
+    }
+}
+
 // Temps restant : chaque opération (barre) et le reste de chaque étape (hors barres) durent
 // « vitesse × échelle » secondes ; l'échelle est la durée du rush, celle du montage pour le
 // rendu, ou 1 (durée fixe). Les vitesses de départ viennent de mesures (rush de 5 min sur un
@@ -1017,7 +1036,10 @@ pub fn busy() -> bool {
 pub fn resume_job() -> Option<String> {
     let Some(rec) = paused_task() else { return Some("Aucune tâche à reprendre.".into()) };
     let names: Vec<String> = rec["steps"].as_array().unwrap().iter().map(|s| s.as_str().unwrap_or("").to_string()).collect();
-    let every = if names.iter().any(|n| n == "consignes de montage (Claude)") { prepare_with_instructions() } else { prepare_steps() };
+    let every = prepare_plan(
+        names.iter().any(|n| n == "consignes de montage (Claude)" || n == "choix des moments (Claude)"),
+        names.iter().any(|n| n == "choix des moments (Claude)"),
+    );
     if !names.iter().all(|n| every.iter().any(|(e, _)| e == n)) {
         return Some("Cette tâche ne peut pas être reprise : abandonnez-la.".into());
     }
@@ -1026,7 +1048,7 @@ pub fn resume_job() -> Option<String> {
         return Some(format!("La vidéo {missing} n'est plus dans le dossier des rushes : la préparation ne peut pas reprendre."));
     }
     let index = rec.get("index").and_then(Value::as_u64).unwrap_or(0) as usize;
-    if names.iter().skip(index).any(|n| n == "consignes de montage (Claude)") && !super::claude::claude_connected(false) {
+    if names.iter().skip(index).any(|n| n == "consignes de montage (Claude)" || n == "choix des moments (Claude)") && !super::claude::claude_connected(false) {
         return Some("Claude Code n'est pas connecté : connectez-le (page « Connexion à Claude »), puis reprenez.".into());
     }
     if let Some(l) = rec.get("langue").and_then(Value::as_str) {
@@ -1470,6 +1492,14 @@ pub fn job_status() -> Value {
         status.insert("overall".into(), json!(if state == "done" { 1.0 } else { 0.0 }));
     }
     Value::Object(status)
+}
+
+/// Tâche en cours ou préparation en pause, en bref (/api/status : boutons grisés des pages).
+pub fn job_brief() -> Value {
+    let j = lock();
+    let state = gs(&j.m, "state").to_string();
+    let paused = paused_task_state(&state).and_then(|r| r.get("arg").cloned()).unwrap_or(Value::Null);
+    json!({"kind": j.m.get("kind").cloned().unwrap_or(Value::Null), "state": state, "paused": paused})
 }
 
 /// Style : les vidéos d'exemple sont-elles là (pour /api/prepare) ?
