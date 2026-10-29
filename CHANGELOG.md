@@ -71,6 +71,15 @@ installateurs (voir `packaging/README.md`).
 - « Couper ici », « Recoller » et « Garder / Retirer » ne sont plus en double dans le panneau du
   moment (ils restent dans la barre d'outils et en tête du moment). La discussion avec Claude dit
   quand il n'y a pas de montage en cours ou qu'une tâche tourne.
+- **La création de la vidéo ne prend plus toute la mémoire** : chaque navigateur du rendu garde en
+  mémoire tous les plans de sa partie (environ 40 Mo par plan en 1080p), ce qui n'était pas compté.
+  Un montage de 3 minutes en 60 plans montait à plus de 3 Go par navigateur et bloquait la machine.
+  Les parties sont maintenant limitées en nombre de plans pour tenir dans la mémoire libre, et si
+  elle s'épuise quand même (autre programme ouvert), la partie en cours est refaite avec moins de
+  navigateurs au lieu de tout bloquer.
+- **Plus de navigateurs oubliés** : après un rendu arrêté ou interrompu, les navigateurs restaient
+  ouverts et gardaient leur mémoire ; ils sont fermés à la fin de chaque étape, au début du rendu
+  suivant et au lancement d'Auto-montage.
 
 ## 1.2
 

@@ -334,9 +334,16 @@ interne : les changements attendent la prochaine version.
   de mémoire. HyperFrames extrait les images de chaque plan avec un ffmpeg par
   plan, tous à la fois : son ffmpeg est `rust/src/ffmpeg_limite.rs` (verrous flock, `EXTRACTIONS`
   à la fois, 2 en 4K ; délai de chaque ffmpeg porté à 6 h) ; cache d'extraction de HyperFrames coupé (`HYPERFRAMES_EXTRACT_CACHE_DIR=off` : il gardait dans /tmp les images de tout le montage pendant 1 h, disque plein), restes effacés (`place.extract_caches`). Long montage (plus de 3 min) : rendu par parties d'environ 2 min (`PART_SECONDS` = `memoire.RENDER_PART`), chaque partie dans sa propre page avec ses seuls plans (`build(m, k, part)`, temps décalé de `OFF` images), parties raccourcies (et navigateurs moins nombreux) si le disque ne suffit pas ; en 4K, aussi pour la mémoire (`memory_part` : chaque navigateur garde environ 4 Mo par image affichée, `CAPTURE_BYTES`, parties de 30 s au moins) ; images capturées envoyées à l'encodeur même à plusieurs navigateurs (`HF_CAPTURE_PARALLEL_STREAM`, sinon 18 Go sur le disque par partie en 4K) (`disk_part` : images extraites d'une partie, mémoire partagée des navigateurs écrite dans /tmp, vidéos rendues, dans 80 % du disque libre ; sinon arrêt avec un message), gardées dans `work/rendu_parties/<empreinte>_<image début>-<image fin>.mp4` (`parts_key` : edit.json, face.json, son.json, code du rendu) pour reprendre un rendu interrompu, puis `join_parts` (image copiée, son de chaque partie ramené à sa durée exacte). Navigateurs (plus de 1 Go chacun en
-  1080p) : `memoire.choose_workers`, un par cœur (8 au plus) tant que le besoin (mesures comprises)
-  tient dans 80 % de la mémoire libre (`RENDER_SHARE`), ligne « Navigateurs du
-  rendu : N » lue par `local_server` ; page prête en 15 min au plus. Transcription : `./am setup_whisper` (whisper.cpp 1.7.6
+  1080p, plus environ 40 Mo par plan de leur page, `memoire.CLIP_MB` par million de pixels) :
+  `memoire.render_plan`, un par cœur (8 au plus) avec des parties d'au moins `MIN_CLIPS` plans, et le plus
+  de plans par partie (`split_by_clips`, coupe au début d'un plan) que 80 % de la mémoire libre permet
+  (`RENDER_SHARE`, mesures comprises ; mémoire libre bornée par les cgroups du programme et de ses
+  parents), lignes « Navigateurs du rendu : N » et « Plans par partie du rendu : N » lues par
+  `local_server` ; pendant le rendu, mémoire libre sous 1 Go ou 8 % pendant 2 s : node et ses
+  navigateurs arrêtés, partie refaite avec moitié moins de navigateurs, puis coupée en deux (`halve`).
+  Les navigateurs ont leur propre session : marqués par `AM_RENDU_HYPERFRAMES=1` (`procs::kill_marked`),
+  arrêtés après chaque rendu, chaque étape, au début d'un rendu et au démarrage du serveur ; page prête
+  en 15 min au plus. Transcription : `./am setup_whisper` (whisper.cpp 1.7.6
   compilé pour le VAD et Whisper, modèles de Hugging Face, Parakeet en ONNX dans
   `parakeet-tdt-0.6b-v3/` à côté de whisper.cpp avec la bibliothèque ONNX Runtime de Microsoft dans
   `onnxruntime/`, chargée au lancement : crate `ort`, `rust/src/parakeet.rs`) ; `transcribe_segments` :

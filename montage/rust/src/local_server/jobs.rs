@@ -881,6 +881,7 @@ fn run_steps(steps: &[Step], arg: &str, args: &[String], first: usize) -> Result
             j.m.insert("memOp".into(), Value::Null);
             j.m.insert("memPeaks".into(), json!({}));
             j.m.insert("renderWorkers".into(), Value::Null);
+            j.m.insert("renderClips".into(), Value::Null);
         }
         let finished = Arc::new(AtomicBool::new(false));
         let sampler = {
@@ -890,6 +891,7 @@ fn run_steps(steps: &[Step], arg: &str, args: &[String], first: usize) -> Result
         };
         let mut last_progress = 0.0;
         static NAV: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^Navigateurs du rendu : (\d+)").unwrap());
+        static CLIPS: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^Plans par partie du rendu : (\d+)").unwrap());
         for_each_line(reader, |raw| {
             // journal en direct (progression du rendu, étapes…)
             let line = raw.trim_end();
@@ -917,6 +919,12 @@ fn run_steps(steps: &[Step], arg: &str, args: &[String], first: usize) -> Result
                 // nombre choisi d'après la mémoire libre : compte dans la mesure du rendu
                 if let Ok(n) = c[1].parse::<i64>() {
                     j.m.insert("renderWorkers".into(), json!(n));
+                }
+            }
+            if let Some(c) = CLIPS.captures(line) {
+                // plans de la plus grande page : comptent aussi
+                if let Ok(n) = c[1].parse::<i64>() {
+                    j.m.insert("renderClips".into(), json!(n));
                 }
             }
             let mut found = if line.is_empty() { None } else { progress_of(line) };
@@ -955,6 +963,8 @@ fn run_steps(steps: &[Step], arg: &str, args: &[String], first: usize) -> Result
             }
         });
         let code = procs::wait(&mut child);
+        // Navigateurs du rendu restés ouverts (étape arrêtée ou tuée : ils ont leur propre session).
+        procs::kill_marked(procs::RENDER_MARK);
         finished.store(true, Ordering::SeqCst);
         lock().pid = None;
         let _ = sampler.join();
@@ -1293,10 +1303,12 @@ fn record_memory(j: &mut Job, partial: bool) {
         return;
     }
     let workers = j.m.get("renderWorkers").and_then(Value::as_u64).filter(|w| *w > 0);
+    let clips = j.m.get("renderClips").and_then(Value::as_u64);
     for (op, peak) in peaks {
         let mut v = info.clone();
         if let (Some(w), Some(_)) = (workers, memoire::render_hd(&op)) {
             v.workers = Some(w as usize);
+            v.clips = clips.map(|c| c as f64);
         }
         memoire::record(&op, peak.as_i64().unwrap_or(0), &v);
     }
@@ -1626,7 +1638,7 @@ pub fn start_job(kind: &str, steps: Vec<Step>, arg: &str, args: Option<Vec<Strin
 }
 
 pub fn job_status() -> Value {
-    const HIDDEN: [&str; 13] = ["log", "spent", "proc", "cancel", "logFile", "opStart", "memInfo", "memPeaks", "memOp", "renderWorkers", "weights", "busyFrom", "planAt"];
+    const HIDDEN: [&str; 14] = ["log", "spent", "proc", "cancel", "logFile", "opStart", "memInfo", "memPeaks", "memOp", "renderWorkers", "renderClips", "weights", "busyFrom", "planAt"];
     let mut j = lock();
     let mut status: Map<String, Value> = j.m.iter().filter(|(k, _)| !HIDDEN.contains(&k.as_str())).map(|(k, v)| (k.clone(), v.clone())).collect();
     let log = j.m.get("log").and_then(Value::as_array).cloned().unwrap_or_default();

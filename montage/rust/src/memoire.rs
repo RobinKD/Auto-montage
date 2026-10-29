@@ -11,6 +11,11 @@
 //! 5 min en 8 plans, 7 Go pour 5 min en 150 plans (navigateurs de 1,05 à 1,3 Go chacun). Rendu 4K :
 //! 4 navigateurs ont dépassé 14 Go. Le rendu prend autant de navigateurs (un par cœur au plus) que
 //! 80 % de la mémoire libre le permet (choose_workers).
+//! 29 octobre (HyperFrames 0.8.122, 1080x1920, 4 navigateurs, 1 min de montage) : chaque navigateur
+//! garde en mémoire chacun des plans de sa page, environ 40 Mo par plan (20 Mo par million de
+//! pixels de la vidéo lue, CLIP_MB) : 1 Go par navigateur pour 4 plans, 1,7 Go pour 20 plans, plus
+//! de 3 Go pour 60 plans (3 min), qui saturaient 16 Go. Le rendu limite donc aussi le nombre de
+//! plans de chaque partie (render_plan).
 //!
 //! Expérience de la machine : l'interface locale mesure le vrai pic de chaque opération pendant les
 //! préparations (somme des PSS des programmes de l'étape) et le garde dans work/memoire_mesures.json
@@ -42,6 +47,8 @@ pub const MARGIN: f64 = 1.25; // « juste » : moins de 25 % au-dessus du besoin
 pub const KEEP_MEASURES: usize = 10; // mesures gardées par opération
 pub const RENDER_SHARE: f64 = 0.8; // part de la mémoire libre que le rendu peut prendre
 pub const RENDER_PART: f64 = 120.0; // long montage rendu par parties de 2 min environ (render_hyperframes)
+pub const CLIP_MB: f64 = 20.0; // mémoire de chaque navigateur par plan de sa page, par million de pixels
+pub const MIN_CLIPS: usize = 10; // plans par partie au moins avant de prendre moins de navigateurs
 
 pub fn measures_path() -> PathBuf {
     paths::work().join("memoire_mesures.json")
@@ -57,6 +64,9 @@ pub struct VideoInfo {
     pub parts: usize,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub workers: Option<usize>,
+    /// Plans de la page rendue (la plus grande partie) ; sans : un toutes les 2 s de montage.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub clips: Option<f64>,
 }
 
 fn mpx(size: (i64, i64)) -> f64 {
@@ -76,6 +86,11 @@ fn part(v: &VideoInfo) -> f64 {
     } else {
         1.5 * RENDER_PART
     }
+}
+
+/// Plans d'une page rendue d'un coup.
+fn clips(v: &VideoInfo) -> f64 {
+    v.clips.unwrap_or(part(v) / 2.0)
 }
 
 /// Opérations connues.
@@ -137,12 +152,17 @@ fn formula(op: &str, v: &VideoInfo) -> Option<f64> {
         "Consignes de montage (Claude)" => 600.0,
         "Montage selon les consignes" => 250.0 + 0.3 * v.duration,
         // Rendu : HyperFrames (node, encodeur ffmpeg, extractions d'images des plans 4 à la fois), un
-        // navigateur par « worker » (plus lourd avec beaucoup de plans : un tous les 2 s de montage
-        // environ), et ce qui grandit avec le montage rendu (2,3 Mo par seconde, tous navigateurs).
-        "Rendu de la vidéo" => 1100.0 + workers(false) * (450.0 + 280.0 * mpx(v.work) + 0.85 * part(v)) + 2.3 * part(v),
+        // navigateur par « worker », qui garde chaque plan de sa page (CLIP_MB par million de pixels
+        // de la vidéo lue : le rush 1080p, ou la source 4K) et grandit au fil du rendu, et ce qui
+        // grandit avec le montage rendu (2,3 Mo par seconde, tous navigateurs).
+        "Rendu de la vidéo" => {
+            1100.0 + workers(false) * (450.0 + 280.0 * mpx(v.work) + 0.85 * part(v) + CLIP_MB * mpx(v.work) * clips(v)) + 2.3 * part(v)
+        }
         "Découpage des moments" => 350.0,
         "Source 4K" => 400.0 + 120.0 * 4.0 * mpx(v.work) + 14.0 * mpx(v.source),
-        "Rendu 4K" => 1100.0 + workers(true) * (400.0 + 1320.0 * mpx(v.work) + 0.85 * part(v)) + 4.0 * 2.3 * part(v),
+        "Rendu 4K" => {
+            1100.0 + workers(true) * (400.0 + 1320.0 * mpx(v.work) + 0.85 * part(v) + CLIP_MB * 4.0 * mpx(v.work) * clips(v)) + 4.0 * 2.3 * part(v)
+        }
         _ => return None,
     })
 }
@@ -193,6 +213,7 @@ pub fn video_info(paths: &[PathBuf], montage: Option<f64>) -> VideoInfo {
         montage: montage.unwrap_or(0.6 * duration),
         parts: paths.len(),
         workers: None,
+        clips: None,
     }
 }
 
@@ -217,6 +238,8 @@ pub fn factor(op: &str, measures: &serde_json::Map<String, Value>) -> (f64, usiz
         .map(|a| {
             a.iter()
                 .filter(|o| util::truthy(o.get("model")) && util::truthy(o.get("peak")))
+                // rendu : mesures prises depuis que la formule compte les plans
+                .filter(|o| render_hd(op).is_none() || o.get("clips").is_some())
                 .collect()
         })
         .unwrap_or_default();
@@ -240,9 +263,13 @@ pub fn need(op: &str, info: &VideoInfo, measures: &serde_json::Map<String, Value
 pub fn record(op: &str, peak: i64, info: &VideoInfo) {
     let mut data = load_measures();
     let mut obs: Vec<Value> = data.get(op).and_then(Value::as_array).cloned().unwrap_or_default();
-    obs.push(json!({"peak": peak, "model": model(op, info), "duration": round_int(info.duration),
-                    "work": [info.work.0, info.work.1],
-                    "at": chrono::Local::now().format("%Y-%m-%dT%H:%M:%S").to_string()}));
+    let mut o = json!({"peak": peak, "model": model(op, info), "duration": round_int(info.duration),
+                       "work": [info.work.0, info.work.1],
+                       "at": chrono::Local::now().format("%Y-%m-%dT%H:%M:%S").to_string()});
+    if render_hd(op).is_some() {
+        o["clips"] = json!(round_int(clips(info)));
+    }
+    obs.push(o);
     let start = obs.len().saturating_sub(KEEP_MEASURES);
     data.insert(op.to_string(), Value::Array(obs[start..].to_vec()));
     util::mkdirs(paths::work());
@@ -330,6 +357,34 @@ pub fn choose_workers(hd: bool, info: &VideoInfo, avail: Option<i64>, measures: 
     1
 }
 
+/// Rendu : (navigateurs, plans par partie au plus). Le plus de navigateurs possible (un par cœur,
+/// 8 au plus) avec des parties d'au moins MIN_CLIPS plans (ou de tous les plans voulus, wanted :
+/// ceux de la plus grande partie de 2 min), le plus de plans par partie que 80 % de la mémoire
+/// libre permet à côté d'eux ; 1 navigateur et 1 plan au moins.
+pub fn render_plan(hd: bool, info: &VideoInfo, avail: Option<i64>, wanted: usize) -> (usize, usize) {
+    let top = render_workers(hd);
+    let wanted = wanted.max(1);
+    let Some(avail) = avail.or_else(|| available().0) else {
+        return (top.min(if hd { 2 } else { 4 }), wanted); // mémoire libre inconnue : comme avant
+    };
+    let measures = load_measures();
+    let op = if hd { "Rendu 4K" } else { "Rendu de la vidéo" };
+    let room = RENDER_SHARE * avail as f64;
+    let most = |w: usize| {
+        (1..=wanted)
+            .rev()
+            .find(|&c| need(op, &VideoInfo { workers: Some(w), clips: Some(c as f64), ..info.clone() }, &measures) as f64 <= room)
+            .unwrap_or(0)
+    };
+    for w in (2..=top).rev() {
+        let c = most(w);
+        if c >= wanted.min(MIN_CLIPS) {
+            return (w, c);
+        }
+    }
+    (1, most(1).max(1))
+}
+
 /// [(étape, opération, besoin en octets)] des étapes données, dans l'ordre. Rendu : avec le
 /// nombre de navigateurs qu'il prendra d'après la mémoire libre (choose_workers).
 pub fn operations(step_names: &[String], info: &VideoInfo, avail: Option<i64>) -> Vec<(String, String, i64)> {
@@ -392,24 +447,19 @@ pub fn meminfo() -> (Option<i64>, Option<i64>) {
 /// cgroup s'il y en a une. (None, None) si illisible.
 pub fn available() -> (Option<i64>, Option<i64>) {
     let (Some(avail), Some(total)) = meminfo() else { return (None, None) };
-    // Limite du cgroup (conteneur, environnement cloud) : v2, puis v1 (le cache de fichiers
+    // Limites des cgroups (conteneur, environnement cloud, session limitée) : celui de ce programme
+    // (/proc/self/cgroup) et ses parents, v2 puis v1 ; la plus juste compte (le cache de fichiers
     // inactif se libère).
-    for (limit_f, usage_f, stat_f, key) in [
-        ("/sys/fs/cgroup/memory.max", "/sys/fs/cgroup/memory.current", "/sys/fs/cgroup/memory.stat", "inactive_file"),
-        (
-            "/sys/fs/cgroup/memory/memory.limit_in_bytes",
-            "/sys/fs/cgroup/memory/memory.usage_in_bytes",
-            "/sys/fs/cgroup/memory/memory.stat",
-            "total_inactive_file",
-        ),
-    ] {
-        let Ok(limit) = fs::read_to_string(limit_f) else { continue };
-        let Ok(limit) = limit.trim().parse::<i64>() else { continue };
+    let mut best: Option<(i64, i64)> = None;
+    for (dir, v2) in cgroup_dirs() {
+        let (limit_f, usage_f, key) =
+            if v2 { ("memory.max", "memory.current", "inactive_file") } else { ("memory.limit_in_bytes", "memory.usage_in_bytes", "total_inactive_file") };
+        let Some(limit) = fs::read_to_string(dir.join(limit_f)).ok().and_then(|l| l.trim().parse::<i64>().ok()) else { continue };
         if limit >= total {
             continue;
         }
-        let Some(usage) = fs::read_to_string(usage_f).ok().and_then(|u| u.trim().parse::<i64>().ok()) else { continue };
-        let Ok(stat) = fs::read_to_string(stat_f) else { continue };
+        let Some(usage) = fs::read_to_string(dir.join(usage_f)).ok().and_then(|u| u.trim().parse::<i64>().ok()) else { continue };
+        let Ok(stat) = fs::read_to_string(dir.join("memory.stat")) else { continue };
         let inactive = stat
             .lines()
             .filter_map(|l| {
@@ -418,10 +468,44 @@ pub fn available() -> (Option<i64>, Option<i64>) {
             })
             .next()
             .unwrap_or(0);
-        let free = limit - usage + inactive;
-        return (Some(free.min(avail).max(0)), Some(limit));
+        let free = (limit - usage + inactive).max(0);
+        if best.map(|b| free < b.0).unwrap_or(true) {
+            best = Some((free, limit));
+        }
     }
-    (Some(avail), Some(total))
+    match best {
+        Some((free, limit)) => (Some(free.min(avail)), Some(limit)),
+        None => (Some(avail), Some(total)),
+    }
+}
+
+/// Dossiers de la mémoire des cgroups de ce programme, du sien à la racine : [(dossier, v2)].
+fn cgroup_dirs() -> Vec<(PathBuf, bool)> {
+    let root = Path::new("/sys/fs/cgroup");
+    let mut out = vec![];
+    let text = fs::read_to_string("/proc/self/cgroup").unwrap_or_default();
+    for line in text.lines() {
+        let mut f = line.splitn(3, ':');
+        let (Some(id), Some(ctrl), Some(path)) = (f.next(), f.next(), f.next()) else { continue };
+        let (base, v2) = if id == "0" && ctrl.is_empty() {
+            (root.to_path_buf(), true)
+        } else if ctrl.split(',').any(|c| c == "memory") {
+            (root.join("memory"), false)
+        } else {
+            continue;
+        };
+        let mut rel = PathBuf::from(path.trim_start_matches('/'));
+        loop {
+            out.push((base.join(&rel), v2));
+            if !rel.pop() {
+                break;
+            }
+        }
+    }
+    // sans /proc/self/cgroup lisible : les racines, comme avant
+    out.push((root.to_path_buf(), true));
+    out.push((root.join("memory"), false));
+    out
 }
 
 /// Place libre sur le disque qui contient `path`, en octets.

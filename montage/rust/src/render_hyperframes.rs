@@ -25,7 +25,9 @@ use std::fs;
 use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
-use std::sync::LazyLock;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, LazyLock};
+use std::time::Duration;
 
 fn dir() -> PathBuf {
     paths::work().join("rendu_hyperframes")
@@ -59,6 +61,14 @@ const MIN_PART: f64 = 20.0; // secondes de montage : partie la plus courte, sino
 // à côté du reste du rendu (memory_part), sans descendre sous MIN_MEM_PART.
 const CAPTURE_BYTES: f64 = 0.5;
 const MIN_MEM_PART: f64 = 30.0;
+// Surveillance pendant le rendu : mémoire libre sous LOW_MB ou LOW_SHARE de la mémoire totale
+// pendant LOW_SECONDS de suite (l'estimation n'a pas suffi, ou un autre programme en a pris) :
+// node et ses navigateurs sont arrêtés et la partie est refaite avec moins de navigateurs, puis en
+// deux parties ; sinon la machine s'enlisait ou le système tuait node et laissait ses navigateurs.
+const LOW_MB: f64 = 1000.0;
+const LOW_SHARE: f64 = 0.08;
+const LOW_SECONDS: u32 = 2;
+const LOW_MEMORY: i32 = i32::MIN; // code de run_hyperframes : arrêté par la surveillance
 
 fn cpus() -> usize {
     std::thread::available_parallelism().map(|n| n.get()).unwrap_or(1)
@@ -109,6 +119,31 @@ fn r6(x: f64) -> String {
 
 fn num(v: Option<&Value>) -> f64 {
     v.and_then(Value::as_f64).unwrap_or(0.0)
+}
+
+/// Plans du montage : [(première image, image de fin)] ; transition vers le plan i+1 (look.rs) :
+/// le plan i continue dessous pendant « frames » images.
+fn clip_spans(edit: &Value) -> Vec<(f64, f64)> {
+    let mut longer: HashMap<usize, f64> = HashMap::new();
+    for t in util::arr(edit, "transitions") {
+        let i = t.get("clip").and_then(Value::as_u64).unwrap_or(0) as usize;
+        if i > 0 {
+            longer.insert(i - 1, num(t.get("frames")));
+        }
+    }
+    util::arr(edit, "clips")
+        .iter()
+        .enumerate()
+        .map(|(i, c)| {
+            let from = num(c.get("from"));
+            (from, from + num(c.get("durationInFrames")) + longer.get(&i).copied().unwrap_or(0.0))
+        })
+        .collect()
+}
+
+/// Plans qui passent dans les images [f0, f1) : ceux de la page de cette partie (build).
+fn clips_in(spans: &[(f64, f64)], f0: i64, f1: i64) -> usize {
+    spans.iter().filter(|&&(a, b)| a.max(f0 as f64) < b.min(f1 as f64)).count()
 }
 
 /// Fichier du projet HyperFrames (lien vers l'original, sans copie quand c'est possible).
@@ -195,21 +230,13 @@ fn build(m: &mut Montage, k: i64, part: Option<(i64, i64)>) -> Result<(), String
     // Plans : un <video> par plan (chaque élément a un id : sans lui, HyperFrames le fige ou le
     // coupe), début arrondi à l'image inférieure, lecture un quart d'image après le début du plan
     // (l'image exacte du plan, sans glisser sur la précédente).
-    // Partie : les plans qui y passent, coupés à ses bords.
-    // Transition vers le plan i+1 (look.rs) : le plan i continue dessous pendant « frames » images.
-    // Chaque plan dans son cadre (box : styles de la transition) et son zoom (zb : cadrage), sur
-    // deux pistes en alternance (deux plans à la fois pendant une transition).
-    let mut longer: HashMap<usize, f64> = HashMap::new();
-    for t in util::arr(&m.edit, "transitions") {
-        let i = t.get("clip").and_then(Value::as_u64).unwrap_or(0) as usize;
-        if i > 0 {
-            longer.insert(i - 1, num(t.get("frames")));
-        }
-    }
+    // Partie : les plans qui y passent, coupés à ses bords (clip_spans : prolongés pendant leur
+    // transition). Chaque plan dans son cadre (box : styles de la transition) et son zoom (zb :
+    // cadrage), sur deux pistes en alternance (deux plans à la fois pendant une transition).
+    let spans = clip_spans(&m.edit);
     let mut videos = vec![];
     for (i, c) in util::arr(&m.edit, "clips").iter().enumerate() {
-        let from = num(c.get("from"));
-        let end = from + num(c.get("durationInFrames")) + longer.get(&i).copied().unwrap_or(0.0);
+        let (from, end) = spans[i];
         let (a, b) = (from.max(f0 as f64), end.min(f1 as f64));
         if b > a {
             let start = ((a - f0 as f64) / fps * 1e6).trunc() / 1e6;
@@ -385,6 +412,8 @@ fn tools(hd: bool) -> Result<Vec<(String, String)>, String> {
     // Page d'un long montage (150 plans : 35 à 45 s par navigateur) : plus que les 45 s permises
     // par défaut pour être prête.
     env.push(("PRODUCER_PLAYER_READY_TIMEOUT_MS".into(), (15 * 60 * 1000).to_string()));
+    // Marque héritée par les navigateurs, pour les arrêter même hors du groupe de la tâche.
+    env.push((procs::RENDER_MARK.into(), "1".into()));
     // Images extraites des plans : par défaut dans un cache de /tmp que HyperFrames ne vide qu'au
     // bout d'une heure, toutes parties comprises (un montage de 22 min : plus de 13 Go, disque
     // plein). Sans cache, celles d'une partie vont dans son dossier de travail, effacé à sa fin.
@@ -456,8 +485,16 @@ fn pump(mut r: impl Read, done: f64, part_len: f64, total: f64) {
     hf_line(&buf, done, part_len, total);
 }
 
+/// Mémoire libre presque épuisée (LOW_MB, LOW_SHARE).
+fn low_memory() -> bool {
+    let (Some(avail), total) = memoire::available() else { return false };
+    (avail as f64) < (LOW_MB * memoire::MO).max(LOW_SHARE * total.unwrap_or(0) as f64)
+}
+
 /// Rend une page ; avancement en secondes de montage (done : déjà rendu avant cette partie).
-fn run_hyperframes(cmd: &[String], env: &[(String, String)], done: f64, part_len: f64, total: f64) -> i32 {
+/// watch : arrêt de node et de ses navigateurs si la mémoire libre s'épuise (code LOW_MEMORY).
+/// Navigateurs restés après la fin de node arrêtés dans tous les cas.
+fn run_hyperframes(cmd: &[String], env: &[(String, String)], done: f64, part_len: f64, total: f64, watch: bool) -> i32 {
     let mut c = Command::new(&cmd[0]);
     c.args(&cmd[1..]).current_dir(paths::root()).stdin(Stdio::null()).stdout(Stdio::piped()).stderr(Stdio::piped());
     for (k, v) in env {
@@ -470,11 +507,43 @@ fn run_hyperframes(cmd: &[String], env: &[(String, String)], done: f64, part_len
             return 127;
         }
     };
+    let finished = Arc::new(AtomicBool::new(false));
+    let tripped = Arc::new(AtomicBool::new(false));
+    let watcher = watch.then(|| {
+        let (finished, tripped) = (finished.clone(), tripped.clone());
+        std::thread::spawn(move || {
+            let mut low = 0;
+            while !finished.load(Ordering::SeqCst) {
+                low = if low_memory() { low + 1 } else { 0 };
+                if low >= LOW_SECONDS {
+                    tripped.store(true, Ordering::SeqCst);
+                    procs::kill_marked(procs::RENDER_MARK);
+                    return;
+                }
+                for _ in 0..10 {
+                    if finished.load(Ordering::SeqCst) {
+                        return;
+                    }
+                    std::thread::sleep(Duration::from_millis(100));
+                }
+            }
+        })
+    });
     let err = child.stderr.take().unwrap();
     let t = std::thread::spawn(move || pump(err, done, part_len, total));
     pump(child.stdout.take().unwrap(), done, part_len, total);
     let _ = t.join();
-    procs::wait(&mut child)
+    let code = procs::wait(&mut child);
+    finished.store(true, Ordering::SeqCst);
+    if let Some(w) = watcher {
+        let _ = w.join();
+    }
+    procs::kill_marked(procs::RENDER_MARK);
+    if tripped.load(Ordering::SeqCst) {
+        LOW_MEMORY
+    } else {
+        code
+    }
 }
 
 /// Durée de partie la plus longue (secondes de montage) dont les images extraites tiennent dans
@@ -519,6 +588,39 @@ fn parts_of(frames: i64, fps: f64, longest: Option<f64>) -> Vec<(i64, i64)> {
     }
     let bounds: Vec<i64> = (0..=count).map(|i| round_int(i as f64 * f / count as f64)).collect();
     bounds.windows(2).map(|w| (w[0], w[1])).collect()
+}
+
+/// Parties recoupées au début d'un plan pour que la page de chacune en ait au plus `most`
+/// (mémoire des navigateurs : memoire::render_plan) ; une partie sans début de plan où couper
+/// reste entière.
+fn split_by_clips(parts: Vec<(i64, i64)>, spans: &[(f64, f64)], most: usize) -> Vec<(i64, i64)> {
+    let most = most.max(1);
+    let mut out = vec![];
+    for (mut a, b) in parts {
+        while clips_in(spans, a, b) > most {
+            let mut starts: Vec<i64> = spans.iter().map(|s| s.0.ceil() as i64).filter(|&f| f > a && f < b).collect();
+            starts.sort_unstable();
+            starts.dedup();
+            let Some(cut) = starts.iter().copied().filter(|&c| clips_in(spans, a, c) <= most).max().or(starts.first().copied()) else {
+                break;
+            };
+            out.push((a, cut));
+            a = cut;
+        }
+        out.push((a, b));
+    }
+    out
+}
+
+/// Une partie en deux, au début de plan le plus proche de son milieu ; None sans plan où couper.
+fn halve(spans: &[(f64, f64)], (a, b): (i64, i64)) -> Option<[(i64, i64); 2]> {
+    let mid = (a + b) as f64 / 2.0;
+    spans
+        .iter()
+        .map(|s| s.0.ceil() as i64)
+        .filter(|&f| f > a && f < b)
+        .min_by(|x, y| (*x as f64 - mid).abs().total_cmp(&(*y as f64 - mid).abs()))
+        .map(|c| [(a, c), (c, b)])
 }
 
 /// Empreinte du montage et du code du rendu : une partie déjà rendue ne resert qu'au même.
@@ -623,11 +725,21 @@ pub fn main(args: &[String]) -> i32 {
     }
     // Pixels de l'image rendue et des images extraites de la source (4K : le double de chaque côté).
     let pixels = (m.width * m.height * if hd { 4 } else { 1 }) as f64;
-    // Navigateurs : autant que 80 % de la mémoire libre le permet, un par cœur au plus
-    // (memoire::choose_workers, d'après les mesures des rendus précédents sur cette machine), moins
-    // si le disque est trop plein pour leur mémoire partagée.
-    let info = VideoInfo { duration: 0.0, source: (m.width, m.height), work: (m.width, m.height), montage: total, parts: 1, workers: None };
-    let mut workers = memoire::choose_workers(hd, &info, None, None);
+    // Rendu précédent arrêté en route : ses navigateurs restés ouverts (ils ont leur propre session).
+    let left = procs::kill_marked(procs::RENDER_MARK);
+    if left > 0 {
+        say(&format!("Programmes d'un rendu précédent encore ouverts arrêtés : {left}"));
+        std::thread::sleep(Duration::from_secs(2)); // leur mémoire rendue avant de compter la libre
+    }
+    // Navigateurs et plans par partie : autant de navigateurs que 80 % de la mémoire libre le
+    // permet, un par cœur au plus, chacun gardant tous les plans de sa page (memoire::render_plan,
+    // d'après les mesures des rendus précédents sur cette machine) ; moins si le disque est trop
+    // plein pour leur mémoire partagée.
+    let spans = clip_spans(&m.edit);
+    let wanted = parts_of(m.frames, fps, None).iter().map(|&(a, b)| clips_in(&spans, a, b)).max().unwrap_or(1);
+    let info = VideoInfo { duration: 0.0, source: (m.width, m.height), work: (m.width, m.height), montage: total, parts: 1, workers: None, clips: None };
+    let (mut workers, most_clips) = memoire::render_plan(hd, &info, None, wanted);
+    let info = VideoInfo { clips: Some(most_clips as f64), ..info };
     let free = memoire::disk_free(paths::root()).unwrap_or(0) as f64;
     let mut longest = disk_part(fps, pixels, free, workers, total);
     while longest.map(|l| l < MIN_PART).unwrap_or(false) && workers > 1 {
@@ -654,7 +766,10 @@ pub fn main(args: &[String]) -> i32 {
             why = " (mémoire des navigateurs en 4K)".into();
         }
     }
-    let parts = parts_of(m.frames, fps, longest);
+    let mut parts = split_by_clips(parts_of(m.frames, fps, longest), &spans, most_clips);
+    if parts.len() > parts_of(m.frames, fps, longest).len() && why.is_empty() {
+        why = format!(" (mémoire : {most_clips} plans au plus par partie)");
+    }
     if parts.len() > 1 && 2.0 * total * OUT_BYTES * pixels > DISK_SHARE * free {
         say(&format!(
             "Attention : disque presque plein ({} libres), l'assemblage des parties à la fin pourrait manquer de place (environ {}).",
@@ -670,6 +785,8 @@ pub fn main(args: &[String]) -> i32 {
             _ => String::new(),
         }
     ));
+    // Plans de la plus grande page : comptent dans la mesure de la mémoire du rendu (local_server).
+    say(&format!("Plans par partie du rendu : {}", parts.iter().map(|&(a, b)| clips_in(&spans, a, b)).max().unwrap_or(0)));
     // Long montage : rendu par parties d'environ PART_SECONDS, chacune dans sa propre page avec ses
     // seuls plans (mémoire de la plus longue partie, pas du montage entier), puis mises bout à bout.
     // Une partie finie est gardée (work/rendu_parties/) : un rendu interrompu reprend aux suivantes.
@@ -696,7 +813,11 @@ pub fn main(args: &[String]) -> i32 {
     };
     report("Rendu de la vidéo", 0.0, total);
     let mut done_paths = vec![];
-    for (i, &(f0, f1)) in parts.iter().enumerate() {
+    // Partie arrêtée par la surveillance de la mémoire : refaite avec moitié moins de navigateurs,
+    // puis coupée en deux ; une partie d'un seul plan avec un navigateur est rendue sans surveillance.
+    let mut i = 0;
+    while i < parts.len() {
+        let (f0, f1) = parts[i];
         // Nom de la partie : ses bornes (le découpage dépend aussi du disque libre).
         let path = if parts.len() == 1 { PathBuf::from(out) } else { pdir.join(format!("{key}_{f0:07}-{f1:07}.mp4")) };
         let part_len = (f1 - f0) as f64 / fps;
@@ -744,10 +865,22 @@ pub fn main(args: &[String]) -> i32 {
             // Vidéo encodée par la carte graphique si elle marche (gpu.rs ; HyperFrames choisit
             // son encodeur matériel) ; échec : partie refaite par le processeur.
             let enc = crate::gpu::h264();
-            let mut code = run_hyperframes(&[cmd.clone(), if enc.is_gpu() { vec!["--gpu".into()] } else { vec![] }].concat(), &env, f0 as f64 / fps, part_len, total);
-            if code != 0 && enc.is_gpu() {
+            let watch = workers > 1 || halve(&spans, (f0, f1)).is_some();
+            let mut code = run_hyperframes(&[cmd.clone(), if enc.is_gpu() { vec!["--gpu".into()] } else { vec![] }].concat(), &env, f0 as f64 / fps, part_len, total, watch);
+            if code != 0 && code != LOW_MEMORY && enc.is_gpu() {
                 crate::gpu::give_up(&enc);
-                code = run_hyperframes(&cmd, &env, f0 as f64 / fps, part_len, total);
+                code = run_hyperframes(&cmd, &env, f0 as f64 / fps, part_len, total, watch);
+            }
+            if code == LOW_MEMORY {
+                let _ = fs::remove_file(&tmp);
+                if workers > 1 {
+                    workers = (workers / 2).max(1);
+                    say(&format!("Mémoire presque épuisée : partie {} refaite avec {workers} navigateur{}", i + 1, if workers > 1 { "s" } else { "" }));
+                } else if let Some(two) = halve(&spans, (f0, f1)) {
+                    parts.splice(i..=i, two);
+                    say(&format!("Mémoire presque épuisée : partie {} refaite en deux, rendu en {} parties", i + 1, parts.len()));
+                }
+                continue;
             }
             if code != 0 || !tmp.exists() {
                 let left = memoire::disk_free(paths::root()).unwrap_or(u64::MAX);
@@ -764,6 +897,7 @@ pub fn main(args: &[String]) -> i32 {
         }
         done_paths.push(path);
         report_every("Rendu de la vidéo", round_to(f1 as f64 / fps, 2), total, 0.0);
+        i += 1;
     }
     if parts.len() > 1 {
         say("Assemblage des parties");
@@ -1080,6 +1214,28 @@ mod tests {
         let p = parts_of(5400, 30.0, Some(50.0));
         assert_eq!(p, vec![(0, 1350), (1350, 2700), (2700, 4050), (4050, 5400)]);
         assert_eq!(disk_part(30.0, 1080.0 * 1920.0, 1e15, 4, 60.0), None);
+    }
+
+    #[test]
+    fn parts_by_clips() {
+        // 60 plans de 3 s (90 images), le 10e prolongé de 15 images par une transition.
+        let edit = json!({
+            "clips": (0..60).map(|i| json!({"from": i * 90, "durationInFrames": 90})).collect::<Vec<_>>(),
+            "transitions": [{"clip": 10, "frames": 15}],
+        });
+        let spans = clip_spans(&edit);
+        assert_eq!(spans[9], (810.0, 915.0));
+        assert_eq!(clips_in(&spans, 0, 5400), 60);
+        assert_eq!(clips_in(&spans, 900, 1800), 11); // le 10e passe encore sous le 11e
+        let p = split_by_clips(vec![(0, 5400)], &spans, 36);
+        assert_eq!(p, vec![(0, 3240), (3240, 5400)]);
+        assert!(p.iter().all(|&(a, b)| clips_in(&spans, a, b) <= 36));
+        // Assez de mémoire : parties gardées telles quelles.
+        assert_eq!(split_by_clips(vec![(0, 2700), (2700, 5400)], &spans, 60), vec![(0, 2700), (2700, 5400)]);
+        // Un seul plan par partie au plus : coupé à chaque plan, même pendant la transition.
+        assert_eq!(split_by_clips(vec![(0, 270)], &spans, 1), vec![(0, 90), (90, 180), (180, 270)]);
+        assert_eq!(halve(&spans, (0, 5400)), Some([(0, 2700), (2700, 5400)]));
+        assert_eq!(halve(&spans, (90, 180)), None);
     }
 
     #[test]
