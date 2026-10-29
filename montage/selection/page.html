@@ -3778,7 +3778,9 @@ ${HFAudio.voiceElements(spec)}
     const running = !!job && job.state === "running";
     $("gen-progress").hidden = !running;
     if (!running) return;
-    const p = job.progress;
+    // Opération en cours, sinon celle lancée à côté qui reste (copie du rush de la préparation).
+    const side = Object.entries(job.side || {}).find(([, e]) => !e.ended);
+    const p = job.progress && !job.progress.ended ? job.progress : side ? { label: side[0], ...side[1] } : job.progress;
     const frac = p && p.total ? Math.min(1, p.done / p.total) : null;
     $("gen-label").textContent = p ? p.label : `${job.step.charAt(0).toUpperCase()}${job.step.slice(1)}…`;
     $("gen-bar").hidden = frac === null;

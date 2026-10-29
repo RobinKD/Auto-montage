@@ -142,9 +142,8 @@ pub fn comma(text: String) -> String {
     text.replace('.', ",")
 }
 
-/// Copie récursive d'un dossier (`shutil.copytree`) ; sert hors Unix, où les liens vers les
-/// dossiers sont copiés comme des dossiers.
-#[cfg(not(unix))]
+/// Copie récursive d'un dossier (`shutil.copytree`) ; hors Unix, les liens vers les dossiers sont
+/// copiés comme des dossiers.
 pub fn copy_tree(src: &Path, dst: &Path) -> io::Result<()> {
     fs::create_dir_all(dst)?;
     for e in fs::read_dir(src)? {

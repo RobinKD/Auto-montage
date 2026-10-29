@@ -6,6 +6,15 @@ installateurs (voir `packaging/README.md`).
 
 ## 1.3
 
+- **« Valider le dérush » est beaucoup plus rapide** : le passage à l'auto-montage reprend ce que
+  la préparation du rush a déjà trouvé (positions des visages, personnes, locuteurs) pour les
+  seuls moments gardés, au lieu de tout recalculer. La copie 1080p sort en même temps que la vidéo
+  du dérush. Sur un essai (2 min gardées d'un rush de 6 min), la validation passe de 3 min 30 à
+  1 min 45.
+- **Préparation plus rapide avec une carte graphique** : quand la carte graphique encode (Mac, et
+  PC avec une carte NVIDIA, Intel ou AMD), la copie du rush en 1080p se fait en même temps que la
+  transcription. La page « Rushes et montages » montre les deux barres avancer ensemble. Sans carte
+  graphique, rien ne change : les deux à la fois ne vont pas plus vite.
 - **Zoom de la frise du moment bien plus grand pour un long moment** : après « Valider le dérush »,
   le moment est la vidéo entière, et ses sous-titres et effets se chevauchaient même au zoom
   maximal (×16). Le zoom va maintenant jusqu'à ne montrer que quelques secondes sur toute la

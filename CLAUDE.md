@@ -153,7 +153,12 @@ interne : les changements attendent la prochaine version.
   (moments gardés d'edit.json mis bout à bout depuis le rush d'origine → `public/rushes/<rush>
   (dérush).mp4`, et `work/derush_segments.json` : un seul segment avec les mots gardés et corrigés,
   `derushWords` d'edit.json écrit en dérushage), `prepare --mode montage --transcription
-  work/derush_segments.json` (sans Whisper), make_moments : un seul moment ; le dérush reste dans
+  work/derush_segments.json` (sans Whisper), make_moments : un seul moment ; derush_video reprend la
+  préparation du rush dans `work/derush_suite/` (commun, `project.SHARED`) : version de travail
+  sortie du même passage (ou la vidéo du dérush elle-même, `-g 15`, si le rush est à la taille de
+  travail), `face.json` recalé (instant du rush le plus proche, `face_samples`), vignettes,
+  `locuteurs.json` et `spk` des mots (`add_speakers`) ; `prepare` les installe et saute copie,
+  visage et locuteurs ; le dérush reste dans
   « Montages »). Le serveur l'écrit sur `<html data-mode>`
   (`with_mode` de `local_server`) ; en dérushage, les parties marquées `data-mode-montage` sont
   masquées (style, effets, son, cadrage ; « Discuter avec Claude » retirée du menu ; consignes réduites
@@ -387,7 +392,14 @@ interne : les changements attendent la prochaine version.
   `UNITS`), montrés par opération sous chaque étape de /rush/ (`job.ops`). Temps restant : `PLAN` et `RATES`
   (secondes par seconde de rush ou de montage), recalés sur la machine dans `work/timings.json`. Barre d'ensemble (`overall_progress`) : part de vidéo traitée de chaque opération, pesée par les
   durées prévues au début de la tâche (`step_weights`), jamais en recul ; seul le reste d'une étape hors
-  barres suit le temps passé (95 % au plus).
+  barres suit le temps passé (95 % au plus). Préparation : quand la carte graphique encode (`gpu::h264`), la copie
+  du rush en 1080p (`version_travail`) tourne pendant le son, la détection de la parole et la
+  transcription, le visage l'attend (`prepare`, `SideCopy` ; `AM_PARALLELE=1` ou `0` : toujours, ou
+  jamais ; par le processeur, pas de gain mesuré) ; lignes `@parallele <pid> <libellé>` et
+  `@parallele-fin <libellé>` (`progress::side_start`), `@fin-operation` avant l'attente : barre, durée
+  et mémoire (programme et enfants) comptées à part (`side` de la tâche ; `busy_update` : temps des
+  opérations sans double compte) ; temps restant : la plus longue des deux (`step_ops_left`,
+  `memoire::PARALLEL`, où les besoins de mémoire s'additionnent).
 - Connexion à Claude (/claude/) : `claude auth login` dans un pseudo-terminal (adresse
   d'autorisation renvoyée à la page, code collé transmis) ; état par `claude auth status`.
 - Mises à jour (/updates/) : `rust/src/update.rs` (check : versions publiées via l'API GitHub,

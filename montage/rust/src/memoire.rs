@@ -97,6 +97,21 @@ pub const OPERATIONS: [&str; 15] = [
     "Rendu 4K",
 ];
 
+/// Opérations lancées à côté des suivantes de leur étape : (opération, première opération qui
+/// l'attend). Entre les deux, les besoins de mémoire s'additionnent (prepare : la copie du rush
+/// en 1080p pendant le son, la détection de la parole et la transcription).
+pub const PARALLEL: [(&str, &str); 1] = [("Copie du rush en 1080p", "Position du visage")];
+
+/// Opérations de la liste `ops` qui tournent en même temps que `side` (entre elle et celle qui l'attend).
+pub fn alongside<'a>(side: &str, join: &str, ops: &[&'a str]) -> Vec<&'a str> {
+    let (Some(a), Some(b)) = (ops.iter().position(|o| *o == side), ops.iter().position(|o| *o == join)) else { return vec![] };
+    if a < b {
+        ops[a + 1..b].to_vec()
+    } else {
+        vec![]
+    }
+}
+
 pub fn is_operation(op: &str) -> bool {
     OPERATIONS.contains(&op)
 }
@@ -325,14 +340,20 @@ pub fn operations(step_names: &[String], info: &VideoInfo, avail: Option<i64>) -
         if step == "préparation du rush" && info.parts > 1 {
             ops.insert(0, "Assemblage des vidéos (réencodage)");
         }
-        for op in ops {
+        for op in &ops {
             let mut v = info.clone();
             if let Some(hd) = render_hd(op) {
                 if info.workers.is_none() {
                     v.workers = Some(choose_workers(hd, info, avail, Some(&measures)));
                 }
             }
-            out.push((step.clone(), op.to_string(), need(op, &v, &measures)));
+            // Pendant une opération lancée à côté (copie du rush), son besoin s'ajoute.
+            let beside: i64 = PARALLEL
+                .iter()
+                .filter(|(side, join)| alongside(side, join, &ops).contains(op))
+                .map(|(side, _)| need(side, info, &measures))
+                .sum();
+            out.push((step.clone(), op.to_string(), need(op, &v, &measures) + beside));
         }
     }
     out

@@ -349,10 +349,12 @@
     $("progress").hidden = !running;
     if (running) $("step-prepare").classList.remove("off");  // préparation suivie même sans rush choisi
     if (!running) return;
-    const p = job.progress;
-    // Une seule barre (ensemble de la tâche) ; l'opération en cours est nommée à côté.
+    const p = job.progress && !job.progress.ended ? job.progress : null;
+    // Une seule barre (ensemble de la tâche) ; les opérations en cours sont nommées à côté (la
+    // copie du rush tourne à côté de la transcription).
     const what = { prepare: "Préparation", regen: "Génération", final: "Création 4K", update: "Mise à jour" }[job.kind] || "Tâche";
-    $("o-label").textContent = p ? `${what} · ${p.label.toLowerCase()}` : `${what} · ${job.step}`;
+    const now = [p && p.label, ...Object.keys(job.side || {}).filter((k) => !job.side[k].ended)].filter(Boolean);
+    $("o-label").textContent = `${what} · ${now.length ? now.map((l) => l.toLowerCase()).join(" et ") : job.step}`;
     $("o-bar").value = job.overall || 0;
     $("o-facts").textContent = `${Math.floor((job.overall || 0) * 100)} %${remaining(job.remaining)}`;
     // Pause (préparation seulement) et avertissement de mémoire (étape en cours, sinon toute la tâche).
@@ -401,7 +403,7 @@
         if (!o && i < at) continue;  // opération sautée (version de travail déjà faite…)
         const row = document.createElement("li");
         const f = o && o.total ? Math.min(1, o.done / o.total) : 0;
-        row.className = t.current === k || (running && t.progress && t.progress.label === k) ? "now" : "";
+        row.className = t.current === k || (running && ((t.progress && t.progress.label === k) || (t.side && t.side[k] && !t.side[k].ended))) ? "now" : "";
         const bar = Object.assign(document.createElement("span"), { className: "bar" });
         bar.append(Object.assign(document.createElement("i"), { style: `width: ${Math.round(f * 100)}%` }));
         row.append(bar, Object.assign(document.createElement("span"), { className: "what", textContent: OP_NAMES[k] || k }),
