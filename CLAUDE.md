@@ -335,7 +335,10 @@ interne : les changements attendent la prochaine version.
   une fiche par sujet, sons et voix à écouter) ; captures et vidéos dans `local/tutoriel/`,
   tirées d'une intervention en 16:9 sous CC BY-SA (Wikimania 2023, Wikimedia Commons : crédit en
   bas de la page et `local/tutoriel/LICENCE.txt`, à garder) montée dans l'interface avec les
-  consignes citées dans l'onglet Claude. À refaire quand l'interface change beaucoup.
+  consignes citées dans l'onglet Claude. **À tenir à jour dans le même changement** : une
+  fonctionnalité ajoutée, changée ou retirée (bouton, réglage, page, effet, raccourci) met à jour ses
+  étapes ou fiches (`BASE`, `CLAUDE`, `DETAILS`, catalogues `VISUALS` / `SOUNDS` / `VOICES`) et retire
+  ce qui n'existe plus ; captures à refaire quand l'interface change beaucoup.
 - Format : celui du rush. `prepare` fait la version de travail aux proportions du rush, petit
   côté à 1080 (`moments_lib.work_size` : 1080x1920, 1920x1080, 1440x1080 en 4:3… ; `setsar=1` ;
   refaite si sa taille ne correspond plus) ; `build_edit` écrit `width`/`height` dans edit.json

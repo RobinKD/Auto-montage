@@ -24,6 +24,11 @@ installateurs (voir `packaging/README.md`).
   haute que large n'est plus perdue au milieu de grandes bandes vides : le lecteur prend toute la
   largeur et le panneau du moment passe dessous. Dans tous les cas, le lecteur ne dépasse plus la
   hauteur de sa vidéo, et les commandes de lecture restent juste sous l'image.
+- **Tutoriel à jour** : il présente maintenant le dérushage et « Valider le dérush », annuler /
+  rétablir, la pastille « Modifié », le cadrage sur la personne qui parle, les couleurs, les effets
+  d'image et les transitions, le volume normalisé, les sous-titres en fichiers, les copies pour les
+  plateformes, la pause de la préparation, la mémoire, « Libérer de la place » et les commandes pour
+  Claude Code ; la préparation ne dit plus qu'elle fait une première vidéo entière.
 
 ## 1.2
 
