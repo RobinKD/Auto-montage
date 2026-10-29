@@ -37,8 +37,11 @@
   .stage { flex: 1 1 auto; min-height: 220px; display: grid; grid-template-columns: minmax(0, 1fr) minmax(300px, 400px); border-bottom: 1px solid var(--line); }
   .viewer { display: flex; flex-direction: column; gap: 6px; min-width: 0; min-height: 0; padding: 10px 16px 8px; }
   .tabs { display: flex; gap: 6px; }
-  /* Le lecteur occupe la place libre, aux proportions du rush. */
-  .screen-box { flex: 1; min-height: 120px; container-type: size; display: grid; place-items: center; }
+  /* Le lecteur occupe la place libre, aux proportions du rush, sans dépasser la hauteur que lui donne
+     la largeur (vidéo en largeur dans une fenêtre haute : pas de grandes bandes vides au-dessus et
+     au-dessous) ; s'il reste de la place, lecteur et commandes sont centrés en hauteur. */
+  .screen-box { flex: 0 1 auto; width: 100%; aspect-ratio: var(--ar, 9 / 16); min-height: 120px; container-type: size; display: grid; place-items: center; margin-top: auto; }
+  .viewer > .caption { margin-bottom: auto; }
   /* Frise du moment ouverte : lecteur à la taille qu'il a sans elle (« Vidéo entière ») ; la page
      s'allonge au lieu de le rétrécir (lockScreen). */
   .app.locked { height: auto; min-height: calc(100vh - var(--am-top, 0px)); }
@@ -52,13 +55,20 @@
   /* Habillage des moments, aux proportions de la composition, celles du rush (1080x1920, 1920x1080,
      1440x1080…) : --u = 10,8 px de la composition (1cqw en 9:16) ; positions et proportions posées
      par la page d'après DATA.width/height (--ar, --u-frame, --cap-top, --typed-top). Image plus
-     large que haute : classe « paysage » (lecteur plus large). */
+     large que haute : classe « paysage » (inspecteur sous le lecteur dans une fenêtre haute). */
   .ov { position: absolute; inset: 0; pointer-events: none; overflow: hidden; --u: var(--u-frame, 1cqw); }
   /* Couleurs, effets d'image et transitions (hf/hf_look.js, comme le rendu) : calques sous les
      sous-titres ; pendant une transition, les deux plans sont dessinés dans des canevas. */
   .ov-layer { position: absolute; inset: 0; }
   .trc { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; display: block; background: #000; }
-  .layout.paysage { grid-template-columns: minmax(0, 480px) minmax(0, 1fr); }
+  /* Vidéo en largeur dans une fenêtre plus haute que large : inspecteur sous le lecteur, qui prend
+     toute la largeur (à côté, il resterait petit au milieu d'une colonne étroite et très haute). */
+  @media (min-width: 901px) and (max-aspect-ratio: 1 / 1) {
+    .stage.paysage { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(200px, 1fr); }
+    .stage.paysage .screen-box { max-height: 50vh; }
+    .stage.paysage .inspector { border-left: 0; border-top: 1px solid var(--line); }
+    .app.locked .stage.paysage .inspector { height: var(--insp-h); }
+  }
   .ov-cap {
     position: absolute; left: 0; right: 0; top: var(--cap-top, 56.25%); display: flex; flex-direction: column;
     align-items: center; gap: calc(0.37 * var(--u)); text-align: center; padding: 0 calc(4 * var(--u));
@@ -734,7 +744,7 @@
     "--u-frame": `${1080 / FRAME_W}cqw`, "--cap-top": `${(100 * FRAME_POS.capTop) / FRAME_H}%`,
     "--typed-top": `${(100 * FRAME_POS.typedTop) / FRAME_H}%` }))
     document.documentElement.style.setProperty(k, v);
-  if (FRAME_W > FRAME_H) document.querySelectorAll(".layout, .screen").forEach((e) => e.classList.add("paysage"));
+  if (FRAME_W > FRAME_H) document.querySelectorAll(".stage, .screen").forEach((e) => e.classList.add("paysage"));
   // Point de cadrage et zoom maximal à l'instant t de l'extrait d'un moment (même règle que faceAt
   // dans render_hyperframes) ; sans suivi des visages : point fixe du moment.
   // Moment cadré sur une personne (« Cadrage ») : son visage, en plan rapproché, centré quand c'est
@@ -2475,10 +2485,11 @@ ${HFAudio.voiceElements(spec)}
     document.body.style.minHeight = `${document.documentElement.scrollHeight}px`;
     app.classList.remove("locked");
     tlk.style.display = "none";  // .tlk { display: grid } passe avant l'attribut hidden
-    const h = sb.clientHeight;
+    const h = sb.clientHeight, ih = document.querySelector(".inspector").clientHeight;
     tlk.style.display = "";
     if (open && !matchMedia("(max-width: 900px)").matches) {
       app.style.setProperty("--screen-h", `${h}px`);
+      app.style.setProperty("--insp-h", `${ih}px`);  // inspecteur sous le lecteur (fenêtre haute)
       app.classList.add("locked");
     }
     document.body.style.minHeight = "";

@@ -20,6 +20,10 @@ installateurs (voir `packaging/README.md`).
   américaine…) ou changer son intensité met la température, le contraste, la saturation… aux valeurs
   du look, qu'on peut ensuite retoucher. Passer d'un look à un autre retire l'effet du premier et
   garde les retouches faites à la main. Les montages déjà réglés avec un look gardent le même rendu.
+- **Lecteur adapté aux écrans verticaux** : une vidéo en largeur (16:9, 4:3) dans une fenêtre plus
+  haute que large n'est plus perdue au milieu de grandes bandes vides : le lecteur prend toute la
+  largeur et le panneau du moment passe dessous. Dans tous les cas, le lecteur ne dépasse plus la
+  hauteur de sa vidéo, et les commandes de lecture restent juste sous l'image.
 
 ## 1.2
 

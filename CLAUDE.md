@@ -264,7 +264,7 @@ interne : les changements attendent la prochaine version.
   sur une frise : défilement (`wheelPan`) ; Ctrl + molette ou pincement : zoom (`setRushPps`,
   `setZoom`). Tête de lecture déplacée : l'autre frise se centre sur elle (`center`, `scrubFrom`) ;
   glissée dans les 5 % du bord de la frise du moment, celle-ci défile (`edgePan`). Moment ouvert :
-  lecteur à la taille qu'il a sans la frise du moment (`lockScreen`, la page s'allonge). Images : planches `work/moments/frames/sNNN.jpg` (une image toutes les
+  lecteur à la taille qu'il a sans la frise du moment (`lockScreen`, la page s'allonge) ; lecteur jamais plus haut que sa vidéo (`aspect-ratio` de `.screen-box`), et vidéo en largeur dans une fenêtre plus haute que large : inspecteur sous le lecteur (`.stage.paysage`, `--insp-h`). Images : planches `work/moments/frames/sNNN.jpg` (une image toutes les
   0,5 s, `moments_lib.timeline_strip`, DATA `strip`) ; forme d'onde : `timeline_wave` (DATA
   `wave`, 20 crêtes par seconde). Sélection Maj / Ctrl + clic (`pickMoment` : garder ou retirer
   d'un coup) ; clavier (modifiable, « Raccourcis ») : Espace, ← →, Maj + ← →, C (couper), Échap. Effets réglés dans
