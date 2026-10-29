@@ -12,8 +12,9 @@
 //! Le bouton « Générer la version de travail » de la page programme dans ~1 min la routine dont
 //! l'id est dans work/regen_trigger.txt (connecteur Claude Code Remote, outil update_trigger).
 //!
-//! Sans work/suggestions.json, la pré-sélection est automatique : un segment dont la phrase
-//! est reprise juste après est une 1re prise (retirée, on garde la 2e) ; le reste est gardé.
+//! Sans work/suggestions.json, la pré-sélection est automatique (redites.rs) : prises abandonnées
+//! (faux départs, 1res prises reprises juste après : on garde la dernière), hésitations et apartés
+//! retirés ; le reste est gardé.
 
 use crate::fonts_lib;
 use crate::moments_lib::{

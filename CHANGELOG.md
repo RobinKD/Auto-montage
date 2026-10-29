@@ -29,6 +29,12 @@ installateurs (voir `packaging/README.md`).
   d'image et les transitions, le volume normalisé, les sous-titres en fichiers, les copies pour les
   plateformes, la pause de la préparation, la mémoire, « Libérer de la place » et les commandes pour
   Claude Code ; la préparation ne dit plus qu'elle fait une première vidéo entière.
+- **Redites mieux retirées sans Claude** : les faux départs (« je vais vous… je vais vous montrer »)
+  sont repérés au mot près, même au milieu d'une phrase, et seul le bout abandonné est retiré (le
+  moment est coupé à cet endroit ; « Recoller » défait la coupe). Une reprise est trouvée jusqu'à
+  45 s plus loin, même après un « attends, je recommence ». Les moments faits seulement de « euh »
+  ou d'un aparté sont décochés. Deux phrases qui commencent pareil (« c'est pour ça que… ») ne sont
+  plus prises pour une redite.
 
 ## 1.2
 

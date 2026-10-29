@@ -282,6 +282,11 @@ pub fn main(args: &[String]) -> i32 {
     }
     if transcription.is_none() {
         check!(step(&["transcribe_segments"]));
+        // Redites sans Claude : moments coupés là où commence et finit une prise abandonnée
+        // (work/decoupage.json d'un nouveau rush), pour n'en retirer que cette partie.
+        if step(&["redites"]) != 0 {
+            progress::say("Redites non cherchées : les moments restent entiers.");
+        }
     }
 
     progress::say("Étape 3/4 : position du visage");

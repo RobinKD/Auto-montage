@@ -3,7 +3,6 @@
 //! id = GAP_BASE + rang, temps en secondes dans le rush. Aussi : formats d'image, langue, mode,
 //! pistes son, découpage (moments coupés en deux), effets fournis par défaut, voix modifiées.
 
-use crate::difflib::SequenceMatcher;
 use crate::paths;
 use crate::procs;
 use crate::util::{self, read_json, round_int, round_to};
@@ -458,32 +457,11 @@ pub fn load_segments(work_dir: &Path) -> Result<(Vec<Value>, Vec<Value>, Decoupa
     Ok((raw, eff, deco))
 }
 
-static WORDS: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"[\w'’-]+").unwrap());
-
-fn words_of(text: &str) -> Vec<String> {
-    WORDS.find_iter(&text.to_lowercase()).map(|m| m.as_str().to_string()).collect()
-}
-
-/// Vrai si la phrase du segment en position i est reprise dans l'un des 6 suivants.
-pub fn is_retake(segments: &[Value], i: usize) -> bool {
-    let wi = words_of(segments[i]["text"].as_str().unwrap_or(""));
-    if wi.len() < 2 {
-        return false;
-    }
-    for j in i + 1..(i + 7).min(segments.len()) {
-        let wj = words_of(segments[j]["text"].as_str().unwrap_or(""));
-        let head_i: Vec<&String> = wi.iter().take(3).collect();
-        let head_j: Vec<&String> = wj.iter().take(3).collect();
-        let cut = &wj[..wj.len().min(wi.len() + 3)];
-        if head_i == head_j || SequenceMatcher::new(&wi, cut).ratio() > 0.6 {
-            return true;
-        }
-    }
-    false
-}
-
 /// Moments suggérés : work/suggestions.json (écrit par Claude) s'il existe, sinon tout sauf les
-/// 1res prises (phrase reprise juste après). Renvoie (ids, raisons).
+/// redites repérées sans Claude (redites.rs : prises abandonnées, hésitations, apartés). Avec
+/// Claude, une partie coupée d'un segment (« Couper », ou coupe automatique de prepare) entièrement
+/// faite d'une prise abandonnée est aussi retirée : Claude ne voit que les segments entiers.
+/// Renvoie (ids, raisons).
 pub fn suggested_keep(segments: &[Value], work_dir: &Path) -> (HashSet<i64>, BTreeMap<i64, Value>) {
     let path = work_dir.join("suggestions.json");
     if path.exists() {
@@ -499,6 +477,7 @@ pub fn suggested_keep(segments: &[Value], work_dir: &Path) -> (HashSet<i64>, BTr
         }
         if segments.iter().any(|s| s.get("origins").is_some()) {
             // moments coupés : ids d'origine
+            let auto = crate::redites::suggestions(segments);
             let (mut ek, mut er) = (HashSet::new(), BTreeMap::new());
             for s in segments {
                 let sid = inum(s, "id");
@@ -506,7 +485,10 @@ pub fn suggested_keep(segments: &[Value], work_dir: &Path) -> (HashSet<i64>, BTr
                     Some(a) => a.iter().filter_map(as_int).collect(),
                     None => vec![sid],
                 };
-                if origins.iter().any(|o| keep.contains(o)) {
+                let abandoned = auto.get(&sid).filter(|r| s.get("splitFrom").is_some() && (**r == crate::redites::RETAKE || **r == crate::redites::FALSE_START));
+                if let Some(r) = abandoned.filter(|_| origins.iter().any(|o| keep.contains(o))) {
+                    er.insert(sid, json!(r));
+                } else if origins.iter().any(|o| keep.contains(o)) {
                     ek.insert(sid);
                 } else if let Some(r) = origins.first().and_then(|o| reasons.get(o)) {
                     er.insert(sid, r.clone());
@@ -517,11 +499,15 @@ pub fn suggested_keep(segments: &[Value], work_dir: &Path) -> (HashSet<i64>, BTr
         return (keep, reasons);
     }
     let (mut keep, mut reasons) = (HashSet::new(), BTreeMap::new());
-    for (pos, s) in segments.iter().enumerate() {
-        if is_retake(segments, pos) {
-            reasons.insert(inum(s, "id"), json!("1re prise, reprise juste après"));
-        } else {
-            keep.insert(inum(s, "id"));
+    let auto = crate::redites::suggestions(segments);
+    for s in segments {
+        match auto.get(&inum(s, "id")) {
+            Some(r) => {
+                reasons.insert(inum(s, "id"), json!(r));
+            }
+            None => {
+                keep.insert(inum(s, "id"));
+            }
         }
     }
     (keep, reasons)

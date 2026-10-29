@@ -33,7 +33,10 @@ npm i
    transcription par segment (`work/segments.json`).
 2. Claude peut écrire ses suggestions dans `work/suggestions.json`
    (`{"keep": [ids], "reasons": {"id": "aparté"}}`). Sans elles, la pré-sélection est
-   automatique : une phrase reprise juste après est une 1re prise, décochée.
+   automatique (`rust/src/redites.rs`) : prises abandonnées repérées au mot près (faux départs,
+   bégaiements, 1res prises reprises dans les 45 s), moments faits seulement de « euh » ou d'un
+   aparté (« attends, je recommence ») décochés ; `prepare` coupe les moments là où commence et
+   finit une prise abandonnée, pour ne retirer qu'elle (`./am redites --essai` : ce qui est repéré).
 3. `./am make_moments` génère la page `work/moments/index.html` (gabarit
    `selection/page.html`), un extrait vidéo et une vignette par moment, et une copie compressée
    de la version de travail (`out/montage_apercu.mp4`) avec la correspondance clip → moment.

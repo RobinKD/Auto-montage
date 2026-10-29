@@ -286,6 +286,14 @@ interne : les changements attendent la prochaine version.
   d'un cadre sur l'image du lecteur (`openFramer` : molette, pincement, glisser), losanges `kf`
   sur la frise du moment ; `build_edit` → `zoomFx` de type `key` (instants `a`, `b` du rush,
   sur tout le moment) ; `render_hyperframes` `draw` (`kz`), même calcul.
+- Redites sans Claude (`rust/src/redites.rs`, `./am redites [--essai]`) : mots de tout le rush à la
+  suite sans les « euh », reprise = la parole repart sur les mêmes mots (45 s au plus) ; bégaiement
+  (2 mots redits aussitôt), faux départ (3 mots repris, dont un plein, 1re prise arrêtée 8 mots
+  après au plus, sans fin de phrase avant), 1re prise entière (ressemblance 70 %) ; mots pleins de la
+  1re prise retrouvés dans la suivante (un de moins si elle n'est pas finie). `prepare` l'appelle après
+  la transcription : coupes aux bords des prises abandonnées dans `work/decoupage.json` (nouveau rush
+  seulement) ; `moments_lib.suggested_keep` retire sans Claude les moments entièrement abandonnés,
+  d'hésitations ou d'aparté, et avec Claude les parties coupées entièrement abandonnées.
 - Moments coupés (page des moments, interface locale : « Couper » de la barre d'outils,
   « Couper ici », touche C : deux moments séparés, avant le mot le plus proche de la tête de
   lecture ; « Recoller » défait la coupe ; pas de fusion de moments) : `work/decoupage.json`
