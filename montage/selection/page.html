@@ -4233,16 +4233,25 @@ ${HFAudio.voiceElements(spec)}
         if (fx && player.paused) drawLook(player.currentTime);
       };
       let prevCol = clone(COLOR);
-      const putCol = async () => {
-        const r = await fetch("/api/couleur", { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify(COLOR) }).catch(() => null);
+      // Look ou intensité : les curseurs suivent tout de suite (withLook), le serveur fait le même
+      // calcul d'après les réglages enregistrés (look.rs save_couleur, reçoit seulement le look).
+      const putCol = async (body = COLOR) => {
+        const r = await fetch("/api/couleur", { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify(body) }).catch(() => null);
         if (r && r.ok) { Object.assign(COLOR, await r.json()); rememberGlobal("/api/couleur", prevCol, COLOR); prevCol = clone(COLOR); }
         $("col-status").textContent = r && r.ok ? "Enregistré : dans l'aperçu tout de suite, dans la vidéo à la prochaine génération." : "Le réglage n'a pas pu être enregistré.";
         show();
       };
-      look.addEventListener("change", () => { COLOR.look = look.value; show(); putCol(); });
+      look.addEventListener("change", () => {
+        Object.assign(COLOR, LOOK.withLook(prevCol, look.value, prevCol.intensite)); show(); putCol({ look: look.value });
+      });
       for (const [k] of SLIDERS) {
-        $(`col-${k}`).addEventListener("input", () => { COLOR[k] = Number($(`col-${k}`).value); show(); });
-        $(`col-${k}`).addEventListener("change", putCol);
+        $(`col-${k}`).addEventListener("input", () => {
+          const v = Number($(`col-${k}`).value);
+          if (k === "intensite") Object.assign(COLOR, LOOK.withLook(prevCol, prevCol.look, v));
+          else COLOR[k] = v;
+          show();
+        });
+        $(`col-${k}`).addEventListener("change", () => putCol(k === "intensite" ? { intensite: COLOR.intensite } : COLOR));
       }
       $("col-reset").addEventListener("click", () => { Object.assign(COLOR, LOOK.COLOR_DEFAULTS); show(); putCol(); });
       globalReload["/api/couleur"] = async () => { Object.assign(COLOR, await fetch("/api/couleur").then((r) => r.json())); prevCol = clone(COLOR); show(); };

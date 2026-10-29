@@ -16,6 +16,10 @@ installateurs (voir `packaging/README.md`).
   haut, le bas ou les côtés ; ils restent toujours dans l'image. Visible dans l'aperçu et dans la vidéo.
 - Cliquer dans le cercle de l'ombre ne fait plus défiler le panneau (le point arrivait ailleurs que
   sous la souris).
+- **Les looks de couleur déplacent les curseurs** : choisir un look (Chaud, Cinéma, Nuit
+  américaine…) ou changer son intensité met la température, le contraste, la saturation… aux valeurs
+  du look, qu'on peut ensuite retoucher. Passer d'un look à un autre retire l'effet du premier et
+  garde les retouches faites à la main. Les montages déjà réglés avec un look gardent le même rendu.
 
 ## 1.2
 

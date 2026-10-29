@@ -212,7 +212,9 @@ interne : les changements attendent la prochaine version.
   le rendu (`render_hyperframes` : chaque plan dans `box<i>` / `zb<i>` dans `#look`) et l'aperçu de la page
   (lecteur ; transitions dans « Vidéo entière » avec deux canevas, image du moment précédent figée).
   Couleurs de tout le montage : `work/couleur.json` (température, teinte, exposition, contraste, hautes,
-  ombres, blancs, noirs, saturation, vibrance, look et intensité, vignette ; filtre SVG `am-couleur`),
+  ombres, blancs, noirs, saturation, vibrance, look et intensité, vignette ; filtre SVG `am-couleur` ; choisir
+  un look ou son intensité déplace les curseurs, `with_look` / `withLook`, le look ne garde à part que son virage
+  partiel, `"v": 2`, ancien fichier converti à la lecture),
   panneau « Couleurs », `/api/couleur`. Effet d'image d'un moment : effet visuel `filtre` (`effect` de
   `EFFECTS`, `at`, `dur`, `force`) → `looks` d'edit.json. Transitions entre moments (pas dans un moment) :
   `work/transitions.json` (`kind`, `dur`), panneau « Transitions », `/api/transitions`, ou `transition`
