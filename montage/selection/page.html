@@ -123,6 +123,7 @@
   }
   .cap-style .line-sizes { display: flex; flex-direction: column; gap: 8px; }
   .cap-style .line-sizes label[hidden] { display: none; }
+  .cap-style input[type=number] { width: 6em; font: inherit; color: var(--fg); background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 4px 6px; }
   .cap-style .shadow-pad { display: flex; flex-direction: row; align-items: center; gap: 14px; grid-column: 1 / -1; }
   .cap-style .pad {
     position: relative; flex: none; width: 132px; height: 132px; border-radius: 50%; border: 1px solid var(--line);
@@ -556,11 +557,8 @@
             <label class="inline"><input type="checkbox" id="cs-upper"> Majuscules</label>
             <label class="inline"><input type="color" id="cs-color"> Couleur</label>
           </div>
-          <label>Lignes au plus<select id="cs-lines"><option value="1">1 ligne (3 mots au plus)</option><option value="2">2 lignes (6 mots au plus)</option><option value="3">3 lignes (9 mots au plus)</option></select></label>
-          <div class="line-sizes">
-            <label id="cs-line2-row"><span>Ligne 2 : <b id="cs-line2-val"></b> de la ligne 1</span><input type="range" id="cs-line2" min="50" max="200" step="5"></label>
-            <label id="cs-line3-row"><span>Ligne 3 : <b id="cs-line3-val"></b> de la ligne 1</span><input type="range" id="cs-line3" min="50" max="200" step="5"></label>
-          </div>
+          <label>Nombre de lignes <span id="cs-lines-val"></span><input type="number" id="cs-lines" min="1" max="6" step="1" value="2"></label>
+          <div class="line-sizes" id="cs-line-sizes"></div>
           <label>Ombre : intensité <span id="cs-shadow-val"></span><input type="range" id="cs-shadow" min="0" max="100" step="5"></label>
           <label>Ombre : diffusion du flou <span id="cs-blur-val"></span><input type="range" id="cs-blur" min="0" max="60" step="1"></label>
           <div class="shadow-pad">
@@ -569,6 +567,14 @@
               <span>Ombre : direction et distance</span>
               <b id="cs-pad-val"></b>
               <span>Cliquez ou glissez dans le cercle : l'ombre part du centre vers ce point, plus loin au bord (flèches du clavier pour affiner, Entrée pour la recentrer).</span>
+            </div>
+          </div>
+          <div class="shadow-pad">
+            <div class="pad" id="cs-pos" tabindex="0" role="slider" aria-label="Position des sous-titres"><i id="cs-pos-dot"></i></div>
+            <div class="pad-text">
+              <span>Position des sous-titres</span>
+              <b id="cs-pos-val"></b>
+              <span>Le centre du cercle est leur place d'origine : cliquez ou glissez pour les déplacer dans cette direction, jusqu'au bord de l'image au bord du cercle (flèches du clavier pour affiner, Entrée pour les remettre à leur place). Ils restent toujours dans l'image.</span>
             </div>
           </div>
           <div class="sample" id="cs-sample" aria-label="Exemple de sous-titre"></div>
@@ -827,26 +833,25 @@
   // ensemble si la plus large dépasse.
   const CAP_MAX_WIDTH = FRAME_W - 140;  // 940 px sur 1080
   const capCanvas = document.createElement("canvas").getContext("2d");
-  const capLines = () => Number(CAP.lines ?? (DATA.captionLines && DATA.captionLines.lines) ?? 2) || 2;
-  const capSizes = () => CAP.lineSizes || (DATA.captionLines && DATA.captionLines.lineSizes) || [100, 100, 100];
+  const LINES_MAX = 6;  // fonts_lib::LINES_MAX
+  const capLines = () => Math.min(LINES_MAX, Math.max(1, Math.round(Number(CAP.lines ?? (DATA.captionLines && DATA.captionLines.lines) ?? 2) || 2)));
+  const capSizes = () => CAP.lineSizes || (DATA.captionLines && DATA.captionLines.lineSizes) || [100];
   // Toutes les façons de couper n mots en k lignes non vides (k - 1 coupures croissantes).
   function* lineCuts(n, k, from = 1) {
     if (k === 0) { yield []; return; }
     for (let c = from; c <= n - k; c++) for (const rest of lineCuts(n, k - 1, c + 1)) yield [c, ...rest];
   }
   // Un mot mis en valeur compte plus large (grossi de 20 %), comme dans le rendu.
-  // Mots et lettres au plus par sous-titre selon le nombre de lignes (fonts_lib.CAPTION_LIMITS).
-  const CAPTION_LIMITS = { 1: [3, 14], 2: [6, 26], 3: [9, 38] };
-  // Lignes d'un sous-titre : le plus petit nombre de lignes dont le style aurait gardé ces mots en un
-  // seul sous-titre (CAPTION_LIMITS : mots, et lettres avant le dernier mot, comme captionGroups),
-  // sans dépasser le nombre de lignes du style (render_lib::caption_lines).
+  // Mots et lettres au plus par sous-titre selon le nombre de lignes : 3 mots et 12 lettres de plus
+  // par ligne (fonts_lib::caption_limits_for).
+  const captionLimits = (k) => [3 * k, 12 * k + 2];
+  // Lignes d'un sous-titre : le nombre du style, sauf pour un sous-titre qui tient sur une ligne
+  // (limites d'une ligne : mots, et lettres avant le dernier mot, comme captionGroups), et jamais
+  // plus que de mots (render_lib::caption_lines).
   function captionLines(words) {
-    const letters = words.slice(0, -1).reduce((s2, w) => s2 + [...w].length, 0), most = capLines();
-    let n = most;
-    for (let k = 1; k < most; k++) {
-      const [mw, mc] = CAPTION_LIMITS[k] || CAPTION_LIMITS[2];
-      if (words.length <= mw && letters <= mc) { n = k; break; }
-    }
+    const letters = words.slice(0, -1).reduce((s2, w) => s2 + [...w].length, 0);
+    const [mw, mc] = captionLimits(1);
+    const n = words.length <= mw && letters <= mc ? 1 : capLines();
     return Math.max(1, Math.min(n, words.length));
   }
   function captionLayout(words, big = []) {
@@ -890,22 +895,32 @@
       }
       return d;
     }));
-    // Comme le rendu : remonté s'il dépasse 40 px du bas de l'image (lignes nombreuses ou grandes).
-    if (el.id === "ov-cap" && el.parentElement) {
-      el.style.translate = "";
-      const limit = el.parentElement.clientHeight * (1 - 40 / FRAME_H);
-      const over = el.offsetTop + el.offsetHeight - limit;
-      if (over > 0) el.style.translate = `0 ${-over}px`;
-    }
+    // Comme le rendu : position choisie (posX, posY en % de la moitié de l'image), à 40 px au moins
+    // des bords ; remonté s'il dépasse 40 px du bas de l'image (lignes nombreuses ou grandes).
+    if (el.id === "ov-cap" && el.parentElement) placeCaption(el);
+  }
+  function placeCaption(el) {
+    el.style.translate = "";
+    const W = el.parentElement.clientWidth, H = el.parentElement.clientHeight, k = W / FRAME_W, edge = 40 * k;
+    const textW = Math.max(0, ...[...el.children].map((d) => d.offsetWidth)), top = el.offsetTop;
+    const room = Math.max(0, (W - textW) / 2 - edge);
+    const x = Math.max(-room, Math.min(room, ((CAP.posX || 0) / 100) * (W / 2)));
+    const y = Math.max(edge, Math.min(H - edge - el.offsetHeight, top + ((CAP.posY || 0) / 100) * (H / 2)));
+    if (x || y !== top) el.style.translate = `${x}px ${y - top}px`;
+  }
+  // Exemple du style : autant de mots que le nombre de lignes en permet (3 par ligne).
+  function captionSample(n) {
+    if (n === 1) return ["Vos", "sous-titres", "ici"];
+    const words = ["Voici", "vos", "sous-titres", "répartis", "sur", "plusieurs", "lignes", "bien", "équilibrées", "pour", "que",
+                   "chaque", "phrase", "reste", "facile", "à", "lire", "même", "quand", "elle", "devient", "un", "peu", "longue"];
+    return words.slice(0, 3 * n);
   }
   function refreshCaption() {  // sous-titre affiché et exemple, redessinés avec le style actuel
     const el = document.getElementById("ov-cap");
     if (el) el.dataset.key = "";
     if (fx) fx.caps = captionGroups(wordsOf(fx.m));  // nombre de lignes changé : mots par sous-titre aussi
     const sample = document.getElementById("cs-sample");
-    const SAMPLES = { 1: ["Vos", "sous-titres", "ici"], 2: ["Voici", "vos", "sous-titres", "sur", "deux", "lignes"],
-                      3: ["Voici", "vos", "sous-titres", "répartis", "sur", "trois", "lignes", "bien", "équilibrées"] };
-    if (sample && !sample.hidden) fillCaption(sample, SAMPLES[capLines()] || SAMPLES[2]);
+    if (sample && !sample.hidden) fillCaption(sample, captionSample(capLines()));
     if (typeof drawOverlay === "function") drawOverlay();
   }
   const moments = DATA.moments;
@@ -1166,7 +1181,7 @@
   }
   $("doubt-next").addEventListener("click", (e) => jumpDoubt(e.shiftKey ? -1 : 1));
   function captionGroups(words) {
-    const [maxWords, maxChars] = CAPTION_LIMITS[capLines()] || CAPTION_LIMITS[2];
+    const [maxWords, maxChars] = captionLimits(capLines());
     const out = [];
     let g = [];
     const flush = () => {
@@ -3988,18 +4003,42 @@ ${HFAudio.voiceElements(spec)}
       $("cs-color").value = st.color;
       $("cs-shadow").value = st.shadow; $("cs-blur").value = st.blur;
       setPad(st.ox ?? 0, st.oy ?? 0);
-      $("cs-lines").value = String(st.lines ?? 2);
-      const sizes = st.lineSizes || [100, 100, 100];
-      $("cs-line2").value = sizes[1] ?? 100; $("cs-line3").value = sizes[2] ?? 100;
+      setPos(st.posX ?? 0, st.posY ?? 0);
+      setLines(st.lines ?? 2, st.lineSizes);
       showShadowVals();
+    }
+    // Nombre de lignes (champ libre de 1 à LINES_MAX) et taille de chaque ligne après la première ;
+    // les tailles des lignes masquées sont gardées (revenir à plus de lignes les retrouve).
+    let lineSizes = [100];
+    function setLines(n, sizes) {
+      lineSizes = Array.from({ length: LINES_MAX }, (_, i) => (i === 0 ? 100 : Number((sizes || [])[i] ?? 100)));
+      $("cs-lines").value = String(n);
+      $("cs-line-sizes").replaceChildren(...lineSizes.slice(1).map((v, j) => {
+        const i = j + 1, row = document.createElement("label");
+        row.dataset.line = String(i);
+        const txt = document.createElement("span"), val = document.createElement("b"), input = document.createElement("input");
+        txt.append(`Ligne ${i + 1} : `, val, " de la ligne 1");
+        Object.assign(input, { type: "range", min: 50, max: 200, step: 5, value: String(v) });
+        input.addEventListener("input", () => { lineSizes[i] = Number(input.value); changed(); });
+        row.append(txt, input);
+        return row;
+      }));
+    }
+    function linesValue() {
+      const n = Math.round(Number($("cs-lines").value));
+      return Number.isFinite(n) && n >= 1 ? Math.min(LINES_MAX, n) : 2;
     }
     function showShadowVals() {
       const v = Number($("cs-shadow").value);
       $("cs-shadow-val").textContent = v === 0 ? "aucune" : `${v} %`;
       $("cs-blur-val").textContent = `${$("cs-blur").value} px`;
-      const lines = Number($("cs-lines").value);
-      $("cs-line2-row").hidden = lines < 2; $("cs-line3-row").hidden = lines < 3;
-      $("cs-line2-val").textContent = `${$("cs-line2").value} %`; $("cs-line3-val").textContent = `${$("cs-line3").value} %`;
+      const lines = linesValue(), [mw] = captionLimits(lines);
+      $("cs-lines-val").textContent = `(${mw} mots au plus par sous-titre ; une seule ligne s'il est court)`;
+      for (const row of $("cs-line-sizes").children) {
+        const i = Number(row.dataset.line);
+        row.hidden = i >= lines;
+        row.querySelector("b").textContent = `${lineSizes[i]} %`;
+      }
     }
     // Direction et distance de l'ombre : point choisi dans le cercle (centre = ombre autour du texte,
     // bord = OFFSET px de décalage dans cette direction).
@@ -4028,7 +4067,7 @@ ${HFAudio.voiceElements(spec)}
         setPad(((e.clientX - b.left) / b.width * 2 - 1) * m, ((e.clientY - b.top) / b.height * 2 - 1) * m);
         changed();
       };
-      p.addEventListener("pointerdown", (e) => { p.setPointerCapture(e.pointerId); p.focus(); fromEvent(e); });
+      p.addEventListener("pointerdown", (e) => { p.setPointerCapture(e.pointerId); p.focus({ preventScroll: true }); fromEvent(e); });
       p.addEventListener("pointermove", (e) => { if (p.hasPointerCapture(e.pointerId)) fromEvent(e); });
       p.addEventListener("keydown", (e) => {
         const step = e.shiftKey ? 5 : 1;
@@ -4040,12 +4079,47 @@ ${HFAudio.voiceElements(spec)}
         changed();
       });
     }
+    // Position des sous-titres : même cercle, centre = place d'origine, bord = POS_MAX % de la moitié
+    // de l'image (le rendu et l'aperçu les gardent dans l'image).
+    const POS_MAX = () => (info && info.posMax) || 100;
+    let pos = { x: 0, y: 0 };
+    function setPos(x, y) {
+      const m = POS_MAX(), r = Math.hypot(x, y);
+      if (r > m) { x = (x * m) / r; y = (y * m) / r; }
+      pos = { x: Math.round(x), y: Math.round(y) };
+      $("cs-pos-dot").style.left = `${50 + (pos.x / m) * 50}%`;
+      $("cs-pos-dot").style.top = `${50 + (pos.y / m) * 50}%`;
+      const parts = [];
+      if (pos.y) parts.push(`${Math.abs(pos.y)} % plus ${pos.y < 0 ? "haut" : "bas"}`);
+      if (pos.x) parts.push(`${Math.abs(pos.x)} % plus à ${pos.x < 0 ? "gauche" : "droite"}`);
+      const txt = parts.length ? `${parts.join(", ")} (en % de la moitié de l'image)`.replace(/^./, (c) => c.toUpperCase()) : "Place d'origine";
+      $("cs-pos-val").textContent = txt;
+      $("cs-pos").setAttribute("aria-valuetext", txt);
+    }
+    {
+      const p = $("cs-pos");
+      const fromEvent = (e) => {
+        const b = p.getBoundingClientRect(), m = POS_MAX();
+        setPos(((e.clientX - b.left) / b.width * 2 - 1) * m, ((e.clientY - b.top) / b.height * 2 - 1) * m);
+        changed();
+      };
+      p.addEventListener("pointerdown", (e) => { p.setPointerCapture(e.pointerId); p.focus({ preventScroll: true }); fromEvent(e); });
+      p.addEventListener("pointermove", (e) => { if (p.hasPointerCapture(e.pointerId)) fromEvent(e); });
+      p.addEventListener("keydown", (e) => {
+        const step = e.shiftKey ? 5 : 1;
+        const mv = { ArrowLeft: [-step, 0], ArrowRight: [step, 0], ArrowUp: [0, -step], ArrowDown: [0, step] }[e.key];
+        if (mv) setPos(pos.x + mv[0], pos.y + mv[1]);
+        else if (e.key === "Enter" || e.key === "Home" || e.key === "0") setPos(0, 0);
+        else return;
+        e.preventDefault();
+        changed();
+      });
+    }
     function current() {
       return { font: $("cs-font").value, weight: Number($("cs-weight").value), size: Number($("cs-size").value),
                uppercase: $("cs-upper").checked, color: $("cs-color").value,
                shadow: Number($("cs-shadow").value), blur: Number($("cs-blur").value),
-               ox: pad.ox, oy: pad.oy, lines: Number($("cs-lines").value),
-               lineSizes: [100, Number($("cs-line2").value), Number($("cs-line3").value)] };
+               ox: pad.ox, oy: pad.oy, lines: linesValue(), lineSizes: [...lineSizes], posX: pos.x, posY: pos.y };
     }
     function preview(st) {  // aperçu immédiat, avant l'enregistrement
       const fam = family();
@@ -4053,7 +4127,7 @@ ${HFAudio.voiceElements(spec)}
       const near = faces.reduce((b, f) => (Math.abs(f.w - st.weight) < Math.abs(b.w - st.weight) ? f : b), faces[0]);
       applyCaptionStyle({ family: `AM ${fam.id}`, files: [{ url: near.url, weight: String(near.w) }], weight: st.weight,
                           size: st.size, uppercase: st.uppercase, color: st.color, shadow: st.shadow, blur: st.blur, ox: st.ox, oy: st.oy,
-                          lines: st.lines, lineSizes: st.lineSizes });
+                          lines: st.lines, lineSizes: st.lineSizes, posX: st.posX, posY: st.posY });
     }
     let saveT = null;
     function changed() {
@@ -4069,15 +4143,18 @@ ${HFAudio.voiceElements(spec)}
       }, 400);
     }
     $("cs-font").addEventListener("change", () => { fillWeights(Number($("cs-weight").value)); changed(); });
-    for (const id of ["cs-weight", "cs-upper", "cs-color", "cs-lines"]) $(id).addEventListener("change", changed);
-    for (const id of ["cs-size", "cs-shadow", "cs-blur", "cs-line2", "cs-line3"]) $(id).addEventListener("input", changed);
+    for (const id of ["cs-weight", "cs-upper", "cs-color"]) $(id).addEventListener("change", changed);
+    for (const id of ["cs-size", "cs-shadow", "cs-blur"]) $(id).addEventListener("input", changed);
+    // Nombre de lignes : pris dès qu'il est valable, ramené entre 1 et LINES_MAX en quittant le champ.
+    $("cs-lines").addEventListener("input", () => { if ($("cs-lines").value !== "") changed(); });
+    $("cs-lines").addEventListener("change", () => { $("cs-lines").value = String(linesValue()); changed(); });
     $("cs-reset").addEventListener("click", () => {
       const d = info.default;
       $("cs-font").value = info.fonts.find((f) => /^(oliver|patrick hand)/i.test(f.family) && f.source === "Auto-montage")?.id || info.fonts[0].id;
       fillWeights(d.weight);
       $("cs-size").value = d.size; $("cs-upper").checked = d.uppercase; $("cs-color").value = d.color;
       $("cs-shadow").value = d.shadow; $("cs-blur").value = d.blur; setPad(d.ox, d.oy);
-      $("cs-lines").value = String(d.lines ?? 2); $("cs-line2").value = (d.lineSizes || [])[1] ?? 100; $("cs-line3").value = (d.lineSizes || [])[2] ?? 100;
+      setLines(d.lines ?? 2, d.lineSizes); setPos(d.posX ?? 0, d.posY ?? 0);
       changed();
     });
     $("cs-add-font").addEventListener("click", () => $("cs-font-file").click());

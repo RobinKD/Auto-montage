@@ -53,7 +53,7 @@ pub fn caption_style_info() -> Value {
         .collect();
     json!({"style": style, "fonts": list,
            "sizeRange": range(fonts_lib::SIZE_RANGE), "shadowRange": range(fonts_lib::SHADOW_RANGE),
-           "blurRange": range(fonts_lib::BLUR_RANGE), "offsetMax": fonts_lib::OFFSET_MAX as i64,
+           "blurRange": range(fonts_lib::BLUR_RANGE), "offsetMax": fonts_lib::OFFSET_MAX as i64, "posMax": fonts_lib::POS_MAX as i64,
            "linesRange": range(fonts_lib::LINES_RANGE), "lineSizeRange": range(fonts_lib::LINE_SIZE_RANGE),
            "default": fonts_lib::default_style()})
 }
@@ -69,7 +69,7 @@ pub fn caption_style_for_page() -> Value {
            "files": faces.iter().map(|(w, p)| json!({"url": format!("/api/fonts/{}", fonts_lib::file_id(p)), "weight": w.to_string()})).collect::<Vec<_>>(),
            "weight": g("weight"), "size": g("size"), "uppercase": g("uppercase"), "color": g("color"),
            "shadow": g("shadow"), "blur": g("blur"), "ox": g("ox"), "oy": g("oy"),
-           "lines": g("lines"), "lineSizes": g("lineSizes")})
+           "lines": g("lines"), "lineSizes": g("lineSizes"), "posX": g("posX"), "posY": g("posY")})
 }
 
 // --- Éléments de style (page « Rushes et montages ») ---------------------------------

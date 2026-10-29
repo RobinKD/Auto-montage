@@ -222,7 +222,7 @@
       html: `<ul><li>Le texte du moment est dans l'inspecteur (<b>Corriger</b> dans la barre d'outils y mène) : <kbd>Entrée</kbd> enregistre, <kbd>Maj</kbd>+<kbd>Entrée</kbd> va à la ligne, <kbd>Échap</kbd> annule. Les mots corrigés s'affichent au rythme de la parole.</li><li>Les mots dont la transcription est incertaine sont <b>soulignés en orange</b> (frise du moment, inspecteur) ; un point orange les signale sur la frise du rush, et le bouton <b>À vérifier</b> en haut (touche <kbd>V</kbd>) passe de l'un à l'autre. Corriger le texte, ou <b>Texte juste</b>, les valide.</li>
         <li><b>Supprimer les sous-titres</b> enlève le texte de ce moment seulement (la voix et l'image restent) ; le moment est alors marqué « Sans sous-titres ».</li>
         <li><b>Texte d'origine</b> revient à la transcription.</li>
-        <li>Les sous-titres affichent jusqu'à 6 mots, sur deux lignes de même largeur (3 mots sur une ligne, 9 sur trois : réglage « Lignes au plus » du style des sous-titres).</li></ul>` },
+        <li>Les sous-titres affichent jusqu'à 6 mots, sur deux lignes de même largeur (3 mots de plus par ligne : réglage « Nombre de lignes » du style des sous-titres).</li></ul>` },
     { id: "calage", title: "Placer et régler un effet", where: "Page des moments, inspecteur du moment",
       html: `<p>Chaque effet coché a sa ligne dans l'inspecteur, avec une <b>bande de calage</b> sur la durée du moment, et une bande de couleur à son nom sur la frise du moment (clic : ses réglages) :</p>
         <ul><li>faites glisser la bande pour la déplacer, et ses poignées pour régler le début et la fin ; la vidéo montre l'instant visé pendant le geste ;</li>
@@ -249,8 +249,9 @@
     { id: "habillage", title: "Sous-titres, zooms et animations", where: "Page des moments > Style des sous-titres ; Zooms et animations",
       html: `<h3>Style des sous-titres</h3>
         <ul><li><b>Police</b> (celles fournies, ou la vôtre avec <b>Ajouter une police…</b> : TTF, OTF, WOFF), <b>graisse</b>, <b>taille</b>, <b>majuscules</b>, <b>couleur</b>.</li>
-        <li><b>Lignes au plus</b> (1, 2 ou 3) et <b>taille de chaque ligne</b> par rapport à la première (de 50 à 200 %) : par exemple une deuxième ligne plus grosse pour faire ressortir la fin de la phrase. Le texte est coupé pour que les lignes aient des largeurs proches ; un sous-titre de peu de mots prend moins de lignes (deux mots courts sur une seule ligne même si vous en demandez deux). Aussi réglable sur la page <b>Rushes et montages</b>.</li>
+        <li><b>Nombre de lignes</b> (de 1 à 6, 2 par défaut) et <b>taille de chaque ligne</b> par rapport à la première (de 50 à 200 %) : par exemple une deuxième ligne plus grosse pour faire ressortir la fin de la phrase. Le texte est coupé pour que les lignes aient des largeurs proches ; un sous-titre qui tient sur une ligne n'en prend qu'une (deux mots courts sur une seule ligne même si vous en demandez deux). Aussi réglable sur la page <b>Rushes et montages</b>.</li>
         <li><b>Ombre</b> : intensité, flou et direction (autour du texte, ou décalée vers un côté).</li>
+        <li><b>Position</b> : un cercle comme celui de l'ombre ; son centre est la place d'origine, un point vers le haut, le bas ou les côtés y déplace les sous-titres, qui restent dans l'image.</li>
         <li>L'exemple se met à jour en direct ; <b>Style d'origine</b> revient au style de départ.</li></ul>
         <h3>Zooms et animations (tout le montage)</h3>
         <ul><li><b>Zooms automatiques sur le visage</b> : aucun, légers, normaux ou marqués. Auto-montage suit le visage repéré à la préparation.</li>

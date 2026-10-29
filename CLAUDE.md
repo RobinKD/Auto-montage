@@ -176,11 +176,15 @@ interne : les changements attendent la prochaine version.
   « haut de la page » (`to-top`) en bas à droite.
 - Sous-titres : jusqu'à 6 mots sur 2 lignes par défaut, coupées là où les largeurs mesurées (multipliées
   par la taille de chaque ligne) sont les plus proches (`render_lib.caption_layout` et `captionLayout` de la
-  page des moments) ; nombre de lignes au plus (`lines`, 1 à 3, mots par sous-titre :
-  `fonts_lib.CAPTION_LIMITS` ; peu de mots, moins de lignes : la plus petite limite qui les contient,
-  `render_lib::caption_lines` et `captionLines` de la page) et taille de chaque ligne en % de la première (`lineSizes`), réglés sur la
-  page des moments et sur /rush/ ; sous-titre remonté s'il dépasse 40 px du bas. Style (police, graisse,
-  taille, majuscules, couleur, lignes) : `work/caption_style.json` (`rust/src/fonts_lib.rs` : polices
+  page des moments) ; nombre de lignes voulu (`lines`, champ libre de 1 à `fonts_lib::LINES_MAX` = 6 : au-delà,
+  l'essai de toutes les coupures devient trop long ; mots par sous-titre : `fonts_lib::caption_limits_for`,
+  3 mots et 12 lettres de plus par ligne ; sous-titre qui tient sur une ligne : une seule,
+  `render_lib::caption_lines` et `captionLines` de la page) et taille de chaque ligne en % de la première
+  (`lineSizes`, une par ligne possible), réglés sur la page des moments et sur /rush/. Position : `posX`, `posY`
+  (décalage depuis la place d'origine en % de la moitié de l'image, cercle de la page des moments comme celui de
+  l'ombre ; `fonts_lib::caption_position`), appliquée par `draw` du rendu et `placeCaption` de la page, sous-titre
+  gardé à 40 px des bords. Style (police, graisse,
+  taille, majuscules, couleur, lignes, position) : `work/caption_style.json` (`rust/src/fonts_lib.rs` : polices
   d'Auto-montage, de la machine de rendu via fontconfig, et `public/fonts/perso/`), copié par
   `build_edit` dans edit.json (`captionStyle`, police dans `public/fonts/choisie/`).
   Effets proposés sur la page des moments : `work/effets_page.json` (`hidden`, et `volume` de

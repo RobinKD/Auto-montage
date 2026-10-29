@@ -4,6 +4,19 @@ Chaque version publiée reprend sa section dans ses notes (onglet Releases). Une
 section, le numéro dans `VERSION` et le tag `v<numéro>` poussé publient la version avec ses
 installateurs (voir `packaging/README.md`).
 
+## 1.3
+
+- **Nombre de lignes des sous-titres au choix** : « Lignes au plus » devient un champ « Nombre de
+  lignes » (2 par défaut, de 1 à 6), avec une taille réglable pour chaque ligne, sur la page des
+  moments et sur « Rushes et montages ».
+- **Le nombre de lignes demandé est vraiment utilisé** : avec 3 lignes, la plupart des sous-titres
+  restaient sur 2, parce qu'un sous-titre ne prenait que les lignes nécessaires à son nombre de mots.
+  Seul un sous-titre qui tient sur une ligne (deux ou trois mots courts) en prend maintenant moins.
+- **Position des sous-titres** : un cercle, comme celui de l'ombre, déplace les sous-titres vers le
+  haut, le bas ou les côtés ; ils restent toujours dans l'image. Visible dans l'aperçu et dans la vidéo.
+- Cliquer dans le cercle de l'ombre ne fait plus défiler le panneau (le point arrivait ailleurs que
+  sous la souris).
+
 ## 1.2
 
 - **Les premiers mots d'un moment ne se superposent plus** : après un silence, la transcription

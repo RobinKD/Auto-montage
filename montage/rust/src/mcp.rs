@@ -135,7 +135,7 @@ const SETTINGS: [(&str, &str, &str); 6] = [
     ("transitions", "/api/transitions", "transition entre les moments : kind (id du catalogue ou \"\"), dur (s)"),
     ("habillage", "/api/habillage", "autoZoom (0 à 2), pop, karaoke, karaokeColor, speakerFocus"),
     ("son", "/api/son", "voice (volume %), denoise 0-3, declick, highpass, clarity, loudness (LUFS ou false)"),
-    ("sous_titres", "/api/caption-style", "police, graisse, taille, majuscules, couleur, lignes du style des sous-titres"),
+    ("sous_titres", "/api/caption-style", "police, graisse, taille, majuscules, couleur, lignes et position du style des sous-titres"),
     ("effets", "/api/effects", "effets proposés sur la page : hidden, volume"),
 ];
 

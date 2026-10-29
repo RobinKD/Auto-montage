@@ -313,7 +313,7 @@ fn build(m: &mut Montage, k: i64, part: Option<(i64, i64)>) -> Result<(), String
         })
         .collect();
     let mut cap = Map::new();
-    for k in ["weight", "size", "uppercase", "color", "shadow", "blur", "ox", "oy"] {
+    for k in ["weight", "size", "uppercase", "color", "shadow", "blur", "ox", "oy", "posX", "posY"] {
         cap.insert(k.into(), m.cap.get(k).cloned().unwrap_or(Value::Null));
     }
     let data = json!({
@@ -996,9 +996,13 @@ function draw(frame) {
       }
       return box;
     });
-    // Lignes nombreuses ou grandes : sous-titre remonté pour finir à 40 px au moins du bas de l'image.
-    const over = el("caps").offsetTop + el("caps").firstElementChild.offsetHeight - (%H% - 40);
-    el("caps").style.translate = over > 0 ? `0 ${-over}px` : "";
+    // Position choisie (posX, posY : décalage en % de la moitié de l'image), le sous-titre restant à
+    // 40 px au moins des bords ; lignes nombreuses ou grandes : remonté pour finir à 40 px du bas.
+    const box = el("caps").firstElementChild, top = el("caps").offsetTop;
+    const room = Math.max(0, (%W% - box.offsetWidth) / 2 - 40);
+    const x = Math.max(-room, Math.min(room, ((C.posX || 0) / 100) * (%W% / 2)));
+    const y = Math.max(40, Math.min(%H% - 40 - box.offsetHeight, top + ((C.posY || 0) / 100) * (%H% / 2)));
+    el("caps").style.translate = x || y !== top ? `${x}px ${y - top}px` : "";
   } else { put("caps", ""); el("caps").style.translate = ""; }
 
   // Flash blanc.
