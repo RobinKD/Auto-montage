@@ -20,7 +20,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::LazyLock;
 
-const LABEL: &str = "Copie du rush en 1080p";
+pub const LABEL: &str = "Copie du rush en 1080p";
 const CHUNK: i128 = 60; // secondes par morceau (arrondi à un nombre entier d'images)
 const NTSC: [(&str, i128, i128); 6] = [
     ("23.98", 24000, 1001),

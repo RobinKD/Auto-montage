@@ -19,7 +19,8 @@
   const COLOR_LIMITS = { temperature: [-100, 100], teinte: [-100, 100], exposition: [-3, 3], contraste: [-100, 100],
     hautes: [-100, 100], ombres: [-100, 100], blancs: [-100, 100], noirs: [-100, 100], saturation: [0, 200],
     vibrance: [-100, 100], intensite: [0, 100], vignette: [0, 100] };
-  // Looks : écarts ajoutés aux réglages (saturation : % en plus ou en moins), et virage partiel
+  // Looks : écarts reportés sur les curseurs (saturation : points de % en plus ou en moins ;
+  // withLook, look.rs LOOK_PARAMS) quand on choisit le look ou son intensité, et virage partiel
   // (split : couleur ajoutée aux ombres et aux hautes lumières, par canal R, V, B).
   const LOOKS = [
     { id: "chaud", label: "Chaud", p: { temperature: 30, saturation: 6, ombres: 5 } },
@@ -40,14 +41,28 @@
       if (k === "look") out.look = LOOKS.some((l) => l.id === (c && c.look)) ? c.look : "";
       else out[k] = clamp(n(c && c[k], d), ...COLOR_LIMITS[k]);
     }
+    if (c && c.v === 2) out.v = 2;  // look déjà sur les curseurs (look.rs)
     return out;
   }
-  // Réglages effectifs (look compris) : valeurs additionnées, saturation multipliée.
+  // Autre look ou autre intensité : l'écart de l'ancien look est retiré des curseurs, celui du
+  // nouveau ajouté (comme look.rs with_look ; les retouches faites à la main restent).
+  function withLook(c, id, intensite) {
+    const s = colorSettings(c), old = LOOKS.find((l) => l.id === s.look), look = LOOKS.find((l) => l.id === id);
+    const ko = old ? s.intensite / 100 : 0, kn = clamp(n(intensite, 100), 0, 100) / 100;
+    for (const key of Object.keys(COLOR_LIMITS)) {
+      if (key === "intensite") continue;
+      s[key] = clamp(s[key] - ko * n(old && old.p[key]) + kn * n(look && look.p[key]), ...COLOR_LIMITS[key]);
+    }
+    return { ...s, look: look ? id : "", intensite: kn * 100, v: 2 };
+  }
+  // Réglages effectifs : curseurs, et virage partiel du look. Anciens réglages (sans v: 2) : look
+  // ajouté aux curseurs, saturation multipliée.
   function colorParams(c) {
     const s = colorSettings(c), look = LOOKS.find((l) => l.id === s.look), k = look ? s.intensite / 100 : 0, p = {};
+    const ka = s.v === 2 ? 0 : k;
     for (const key of ["temperature", "teinte", "exposition", "contraste", "hautes", "ombres", "blancs", "noirs", "vibrance"])
-      p[key] = s[key] + k * n(look && look.p[key]);
-    p.sat = (s.saturation / 100) * Math.max(0, 1 + k * n(look && look.p.saturation) / 100);
+      p[key] = s[key] + ka * n(look && look.p[key]);
+    p.sat = (s.saturation / 100) * Math.max(0, 1 + ka * n(look && look.p.saturation) / 100);
     const sp = (look && look.p.split) || { sh: [0, 0, 0], hi: [0, 0, 0] };
     p.split = { sh: sp.sh.map((v) => v * k), hi: sp.hi.map((v) => v * k) };
     return p;
@@ -260,7 +275,7 @@
   const hasTransition = (id) => TRANSITIONS.some((x) => x.id === id);
   const hasEffect = (id) => EFFECTS.some((x) => x.id === id);
 
-  const api = { COLOR_DEFAULTS, COLOR_LIMITS, LOOKS, EFFECTS, TRANSITIONS, TRANSITION_DUR, colorSettings, colorFilter,
+  const api = { COLOR_DEFAULTS, COLOR_LIMITS, LOOKS, EFFECTS, TRANSITIONS, TRANSITION_DUR, colorSettings, withLook, colorFilter,
     effectLayers, transitionStyles, applyStyle, hasTransition, hasEffect, channelCurve, colorParams };
   root.HFLook = api;
   if (typeof module !== "undefined" && module.exports) module.exports = api;

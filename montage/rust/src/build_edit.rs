@@ -968,8 +968,8 @@ fn run() -> Result<(), String> {
     let word_time = |seg_id: i64, i: i64| word_events.iter().find(|w| w.seg == seg_id && w.i == i).map(|w| w.start);
 
     // --- Sous-titres ----------------------------------------------------------------
-    // Jusqu'à 6 mots (26 lettres) sur 2 lignes (3 mots sur 1 ligne, 9 sur 3 : nombre de lignes choisi
-    // dans le style, fonts_lib::CAPTION_LIMITS), de largeurs aussi proches que possible compte tenu de
+    // Jusqu'à 6 mots (26 lettres) sur 2 lignes (3 mots et 12 lettres de plus par ligne : nombre de
+    // lignes choisi dans le style, fonts_lib::caption_limits_for), de largeurs aussi proches que possible compte tenu de
     // la taille de chaque ligne : les coupures sont choisies au rendu, en mesurant le texte dans la
     // police choisie (render_lib::caption_layout) ; « top » / « bottom » en sont une estimation au
     // nombre de lettres. Masqués à l'écran pendant un texte tapé (l'intro). Même règle dans la page

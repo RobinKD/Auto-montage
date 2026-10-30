@@ -14,9 +14,12 @@
 //! "uppercase": true, "color": "#f4e2c2", "shadow": 50, "blur": 14, "ox": 0, "oy": 0} (ombre :
 //! intensité de 0 à 100 (plus ou moins sombre), diffusion du flou en pixels de 0 à 60, et décalage
 //! ox (vers la droite) et oy (vers le bas) en pixels, à 40 px au plus du texte, choisi dans le cercle
-//! de la page des moments ; tout en pixels sur une image de 1080 px de large), "lines": 2, "lineSizes": [100, 100, 100]
-//! (nombre de lignes au plus, de 1 à 3, et taille de chaque ligne en % de la première, de 50 à 200 ;
-//! réglés sur la page des moments et sur « Rushes et montages »). build_edit le copie dans edit.json
+//! de la page des moments ; tout en pixels sur une image de 1080 px de large), "lines": 2, "lineSizes": [100, …]
+//! (nombre de lignes voulu, de 1 à 6 : moins pour un sous-titre qui tient sur une ligne, et taille de
+//! chaque ligne en % de la première, de 50 à 200 ; réglés sur la page des moments et sur « Rushes et
+//! montages »), "posX": 0, "posY": 0 (position : décalage depuis la place d'origine, en % de la
+//! moitié de l'image, dans un cercle de rayon 100, choisi dans le cercle de la page des moments ; le
+//! sous-titre reste dans l'image). build_edit le copie dans edit.json
 //! (« captionStyle ») avec les fichiers de la police, copiés dans public/fonts/choisie/.
 
 use crate::paths;
@@ -50,23 +53,26 @@ pub const FONT_EXT: [&str; 4] = [".ttf", ".otf", ".woff", ".woff2"];
 /// Style d'origine : Oliver (ou Patrick Hand) en gras, crème, en majuscules.
 pub fn default_style() -> Map<String, Value> {
     match json!({"font": null, "weight": 700, "size": 64, "uppercase": true, "color": "#f4e2c2", "shadow": 50, "blur": 14,
-                 "ox": 0, "oy": 0, "lines": 2, "lineSizes": [100, 100, 100]}) {
+                 "ox": 0, "oy": 0, "lines": 2, "lineSizes": vec![100; LINES_MAX], "posX": 0, "posY": 0}) {
         Value::Object(m) => m,
         _ => unreachable!(),
     }
 }
 
-pub const LINES_RANGE: (i64, i64) = (1, 3);
+/// Lignes d'un sous-titre au plus : au-delà, le choix des coupures (toutes les façons essayées,
+/// render_lib::caption_layout) deviendrait trop long.
+pub const LINES_MAX: usize = 6;
+pub const LINES_RANGE: (i64, i64) = (1, LINES_MAX as i64);
 pub const LINE_SIZE_RANGE: (i64, i64) = (50, 200);
-/// Mots et lettres au plus par sous-titre, selon le nombre de lignes (même règle dans la page des
-/// moments, captionGroups).
+/// Mots et lettres au plus par sous-titre, selon le nombre de lignes : 3 mots et 12 lettres de plus
+/// par ligne (1 ligne : 3 mots, 14 lettres ; 2 : 6 et 26 ; 3 : 9 et 38). Même règle dans la page des
+/// moments (captionLimits).
 pub fn caption_limits_for(lines: i64) -> (i64, i64) {
-    match lines {
-        1 => (3, 14),
-        3 => (9, 38),
-        _ => (6, 26),
-    }
+    let l = lines.clamp(LINES_RANGE.0, LINES_RANGE.1);
+    (3 * l, 12 * l + 2)
 }
+/// Décalage de la position des sous-titres au plus (posX, posY), en % de la moitié de l'image.
+pub const POS_MAX: f64 = 100.0;
 pub const SHADOW_RANGE: (i64, i64) = (0, 100);
 pub const BLUR_RANGE: (i64, i64) = (0, 60);
 pub const OFFSET_MAX: f64 = 40.0;
@@ -383,25 +389,40 @@ pub fn clean(data: &Map<String, Value>) -> Map<String, Value> {
     if let Some(l) = lines {
         style.insert("lines".into(), json!(clamp(l, LINES_RANGE)));
     }
+    // Une taille par ligne possible (la première à 100 %), même au-delà du nombre de lignes choisi :
+    // revenir à plus de lignes retrouve les tailles d'avant.
     if let Some(Value::Array(sizes)) = data.get("lineSizes") {
-        let parsed: Option<Vec<i64>> = sizes.iter().take(3).map(|x| as_f(Some(x)).map(|f| clamp(round_int(f), LINE_SIZE_RANGE))).collect();
+        let parsed: Option<Vec<i64>> =
+            sizes.iter().take(LINES_MAX).map(|x| as_f(Some(x)).map(|f| clamp(round_int(f), LINE_SIZE_RANGE))).collect();
         if let Some(sizes) = parsed {
-            let defaults = [100i64, 100, 100];
-            let mut rest: Vec<i64> = sizes.iter().skip(1).copied().collect();
-            rest.extend(defaults.iter().skip(sizes.len()).copied());
-            rest.truncate(2);
-            let mut v = vec![100];
-            v.extend(rest);
+            let mut v = vec![100i64];
+            v.extend(sizes.iter().skip(1).copied());
+            v.resize(LINES_MAX, 100);
             style.insert("lineSizes".into(), json!(v));
         }
     }
+    let (px, py) = caption_position(data);
+    style.insert("posX".into(), json!(px));
+    style.insert("posY".into(), json!(py));
     style
 }
 
 /// (mots, lettres) au plus par sous-titre.
 pub fn caption_limits(style: &Map<String, Value>) -> (i64, i64) {
-    let lines = style.get("lines").and_then(Value::as_i64).unwrap_or(2);
-    caption_limits_for(if (1..=3).contains(&lines) { lines } else { 2 })
+    caption_limits_for(style.get("lines").and_then(Value::as_i64).unwrap_or(2))
+}
+
+/// Position des sous-titres (posX vers la droite, posY vers le bas, en % de la moitié de l'image),
+/// dans le cercle de rayon POS_MAX ; (0, 0) : place d'origine.
+pub fn caption_position(style: &Map<String, Value>) -> (i64, i64) {
+    let num = |k: &str| as_f(style.get(k)).filter(|v| v.is_finite()).unwrap_or(0.0);
+    let (mut x, mut y) = (num("posX"), num("posY"));
+    let r = (x * x + y * y).sqrt();
+    if r > POS_MAX {
+        x = x * POS_MAX / r;
+        y = y * POS_MAX / r;
+    }
+    (round_int(x), round_int(y))
 }
 
 /// Décalage de l'ombre (ox, oy) en pixels, dans le cercle de rayon OFFSET_MAX.
@@ -480,7 +501,8 @@ pub fn copy_for_render(style: &Map<String, Value>) -> Option<Value> {
     let g = |k: &str| style.get(k).cloned().unwrap_or(Value::Null);
     Some(json!({"family": "AM Sous-titres", "label": family.family, "files": files, "weight": g("weight"), "size": g("size"),
                 "uppercase": g("uppercase"), "color": g("color"), "shadow": g("shadow"), "blur": g("blur"),
-                "ox": g("ox"), "oy": g("oy"), "lines": g("lines"), "lineSizes": g("lineSizes")}))
+                "ox": g("ox"), "oy": g("oy"), "lines": g("lines"), "lineSizes": g("lineSizes"),
+                "posX": g("posX"), "posY": g("posY")}))
 }
 
 /// `auto-montage fonts_lib` : polices utilisables et style actuel (pour Claude et le dépannage).

@@ -105,34 +105,42 @@
   // « vertical » pour une vidéo au format portrait (colonne plus étroite).
   const BASE = [
     { title: "Préparer un rush", where: "Menu > Rushes et montages",
-      html: `<p>Choisissez la vidéo filmée (ou plusieurs, si la caméra s'est coupée : elles sont assemblées dans l'ordre), puis <b>Préparer ce rush</b>.</p>
-        <p>Auto-montage prépare une copie du rush en 1080p, écrit ce qui est dit (transcription), repère le visage, découpe la vidéo en <b>moments</b> (une phrase chacun) et fait une première vidéo entière. Comptez à peu près la durée du rush ; la barre montre l'avancement et le temps restant, et « Annuler » arrête tout.</p>`,
+      html: `<p>Choisissez la vidéo filmée (ou plusieurs, si la caméra s'est coupée : elles sont assemblées dans l'ordre) et la <b>langue parlée</b> (français ou anglais), puis <b>Préparer ce rush</b>. Avant de commencer, la page dit combien de mémoire la préparation demandera.</p>
+        <p>Auto-montage prépare une copie du rush en 1080p, écrit ce qui est dit (transcription), repère les visages et qui parle, et découpe la vidéo en <b>moments</b> (une phrase chacun). Comptez moins que la durée du rush ; la barre montre l'avancement et le temps restant. <b>Mettre en pause</b> arrête en gardant ce qui est fait (<b>Reprendre la préparation</b> repart de là, même après avoir éteint l'ordinateur), <b>Annuler</b> arrête tout.</p>`,
       media: [{ img: "rush-video.jpg", caption: "Choisir une ou plusieurs vidéos" }, { img: "rush-preparation.jpg", caption: "La préparation en cours" }] },
     { title: "Choisir les moments", where: "Menu > Page des moments",
       html: `<p>Chaque moment est une phrase. Les moments cochés forment la vidéo ; Auto-montage décoche déjà les <b>premières prises</b> (une phrase redite juste après) et les ratés.</p>
         <ul><li>En bas, la <b>frise du rush</b> montre tous les moments sur une ligne qui défile, avec leurs images et la forme d'onde de la voix. Cliquez sur un moment pour le voir, habillé comme dans la vidéo : sa propre frise s'ouvre dessous, et l'<b>inspecteur</b> (à droite) montre son texte et ses effets.</li>
         <li><b>Couper</b> (barre d'outils, frise du moment, touche <kbd>C</kbd>) coupe le moment en deux à la tête de lecture, avant le mot le plus proche : deux moments, chacun avec sa case. Les poignées blanches du moment choisi raccourcissent son début ou sa fin.</li>
         <li><b>Corriger</b> : corrige le texte des sous-titres, dans l'inspecteur.</li>
-        <li>Les plans <b>sans parole</b> (hachurés) peuvent être ajoutés, avec leur début et leur fin.</li></ul>`,
+        <li>Les plans <b>sans parole</b> (hachurés) peuvent être ajoutés, avec leur début et leur fin.</li>
+        <li><b>Annuler</b> et <b>Rétablir</b> (en haut, <kbd>Ctrl</kbd>+<kbd>Z</kbd>) défont et refont chaque changement.</li></ul>`,
       media: [{ img: "moments.jpg", caption: "La page des moments : lecteur, inspecteur, et les frises en bas" }] },
+    { title: "Valider le dérush", where: "Page des moments > Valider le dérush",
+      html: `<p>Un nouveau rush s'ouvre en <b>dérushage</b> : on n'y fait que choisir et couper les moments, et corriger les sous-titres (case « Sous-titres » pour les garder ou non). Une fois le tri fait, <b>Valider le dérush</b> propose :</p>
+        <ul><li><b>Télécharger derush</b> : les moments gardés mis bout à bout, sans effets ;</li>
+        <li>ou de <b>passer à l'auto-montage</b> : les moments gardés deviennent une seule vidéo, un seul moment avec vos sous-titres corrigés, sur laquelle on ajoute effets, son, couleurs et transitions (étapes suivantes). Le dérush reste dans « Montages ».</li></ul>
+        <p>En tête du menu, <b>Dérushage</b> / <b>Auto-montage</b> change de mode à tout moment.</p>` },
     { title: "Ajouter des effets", where: "Page des moments, sur chaque moment",
-      html: `<p>Cochez des <b>sons</b> (caisse, pop, whoosh, ding, boum…) et des <b>effets visuels</b> (zoom avant, zoom sec, dézoom, <b>zoom libre</b>, secousse, flash, mot mis en valeur, texte tapé, pastille) dans l'inspecteur ; calez-les sur leur bande (ou bouton « Ici » à la tête de lecture), réglez leur durée, leur force et leur volume. Ils apparaissent en bandes de couleur nommées sur la frise du moment (piste « Effets »).</p>
+      html: `<p>En auto-montage, cochez des <b>sons</b> (caisse, pop, whoosh, ding, boum…) et des <b>effets visuels</b> (zoom avant, zoom sec, dézoom, <b>zoom libre</b>, secousse, flash, mot mis en valeur, texte tapé, pastille, <b>effet d'image</b> : noir et blanc, flou, VHS…) dans l'inspecteur ; calez-les sur leur bande (ou bouton « Ici » à la tête de lecture), réglez leur durée, leur force et leur volume. Ils apparaissent en bandes de couleur nommées sur la frise du moment (piste « Effets »).</p>
         <p>« Effets proposés sur les moments » (onglet « Paramètres effets et son » de l'inspecteur) choisit ceux qui apparaissent sur chaque moment ; « Ajouter des sons… » y ajoute les vôtres. Sur « Rushes et montages », le bouton ▶ fait écouter ou voir chaque effet.</p>`,
       media: [{ video: "demo-effets.mp4", caption: "Zoom sec sur « gratuitement », puis « makrout » mis en valeur" }, { img: "effets.jpg", caption: "Un son et le zoom libre d'un moment, avec leur calage" }] },
-    { title: "Régler les sous-titres et l'habillage", where: "Page des moments > Style des sous-titres, Zooms et animations",
-      html: `<p>Les sous-titres tiennent sur deux lignes équilibrées (ou une, ou trois, de tailles différentes si vous voulez). Choisissez la <b>police</b> (ou ajoutez la vôtre), la taille, la graisse, la couleur, les majuscules et l'<b>ombre</b> (intensité, flou, direction).</p>
-        <p>Dans « Zooms et animations » : intensité des zooms automatiques sur le visage, sous-titres qui apparaissent avec un rebond, <b>mot prononcé en couleur</b>.</p>`,
+    { title: "Régler les sous-titres, l'habillage et les couleurs", where: "Page des moments > Style des sous-titres, Zooms et animations, Couleurs, Transitions entre les moments",
+      html: `<p>Les sous-titres tiennent sur deux lignes équilibrées (de 1 à 6 lignes, de tailles différentes si vous voulez). Choisissez la <b>police</b> (ou ajoutez la vôtre), la taille, la graisse, la couleur, les majuscules, l'<b>ombre</b> (intensité, flou, direction) et la <b>position</b>.</p>
+        <p>Dans « Zooms et animations » : intensité des zooms automatiques sur le visage, cadrage sur la personne qui parle, sous-titres qui apparaissent avec un rebond, <b>mot prononcé en couleur</b>.</p>
+        <p>« Couleurs » retouche tout le montage (lumière, balance des blancs, saturation) ou applique un <b>look</b> ; « Transitions entre les moments » choisit le passage d'un moment au suivant (fondu, balayage, zoom…).</p>`,
       media: [{ video: "demo-sous-titres.mp4", caption: "Mot prononcé en couleur" }, { img: "style.jpg", caption: "Style des sous-titres" }] },
     { title: "Soigner le son", where: "Page des moments > Son de la voix",
       html: `<p>Volume de la voix (pour tout le montage, et sur chaque moment), réduction du bruit de fond, retrait des clics de bouche, coupure des graves, voix plus claire.</p>
-        <p>« Rechercher les bruits parasites » mesure le bruit de fond et liste les bruits brefs : écoutez-les, et cochez « Atténuer » pour ceux qui gênent.</p>`,
+        <p>« Rechercher les bruits parasites » mesure le bruit de fond et liste les bruits brefs : écoutez-les, et cochez « Atténuer » pour ceux qui gênent. Le <b>volume normalisé</b> (−14 LUFS par défaut) met la vidéo au niveau attendu par YouTube, TikTok ou Instagram.</p>`,
       media: [{ img: "son.jpg", caption: "Le panneau « Son de la voix »" }] },
     { title: "Générer, regarder, télécharger", where: "Page des moments > Générer la vidéo entière ; menu > Téléchargements",
-      html: `<p><b>Générer la vidéo entière</b> monte la vidéo avec vos choix (barre d'avancement, annulable). Regardez-la en <b>plein écran</b> (barre de lecture en bas), puis <b>Télécharger</b> : 720p pour partager vite, 1080p, ou la <b>4K</b> finale (plus longue à créer).</p>
+      html: `<p>L'onglet <b>Vidéo entière</b> du lecteur joue déjà les moments gardés bout à bout, avec tous leurs réglages (aussi en <b>plein écran</b>). <b>Générer la vidéo entière</b> en fait le fichier (barre d'avancement, annulable), puis <b>Télécharger</b> propose 720p pour partager vite, 1080p, la <b>4K</b> finale (plus longue à créer), les sous-titres en fichiers (SRT, WebVTT) et des copies <b>pour une plateforme</b> (YouTube, Shorts, TikTok, Instagram…).</p>
         <p>Les <b>variantes</b> gardent plusieurs sélections du même rush (une courte, une longue…).</p>`,
       media: [{ video: "demo-montage.mp4", caption: "Le début du montage : intro tapée, puis sous-titres" }, { img: "telecharger.jpg", caption: "Téléchargements" }] },
     { title: "Retrouver ses montages, et en cas de souci", where: "Rushes et montages > Montages ; menu > Journal, Mises à jour",
       html: `<ul><li>Préparer un autre rush met le montage en cours de côté : <b>Rouvrir</b> le reprend tel quel, sans rien recalculer.</li>
+        <li><b>Libérer de la place</b> (en bas de « Rushes et montages ») liste les montages, rushes et vidéos qui prennent de la place, à supprimer.</li>
         <li>Le <b>Journal</b> garde le détail de chaque tâche ; « Télécharger le rapport » le regroupe pour demander de l'aide.</li>
         <li><b>Mises à jour</b> installe les nouvelles versions en un clic (vos montages sont gardés).</li></ul>` },
   ];
@@ -145,6 +153,9 @@
         <p>Les consignes qui ont donné les vidéos de ce tutoriel, à partir d'une intervention de 4 minutes :</p>
         <p class="quote">Fais un short d'environ 1 minute à partir de cette intervention. Retire les « Hello », « C'est bon, one minute » et les remerciements de la fin. Garde l'idée principale : on a trop d'informations, l'intro sur la connaissance + un exemple concret (le makrout) suffit, et la connaissance passe maintenant par les petits écrans. Intro tapée : « Et si une photo suffisait ? ». Corrige les potentielles erreurs dans les sous-titres. Mets « makrout » et « obsolètes » en valeur, un zoom sec sur « gratuitement ». Zooms automatiques légers de temps en temps, mot prononcé en jaune. Termine sur « Réfléchissez avec moi ». Pas d'effets sonores.</p>`,
       media: [{ img: "consignes.jpg", caption: "Consignes, puis « Préparer »" }] },
+    { title: "Des consignes pour le dérushage", where: "Rushes et montages > Consignes (montage en dérushage)",
+      html: `<p>Quand le montage en cours est en <b>dérushage</b>, la page « Rushes et montages » garde une zone de consignes plus simple : dites ce qu'il faut garder (sujets, prises à préférer, durée visée). Pendant la préparation, Claude choisit les moments d'après elles, avec la raison de chaque retrait ; le nouveau rush reste en dérushage, sans effets. Pour des consignes complètes (intro, effets, style), passez en <b>Auto-montage</b> dans le menu avant de préparer.</p>
+        <p class="quote">Garde seulement les trois conseils et la conclusion, retire le passage sur le budget, préfère les prises les plus courtes.</p>` },
     { title: "Apprendre un style à partir de vidéos d'exemple", where: "Rushes et montages > Analyser les vidéos d'exemple",
       html: `<p>Ajoutez des vidéos dont vous aimez le montage, puis <b>Analyser</b> (durée prévue affichée) : Auto-montage mesure le rythme et repère les bruitages, extrait des images datées ; Claude les regarde et liste ce qu'il a repéré, avec ce qu'Auto-montage peut reproduire (et un style de sous-titres à appliquer en un clic). La préparation suivante s'en sert.</p>
         <p>Pour aller plus loin que les effets fournis, ajoutez aussi vos propres sons.</p>`,
@@ -154,6 +165,8 @@
         <p class="quote">Retire la phrase sur les smartwatches, et mets « Wikipédia » en valeur en vert.</p>
         <p class="quote">Quels moments as-tu retirés, et pourquoi ?</p>`,
       media: [{ img: "chat.jpg", caption: "Discuter avec Claude" }] },
+    { title: "Piloter Auto-montage depuis Claude Code", where: "Claude Code lancé dans le dossier d'Auto-montage",
+      html: `<p>Lancé dans le dossier d'Auto-montage, Claude Code a des commandes pour agir comme sur la page : lister et garder des moments, les couper, régler effets, couleurs, transitions, sous-titres et son, générer la vidéo, créer la 4K, faire les copies pour les plateformes. Ses changements passent par l'interface : ils se voient sur la page des moments et s'annulent de la même façon.</p>` },
   ];
 
   // Onglet « Fonctionnalités en détail » : une fiche par sujet (titre, où, texte HTML simple),
@@ -183,6 +196,7 @@
     ["Mot mis en valeur", "Un ou plusieurs mots du sous-titre plus gros et dans la couleur choisie, sur tout le moment."],
     ["Texte tapé", "Texte écrit lettre par lettre en grand, au milieu de l'image (comme l'intro), avec ou sans son de clavier ; « frappe » règle la vitesse. Pas de sous-titre pendant qu'il est affiché."],
     ["Pastille", "Pastille blanche avec un titre, en haut de l'image, avec ou sans son « bop » : pratique pour numéroter des étapes."],
+    ["Effet d'image", "Pendant la durée choisie : noir et blanc, sépia, négatif, flou, netteté, lueur, mosaïque, contours, grain, VHS, stroboscope, miroir… La force règle l'intensité."],
   ].map(([label, desc]) => ({ label, desc }));
   const VOICES = [
     ["tremblement", "Tremblement", "La voix tremble, avec un peu de robot (moment gêné ou drôle)."],
@@ -204,15 +218,18 @@
         <ul><li><b>Clic</b> sur un moment : il s'affiche dans le lecteur, sa frise s'ouvre sous celle du rush, et l'inspecteur montre son texte et ses effets. Glissez sur la règle pour déplacer la tête de lecture dans tout le rush.</li>
         <li>Clavier : <kbd>Espace</kbd> lit ou met en pause, <kbd>←</kbd> <kbd>→</kbd> avancent ou reculent d'une image, <kbd>Maj</kbd> + <kbd>←</kbd> <kbd>→</kbd> passent au moment précédent ou suivant, <kbd>C</kbd> coupe, <kbd>V</kbd> va au prochain mot à vérifier (<kbd>Maj</kbd> + <kbd>V</kbd> : le précédent), <kbd>Échap</kbd> ferme le moment. Le bouton <b>Raccourcis</b> du bandeau (à gauche de « Menu ») les montre tous et permet de les changer.</li>
         <li>Molette ou deux doigts sur une frise : elle défile ; <kbd>Ctrl</kbd> + molette (ou pincement) : zoom.</li>
-        <li><b>Maj + clic</b> sélectionne une suite de moments, <b>Ctrl + clic</b> (<b>⌘ + clic</b> sur Mac) en ajoute ou en retire un : <b>Garder</b> ou <b>Retirer</b> d'un coup (barre d'outils ou inspecteur).</li>
+        <li><b>Maj + clic</b> sélectionne une suite de moments, <b>Ctrl + clic</b> (<b>⌘ + clic</b> sur Mac) en ajoute ou en retire un : <b>Garder</b> ou <b>Retirer</b> d'un coup avec la barre d'outils au-dessus des frises.</li>
         <li>Un moment écarté d'office a un trait orange en haut, et l'inspecteur dit pourquoi : « Suggéré : retirer (doublon 1re prise) », « raté », « aparté »… Vous pouvez le recocher.</li>
         <li>Petits signes sur les moments : ✎ texte corrigé, ✦ effets.</li>
-        <li><b>Revenir au derush initial</b> annule vos choix de cases et revient à la sélection proposée.</li>
+        <li><b>Revenir aux moments suggérés</b> (<b>Revenir au derush initial</b> en dérushage) annule vos choix de cases et revient à la sélection proposée ; il est grisé tant que rien n'a changé.</li>
+        <li>Un bouton grisé dit pourquoi au survol : une tâche est déjà en cours (génération, 4K, préparation…), aucun moment n'est gardé, ou la vidéo entière n'est pas encore générée.</li>
+        <li><b>Annuler</b> / <b>Rétablir</b> (en haut, <kbd>Ctrl</kbd>+<kbd>Z</kbd> et <kbd>Ctrl</kbd>+<kbd>Maj</kbd>+<kbd>Z</kbd>) défont et refont les 50 derniers changements : cases, coupes, textes, effets, réglages de tout le montage.</li>
+        <li>Une pastille jaune <b>Modifié</b> marque un moment changé depuis la dernière vidéo générée (au survol : ce qui a changé), avec un point jaune sur la frise du rush.</li>
         <li>Un nouveau rush commence en <b>dérushage</b> : couper, choisir les moments, corriger les sous-titres. <b>Valider le dérush</b> (en haut) propose <b>Télécharger derush</b> (la vidéo des moments gardés), ou passe à l'auto-montage (effets, son, Claude) : les moments gardés deviennent une seule vidéo, un seul moment avec vos sous-titres corrigés, et le dérush reste dans « Montages » (page « Rushes et montages »).</li>
         <li>Pendant la lecture de la vidéo entière, le moment en cours est encadré de jaune sur la frise, avec la tête de lecture ; « Dans la vidéo générée » marque, dans l'inspecteur, les moments présents dans la dernière vidéo générée.</li>
         <li><b>Variante</b> : <b>Nouvelle variante</b> garde une autre sélection du même rush (une courte, une longue…). On passe de l'une à l'autre par la liste, et « Générer » monte celle qui est affichée.</li></ul>` },
     { id: "decoupe", title: "Couper à l'image près", where: "Page des moments, frise du moment",
-      html: `<p>La frise du moment, sous celle du rush, montre ses effets et ses sous-titres mot à mot (s'il en a) au-dessus de ses images. Glissez sur la règle ou sur la frise pour placer la tête de lecture (un clic sur un mot la met à son début) : l'image s'affiche dans le lecteur et le mot prononcé est écrit en haut (« après “courses” », « avant la parole »). ‹ et › (ou <kbd>←</kbd> <kbd>→</kbd>) avancent ou reculent d'une image (1/30 s) ; <b>Zoom +</b> agrandit la frise jusqu'à ×16 pour placer chaque image à la souris.</p>
+      html: `<p>La frise du moment, sous celle du rush, montre ses effets et ses sous-titres mot à mot (s'il en a) au-dessus de ses images. Glissez sur la règle ou sur la frise pour placer la tête de lecture (un clic sur un mot la met à son début) : l'image s'affiche dans le lecteur et le mot prononcé est écrit en haut (« après “courses” », « avant la parole »). ‹ et › (ou <kbd>←</kbd> <kbd>→</kbd>) avancent ou reculent d'une image (1/30 s) ; <b>Zoom +</b> agrandit la frise (×2 à chaque pas) pour placer chaque image à la souris ; sur un long moment, comme la vidéo entière après « Valider le dérush », il va jusqu'à ne montrer que quelques secondes, pour lire chaque sous-titre et chaque effet.</p>
         <ul><li><b>Couper</b> (ou <b>Couper ici</b>, touche <kbd>C</kbd>) fait deux moments à partir du mot le plus proche de la tête de lecture : chacun a ensuite son texte, ses effets et sa case (une hésitation, un mot de trop : décochez la partie à retirer). <b>Recoller</b> défait la coupe.</li>
         <li>Sur la frise du rush, les <b>poignées blanches</b> du moment choisi raccourcissent son début ou sa fin ; <b>Début ici</b> et <b>Fin ici</b> (frise du moment) font de même à la tête de lecture. La partie retirée est hachurée.</li>
         <li>Une coupe reporte les effets déjà placés (décalés au bon instant) et garde vos cases.</li></ul>` },
@@ -222,7 +239,7 @@
       html: `<ul><li>Le texte du moment est dans l'inspecteur (<b>Corriger</b> dans la barre d'outils y mène) : <kbd>Entrée</kbd> enregistre, <kbd>Maj</kbd>+<kbd>Entrée</kbd> va à la ligne, <kbd>Échap</kbd> annule. Les mots corrigés s'affichent au rythme de la parole.</li><li>Les mots dont la transcription est incertaine sont <b>soulignés en orange</b> (frise du moment, inspecteur) ; un point orange les signale sur la frise du rush, et le bouton <b>À vérifier</b> en haut (touche <kbd>V</kbd>) passe de l'un à l'autre. Corriger le texte, ou <b>Texte juste</b>, les valide.</li>
         <li><b>Supprimer les sous-titres</b> enlève le texte de ce moment seulement (la voix et l'image restent) ; le moment est alors marqué « Sans sous-titres ».</li>
         <li><b>Texte d'origine</b> revient à la transcription.</li>
-        <li>Les sous-titres affichent jusqu'à 6 mots, sur deux lignes de même largeur (3 mots sur une ligne, 9 sur trois : réglage « Lignes au plus » du style des sous-titres).</li></ul>` },
+        <li>Les sous-titres affichent jusqu'à 6 mots, sur deux lignes de même largeur (3 mots de plus par ligne : réglage « Nombre de lignes » du style des sous-titres).</li></ul>` },
     { id: "calage", title: "Placer et régler un effet", where: "Page des moments, inspecteur du moment",
       html: `<p>Chaque effet coché a sa ligne dans l'inspecteur, avec une <b>bande de calage</b> sur la durée du moment, et une bande de couleur à son nom sur la frise du moment (clic : ses réglages) :</p>
         <ul><li>faites glisser la bande pour la déplacer, et ses poignées pour régler le début et la fin ; la vidéo montre l'instant visé pendant le geste ;</li>
@@ -249,27 +266,42 @@
     { id: "habillage", title: "Sous-titres, zooms et animations", where: "Page des moments > Style des sous-titres ; Zooms et animations",
       html: `<h3>Style des sous-titres</h3>
         <ul><li><b>Police</b> (celles fournies, ou la vôtre avec <b>Ajouter une police…</b> : TTF, OTF, WOFF), <b>graisse</b>, <b>taille</b>, <b>majuscules</b>, <b>couleur</b>.</li>
-        <li><b>Lignes au plus</b> (1, 2 ou 3) et <b>taille de chaque ligne</b> par rapport à la première (de 50 à 200 %) : par exemple une deuxième ligne plus grosse pour faire ressortir la fin de la phrase. Le texte est coupé pour que les lignes aient des largeurs proches ; un sous-titre de peu de mots prend moins de lignes (deux mots courts sur une seule ligne même si vous en demandez deux). Aussi réglable sur la page <b>Rushes et montages</b>.</li>
+        <li><b>Nombre de lignes</b> (de 1 à 6, 2 par défaut) et <b>taille de chaque ligne</b> par rapport à la première (de 50 à 200 %) : par exemple une deuxième ligne plus grosse pour faire ressortir la fin de la phrase. Le texte est coupé pour que les lignes aient des largeurs proches ; un sous-titre qui tient sur une ligne n'en prend qu'une (deux mots courts sur une seule ligne même si vous en demandez deux). Aussi réglable sur la page <b>Rushes et montages</b>.</li>
         <li><b>Ombre</b> : intensité, flou et direction (autour du texte, ou décalée vers un côté).</li>
+        <li><b>Position</b> : un cercle comme celui de l'ombre ; son centre est la place d'origine, un point vers le haut, le bas ou les côtés y déplace les sous-titres, qui restent dans l'image.</li>
         <li>L'exemple se met à jour en direct ; <b>Style d'origine</b> revient au style de départ.</li></ul>
         <h3>Zooms et animations (tout le montage)</h3>
         <ul><li><b>Zooms automatiques sur le visage</b> : aucun, légers, normaux ou marqués. Auto-montage suit le visage repéré à la préparation.</li>
         <li><b>Rebond</b> : chaque sous-titre apparaît avec un petit rebond.</li>
         <li><b>Mot prononcé en couleur</b> (façon karaoké), dans la couleur choisie.</li></ul>` },
+    { id: "cadrage", title: "Cadrage quand plusieurs personnes parlent", where: "Page des moments, « Cadrage : » de chaque moment ; Zooms et animations",
+      html: `<ul><li>Les zooms gardent <b>tout le monde dans l'image</b> : avec deux personnes (interview, scène), le zoom se centre sur elles deux et s'arrête avant d'en couper une.</li>
+        <li><b>Cadrage</b> d'un moment : « Tout le monde », la photo d'une personne (plan rapproché sur elle), ou <b>Personne qui parle</b> (le cadre suit qui parle, tour après tour). La case « Cadrer sur la personne qui parle » de « Zooms et animations » le fait pour tout le montage.</li>
+        <li>Une même personne est reconnue d'un plan à l'autre ; sur la frise du moment, un trait de couleur sous les mots montre qui parle.</li>
+        <li>Écran partagé ou image dans l'image : le plan rapproché remplit l'écran avec le cadre de la personne, sans montrer l'autre image.</li></ul>` },
+    { id: "couleurs", title: "Couleurs et transitions", where: "Page des moments > Couleurs ; Transitions entre les moments",
+      html: `<ul><li><b>Couleurs</b> (tout le montage) : température, teinte, exposition, contraste, hautes lumières, ombres, blancs, noirs, saturation, vibrance, vignette. Un <b>look</b> (Chaud, Cinéma, Vintage, Nuit américaine…) et son intensité placent les curseurs, que vous pouvez retoucher ensuite ; <b>Couleurs d'origine</b> remet tout à zéro.</li>
+        <li><b>Transitions entre les moments</b> : fondus, balayages, volets, iris, poussée, zoom croisé, glitch… et leur durée, pour chaque passage d'un moment au suivant. Chaque moment peut avoir la sienne dans son inspecteur.</li>
+        <li>Les deux se voient tout de suite dans l'aperçu (transitions dans l'onglet « Vidéo entière »).</li></ul>` },
     { id: "son", title: "Son de la voix", where: "Page des moments > Son de la voix",
       html: `<ul><li><b>Volume de la voix</b> de tout le montage (jusqu'à 200 %), qui s'ajoute au curseur « Voix » de chaque moment.</li>
         <li><b>Réduction du bruit de fond</b> (souffle, ventilation, pièce) : aucune, légère, moyenne ou forte.</li>
         <li><b>Retirer les clics et claquements de bouche</b>, <b>couper les graves parasites</b> (ronflement, chocs sourds), <b>voix plus claire et plus régulière</b>.</li>
         <li><b>Rechercher les bruits parasites</b> mesure le bruit de fond (et conseille une réduction : « Appliquer le conseil ») et liste les bruits brefs avec leur instant. Écoutez-les, et cochez <b>Atténuer</b> pour les baisser de 15 dB.</li>
+        <li><b>Volume normalisé du montage</b> : −14 LUFS (YouTube, TikTok, Instagram), −16 (podcast), −18, −23 (télévision) ou désactivé. La vidéo générée est mesurée et corrigée si besoin ; la mesure s'affiche dans le panneau.</li>
         <li>Un limiteur évite que le son sature.</li></ul>` },
     { id: "lecture", title: "Lecture, génération et téléchargement", where: "Page des moments ; menu > Téléchargements",
       html: `<ul><li>Onglets du lecteur : <b>Vidéo entière</b> (les moments gardés bout à bout, en direct, avec leurs réglages actuels) et <b>Moment</b> (l'aperçu habillé du moment choisi). Les boutons <b>−</b> et <b>+</b> reculent et avancent d'une image.</li>
         <li><b>Plein écran</b> : <kbd>Espace</kbd> ou un clic pour lecture et pause, barre de lecture en bas, <kbd>Échap</kbd> pour sortir.</li>
         <li><b>Générer la vidéo entière</b> monte la vidéo avec vos choix. Deux barres montrent l'étape en cours et l'ensemble, avec le temps restant. <b>Annuler</b> garde la version précédente.</li>
-        <li><b>Télécharger</b> : 720p (léger, pour partager), 1080p, ou <b>création de la 4K</b> finale, plus longue à créer.</li></ul>` },
+        <li><b>Télécharger</b> : 720p (léger, pour partager), 1080p, ou <b>création de la 4K</b> finale, plus longue à créer ; aussi les <b>sous-titres</b> en fichiers SRT et WebVTT, pour les ajouter sur YouTube ou dans un autre logiciel.</li>
+        <li><b>Pour une plateforme</b> (menu « Télécharger ») : une copie au format, au débit et au volume de YouTube, Shorts, TikTok, Instagram (Reels, fil 4:5, carré), Facebook, LinkedIn, X ou Vimeo. Un format différent du montage garde toute l'image, sur un fond flou ; une vidéo trop longue pour la plateforme est signalée.</li></ul>` },
     { id: "montages", title: "Montages, journal et mises à jour", where: "Rushes et montages > Montages ; menu > Journal, Mises à jour",
       html: `<ul><li>Préparer un nouveau rush range le montage en cours, avec ses variantes, ses réglages et ses vidéos. <b>Rouvrir ce montage</b> le reprend tel quel, sans rien recalculer.</li>
-        <li>Une longue tâche (préparation, génération, 4K) s'annule à tout moment ; les fichiers à moitié écrits sont effacés.</li>
+        <li>Une longue tâche (préparation, génération, 4K) s'annule à tout moment ; les fichiers à moitié écrits sont effacés. Pendant qu'elle tourne, ce qui en lancerait une autre est grisé (générer, couper, créer la 4K, mettre à jour, changer de mode, rouvrir un montage), avec la raison au survol.</li>
+        <li>Une préparation se met en <b>pause</b> et se reprend plus tard, même après un arrêt ou une erreur. <b>Abandonner…</b> liste ce qui est déjà fait : une partie décochée est gardée pour la prochaine préparation du même rush.</li>
+        <li><b>Mémoire</b> : avant de préparer et au début de chaque étape, la page prévient si la mémoire libre est juste ou insuffisante (les estimations s'affinent avec les préparations faites sur l'ordinateur).</li>
+        <li><b>Libérer de la place</b> (en bas de « Rushes et montages ») : montages enregistrés, rushes envoyés, source 4K, restes de rendus, avec la place que chacun libère.</li>
         <li>Le <b>Journal</b> garde le détail des 40 dernières tâches ; <b>Télécharger le rapport</b> les regroupe pour demander de l'aide.</li>
         <li><b>Mises à jour</b> installe une nouvelle version en un clic, en gardant vos montages, vos sons et vos polices.</li></ul>` },
   ];
@@ -278,7 +310,7 @@
   function renderDetails() {
     const box = $("panel-details");
     const intro = Object.assign(document.createElement("div"), { className: "intro" });
-    intro.innerHTML = "<p>Le détail de chaque réglage : découpe, effets fournis (à écouter ici), sous-titres, son et lecture. Tout fonctionne sans Claude Code.</p>";
+    intro.innerHTML = "<p>Le détail de chaque réglage : découpe, effets fournis (à écouter ici), sous-titres, cadrage, couleurs, son et téléchargement. Tout fonctionne sans Claude Code.</p>";
     const toc = Object.assign(document.createElement("nav"), { className: "toc" });
     toc.setAttribute("aria-label", "Sommaire");
     box.append(intro, toc);
@@ -361,7 +393,7 @@
       box.append(art);
     });
   }
-  render("panel-base", BASE, "<p>Tout ce qui suit fonctionne <b>sans Claude Code</b> : préparation, choix des moments, effets, sous-titres, son, génération et téléchargement.</p>");
+  render("panel-base", BASE, "<p>Tout ce qui suit fonctionne <b>sans Claude Code</b> : préparation, dérushage, effets, sous-titres, couleurs, son, génération et téléchargement.</p>");
   renderDetails();
   render("panel-claude", CLAUDE, "<p>Avec <b>Claude Code</b> connecté, Auto-montage applique vos consignes, apprend un style à partir de vidéos d'exemple et répond à vos demandes de modification. Tout le reste de l'onglet « Sans Claude Code » reste disponible.</p>");
 

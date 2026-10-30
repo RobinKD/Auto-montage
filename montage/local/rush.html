@@ -68,6 +68,7 @@
   .cap-lines-form { display: flex; flex-direction: column; gap: 10px; }
   .cap-lines-form label { display: flex; flex-direction: column; gap: 4px; font-size: 14px; color: var(--muted); }
   .cap-lines-form label[hidden] { display: none; }
+  .cap-lines-form input[type=number] { width: 6em; font: inherit; color: var(--fg); background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 4px 8px; }
   .cap-lines-sample { background: linear-gradient(135deg, #8f8478, #c9bba8); border-radius: 10px; padding: 14px 10px; min-height: 110px;
     display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; overflow: hidden; container-type: inline-size; }
   .cap-lines-sample div { font-family: var(--cl-family, var(--display)), cursive; font-weight: var(--cl-weight, 700); color: var(--cl-color, #f4e2c2);
@@ -195,11 +196,12 @@
     <p class="status" id="file-status" role="status"></p>
   </section>
 
-  <section id="step-instructions" aria-labelledby="h-instructions" data-mode-montage>
+  <section id="step-instructions" aria-labelledby="h-instructions">
     <h2 id="h-instructions"><span>2</span>Consignes et style <small class="note">(facultatif, avec Claude)</small></h2>
-    <p class="note">Décrivez le montage voulu (moments à garder, intro, effets, sous-titres…) dans la zone de texte, ou choisissez un fichier texte. Claude l'applique pendant la préparation ; sans consignes, le premier montage garde tous les moments sauf les premières prises.</p>
+    <p class="note" id="derush-instructions-note" hidden>Ce montage est en dérushage : décrivez ce qu'il faut garder (sujets, prises à préférer, durée visée…) dans la zone de texte, ou choisissez un fichier texte. Claude choisit les moments d'après ces consignes pendant la préparation, et le nouveau rush reste en dérushage (sans effets). Sans consignes, tous les moments sont gardés sauf les premières prises. Pour des consignes de montage complètes (effets, intro, style), passez en « Auto-montage » dans le menu.</p>
+    <p class="note" data-mode-montage>Décrivez le montage voulu (moments à garder, intro, effets, sous-titres…) dans la zone de texte, ou choisissez un fichier texte. Claude l'applique pendant la préparation ; sans consignes, le premier montage garde tous les moments sauf les premières prises.</p>
     <div class="claude-zone" data-needs-claude>
-    <h3 class="sub3" style="margin: 0;">Consignes et vidéos d'exemple</h3>
+    <h3 class="sub3" style="margin: 0;" id="instructions-h3">Consignes et vidéos d'exemple</h3>
     <label for="instructions-text" class="note">Consignes de montage</label>
     <textarea id="instructions-text" rows="6" placeholder="Par exemple : garde seulement les 3 conseils, coupe les hésitations, intro « Mes 3 astuces pour épargner », bruit de caisse quand je parle d'argent…"></textarea>
     <div class="row">
@@ -209,19 +211,20 @@
       <span class="file" id="instructions-name"></span>
       <button type="button" id="remove-instructions" hidden>Effacer</button>
     </div>
-    <p class="note" style="margin: 4px 0 0;"><b>Vidéos d'exemple</b> : « Analyser » mesure d'abord le rythme (coupes, durée des plans) et repère les bruitages probables, extrait des images datées (régulières et après chaque coupe), puis Claude les regarde et liste ce qu'il a repéré (sous-titres, textes, zooms, effets, sons) et ce qu'Auto-montage peut en reproduire. L'analyse sert ensuite à la préparation. <b>L'analyse et la reproduction du style nécessitent Claude Code</b> (sans lui, les vidéos d'exemple sont gardées mais pas utilisées).</p>
-    <div class="row">
+    <p class="note" style="margin: 4px 0 0;" data-mode-montage><b>Vidéos d'exemple</b> : « Analyser » mesure d'abord le rythme (coupes, durée des plans) et repère les bruitages probables, extrait des images datées (régulières et après chaque coupe), puis Claude les regarde et liste ce qu'il a repéré (sous-titres, textes, zooms, effets, sons) et ce qu'Auto-montage peut en reproduire. L'analyse sert ensuite à la préparation. <b>L'analyse et la reproduction du style nécessitent Claude Code</b> (sans lui, les vidéos d'exemple sont gardées mais pas utilisées).</p>
+    <div class="row" data-mode-montage>
       <button type="button" id="pick-examples">Ajouter des vidéos d'exemple…</button>
       <input type="file" id="examples-file" accept="video/*,.mov,.mp4,.m4v,.mkv,.webm" multiple hidden>
       <button type="button" class="primary" id="analyse-style" disabled title="Nécessite Claude Code (connecté sur la page « Connexion à Claude »)">Analyser les vidéos d'exemple</button>
       <span class="note" id="analyse-estimate"></span>
     </div>
-    <div class="progress" id="an-progress" hidden>
+    <div class="progress" id="an-progress" hidden data-mode-montage>
       <div class="row"><span id="an-label">Analyse</span><span class="facts" id="an-facts"></span></div>
       <progress id="an-bar" max="1" value="0"></progress>
     </div>
     <label class="row note" id="apply-row" hidden><input type="checkbox" id="apply-instructions" checked> Appliquer les consignes et le style avec Claude pendant la préparation</label>
     </div>
+    <div data-mode-montage>
     <p class="status" id="an-status" role="status"></p>
     <div class="analyse" id="analyse" hidden></div>
     <h3 class="sub3">Vos sons et vidéos d'exemple</h3>
@@ -236,9 +239,8 @@
     <p class="note">Nombre de lignes de chaque sous-titre et taille des lignes entre elles (par exemple une deuxième ligne plus grosse pour faire ressortir la fin de la phrase). Réglage commun à tous les montages, aussi dans « Style des sous-titres » de la page des moments ; appliqué à la prochaine « Générer la vidéo entière ».</p>
     <div class="cap-lines">
       <div class="cap-lines-form">
-        <label>Lignes au plus<select id="cl-lines"><option value="1">1 ligne (3 mots au plus)</option><option value="2">2 lignes (6 mots au plus)</option><option value="3">3 lignes (9 mots au plus)</option></select></label>
-        <label id="cl-line2-row"><span>Ligne 2 : <b id="cl-line2-val"></b> de la ligne 1</span><input type="range" id="cl-line2" min="50" max="200" step="5"></label>
-        <label id="cl-line3-row"><span>Ligne 3 : <b id="cl-line3-val"></b> de la ligne 1</span><input type="range" id="cl-line3" min="50" max="200" step="5"></label>
+        <label>Nombre de lignes <span id="cl-lines-val"></span><input type="number" id="cl-lines" min="1" max="6" step="1" value="2"></label>
+        <div class="cap-lines-form" id="cl-line-sizes"></div>
       </div>
       <div class="cap-lines-sample" id="cl-sample" aria-label="Exemple de sous-titre"></div>
     </div>
@@ -261,6 +263,7 @@
       </div>
     </div>
     <p class="status" id="fx-status" role="status"></p>
+    </div>
     <p class="warn" id="claude-missing" hidden>Claude Code n'est pas encore connecté : les consignes et les vidéos d'exemple ne seront pas appliquées (les effets sonores restent utilisables à la main sur la page des moments). <a href="/claude/">Se connecter à Claude</a> (une fois), puis revenez ici ; tout reste enregistré en attendant.</p>
     <p class="status" id="instructions-status" role="status"></p>
   </section>
@@ -295,6 +298,7 @@
     </div>
     <ol class="steps" id="steps" hidden>
       <li data-step="préparation du rush">Copie du rush en 1080p, transcription, visage, montage</li>
+      <li data-step="choix des moments (Claude)">Moments choisis par Claude selon les consignes</li>
       <li data-step="consignes de montage (Claude)" data-mode-montage>Consignes de montage appliquées par Claude</li>
       <li data-step="montage selon les consignes" data-mode-montage>Montage selon les consignes</li>
       <li data-step="rendu de la vidéo entière">Rendu de la vidéo entière (1080p)</li>
@@ -327,7 +331,14 @@
   const $ = (id) => document.getElementById(id);
   // Montage en cours en dérushage (work/mode.txt) : ni consignes, ni style, ni Claude ; la section 2 est masquée.
   const DERUSH = document.documentElement.dataset.mode === "derush";
-  if (DERUSH) $("prepare-num").textContent = "2";
+  // Dérushage : seulement des consignes écrites, pour choisir les moments (ni style ni effets).
+  if (DERUSH) {
+    $("h-instructions").childNodes[1].textContent = "Consignes ";
+    $("instructions-h3").textContent = "Consignes pour choisir les moments";
+    $("derush-instructions-note").hidden = false;
+    $("instructions-text").placeholder = "Par exemple : garde seulement les 3 conseils, retire le passage sur le budget, préfère les prises les plus courtes…";
+    $("apply-instructions").nextSibling.textContent = " Choisir les moments avec Claude d'après ces consignes pendant la préparation";
+  }
   // Temps restant estimé par le serveur (durée du rush, vitesse mesurée de la machine).
   const remaining = (s) => {
     if (typeof s !== "number" || !isFinite(s)) return "";
@@ -338,10 +349,12 @@
     $("progress").hidden = !running;
     if (running) $("step-prepare").classList.remove("off");  // préparation suivie même sans rush choisi
     if (!running) return;
-    const p = job.progress;
-    // Une seule barre (ensemble de la tâche) ; l'opération en cours est nommée à côté.
+    const p = job.progress && !job.progress.ended ? job.progress : null;
+    // Une seule barre (ensemble de la tâche) ; les opérations en cours sont nommées à côté (la
+    // copie du rush tourne à côté de la transcription).
     const what = { prepare: "Préparation", regen: "Génération", final: "Création 4K", update: "Mise à jour" }[job.kind] || "Tâche";
-    $("o-label").textContent = p ? `${what} · ${p.label.toLowerCase()}` : `${what} · ${job.step}`;
+    const now = [p && p.label, ...Object.keys(job.side || {}).filter((k) => !job.side[k].ended)].filter(Boolean);
+    $("o-label").textContent = `${what} · ${now.length ? now.map((l) => l.toLowerCase()).join(" et ") : job.step}`;
     $("o-bar").value = job.overall || 0;
     $("o-facts").textContent = `${Math.floor((job.overall || 0) * 100)} %${remaining(job.remaining)}`;
     // Pause (préparation seulement) et avertissement de mémoire (étape en cours, sinon toute la tâche).
@@ -390,7 +403,7 @@
         if (!o && i < at) continue;  // opération sautée (version de travail déjà faite…)
         const row = document.createElement("li");
         const f = o && o.total ? Math.min(1, o.done / o.total) : 0;
-        row.className = t.current === k || (running && t.progress && t.progress.label === k) ? "now" : "";
+        row.className = t.current === k || (running && ((t.progress && t.progress.label === k) || (t.side && t.side[k] && !t.side[k].ended))) ? "now" : "";
         const bar = Object.assign(document.createElement("span"), { className: "bar" });
         bar.append(Object.assign(document.createElement("i"), { style: `width: ${Math.round(f * 100)}%` }));
         row.append(bar, Object.assign(document.createElement("span"), { className: "what", textContent: OP_NAMES[k] || k }),
@@ -407,6 +420,21 @@
   let chosen = null;    // nom du rush choisi (celui du rush assemblé s'il y a plusieurs vidéos)
   let parts = [];       // vidéos du rush, dans l'ordre
   let polling = null;
+
+  // Raison pour laquelle une action qui lance une tâche ou change de montage est refusée maintenant
+  // (tâche en cours, préparation en pause), ou "" : le bouton est grisé, la raison au survol.
+  function busyReason(pausedToo = true) {
+    const job = info && info.job;
+    if (!job) return "";
+    if (job.state === "running") return `${JOB_NAMES[job.kind] || "Une tâche"} est en cours : attendez sa fin.`;
+    if (pausedToo && job.paused) return `La préparation de ${job.paused.arg} est en pause : reprenez-la ou abandonnez-la d'abord (plus bas).`;
+    return "";
+  }
+  const lock = (el, reason, off = false) => {
+    if (el.dataset.title === undefined) el.dataset.title = el.title;
+    el.disabled = off || !!reason;
+    el.title = reason || el.dataset.title;
+  };
 
   function setStatus(id, text, kind = "") { const el = $(id); el.textContent = text; el.className = `status ${kind}`; }
 
@@ -428,7 +456,7 @@
     const isCurrent = name && info && info.current === name && info.prepared;
     $("reopen").hidden = !saved && !isCurrent;
     $("reopen").textContent = isCurrent ? "Ouvrir ce montage" : "Rouvrir ce montage";
-    $("reopen").disabled = busy;
+    lock($("reopen"), isCurrent ? "" : busyReason());
     $("reopen").onclick = () => (isCurrent ? (location.href = "/") : act("open", saved, $("reopen")));
     // Rush de la préparation en pause : la reprendre (pas tout refaire).
     const paused = info && info.job && info.job.state !== "running" && info.job.paused;
@@ -453,7 +481,7 @@
     const list = $("project-list");
     list.replaceChildren();
     if (!projects) return;
-    const busy = info && info.job.state === "running";
+    const busy = busyReason();
     if (projects.current && projects.currentPrepared) {  // montage en cours
       const li = document.createElement("li");
       const img = projects.currentThumb ? Object.assign(document.createElement("img"), { src: projects.currentThumb, alt: "" })
@@ -485,11 +513,11 @@
       acts.className = "acts";
       const open = document.createElement("button");
       open.type = "button"; open.className = "primary"; open.textContent = "Rouvrir";
-      open.disabled = busy;
+      lock(open, busy);
       open.addEventListener("click", () => act("open", p, open));
       const del = document.createElement("button");
       del.type = "button"; del.textContent = "Supprimer";
-      del.disabled = busy;
+      lock(del, busy);
       del.addEventListener("click", () => act("delete", p, del));
       acts.append(open, del);
       const facts = document.createElement("span");
@@ -606,6 +634,7 @@
     showInstructions();
     showClaudeNotice();
     showJob(info.job);
+    lockAnalyse();
     if (info.job.state === "running" && !polling) poll();
     choose(chosen);
   }
@@ -635,7 +664,7 @@
     $("instructions-name").textContent = ins ? `${ins.name} (${Math.max(1, Math.round(ins.size / 1024))} ko)` : "";
     $("remove-instructions").hidden = !ins;
     const st = info && info.style;
-    const any = ins || (st && (st.sons.length || st.videos.length));
+    const any = ins || (!DERUSH && st && (st.sons.length || st.videos.length));
     $("apply-row").hidden = !any || !info.claude;
     $("claude-missing").hidden = !any || info.claude;
     showStyle();
@@ -744,9 +773,13 @@
           const hidden = fxList.filter((x) => !x.shown).map((x) => x.id);
           // Écarté : proposer de le décocher aussi des moments du montage en cours (fait par la
           // page des moments, qui tient les choix de chaque moment, à sa prochaine ouverture).
+          // Seulement si l'effet est placé sur un moment (compte du serveur, à jour), et jamais
+          // pendant une préparation (en cours ou en pause) : la page des moments va être refaite.
           let purge = (data.purge || []).filter((x) => x !== e.id);
-          if (!cb.checked && info && info.prepared
-              && confirm(`Décocher aussi « ${e.label} » de tous les moments du montage en cours où il est placé ? (Fait à la prochaine ouverture de la page des moments.)`)) purge = [...purge, e.id];
+          const preparing = !!(info && info.job && ((info.job.kind === "prepare" && info.job.state === "running") || info.job.paused));
+          const fresh = !cb.checked && !preparing ? await fetch("/api/effects").then((r) => r.json()).catch(() => null) : null;
+          const used = (fresh && fresh.used && fresh.used[e.id]) || 0;
+          if (used && confirm(`« ${e.label} » est placé sur ${used} moment${used > 1 ? "s" : ""} du montage en cours. Le décocher aussi sur ${used > 1 ? "ces moments" : "ce moment"} ? (Fait à la prochaine ouverture de la page des moments.)`)) purge = [...purge, e.id];
           data.purge = purge;
           const r = await fetch("/api/effects", { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify({ hidden, purge }) }).catch(() => null);
           setStatus("fx-status", r && r.ok ? `${fxList.length - hidden.length} effet${fxList.length - hidden.length > 1 ? "s" : ""} proposé${fxList.length - hidden.length > 1 ? "s" : ""} sur la page des moments.` : "Le choix n'a pas pu être enregistré.", r && r.ok ? "ok" : "err");
@@ -771,20 +804,47 @@
   // se règle sur la page des moments). Exemple coupé comme le rendu (render_lib.caption_layout).
   {
     let capStyle = null, sampleFamily = '"AM Lignes"';
-    const SAMPLES = { 1: ["Vos", "sous-titres", "ici"], 2: ["Voici", "vos", "sous-titres", "sur", "deux", "lignes"],
-                      3: ["Voici", "vos", "sous-titres", "répartis", "sur", "trois", "lignes", "bien", "équilibrées"] };
+    const LINES_MAX = 6;  // fonts_lib::LINES_MAX
+    // Exemple : autant de mots que le nombre de lignes en permet (3 par ligne).
+    const sampleWords = (n) => n === 1 ? ["Vos", "sous-titres", "ici"]
+      : ["Voici", "vos", "sous-titres", "répartis", "sur", "plusieurs", "lignes", "bien", "équilibrées", "pour", "que", "chaque",
+         "phrase", "reste", "facile", "à", "lire", "même", "quand", "elle", "devient", "un", "peu", "longue"].slice(0, 3 * n);
+    // Taille de chaque ligne après la première ; celles des lignes masquées sont gardées.
+    let lineSizes = [100];
+    function setLines(n, sizes) {
+      lineSizes = Array.from({ length: LINES_MAX }, (_, i) => (i === 0 ? 100 : Number((sizes || [])[i] ?? 100)));
+      $("cl-lines").value = String(n);
+      $("cl-line-sizes").replaceChildren(...lineSizes.slice(1).map((v, j) => {
+        const i = j + 1, row = document.createElement("label");
+        row.dataset.line = String(i);
+        const txt = document.createElement("span"), val = document.createElement("b"), input = document.createElement("input");
+        txt.append(`Ligne ${i + 1} : `, val, " de la ligne 1");
+        Object.assign(input, { type: "range", min: 50, max: 200, step: 5, value: String(v) });
+        input.addEventListener("input", () => { lineSizes[i] = Number(input.value); changed(); });
+        row.append(txt, input);
+        return row;
+      }));
+    }
+    function linesValue() {
+      const n = Math.round(Number($("cl-lines").value));
+      return Number.isFinite(n) && n >= 1 ? Math.min(LINES_MAX, n) : 2;
+    }
     const ctx = document.createElement("canvas").getContext("2d");
     function* cutsOf(n, k, from = 1) {
       if (k === 0) { yield []; return; }
       for (let c = from; c <= n - k; c++) for (const rest of cutsOf(n, k - 1, c + 1)) yield [c, ...rest];
     }
     function drawSample() {
-      const lines = Number($("cl-lines").value), sizes = [1, $("cl-line2").value / 100, $("cl-line3").value / 100].slice(0, lines);
-      $("cl-line2-row").hidden = lines < 2; $("cl-line3-row").hidden = lines < 3;
-      $("cl-line2-val").textContent = `${$("cl-line2").value} %`; $("cl-line3-val").textContent = `${$("cl-line3").value} %`;
+      const lines = linesValue(), sizes = lineSizes.slice(0, lines).map((v) => v / 100);
+      $("cl-lines-val").textContent = `(${3 * lines} mots au plus par sous-titre ; une seule ligne s'il est court)`;
+      for (const row of $("cl-line-sizes").children) {
+        const i = Number(row.dataset.line);
+        row.hidden = i >= lines;
+        row.querySelector("b").textContent = `${lineSizes[i]} %`;
+      }
       const st = (capStyle && capStyle.style) || {};
       const box = $("cl-sample"), fam = `${sampleFamily}, ${getComputedStyle(document.body).getPropertyValue("--display") || "sans-serif"}`;
-      const words = SAMPLES[lines], size = st.size || 64;
+      const words = sampleWords(lines), size = st.size || 64;
       ctx.font = `${st.weight || 700} ${size}px ${fam}`;
       const one = (w) => ctx.measureText(st.uppercase === false ? w : w.toUpperCase()).width, space = one(" ");
       const width = (a, b) => words.slice(a, b).reduce((x, w) => x + one(w), 0) + space * Math.max(0, b - a - 1);
@@ -804,18 +864,18 @@
       drawSample();
       clearTimeout(saveT);
       saveT = setTimeout(async () => {
-        const body = { lines: Number($("cl-lines").value), lineSizes: [100, Number($("cl-line2").value), Number($("cl-line3").value)] };
+        const body = { lines: linesValue(), lineSizes: [...lineSizes] };
         const r = await fetch("/api/caption-style", { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify(body) }).catch(() => null);
         setStatus("cl-status", r && r.ok ? "Enregistré : visible sur la page des moments, et dans la vidéo à la prochaine génération." : "Le réglage n'a pas pu être enregistré.", r && r.ok ? "ok" : "err");
       }, 400);
     }
-    $("cl-lines").addEventListener("change", changed);
-    for (const id of ["cl-line2", "cl-line3"]) $(id).addEventListener("input", changed);
+    // Nombre de lignes : pris dès qu'il est valable, ramené entre 1 et LINES_MAX en quittant le champ.
+    $("cl-lines").addEventListener("input", () => { if ($("cl-lines").value !== "") changed(); });
+    $("cl-lines").addEventListener("change", () => { $("cl-lines").value = String(linesValue()); changed(); });
     (async () => {
       capStyle = await fetch("/api/caption-style").then((r) => r.json()).catch(() => null);
-      const st = (capStyle && capStyle.style) || { lines: 2, lineSizes: [100, 100, 100] };
-      $("cl-lines").value = String(st.lines ?? 2);
-      $("cl-line2").value = (st.lineSizes || [])[1] ?? 100; $("cl-line3").value = (st.lineSizes || [])[2] ?? 100;
+      const st = (capStyle && capStyle.style) || { lines: 2, lineSizes: [100] };
+      setLines(st.lines ?? 2, st.lineSizes);
       // Police, graisse, couleur et majuscules du style choisi, pour l'exemple.
       const fam = capStyle && capStyle.fonts.find((f) => f.id === st.font);
       const box = $("cl-sample");
@@ -1044,8 +1104,8 @@
   let memKey = null;
   async function showMemoryPlan() {
     const st = info && info.style;
-    const withClaude = !DERUSH && !!(info && info.claude && $("apply-instructions").checked
-      && (info.instructions || (st && (st.sons.length || st.videos.length))));
+    const withClaude = !!(info && info.claude && $("apply-instructions").checked
+      && (info.instructions || (!DERUSH && st && (st.sons.length || st.videos.length))));
     const key = parts.length ? JSON.stringify([parts, withClaude]) : null;
     if (key === memKey) return;
     memKey = key;
@@ -1083,8 +1143,8 @@
     // Consignes tapées mais pas encore enregistrées : enregistrées avant de préparer.
     if (!$("save-instructions").disabled && $("instructions-text").value.trim()) await saveTyped();
     const st = info && info.style;
-    const withClaude = !DERUSH && !!(info && info.claude && $("apply-instructions").checked
-      && (info.instructions || (st && (st.sons.length || st.videos.length))));
+    const withClaude = !!(info && info.claude && $("apply-instructions").checked
+      && (info.instructions || (!DERUSH && st && (st.sons.length || st.videos.length))));
     const res = await fetch("/api/prepare", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ rushes: parts,
       instructions: withClaude, langue: $("langue").value, abandon: !!paused && !resumes }) });
     if (!res.ok) {
@@ -1096,7 +1156,9 @@
     poll();
   });
 
-  const JOB_NAMES = { prepare: "La préparation", regen: "La génération de la vidéo entière", final: "La création de la 4K", update: "La mise à jour d'Auto-montage", style: "L'analyse des vidéos d'exemple" };
+  const JOB_NAMES = { prepare: "La préparation", regen: "La génération de la vidéo entière", final: "La création de la 4K", update: "La mise à jour d'Auto-montage",
+    reset: "La réinitialisation d'Auto-montage", style: "L'analyse des vidéos d'exemple", export: "L'export pour les plateformes",
+    derush: "Le passage à l'auto-montage", decoupage: "Le découpage des moments" };
   function showJob(job) {
     if (job && job.kind === "style") { showAnalyseJob(job); if (job.state !== "running") return; }
     $("an-progress").hidden = !(job && job.kind === "style" && job.state === "running");
@@ -1221,11 +1283,13 @@
     }
     lastAnalyseState = job.state;
   }
+  let analyseVideos = 0;
+  const lockAnalyse = () => lock($("analyse-style"), analyseVideos ? busyReason() : "", !analyseVideos);
   async function loadAnalyse() {
     const a = await fetch("/api/style/analyse").then((r) => r.json()).catch(() => null);
     if (!a) return;
-    const busy = info && info.job.state === "running";
-    $("analyse-style").disabled = !a.videos.length || busy;
+    analyseVideos = a.videos.length;
+    lockAnalyse();
     $("analyse-style").textContent = a.result ? "Relancer l'analyse" : "Analyser les vidéos d'exemple";
     $("analyse-estimate").textContent = a.videos.length
       ? `${a.videos.length} vidéo${a.videos.length > 1 ? "s" : ""} (${Math.round(a.seconds)} s) : ${minutes(a.estimate)} · nécessite Claude Code`

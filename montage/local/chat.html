@@ -81,6 +81,7 @@
 
   <div id="log" aria-live="polite"></div>
 
+  <p class="note" id="context-note" hidden></p>
   <form id="form" data-needs-claude>
     <label for="input" class="note">Votre message (Entrée pour envoyer, Maj+Entrée pour aller à la ligne)</label>
     <textarea id="input" rows="3" placeholder="Par exemple : retire le moment où je parle du budget, et mets « Mes 3 astuces » en intro"></textarea>
@@ -228,5 +229,21 @@
     try { await post("/api/chat/new"); } catch (err) { $("status").textContent = err.message; }
     refresh();
   });
+  // Contexte qui limite ce que Claude peut faire (sans bloquer l'envoi) : pas de montage en cours,
+  // ou tâche en cours (une génération demandée à Claude serait refusée jusqu'à sa fin).
+  const NAMES = { prepare: "Une préparation", regen: "La génération de la vidéo entière", final: "La création de la 4K",
+    export: "L'export pour les plateformes", derush: "Le passage à l'auto-montage", decoupage: "Le découpage des moments",
+    style: "L'analyse des vidéos d'exemple", update: "La mise à jour", reset: "La réinitialisation" };
+  async function context() {
+    const st = await fetch("/api/status", { cache: "no-store" }).then((r) => r.json()).catch(() => null);
+    const job = st && st.job;
+    const text = !st ? ""
+      : !st.montage ? "Aucun montage en cours : Claude peut répondre à vos questions, mais il n'y a rien à monter. Préparez d'abord un rush (page « Rushes et montages »)."
+        : job && job.state === "running" ? `${NAMES[job.kind] || "Une tâche"} est en cours : Claude peut lire et régler le montage, mais ne pourra lancer une génération qu'à sa fin.` : "";
+    $("context-note").textContent = text;
+    $("context-note").hidden = !text;
+    setTimeout(context, 5000);
+  }
   refresh();
+  context();
 </script>

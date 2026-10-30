@@ -45,6 +45,22 @@ pub fn say(line: &str) {
     let _ = std::io::stdout().flush();
 }
 
+/// Opération lancée à côté des suivantes de l'étape, par le programme `pid` : l'interface locale
+/// suit à part sa barre, sa durée et sa mémoire (celle de ce programme et de ses enfants), jusqu'à
+/// side_end.
+pub fn side_start(label: &str, pid: u32) {
+    say(&format!("@parallele {pid} {label}"));
+}
+
+pub fn side_end(label: &str) {
+    say(&format!("@parallele-fin {label}"));
+}
+
+/// Fin de l'opération en cours (sa barre) avant une attente qui n'en fait pas partie.
+pub fn end_op() {
+    say("@fin-operation");
+}
+
 static DURATION: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"Duration: (\d+):(\d+):([\d.]+)").unwrap());
 
 /// Durée d'une vidéo ou d'un son lue dans la sortie de « ffmpeg -i » (0 si illisible).

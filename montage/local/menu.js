@@ -14,10 +14,10 @@
   // [adresse, nom, description, description en dérushage (null : page absente en dérushage)]
   const PAGES = [
     ["/", "Page des moments", "Choisir les moments, effets, découpe, génération", "Choisir et découper les moments, générer"],
-    ["/rush/", "Rushes et montages", "Nouveau rush, consignes, montages enregistrés", "Nouveau rush, montages enregistrés"],
+    ["/rush/", "Rushes et montages", "Nouveau rush, consignes, montages enregistrés", "Nouveau rush, consignes, montages enregistrés"],
     ["/downloads/", "Téléchargements", "Vidéo entière en 720p, 1080p, 4K"],
     ["/chat/", "Discuter avec Claude", "Changer le montage en lui écrivant", null],
-    ["/claude/", "Connexion à Claude", "Relier votre compte claude.ai", null],
+    ["/claude/", "Connexion à Claude", "Relier votre compte claude.ai", "Relier votre compte claude.ai (consignes pour choisir les moments)"],
     ["/updates/", "Mises à jour", "Nouvelle version d'Auto-montage"],
     ["/logs/", "Journal", "En cas de problème : ce qui s'est passé"],
     ["/tutoriel/", "Tutoriel", "Comment utiliser Auto-montage, avec ou sans Claude"],
@@ -66,7 +66,8 @@
   .am-mode button { font: inherit; font-size: 14px; font-weight: 600; color: var(--muted, #6f695f); background: none; border: 0; border-radius: 7px; padding: 5px 12px; cursor: pointer; white-space: nowrap; }
   .am-mode button:hover { color: var(--fg, #1f1d1a); }
   .am-mode button[aria-checked="true"] { background: var(--accent, #2d6a5a); color: #fff; cursor: default; }
-  .am-mode button:disabled:not([aria-checked="true"]) { opacity: 0.5; cursor: wait; }
+  .am-mode button:disabled:not([aria-checked="true"]) { opacity: 0.5; cursor: not-allowed; }
+  .am-mode-note { font-weight: 400; font-size: 13px; }
   .am-off-page { max-width: 640px; margin: 48px auto; padding: 20px 22px; border: 1px solid var(--line, #e4ded4); border-radius: 12px;
     background: var(--surface, #fffdf9); font-family: var(--body, sans-serif); color: var(--fg, #1f1d1a); }
   .am-off-page h1 { font-size: 20px; margin: 0 0 8px; }
@@ -91,9 +92,9 @@
       <div class="am-panel" id="am-panel" role="navigation" aria-label="Pages d'Auto-montage" hidden>
         <div class="am-panel-mode"><span>Mode</span>
           <div class="am-mode" role="radiogroup" aria-label="Mode">
-            <button type="button" role="radio" data-mode="derush" title="Découper le rush en moments : sans effets, sous-titres ni Claude">Dérushage</button>
+            <button type="button" role="radio" data-mode="derush" title="Découper le rush en moments, sans effets ; Claude peut choisir les moments d'après des consignes">Dérushage</button>
             <button type="button" role="radio" data-mode="montage" title="Toutes les fonctions : effets, sous-titres, consignes et Claude">Auto-montage</button>
-          </div></div><ul></ul></div>`;
+          </div><small class="am-mode-note"></small></div><ul></ul></div>`;
     const toggle = bar.querySelector(".am-toggle");
     const panel = bar.querySelector(".am-panel");
     bar.querySelector(".am-here").textContent = (current ? current[1] : "") + (current && current[0] === "/" ? (DERUSH ? " · dérushage" : " · auto-montage") : "");
@@ -140,6 +141,7 @@
     // Nouvelle version disponible : pastille sur le menu et sur « Mises à jour ».
     fetch("/api/status").then((r) => r.json()).then((st) => {
       markClaude(!!st.claude);
+      markMode(bar, st);
       // Premier lancement : le tutoriel d'abord (une seule fois, il le note en s'ouvrant).
       if (st.tutorialSeen === false && here !== "/tutoriel/") { location.href = "/tutoriel/?bienvenue=1"; return; }
       if (!st.update || !st.update.newer) return;
@@ -158,7 +160,22 @@
     const r = await fetch("/api/mode", { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify({ mode }) }).catch(() => null);
     if (r && r.ok) { location.reload(); return; }
     buttons.forEach((b) => { b.disabled = false; });
-    alert("Le mode n'a pas pu être changé : Auto-montage ne répond pas.");
+    const err = r ? (await r.json().catch(() => ({}))).error : null;
+    alert(`Le mode n'a pas pu être changé : ${err || "Auto-montage ne répond pas."}`);
+  }
+  // Mode : pas de changement pendant une tâche (préparation, génération, passage à l'auto-montage…,
+  // qui lisent le mode) ; sans montage en cours, il décide de l'usage des consignes du prochain rush.
+  function markMode(bar, st) {
+    const job = st.job || {};
+    const running = job.state === "running";
+    const note = bar.querySelector(".am-panel-mode .am-mode-note");
+    for (const btn of bar.querySelectorAll(".am-mode button")) {
+      if (btn.dataset.title === undefined) btn.dataset.title = btn.title;
+      btn.disabled = running && btn.dataset.mode !== MODE;
+      btn.title = running ? "Une tâche est en cours : changez de mode quand elle sera finie" : btn.dataset.title;
+    }
+    note.textContent = running ? "pas pendant une tâche"
+      : st.montage ? "" : "aucun montage en cours : choisit l'usage des consignes du prochain rush";
   }
   // Page réservée au mode Auto-montage (Claude), ouverte en dérushage : remplacée par un message.
   function offPage() {

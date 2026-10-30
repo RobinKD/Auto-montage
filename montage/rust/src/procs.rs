@@ -116,6 +116,26 @@ pub fn kill_group(pid: u32, sig: Sig) -> bool {
     }
 }
 
+/// Marque des programmes du rendu HyperFrames (variable d'environnement à 1, héritée par node, ses
+/// navigateurs et ses ffmpeg) : les navigateurs ont leur propre session, hors du groupe de la tâche,
+/// et survivent à node quand il est tué (manque de mémoire, arrêt forcé).
+pub const RENDER_MARK: &str = "AM_RENDU_HYPERFRAMES";
+
+/// Arrête (sans attendre) tous les programmes dont l'environnement contient `name=1`, sauf
+/// celui-ci ; renvoie leur nombre.
+pub fn kill_marked(name: &str) -> usize {
+    use sysinfo::{ProcessRefreshKind, ProcessesToUpdate, System, UpdateKind};
+    let mark = std::ffi::OsString::from(format!("{name}=1"));
+    let mut sys = System::new();
+    sys.refresh_processes_specifics(ProcessesToUpdate::All, true, ProcessRefreshKind::nothing().with_environ(UpdateKind::Always));
+    let me = sysinfo::get_current_pid().ok();
+    sys.processes()
+        .iter()
+        .filter(|(pid, p)| Some(**pid) != me && p.thread_kind().is_none() && p.environ().iter().any(|e| *e == mark))
+        .filter(|(_, p)| p.kill())
+        .count()
+}
+
 /// Attend la fin d'un enfant et renvoie son code à la façon de Python.
 pub fn wait(child: &mut Child) -> i32 {
     child.wait().map(|s| py_code(&s)).unwrap_or(-1)

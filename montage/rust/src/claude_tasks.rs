@@ -7,7 +7,8 @@
 //! « claude » une fois, ou ANTHROPIC_API_KEY. Lancé par la préparation de la page « Rushes et
 //! montages » quand on le demande. Éléments de style : sons personnels (public/sfx/perso/) et
 //! planches des vidéos d'exemple (work/style/videos/*.planche.jpg) ; analyse écrite dans
-//! work/analyse_style.md.
+//! work/analyse_style.md. En dérushage (work/mode.txt), seulement les moments à garder
+//! (work/suggestions.json), d'après les consignes écrites : ni effets, ni style.
 //!
 //! `auto-montage style_claude` : analyse des vidéos d'exemple, seconde étape. Claude regarde les
 //! planches datées et les mesures d'analyze_style (work/style/analyse/faits.json) et écrit ce
@@ -21,7 +22,7 @@
 //! commandes d'auto-montage (build_edit, fonts_lib) : le dossier de ce programme est mis en tête
 //! du PATH de Claude pour qu'il les trouve sous le nom « auto-montage ».
 
-use crate::moments_lib::{hidden_effects, language_from, language_label};
+use crate::moments_lib::{app_mode, hidden_effects, language_from, language_label};
 use crate::paths;
 use crate::procs;
 use crate::util;
@@ -230,6 +231,9 @@ pub fn apply_instructions(_args: &[String]) -> i32 {
     let rush_txt = rush_txt.trim_end_matches('\n');
     let rush = rush_txt.rsplit(['/', '\\']).find(|s| !s.is_empty()).unwrap_or("").to_string();
     let langue = language_label(&language_from(&work, "langue_rush.txt")).unwrap_or("Français").to_lowercase();
+    if app_mode(&work) == "derush" {
+        return derush_instructions(has_text, &rush, &langue);
+    }
 
     let consignes = if has_text {
         "Applique les consignes de montage de montage/work/instructions.md"
@@ -280,6 +284,22 @@ Ne modifie aucun autre fichier (sauf montage/work/analyse_style.md, montage/work
     )
 }
 
+/// Dérushage : les consignes écrites servent à choisir les moments à garder (doublons, ratés,
+/// sujets à retirer…) ; rien d'autre (le montage reste en dérushage, sans effets).
+fn derush_instructions(has_text: bool, rush: &str, langue: &str) -> i32 {
+    if !has_text {
+        return fail("En dérushage, seules les consignes écrites (work/instructions.md) sont appliquées.");
+    }
+    let prompt = format!(
+        "Tu travailles dans le projet Auto-montage (interface locale : ne publie aucune page claude.ai, ne lance aucun rendu).
+Le rush « {rush} » vient d'être préparé pour un dérushage : choisir les moments à garder, sans effets ni habillage. Sa transcription par segment (un segment = un moment de la page) est dans montage/work/segments.json ; on y parle {langue}.
+Lis les consignes de montage/work/instructions.md et ne retiens que ce qui sert au choix des moments (sujets à garder ou à retirer, durée visée, prises à préférer…) ; ignore ce qui concerne les effets, les sons, l'intro ou le style des sous-titres.
+Écris montage/work/suggestions.json : {{\"keep\": [ids des segments à garder], \"reasons\": {{\"id\": \"raison du retrait, en quelques mots\"}}}} (doublon : garder la 2e prise ; ratés, apartés et ce que les consignes écartent retirés).
+Ne modifie aucun autre fichier. Termine par un résumé de deux ou trois lignes."
+    );
+    run_claude(&prompt, &[])
+}
+
 /// `auto-montage style_claude`
 pub fn style_claude(_args: &[String]) -> i32 {
     let analyse = paths::work().join("style").join("analyse");
@@ -325,7 +345,7 @@ Ce qu'Auto-montage sait faire :
 {{\"resume\": \"2 ou 3 phrases sur le style\",
  \"rythme\": \"le rythme mesuré (un plan toutes les X s, coupes…), en mots simples\",
  \"elements\": [{{\"categorie\": \"Sous-titres|Rythme|Texte à l'écran|Zoom et cadrage|Transitions|Effets visuels|Sons\", \"observe\": \"ce que tu vois, précis\", \"ou\": \"vidéo et instants\", \"reproductible\": \"oui|en partie|non\", \"comment\": \"le réglage d'Auto-montage à utiliser, ou ce qui manque et ce que l'utilisateur peut faire (ex. ajouter un son « whoosh » comme son personnel)\"}}],
- \"sousTitres\": null ou {{\"font\": \"identifiant de police de fonts_lib\", \"weight\": 700, \"size\": 64, \"uppercase\": true, \"color\": \"#rrggbb\", \"shadow\": 50, \"blur\": 14, \"ox\": 0, \"oy\": 0, \"lines\": 2, \"lineSizes\": [100, 100, 100]}} (le style de sous-titres le plus proche possible des exemples ; lines : lignes au plus par sous-titre, de 1 à 3 ; lineSizes : taille de chaque ligne en % de la première, de 50 à 200),
+ \"sousTitres\": null ou {{\"font\": \"identifiant de police de fonts_lib\", \"weight\": 700, \"size\": 64, \"uppercase\": true, \"color\": \"#rrggbb\", \"shadow\": 50, \"blur\": 14, \"ox\": 0, \"oy\": 0, \"lines\": 2, \"lineSizes\": [100, 100, 100], \"posX\": 0, \"posY\": 0}} (le style de sous-titres le plus proche possible des exemples ; lines : lignes de chaque sous-titre, de 1 à 6 (une seule pour un sous-titre court) ; lineSizes : taille de chaque ligne en % de la première, de 50 à 200 ; posX, posY : décalage depuis la place d'origine (sous le milieu de l'image), vers la droite et vers le bas, en % de la moitié de l'image, dans un cercle de rayon 100),
  \"aFaire\": [\"conseils concrets à l'utilisateur pour s'en approcher\"]}}
 Puis écris montage/work/analyse_style.md : quelques lignes, le résumé et ce qui ne peut pas être reproduit automatiquement.
 L'utilisateur n'est pas développeur : dans « comment » et « aFaire », parle des boutons de l'interface (« Ajouter des effets sonores… » ou « Ajouter des sons… » pour un bruitage, « Style des sous-titres » sur la page des moments, les consignes de montage pour le rythme, l'intro et les pastilles), jamais de chemins de fichiers.

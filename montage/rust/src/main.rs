@@ -37,6 +37,7 @@ mod prepare;
 mod procs;
 mod progress;
 mod project;
+mod redites;
 mod pyjson;
 mod lanceur;
 mod relance;
@@ -64,6 +65,7 @@ const COMMANDS: &[(&str, Cmd, &str)] = &[
     ("build_edit", build_edit::main, "montage : src/data/edit.json"),
     ("use_selection", use_selection::main, "choix de la page -> work/selection.json"),
     ("decoupage", decoupage::main, "couper un moment en deux, recoller"),
+    ("redites", redites::main, "redites sans Claude : faux départs, 1res prises (--essai : les montrer)"),
     ("derush_video", derush_video::main, "vidéo des moments gardés du dérush (nouveau rush pour l'auto-montage)"),
     ("loudness", loudness::main, "volume perçu d'un fichier (LUFS), normalisation"),
     ("subtitles", subtitles::main, "sous-titres du montage en fichiers .srt et .vtt (out/)"),

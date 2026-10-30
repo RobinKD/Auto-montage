@@ -37,8 +37,11 @@
   .stage { flex: 1 1 auto; min-height: 220px; display: grid; grid-template-columns: minmax(0, 1fr) minmax(300px, 400px); border-bottom: 1px solid var(--line); }
   .viewer { display: flex; flex-direction: column; gap: 6px; min-width: 0; min-height: 0; padding: 10px 16px 8px; }
   .tabs { display: flex; gap: 6px; }
-  /* Le lecteur occupe la place libre, aux proportions du rush. */
-  .screen-box { flex: 1; min-height: 120px; container-type: size; display: grid; place-items: center; }
+  /* Le lecteur occupe la place libre, aux proportions du rush, sans dépasser la hauteur que lui donne
+     la largeur (vidéo en largeur dans une fenêtre haute : pas de grandes bandes vides au-dessus et
+     au-dessous) ; s'il reste de la place, lecteur et commandes sont centrés en hauteur. */
+  .screen-box { flex: 0 1 auto; width: 100%; aspect-ratio: var(--ar, 9 / 16); min-height: 120px; container-type: size; display: grid; place-items: center; margin-top: auto; }
+  .viewer > .caption { margin-bottom: auto; }
   /* Frise du moment ouverte : lecteur à la taille qu'il a sans elle (« Vidéo entière ») ; la page
      s'allonge au lieu de le rétrécir (lockScreen). */
   .app.locked { height: auto; min-height: calc(100vh - var(--am-top, 0px)); }
@@ -52,13 +55,20 @@
   /* Habillage des moments, aux proportions de la composition, celles du rush (1080x1920, 1920x1080,
      1440x1080…) : --u = 10,8 px de la composition (1cqw en 9:16) ; positions et proportions posées
      par la page d'après DATA.width/height (--ar, --u-frame, --cap-top, --typed-top). Image plus
-     large que haute : classe « paysage » (lecteur plus large). */
+     large que haute : classe « paysage » (inspecteur sous le lecteur dans une fenêtre haute). */
   .ov { position: absolute; inset: 0; pointer-events: none; overflow: hidden; --u: var(--u-frame, 1cqw); }
   /* Couleurs, effets d'image et transitions (hf/hf_look.js, comme le rendu) : calques sous les
      sous-titres ; pendant une transition, les deux plans sont dessinés dans des canevas. */
   .ov-layer { position: absolute; inset: 0; }
   .trc { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; display: block; background: #000; }
-  .layout.paysage { grid-template-columns: minmax(0, 480px) minmax(0, 1fr); }
+  /* Vidéo en largeur dans une fenêtre plus haute que large : inspecteur sous le lecteur, qui prend
+     toute la largeur (à côté, il resterait petit au milieu d'une colonne étroite et très haute). */
+  @media (min-width: 901px) and (max-aspect-ratio: 1 / 1) {
+    .stage.paysage { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(200px, 1fr); }
+    .stage.paysage .screen-box { max-height: 50vh; }
+    .stage.paysage .inspector { border-left: 0; border-top: 1px solid var(--line); }
+    .app.locked .stage.paysage .inspector { height: var(--insp-h); }
+  }
   .ov-cap {
     position: absolute; left: 0; right: 0; top: var(--cap-top, 56.25%); display: flex; flex-direction: column;
     align-items: center; gap: calc(0.37 * var(--u)); text-align: center; padding: 0 calc(4 * var(--u));
@@ -123,6 +133,7 @@
   }
   .cap-style .line-sizes { display: flex; flex-direction: column; gap: 8px; }
   .cap-style .line-sizes label[hidden] { display: none; }
+  .cap-style input[type=number] { width: 6em; font: inherit; color: var(--fg); background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 4px 6px; }
   .cap-style .shadow-pad { display: flex; flex-direction: row; align-items: center; gap: 14px; grid-column: 1 / -1; }
   .cap-style .pad {
     position: relative; flex: none; width: 132px; height: 132px; border-radius: 50%; border: 1px solid var(--line);
@@ -479,7 +490,7 @@
           <progress id="gen-bar" max="1" value="0"></progress>
           <div><span id="gen-all-label">Ensemble de la génération</span><span id="gen-all-facts"></span></div>
           <progress id="gen-all" max="1" value="0"></progress>
-          <div><button type="button" id="gen-cancel">Annuler</button><span>la version précédente reste en place</span></div>
+          <div><button type="button" id="gen-cancel">Annuler</button><span id="gen-cancel-note">la version précédente reste en place</span></div>
         </div>
       </section>
   </header>
@@ -556,11 +567,8 @@
             <label class="inline"><input type="checkbox" id="cs-upper"> Majuscules</label>
             <label class="inline"><input type="color" id="cs-color"> Couleur</label>
           </div>
-          <label>Lignes au plus<select id="cs-lines"><option value="1">1 ligne (3 mots au plus)</option><option value="2">2 lignes (6 mots au plus)</option><option value="3">3 lignes (9 mots au plus)</option></select></label>
-          <div class="line-sizes">
-            <label id="cs-line2-row"><span>Ligne 2 : <b id="cs-line2-val"></b> de la ligne 1</span><input type="range" id="cs-line2" min="50" max="200" step="5"></label>
-            <label id="cs-line3-row"><span>Ligne 3 : <b id="cs-line3-val"></b> de la ligne 1</span><input type="range" id="cs-line3" min="50" max="200" step="5"></label>
-          </div>
+          <label>Nombre de lignes <span id="cs-lines-val"></span><input type="number" id="cs-lines" min="1" max="6" step="1" value="2"></label>
+          <div class="line-sizes" id="cs-line-sizes"></div>
           <label>Ombre : intensité <span id="cs-shadow-val"></span><input type="range" id="cs-shadow" min="0" max="100" step="5"></label>
           <label>Ombre : diffusion du flou <span id="cs-blur-val"></span><input type="range" id="cs-blur" min="0" max="60" step="1"></label>
           <div class="shadow-pad">
@@ -569,6 +577,14 @@
               <span>Ombre : direction et distance</span>
               <b id="cs-pad-val"></b>
               <span>Cliquez ou glissez dans le cercle : l'ombre part du centre vers ce point, plus loin au bord (flèches du clavier pour affiner, Entrée pour la recentrer).</span>
+            </div>
+          </div>
+          <div class="shadow-pad">
+            <div class="pad" id="cs-pos" tabindex="0" role="slider" aria-label="Position des sous-titres"><i id="cs-pos-dot"></i></div>
+            <div class="pad-text">
+              <span>Position des sous-titres</span>
+              <b id="cs-pos-val"></b>
+              <span>Le centre du cercle est leur place d'origine : cliquez ou glissez pour les déplacer dans cette direction, jusqu'au bord de l'image au bord du cercle (flèches du clavier pour affiner, Entrée pour les remettre à leur place). Ils restent toujours dans l'image.</span>
             </div>
           </div>
           <div class="sample" id="cs-sample" aria-label="Exemple de sous-titre"></div>
@@ -728,7 +744,7 @@
     "--u-frame": `${1080 / FRAME_W}cqw`, "--cap-top": `${(100 * FRAME_POS.capTop) / FRAME_H}%`,
     "--typed-top": `${(100 * FRAME_POS.typedTop) / FRAME_H}%` }))
     document.documentElement.style.setProperty(k, v);
-  if (FRAME_W > FRAME_H) document.querySelectorAll(".layout, .screen").forEach((e) => e.classList.add("paysage"));
+  if (FRAME_W > FRAME_H) document.querySelectorAll(".stage, .screen").forEach((e) => e.classList.add("paysage"));
   // Point de cadrage et zoom maximal à l'instant t de l'extrait d'un moment (même règle que faceAt
   // dans render_hyperframes) ; sans suivi des visages : point fixe du moment.
   // Moment cadré sur une personne (« Cadrage ») : son visage, en plan rapproché, centré quand c'est
@@ -827,26 +843,25 @@
   // ensemble si la plus large dépasse.
   const CAP_MAX_WIDTH = FRAME_W - 140;  // 940 px sur 1080
   const capCanvas = document.createElement("canvas").getContext("2d");
-  const capLines = () => Number(CAP.lines ?? (DATA.captionLines && DATA.captionLines.lines) ?? 2) || 2;
-  const capSizes = () => CAP.lineSizes || (DATA.captionLines && DATA.captionLines.lineSizes) || [100, 100, 100];
+  const LINES_MAX = 6;  // fonts_lib::LINES_MAX
+  const capLines = () => Math.min(LINES_MAX, Math.max(1, Math.round(Number(CAP.lines ?? (DATA.captionLines && DATA.captionLines.lines) ?? 2) || 2)));
+  const capSizes = () => CAP.lineSizes || (DATA.captionLines && DATA.captionLines.lineSizes) || [100];
   // Toutes les façons de couper n mots en k lignes non vides (k - 1 coupures croissantes).
   function* lineCuts(n, k, from = 1) {
     if (k === 0) { yield []; return; }
     for (let c = from; c <= n - k; c++) for (const rest of lineCuts(n, k - 1, c + 1)) yield [c, ...rest];
   }
   // Un mot mis en valeur compte plus large (grossi de 20 %), comme dans le rendu.
-  // Mots et lettres au plus par sous-titre selon le nombre de lignes (fonts_lib.CAPTION_LIMITS).
-  const CAPTION_LIMITS = { 1: [3, 14], 2: [6, 26], 3: [9, 38] };
-  // Lignes d'un sous-titre : le plus petit nombre de lignes dont le style aurait gardé ces mots en un
-  // seul sous-titre (CAPTION_LIMITS : mots, et lettres avant le dernier mot, comme captionGroups),
-  // sans dépasser le nombre de lignes du style (render_lib::caption_lines).
+  // Mots et lettres au plus par sous-titre selon le nombre de lignes : 3 mots et 12 lettres de plus
+  // par ligne (fonts_lib::caption_limits_for).
+  const captionLimits = (k) => [3 * k, 12 * k + 2];
+  // Lignes d'un sous-titre : le nombre du style, sauf pour un sous-titre qui tient sur une ligne
+  // (limites d'une ligne : mots, et lettres avant le dernier mot, comme captionGroups), et jamais
+  // plus que de mots (render_lib::caption_lines).
   function captionLines(words) {
-    const letters = words.slice(0, -1).reduce((s2, w) => s2 + [...w].length, 0), most = capLines();
-    let n = most;
-    for (let k = 1; k < most; k++) {
-      const [mw, mc] = CAPTION_LIMITS[k] || CAPTION_LIMITS[2];
-      if (words.length <= mw && letters <= mc) { n = k; break; }
-    }
+    const letters = words.slice(0, -1).reduce((s2, w) => s2 + [...w].length, 0);
+    const [mw, mc] = captionLimits(1);
+    const n = words.length <= mw && letters <= mc ? 1 : capLines();
     return Math.max(1, Math.min(n, words.length));
   }
   function captionLayout(words, big = []) {
@@ -890,22 +905,32 @@
       }
       return d;
     }));
-    // Comme le rendu : remonté s'il dépasse 40 px du bas de l'image (lignes nombreuses ou grandes).
-    if (el.id === "ov-cap" && el.parentElement) {
-      el.style.translate = "";
-      const limit = el.parentElement.clientHeight * (1 - 40 / FRAME_H);
-      const over = el.offsetTop + el.offsetHeight - limit;
-      if (over > 0) el.style.translate = `0 ${-over}px`;
-    }
+    // Comme le rendu : position choisie (posX, posY en % de la moitié de l'image), à 40 px au moins
+    // des bords ; remonté s'il dépasse 40 px du bas de l'image (lignes nombreuses ou grandes).
+    if (el.id === "ov-cap" && el.parentElement) placeCaption(el);
+  }
+  function placeCaption(el) {
+    el.style.translate = "";
+    const W = el.parentElement.clientWidth, H = el.parentElement.clientHeight, k = W / FRAME_W, edge = 40 * k;
+    const textW = Math.max(0, ...[...el.children].map((d) => d.offsetWidth)), top = el.offsetTop;
+    const room = Math.max(0, (W - textW) / 2 - edge);
+    const x = Math.max(-room, Math.min(room, ((CAP.posX || 0) / 100) * (W / 2)));
+    const y = Math.max(edge, Math.min(H - edge - el.offsetHeight, top + ((CAP.posY || 0) / 100) * (H / 2)));
+    if (x || y !== top) el.style.translate = `${x}px ${y - top}px`;
+  }
+  // Exemple du style : autant de mots que le nombre de lignes en permet (3 par ligne).
+  function captionSample(n) {
+    if (n === 1) return ["Vos", "sous-titres", "ici"];
+    const words = ["Voici", "vos", "sous-titres", "répartis", "sur", "plusieurs", "lignes", "bien", "équilibrées", "pour", "que",
+                   "chaque", "phrase", "reste", "facile", "à", "lire", "même", "quand", "elle", "devient", "un", "peu", "longue"];
+    return words.slice(0, 3 * n);
   }
   function refreshCaption() {  // sous-titre affiché et exemple, redessinés avec le style actuel
     const el = document.getElementById("ov-cap");
     if (el) el.dataset.key = "";
     if (fx) fx.caps = captionGroups(wordsOf(fx.m));  // nombre de lignes changé : mots par sous-titre aussi
     const sample = document.getElementById("cs-sample");
-    const SAMPLES = { 1: ["Vos", "sous-titres", "ici"], 2: ["Voici", "vos", "sous-titres", "sur", "deux", "lignes"],
-                      3: ["Voici", "vos", "sous-titres", "répartis", "sur", "trois", "lignes", "bien", "équilibrées"] };
-    if (sample && !sample.hidden) fillCaption(sample, SAMPLES[capLines()] || SAMPLES[2]);
+    if (sample && !sample.hidden) fillCaption(sample, captionSample(capLines()));
     if (typeof drawOverlay === "function") drawOverlay();
   }
   const moments = DATA.moments;
@@ -914,6 +939,8 @@
   const inEdit = new Set(working ? working.clips.map((c) => c.seg) : []);
   const suggested = moments.filter((m) => m.suggested).map((m) => m.id);
   const state = { variant: "travail", names: { travail: "Travail" }, keep: new Set(suggested) };
+  let jobBusy = "";           // raison pour laquelle les tâches sont refusées maintenant (setJobBusy), ou ""
+  let changedSinceWork = 0;   // moments changés depuis la vidéo entière générée (renderSummary)
   let db = null;
   let saveTimer = null;
   let dirty = false; // modification locale pas encore enregistrée
@@ -1166,7 +1193,7 @@
   }
   $("doubt-next").addEventListener("click", (e) => jumpDoubt(e.shiftKey ? -1 : 1));
   function captionGroups(words) {
-    const [maxWords, maxChars] = CAPTION_LIMITS[capLines()] || CAPTION_LIMITS[2];
+    const [maxWords, maxChars] = captionLimits(capLines());
     const out = [];
     let g = [];
     const flush = () => {
@@ -2370,9 +2397,10 @@ ${HFAudio.voiceElements(spec)}
 
   // Couper le moment ouvert à la tête de lecture (avant le mot le plus proche) : deux moments
   // séparés, chacun avec sa case « Garder ». Interface locale seulement (decoupage.rs).
-  const canCut = (m) => !!window.AUTO_MONTAGE_LOCAL && !!m && !m.gap && m.words.length > 1;
+  const canCut = (m) => !!window.AUTO_MONTAGE_LOCAL && !!m && !m.gap && m.words.length > 1 && !jobBusy;
   const cutHere = (m) => { if (canCut(m)) momentAction("split", m, { t: snapIn(m, momentTime(m)) }); };
   const cutTitle = (m) => (!window.AUTO_MONTAGE_LOCAL ? "Couper un moment : dans Auto-montage sur l'ordinateur"
+    : jobBusy ? jobBusy
     : m && m.gap ? "Un plan sans parole se raccourcit avec ses poignées (début et fin), il ne se coupe pas"
       : m && m.words.length < 2 ? "Un seul mot : rien à couper"
         : `Couper le moment en deux à la tête de lecture, avant le mot le plus proche : deux moments séparés, gardés ou retirés chacun (${keyLabel("couper")})`);
@@ -2384,10 +2412,12 @@ ${HFAudio.voiceElements(spec)}
     const tool = (text, title, onClick, ok) => { const b = btn(text, title, onClick); b.disabled = !ok; return b; };
     const items = [tool("✂ Couper", cutTitle(om), () => cutHere(om), canCut(om))];
     if (window.AUTO_MONTAGE_LOCAL && isPart(om))
-      items.push(tool("Recoller", "Recoller cette partie au moment précédent (défaire la coupe)", () => momentAction("unsplit", om), true));
+      items.push(tool("Recoller", jobBusy || "Recoller cette partie au moment précédent (défaire la coupe)", () => momentAction("unsplit", om), !jobBusy));
+    // Garder / Retirer : seulement s'il y a un moment à changer.
+    const keptN = list.filter((m) => isKept(m)).length;
     items.push(el("span", "sep"),
-      tool("✓ Garder", "Garder dans la vidéo entière", () => setKept(list, true), list.length > 0),
-      tool("⊘ Retirer", "Retirer de la vidéo entière", () => setKept(list, false), list.length > 0),
+      tool("✓ Garder", list.length && keptN === list.length ? "Déjà gardé dans la vidéo entière" : "Garder dans la vidéo entière", () => setKept(list, true), keptN < list.length),
+      tool("⊘ Retirer", list.length && !keptN ? "Déjà retiré de la vidéo entière" : "Retirer de la vidéo entière", () => setKept(list, false), keptN > 0),
       tool("✎ Corriger", "Corriger le texte des sous-titres du moment ouvert", fixText, !!om && !om.gap));
     if (frise.sel.size > 1) {
       const kept = list.filter((m) => isKept(m)).length;
@@ -2460,10 +2490,11 @@ ${HFAudio.voiceElements(spec)}
     document.body.style.minHeight = `${document.documentElement.scrollHeight}px`;
     app.classList.remove("locked");
     tlk.style.display = "none";  // .tlk { display: grid } passe avant l'attribut hidden
-    const h = sb.clientHeight;
+    const h = sb.clientHeight, ih = document.querySelector(".inspector").clientHeight;
     tlk.style.display = "";
     if (open && !matchMedia("(max-width: 900px)").matches) {
       app.style.setProperty("--screen-h", `${h}px`);
+      app.style.setProperty("--insp-h", `${ih}px`);  // inspecteur sous le lecteur (fenêtre haute)
       app.classList.add("locked");
     }
     document.body.style.minHeight = "";
@@ -2487,9 +2518,12 @@ ${HFAudio.voiceElements(spec)}
     head.append(btn("Début ici", "Commencer la partie gardée à la tête de lecture (le début est retiré)", () => trimEdge(m, "a", momentTime(m))),
       btn("Fin ici", "Finir la partie gardée à la tête de lecture (la fin est retirée)", () => trimEdge(m, "b", momentTime(m))));
     if (!m.gap) { const c = btn("✂ Couper ici", cutTitle(m), () => cutHere(m), "primary"); c.disabled = !canCut(m); head.append(c); }
-    const zoom = el("span", "zoom"), ZOOMS = [1, 2, 4, 8, 16];
+    // Zoom : ×2 par pas, jusqu'à ce qu'environ 4 secondes remplissent la largeur (×16 au moins) ;
+    // un long moment (la vidéo entière après « Valider le dérush ») se lit ainsi mot par mot.
+    const zoom = el("span", "zoom"), ZOOMS = [1];
+    while (ZOOMS[ZOOMS.length - 1] < Math.min(4096, Math.max(16, len / 4))) ZOOMS.push(ZOOMS[ZOOMS.length - 1] * 2);
     const setZoom = (d) => {
-      const k = Math.max(0, Math.min(ZOOMS.length - 1, ZOOMS.indexOf(frise.zoom) + d));
+      const k = Math.max(0, Math.min(ZOOMS.length - 1, Math.max(0, ZOOMS.indexOf(frise.zoom)) + d));
       if (ZOOMS[k] === frise.zoom) return;
       const sc = box.querySelector(".tlk-scroll"), x = momentTime(m) * kpps - sc.scrollLeft;
       frise.zoom = ZOOMS[k];
@@ -2631,11 +2665,7 @@ ${HFAudio.voiceElements(spec)}
     if (frise.sel.size > 1) {
       const list = selected(), kept = list.filter((m) => isKept(m)).length;
       out.push(el("h2", "", `${list.length} moments sélectionnés`),
-        el("p", "sub", `${kept} gardés · ${fmt(list.reduce((t, m) => t + m.end - m.start, 0))} de rush. Maj + clic : une suite de moments ; Ctrl (⌘) + clic : un de plus ou de moins.`));
-      const acts = el("div", "at-acts");
-      acts.append(btn("Garder", "Garder tous les moments sélectionnés", () => setKept(list, true)), btn("Retirer", "Retirer tous les moments sélectionnés", () => setKept(list, false)));
-      acts.append(btn("Désélectionner", "", () => { frise.sel.clear(); frise.anchor = null; frise.open = null; renderOpen(); }));
-      out.push(acts);
+        el("p", "sub", `${kept} gardés · ${fmt(list.reduce((t, m) => t + m.end - m.start, 0))} de rush. Maj + clic : une suite de moments ; Ctrl (⌘) + clic : un de plus ou de moins. Garder, retirer ou désélectionner : barre d'outils au-dessus des frises.`));
     } else if (om) {
       const m = om, on = isKept(m);
       out.push(el("h2", "", `${m.gap ? "Plan sans parole" : "Moment"} à ${fmt(m.start)}`),
@@ -2705,14 +2735,6 @@ ${HFAudio.voiceElements(spec)}
             ok.append(btn("Texte juste", "Les mots soulignés sont justes : ce moment n'est plus à vérifier", () => saveMoment(m.id, { checked: true })));
             out.push(para, ok);
           }
-        }
-        if (window.AUTO_MONTAGE_LOCAL) {
-          const acts = el("div", "at-acts");
-          const c = btn("✂ Couper ici", cutTitle(m), () => cutHere(m));
-          c.disabled = !canCut(m);
-          acts.append(c);
-          if (isPart(m)) acts.append(btn("Recoller", "Recoller cette partie au moment précédent (défaire la coupe)", () => momentAction("unsplit", m)));
-          out.push(acts);
         }
       }
       if (!DERUSH) {
@@ -3434,6 +3456,11 @@ ${HFAudio.voiceElements(spec)}
     const total = speech.reduce((t, m) => t + m.end - m.start, 0);
     const gapsKept = kept.filter((m) => m.gap).length;
     const changed = moments.filter((m) => { const c = workChange(m); return c && c.kind !== "same"; }).length;
+    changedSinceWork = changed;
+    // Rien de gardé : rien à générer. Sélection de départ : rien à remettre.
+    lockBtn($("regen"), "kept", kept.length ? "" : "Gardez au moins un moment (case « Garder » ou barre d'outils) avant de générer la vidéo entière");
+    const atStart = state.keep.size === suggested.length && suggested.every((id) => state.keep.has(id));
+    lockBtn($("reset"), "same", atStart ? "La sélection est déjà celle de départ" : "");
     $("count").textContent = `${kept.length - gapsKept} moments de parole sur ${speech.length}`
       + (gapsKept ? ` + ${gapsKept} plan${gapsKept > 1 ? "s" : ""} sans parole` : "") + ` · parole totale ${fmt(total)}`
       + (changed ? ` · ${changed} moment${changed > 1 ? "s" : ""} changé${changed > 1 ? "s" : ""} depuis la vidéo entière générée` : "");
@@ -3446,9 +3473,64 @@ ${HFAudio.voiceElements(spec)}
 
   function render() { renderSummary(); renderList(); }
 
+  // Bouton grisé pour une ou plusieurs raisons (tâche en cours, rien de gardé…), la première au
+  // survol ; rendu actif quand plus aucune raison ne tient (le code qui le grise lui-même pendant
+  // une action garde la main : seul un bouton grisé par lockBtn est réactivé ici).
+  function lockBtn(b, key, reason) {
+    const locks = b._locks || (b._locks = {});
+    if (b.dataset.title === undefined) b.dataset.title = b.title;
+    const was = Object.values(locks).some(Boolean);
+    locks[key] = reason || "";
+    const now = Object.values(locks).filter(Boolean);
+    if (now.length) { b.disabled = true; b.title = now[0]; return; }
+    if (was) b.disabled = false;
+    b.title = b.dataset.title;
+  }
+
+  // Tâche en cours (lancée d'ici, d'une autre page, par Claude ou MCP) ou préparation en pause :
+  // les boutons qui lancent une tâche sont grisés avec la raison (le serveur la refuserait) ; une
+  // préparation de ce rush (« Tout refaire depuis le début ») est suivie dans le bandeau et la page
+  // se recharge à sa fin, puisqu'elle refait la page des moments.
+  const JOB_NAMES = { prepare: "Une préparation", regen: "La génération de la vidéo entière", final: "La création de la 4K",
+    export: "L'export pour les plateformes", derush: "Le passage à l'auto-montage", decoupage: "Le découpage des moments",
+    style: "L'analyse des vidéos d'exemple", update: "La mise à jour d'Auto-montage", reset: "La réinitialisation d'Auto-montage" };
+  function setJobBusy(job) {
+    const reason = !job ? "" : job.state === "running" ? `${JOB_NAMES[job.kind] || "Une tâche"} est en cours : attendez sa fin`
+      : job.paused ? `La préparation de ${job.paused.arg} est en pause : reprenez-la ou abandonnez-la d'abord (page « Rushes et montages »)` : "";
+    lockBtn($("regen"), "job", reason);
+    lockBtn($("valider-derush"), "job", reason);
+    if (reason === jobBusy) return;
+    jobBusy = reason;
+    renderToolbar();
+    renderOpen();
+  }
+  if (window.AUTO_MONTAGE_LOCAL) {
+    let preparing = false;
+    const watch = async () => {
+      const job = await fetch("/api/job", { cache: "no-store" }).then((r) => r.json()).catch(() => null);
+      if (job) {
+        setJobBusy(job);
+        const prep = job.kind === "prepare" && job.state === "running";
+        if (prep) {
+          showGenProgress(job);
+          setStatus(`Préparation de ${job.arg} en cours : la page des moments sera refaite à la fin, et ce qui y est changé maintenant sera perdu.`, "err");
+        }
+        if (preparing && !prep && job.kind === "prepare" && job.state === "done") { location.reload(); return; }
+        if (preparing && !prep) showGenProgress(job);
+        preparing = prep;
+      }
+      setTimeout(watch, preparing ? 1500 : 4000);
+    };
+    watch();
+  }
+
   function toggle(id, on) { setKept([byId.get(id)], on); }
 
   $("reset").addEventListener("click", () => { state.keep = new Set(suggested); render(); scheduleSave(); });
+  if (!DERUSH) {  // en auto-montage, les moments de départ sont ceux suggérés à la préparation
+    $("reset").textContent = "Revenir aux moments suggérés";
+    $("reset").title = $("reset").dataset.title = "Revenir aux moments gardés au départ (ceux suggérés à la préparation)";
+  }
 
   // --- Variantes et enregistrement ------------------------------------------
   $("new-variant").addEventListener("click", () => {
@@ -3696,7 +3778,9 @@ ${HFAudio.voiceElements(spec)}
     const running = !!job && job.state === "running";
     $("gen-progress").hidden = !running;
     if (!running) return;
-    const p = job.progress;
+    // Opération en cours, sinon celle lancée à côté qui reste (copie du rush de la préparation).
+    const side = Object.entries(job.side || {}).find(([, e]) => !e.ended);
+    const p = job.progress && !job.progress.ended ? job.progress : side ? { label: side[0], ...side[1] } : job.progress;
     const frac = p && p.total ? Math.min(1, p.done / p.total) : null;
     $("gen-label").textContent = p ? p.label : `${job.step.charAt(0).toUpperCase()}${job.step.slice(1)}…`;
     $("gen-bar").hidden = frac === null;
@@ -3705,7 +3789,9 @@ ${HFAudio.voiceElements(spec)}
     // Mémoire juste ou insuffisante pour l'étape en cours (rust/src/memoire.rs) : dit sous la barre.
     const mem = job.stepMemory && job.stepMemory.level !== "ok" ? job.stepMemory.message : "";
     if (mem) $("gen-label").textContent += ` · ${mem}`;
-    $("gen-all-label").textContent = job.kind === "final" ? "Ensemble de la création 4K" : job.kind === "export" ? "Ensemble de l'export" : job.kind === "derush" ? "Ensemble du passage à l'auto-montage" : "Ensemble de la génération";
+    $("gen-all-label").textContent = job.kind === "final" ? "Ensemble de la création 4K" : job.kind === "export" ? "Ensemble de l'export"
+      : job.kind === "derush" ? "Ensemble du passage à l'auto-montage" : job.kind === "prepare" ? "Ensemble de la préparation" : "Ensemble de la génération";
+    $("gen-cancel-note").textContent = job.kind === "prepare" ? "pour la mettre en pause : page « Rushes et montages »" : "la version précédente reste en place";
     $("gen-all").value = job.overall || 0;
     $("gen-all-facts").textContent = `${Math.floor((job.overall || 0) * 100)} %${remaining(job.remaining)}`;
   }
@@ -3988,18 +4074,42 @@ ${HFAudio.voiceElements(spec)}
       $("cs-color").value = st.color;
       $("cs-shadow").value = st.shadow; $("cs-blur").value = st.blur;
       setPad(st.ox ?? 0, st.oy ?? 0);
-      $("cs-lines").value = String(st.lines ?? 2);
-      const sizes = st.lineSizes || [100, 100, 100];
-      $("cs-line2").value = sizes[1] ?? 100; $("cs-line3").value = sizes[2] ?? 100;
+      setPos(st.posX ?? 0, st.posY ?? 0);
+      setLines(st.lines ?? 2, st.lineSizes);
       showShadowVals();
+    }
+    // Nombre de lignes (champ libre de 1 à LINES_MAX) et taille de chaque ligne après la première ;
+    // les tailles des lignes masquées sont gardées (revenir à plus de lignes les retrouve).
+    let lineSizes = [100];
+    function setLines(n, sizes) {
+      lineSizes = Array.from({ length: LINES_MAX }, (_, i) => (i === 0 ? 100 : Number((sizes || [])[i] ?? 100)));
+      $("cs-lines").value = String(n);
+      $("cs-line-sizes").replaceChildren(...lineSizes.slice(1).map((v, j) => {
+        const i = j + 1, row = document.createElement("label");
+        row.dataset.line = String(i);
+        const txt = document.createElement("span"), val = document.createElement("b"), input = document.createElement("input");
+        txt.append(`Ligne ${i + 1} : `, val, " de la ligne 1");
+        Object.assign(input, { type: "range", min: 50, max: 200, step: 5, value: String(v) });
+        input.addEventListener("input", () => { lineSizes[i] = Number(input.value); changed(); });
+        row.append(txt, input);
+        return row;
+      }));
+    }
+    function linesValue() {
+      const n = Math.round(Number($("cs-lines").value));
+      return Number.isFinite(n) && n >= 1 ? Math.min(LINES_MAX, n) : 2;
     }
     function showShadowVals() {
       const v = Number($("cs-shadow").value);
       $("cs-shadow-val").textContent = v === 0 ? "aucune" : `${v} %`;
       $("cs-blur-val").textContent = `${$("cs-blur").value} px`;
-      const lines = Number($("cs-lines").value);
-      $("cs-line2-row").hidden = lines < 2; $("cs-line3-row").hidden = lines < 3;
-      $("cs-line2-val").textContent = `${$("cs-line2").value} %`; $("cs-line3-val").textContent = `${$("cs-line3").value} %`;
+      const lines = linesValue(), [mw] = captionLimits(lines);
+      $("cs-lines-val").textContent = `(${mw} mots au plus par sous-titre ; une seule ligne s'il est court)`;
+      for (const row of $("cs-line-sizes").children) {
+        const i = Number(row.dataset.line);
+        row.hidden = i >= lines;
+        row.querySelector("b").textContent = `${lineSizes[i]} %`;
+      }
     }
     // Direction et distance de l'ombre : point choisi dans le cercle (centre = ombre autour du texte,
     // bord = OFFSET px de décalage dans cette direction).
@@ -4028,7 +4138,7 @@ ${HFAudio.voiceElements(spec)}
         setPad(((e.clientX - b.left) / b.width * 2 - 1) * m, ((e.clientY - b.top) / b.height * 2 - 1) * m);
         changed();
       };
-      p.addEventListener("pointerdown", (e) => { p.setPointerCapture(e.pointerId); p.focus(); fromEvent(e); });
+      p.addEventListener("pointerdown", (e) => { p.setPointerCapture(e.pointerId); p.focus({ preventScroll: true }); fromEvent(e); });
       p.addEventListener("pointermove", (e) => { if (p.hasPointerCapture(e.pointerId)) fromEvent(e); });
       p.addEventListener("keydown", (e) => {
         const step = e.shiftKey ? 5 : 1;
@@ -4040,12 +4150,47 @@ ${HFAudio.voiceElements(spec)}
         changed();
       });
     }
+    // Position des sous-titres : même cercle, centre = place d'origine, bord = POS_MAX % de la moitié
+    // de l'image (le rendu et l'aperçu les gardent dans l'image).
+    const POS_MAX = () => (info && info.posMax) || 100;
+    let pos = { x: 0, y: 0 };
+    function setPos(x, y) {
+      const m = POS_MAX(), r = Math.hypot(x, y);
+      if (r > m) { x = (x * m) / r; y = (y * m) / r; }
+      pos = { x: Math.round(x), y: Math.round(y) };
+      $("cs-pos-dot").style.left = `${50 + (pos.x / m) * 50}%`;
+      $("cs-pos-dot").style.top = `${50 + (pos.y / m) * 50}%`;
+      const parts = [];
+      if (pos.y) parts.push(`${Math.abs(pos.y)} % plus ${pos.y < 0 ? "haut" : "bas"}`);
+      if (pos.x) parts.push(`${Math.abs(pos.x)} % plus à ${pos.x < 0 ? "gauche" : "droite"}`);
+      const txt = parts.length ? `${parts.join(", ")} (en % de la moitié de l'image)`.replace(/^./, (c) => c.toUpperCase()) : "Place d'origine";
+      $("cs-pos-val").textContent = txt;
+      $("cs-pos").setAttribute("aria-valuetext", txt);
+    }
+    {
+      const p = $("cs-pos");
+      const fromEvent = (e) => {
+        const b = p.getBoundingClientRect(), m = POS_MAX();
+        setPos(((e.clientX - b.left) / b.width * 2 - 1) * m, ((e.clientY - b.top) / b.height * 2 - 1) * m);
+        changed();
+      };
+      p.addEventListener("pointerdown", (e) => { p.setPointerCapture(e.pointerId); p.focus({ preventScroll: true }); fromEvent(e); });
+      p.addEventListener("pointermove", (e) => { if (p.hasPointerCapture(e.pointerId)) fromEvent(e); });
+      p.addEventListener("keydown", (e) => {
+        const step = e.shiftKey ? 5 : 1;
+        const mv = { ArrowLeft: [-step, 0], ArrowRight: [step, 0], ArrowUp: [0, -step], ArrowDown: [0, step] }[e.key];
+        if (mv) setPos(pos.x + mv[0], pos.y + mv[1]);
+        else if (e.key === "Enter" || e.key === "Home" || e.key === "0") setPos(0, 0);
+        else return;
+        e.preventDefault();
+        changed();
+      });
+    }
     function current() {
       return { font: $("cs-font").value, weight: Number($("cs-weight").value), size: Number($("cs-size").value),
                uppercase: $("cs-upper").checked, color: $("cs-color").value,
                shadow: Number($("cs-shadow").value), blur: Number($("cs-blur").value),
-               ox: pad.ox, oy: pad.oy, lines: Number($("cs-lines").value),
-               lineSizes: [100, Number($("cs-line2").value), Number($("cs-line3").value)] };
+               ox: pad.ox, oy: pad.oy, lines: linesValue(), lineSizes: [...lineSizes], posX: pos.x, posY: pos.y };
     }
     function preview(st) {  // aperçu immédiat, avant l'enregistrement
       const fam = family();
@@ -4053,7 +4198,7 @@ ${HFAudio.voiceElements(spec)}
       const near = faces.reduce((b, f) => (Math.abs(f.w - st.weight) < Math.abs(b.w - st.weight) ? f : b), faces[0]);
       applyCaptionStyle({ family: `AM ${fam.id}`, files: [{ url: near.url, weight: String(near.w) }], weight: st.weight,
                           size: st.size, uppercase: st.uppercase, color: st.color, shadow: st.shadow, blur: st.blur, ox: st.ox, oy: st.oy,
-                          lines: st.lines, lineSizes: st.lineSizes });
+                          lines: st.lines, lineSizes: st.lineSizes, posX: st.posX, posY: st.posY });
     }
     let saveT = null;
     function changed() {
@@ -4069,15 +4214,18 @@ ${HFAudio.voiceElements(spec)}
       }, 400);
     }
     $("cs-font").addEventListener("change", () => { fillWeights(Number($("cs-weight").value)); changed(); });
-    for (const id of ["cs-weight", "cs-upper", "cs-color", "cs-lines"]) $(id).addEventListener("change", changed);
-    for (const id of ["cs-size", "cs-shadow", "cs-blur", "cs-line2", "cs-line3"]) $(id).addEventListener("input", changed);
+    for (const id of ["cs-weight", "cs-upper", "cs-color"]) $(id).addEventListener("change", changed);
+    for (const id of ["cs-size", "cs-shadow", "cs-blur"]) $(id).addEventListener("input", changed);
+    // Nombre de lignes : pris dès qu'il est valable, ramené entre 1 et LINES_MAX en quittant le champ.
+    $("cs-lines").addEventListener("input", () => { if ($("cs-lines").value !== "") changed(); });
+    $("cs-lines").addEventListener("change", () => { $("cs-lines").value = String(linesValue()); changed(); });
     $("cs-reset").addEventListener("click", () => {
       const d = info.default;
       $("cs-font").value = info.fonts.find((f) => /^(oliver|patrick hand)/i.test(f.family) && f.source === "Auto-montage")?.id || info.fonts[0].id;
       fillWeights(d.weight);
       $("cs-size").value = d.size; $("cs-upper").checked = d.uppercase; $("cs-color").value = d.color;
       $("cs-shadow").value = d.shadow; $("cs-blur").value = d.blur; setPad(d.ox, d.oy);
-      $("cs-lines").value = String(d.lines ?? 2); $("cs-line2").value = (d.lineSizes || [])[1] ?? 100; $("cs-line3").value = (d.lineSizes || [])[2] ?? 100;
+      setLines(d.lines ?? 2, d.lineSizes); setPos(d.posX ?? 0, d.posY ?? 0);
       changed();
     });
     $("cs-add-font").addEventListener("click", () => $("cs-font-file").click());
@@ -4156,16 +4304,25 @@ ${HFAudio.voiceElements(spec)}
         if (fx && player.paused) drawLook(player.currentTime);
       };
       let prevCol = clone(COLOR);
-      const putCol = async () => {
-        const r = await fetch("/api/couleur", { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify(COLOR) }).catch(() => null);
+      // Look ou intensité : les curseurs suivent tout de suite (withLook), le serveur fait le même
+      // calcul d'après les réglages enregistrés (look.rs save_couleur, reçoit seulement le look).
+      const putCol = async (body = COLOR) => {
+        const r = await fetch("/api/couleur", { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify(body) }).catch(() => null);
         if (r && r.ok) { Object.assign(COLOR, await r.json()); rememberGlobal("/api/couleur", prevCol, COLOR); prevCol = clone(COLOR); }
         $("col-status").textContent = r && r.ok ? "Enregistré : dans l'aperçu tout de suite, dans la vidéo à la prochaine génération." : "Le réglage n'a pas pu être enregistré.";
         show();
       };
-      look.addEventListener("change", () => { COLOR.look = look.value; show(); putCol(); });
+      look.addEventListener("change", () => {
+        Object.assign(COLOR, LOOK.withLook(prevCol, look.value, prevCol.intensite)); show(); putCol({ look: look.value });
+      });
       for (const [k] of SLIDERS) {
-        $(`col-${k}`).addEventListener("input", () => { COLOR[k] = Number($(`col-${k}`).value); show(); });
-        $(`col-${k}`).addEventListener("change", putCol);
+        $(`col-${k}`).addEventListener("input", () => {
+          const v = Number($(`col-${k}`).value);
+          if (k === "intensite") Object.assign(COLOR, LOOK.withLook(prevCol, prevCol.look, v));
+          else COLOR[k] = v;
+          show();
+        });
+        $(`col-${k}`).addEventListener("change", () => putCol(k === "intensite" ? { intensite: COLOR.intensite } : COLOR));
       }
       $("col-reset").addEventListener("click", () => { Object.assign(COLOR, LOOK.COLOR_DEFAULTS); show(); putCol(); });
       globalReload["/api/couleur"] = async () => { Object.assign(COLOR, await fetch("/api/couleur").then((r) => r.json())); prevCol = clone(COLOR); show(); };
@@ -4279,6 +4436,7 @@ ${HFAudio.voiceElements(spec)}
       $("son-denoise").addEventListener("change", () => putSon({ denoise: Number($("son-denoise").value) }));
       $("son-loudness").addEventListener("change", () => putSon({ loudness: $("son-loudness").value === "off" ? false : Number($("son-loudness").value) }));
       for (const k of ["declick", "highpass", "clarity"]) $(`son-${k}`).addEventListener("change", () => putSon({ [k]: $(`son-${k}`).checked }));
+      if (!working) lockBtn($("son-analyse"), "work", "Générez d'abord la vidéo entière : la recherche se fait sur son son");
       $("son-analyse").addEventListener("click", async () => {
         $("son-analyse").disabled = true;
         $("son-status").textContent = "Recherche en cours (quelques secondes)…";
@@ -4418,6 +4576,14 @@ ${HFAudio.voiceElements(spec)}
     const data = await fetch("/api/downloads", { cache: "no-store" }).then((r) => r.json()).catch(() => null);
     menu.replaceChildren();
     if (!data) { menu.textContent = "Le serveur Auto-montage ne répond pas."; menu.hidden = false; return; }
+    // Rien de généré : une seule ligne qui dit quoi faire (pas de liste de « pas encore »).
+    if (!data.versions.length && !(data.final && data.final.available)) {
+      menu.append(Object.assign(document.createElement("div"), { className: "row", textContent: DERUSH
+        ? "Pas encore de vidéo : « Valider le dérush », puis « Télécharger derush »."
+        : "Pas encore de vidéo : « Générer la vidéo entière » d'abord." }));
+      menu.hidden = false;
+      return;
+    }
     const mb = (n) => `${(n / 1048576).toFixed(n < 10485760 ? 1 : 0)} Mo`;
     const byId = Object.fromEntries(data.versions.map((v) => [v.id, v]));
     for (const [id, label, what] of [["720p", "720p", "légère, pour le téléphone"], ["1080p", "1080p", "vidéo entière"], ["4k", "4K", "pour la publication"]]) {
@@ -4440,7 +4606,8 @@ ${HFAudio.voiceElements(spec)}
         const mk = document.createElement("button");
         mk.type = "button";
         mk.textContent = f.running ? "Création en cours…" : "Créer la version 4K";
-        mk.disabled = !f.available || !!f.running;
+        mk.disabled = !f.available || !!f.running || !!f.busy;
+        if (f.busy) mk.title = f.busy;
         mk.addEventListener("click", () => createFinal(mk, f.estimate));
         row.append(mk);
         const hint = document.createElement("div");
@@ -4515,9 +4682,10 @@ ${HFAudio.voiceElements(spec)}
     const cutLabel = Object.assign(document.createElement("label"), { htmlFor: "export-cut", textContent: " Couper à la durée maximale de la plateforme" });
     cutLabel.prepend(cut);
     const go = Object.assign(document.createElement("button"), { type: "button", textContent: ex.running ? "Export en cours…" : "Exporter", disabled: true });
+    if (jobBusy && !ex.running) go.title = jobBusy;
     const sync = () => {
       const n = boxes.filter((b) => b.checked).length;
-      go.disabled = !n || !ex.source || ex.running;
+      go.disabled = !n || !ex.source || ex.running || !!jobBusy;
       if (!ex.running) go.textContent = n > 1 ? `Exporter (${n})` : "Exporter";
     };
     boxes.forEach((b) => b.addEventListener("change", sync));
@@ -4547,7 +4715,9 @@ ${HFAudio.voiceElements(spec)}
     }
   }
   async function createFinal(btn, estimate) {
-    if (!confirm(`Créer la version 4K ? Cela prend du temps (${minutes(estimate || 0)} sur cet ordinateur). Vous pourrez continuer à utiliser la page pendant ce temps.`)) return;
+    const n = changedSinceWork;
+    const stale = n ? `${n} moment${n > 1 ? "s ont" : " a"} changé depuis la dernière vidéo entière : la 4K sera faite sans ${n > 1 ? "ces changements" : "ce changement"}. Pour ${n > 1 ? "les" : "l'"}inclure, générez d'abord la vidéo entière.\n\n` : "";
+    if (!confirm(`${stale}Créer la version 4K${n ? " quand même" : ""} ? Cela prend du temps (${minutes(estimate || 0)} sur cet ordinateur). Vous pourrez continuer à utiliser la page pendant ce temps.`)) return;
     btn.disabled = true;
     const r = await fetch("/api/final", { method: "POST" });
     if (!r.ok) { setStatus((await r.json().catch(() => ({}))).error || `erreur ${r.status}`, "err"); btn.disabled = false; return; }

@@ -73,6 +73,25 @@ pub fn prepare_with_instructions() -> Vec<Step> {
     v
 }
 
+/// Dérushage avec des consignes : Claude choisit les moments à garder (work/suggestions.json)
+/// avant la page des moments ; le montage reste en dérushage (ni effets ni rendu).
+pub fn prepare_derush_with_instructions() -> Vec<Step> {
+    let p = prepare_steps();
+    let mut v = vec![p[0].clone(), step("choix des moments (Claude)", &["apply_instructions"])];
+    v.extend(p[1..].iter().cloned());
+    v
+}
+
+/// Étapes d'une préparation : avec ou sans consignes appliquées par Claude, en dérushage ou en
+/// auto-montage (mode du montage en cours, celui de la page « Rushes et montages »).
+pub fn prepare_plan(with_claude: bool, derush: bool) -> Vec<Step> {
+    match (with_claude, derush) {
+        (false, _) => prepare_steps(),
+        (true, true) => prepare_derush_with_instructions(),
+        (true, false) => prepare_with_instructions(),
+    }
+}
+
 // Temps restant : chaque opération (barre) et le reste de chaque étape (hors barres) durent
 // « vitesse × échelle » secondes ; l'échelle est la durée du rush, celle du montage pour le
 // rendu, ou 1 (durée fixe). Les vitesses de départ viennent de mesures (rush de 5 min sur un
@@ -318,12 +337,99 @@ fn end_phase(m: &mut Map<String, Value>, now: f64) {
     let spent = obj(m, "spent");
     let before = spent.get(&label).and_then(Value::as_f64).unwrap_or(0.0);
     spent.insert(label, fnum(before + now - since));
-    let phases = gf(m, "stepPhases");
-    m.insert("stepPhases".into(), fnum(phases + now - since));
+    busy_update(m, now);
+}
+
+/// Temps passé dans les opérations (barres) de l'étape, sans compter deux fois celles qui tournent
+/// ensemble (copie du rush à côté de la transcription) : « stepPhases » pour les périodes finies,
+/// « busyFrom » pour celle en cours.
+fn busy_update(m: &mut Map<String, Value>, now: f64) {
+    let busy = running_progress(m).is_some() || !running_sides(m).is_empty();
+    let from = m.get("busyFrom").and_then(Value::as_f64);
+    match (busy, from) {
+        (true, None) => {
+            m.insert("busyFrom".into(), fnum(now));
+        }
+        (false, Some(f)) => {
+            let phases = gf(m, "stepPhases");
+            m.insert("stepPhases".into(), fnum(phases + now - f));
+            m.insert("busyFrom".into(), Value::Null);
+        }
+        _ => {}
+    }
+}
+
+/// Temps passé depuis le début de la période d'opérations en cours.
+fn busy_now(m: &Map<String, Value>, now: f64) -> f64 {
+    m.get("busyFrom").and_then(Value::as_f64).map(|f| now - f).unwrap_or(0.0)
+}
+
+/// Opérations lancées à côté des autres (ligne « @parallele <pid> <libellé> » : progress::side_start),
+/// pas encore finies : (libellé, pid).
+fn running_sides(m: &Map<String, Value>) -> Vec<(String, u32)> {
+    m.get("side")
+        .and_then(Value::as_object)
+        .map(|s| {
+            s.iter()
+                .filter(|(_, e)| !util::truthy(e.get("ended")))
+                .map(|(k, e)| (k.clone(), e.get("pid").and_then(Value::as_u64).unwrap_or(0) as u32))
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+fn side_start(m: &mut Map<String, Value>, label: &str, pid: u32) {
+    let now = now();
+    obj(m, "side").insert(label.to_string(), json!({"pid": pid, "since": fnum(now), "done": 0.0, "total": 0.0}));
+    busy_update(m, now);
+}
+
+/// Fin d'une opération lancée à côté : sa durée est comptée à son libellé, sa barre est pleine.
+fn side_end(m: &mut Map<String, Value>, label: &str, now: f64) {
+    let Some(Value::Object(e)) = obj(m, "side").get_mut(label) else { return };
+    if util::truthy(e.get("ended")) {
+        return;
+    }
+    e.insert("ended".into(), json!(true));
+    let since = e.get("since").and_then(Value::as_f64).unwrap_or(now);
+    let start = e.get("start").cloned().unwrap_or(json!(0.0));
+    if !obj(m, "opStart").contains_key(label) {
+        obj(m, "opStart").insert(label.to_string(), start);
+    }
+    let spent = obj(m, "spent");
+    let before = spent.get(label).and_then(Value::as_f64).unwrap_or(0.0);
+    spent.insert(label.to_string(), fnum(before + now - since));
+    if let Some(Value::Object(o)) = obj(m, "ops").get_mut(label) {
+        if let Some(t) = o.get("total").and_then(Value::as_f64).filter(|t| *t > 0.0) {
+            o.insert("done".into(), fnum(t));
+        }
+    }
+    busy_update(m, now);
+}
+
+/// Fin de l'étape : opérations lancées à côté comptées comme finies.
+fn end_sides(m: &mut Map<String, Value>, now: f64) {
+    for (label, _) in running_sides(m) {
+        side_end(m, &label, now);
+    }
 }
 
 fn set_progress(m: &mut Map<String, Value>, label: &str, done: f64, total: f64) {
     let now = now();
+    let step = m.get("step").cloned().unwrap_or(Value::Null);
+    // Opération lancée à côté : sa propre barre, sans toucher à l'opération en cours.
+    if let Some(Value::Object(e)) = m.get_mut("side").and_then(|s| s.get_mut(label)) {
+        if !util::truthy(e.get("ended")) {
+            if !e.contains_key("start") && total != 0.0 {
+                e.insert("start".into(), fnum((done / total).min(1.0)));
+            }
+            e.insert("done".into(), fnum(done));
+            e.insert("total".into(), fnum(total));
+            e.insert("at".into(), fnum(now));
+            obj(m, "ops").insert(label.to_string(), json!({"done": fnum(done), "total": fnum(total), "unit": unit_of(label), "step": step}));
+            return;
+        }
+    }
     let current = m.get("progress").cloned().filter(|p| p.is_object());
     if let Some(c) = &current {
         if c["label"] != label {
@@ -342,9 +448,16 @@ fn set_progress(m: &mut Map<String, Value>, label: &str, done: f64, total: f64) 
         json!(0.0)
     };
     m.insert("progress".into(), json!({"label": label, "done": fnum(done), "total": fnum(total), "since": since, "at": fnum(now), "start": start}));
-    let step = m.get("step").cloned().unwrap_or(Value::Null);
+    // Opération du plan de l'étape la plus avancée (les opérations hors plan, téléchargement…,
+    // ne font pas recompter celles déjà faites).
+    if let Some(i) = plan_of(step.as_str().unwrap_or("")).iter().position(|o| *o == label) {
+        if m.get("planAt").and_then(Value::as_u64).is_none_or(|a| (i as u64) > a) {
+            m.insert("planAt".into(), json!(i));
+        }
+    }
     obj(m, "ops").insert(label.to_string(), json!({"done": fnum(done), "total": fnum(total), "unit": unit_of(label), "step": step}));
     m.insert("memOp".into(), Value::Null); // mémoire comptée pour cette opération (sample_memory)
+    busy_update(m, now);
 }
 
 fn progress_obj(m: &Map<String, Value>) -> Option<&Map<String, Value>> {
@@ -382,6 +495,58 @@ fn steps_of(m: &Map<String, Value>) -> Vec<String> {
         .unwrap_or_default()
 }
 
+/// Reste d'une opération (barre) d'après son avancement : la vitesse prévue, puis de plus en
+/// plus celle mesurée depuis son début dans cette tâche.
+fn op_left(p: &Map<String, Value>, rates: &Map<String, Value>, m: &Map<String, Value>, now: f64) -> f64 {
+    let (done, total) = (p.get("done").and_then(Value::as_f64).unwrap_or(0.0), p.get("total").and_then(Value::as_f64).unwrap_or(0.0));
+    let f = if total != 0.0 { (done / total).min(1.0) } else { 0.0 };
+    let f0 = p.get("start").and_then(Value::as_f64).unwrap_or(0.0);
+    let label = p.get("label").and_then(Value::as_str).unwrap_or("");
+    let model = estimate(label, rates, m) * (1.0 - f);
+    let elapsed = now - p.get("since").and_then(Value::as_f64).unwrap_or(now);
+    let live = if f > f0 && elapsed > 3.0 { elapsed * (1.0 - f) / (f - f0) } else { model };
+    let w = ((f - f0) / 0.25).min(1.0); // vitesse mesurée de plus en plus suivie
+    w * live + (1.0 - w) * model
+}
+
+/// Reste des opérations de l'étape en cours. Une opération lancée à côté (memoire::PARALLEL)
+/// et celles qu'elle accompagne comptent pour la plus longue des deux.
+fn step_ops_left(m: &Map<String, Value>, step: &str, current: Option<(&str, f64)>, rates: &Map<String, Value>, now: f64) -> f64 {
+    let plan = plan_of(step);
+    let at = m.get("planAt").and_then(Value::as_u64).map(|a| a as usize);
+    let left = |op: &str| -> f64 {
+        match current {
+            Some((l, x)) if l == op => x,
+            _ => match (at, plan.iter().position(|o| *o == op)) {
+                (Some(a), Some(i)) if i <= a => 0.0,
+                _ => estimate(op, rates, m),
+            },
+        }
+    };
+    let mut total = current.filter(|(l, _)| !plan.contains(l)).map(|(_, x)| x).unwrap_or(0.0);
+    let mut counted: Vec<&str> = vec![];
+    for (side, join) in memoire::PARALLEL.iter().filter(|(s, _)| plan.contains(s)) {
+        let lane = memoire::alongside(side, join, plan);
+        let lane_left: f64 = lane.iter().map(|op| left(op)).sum();
+        let side_idx = plan.iter().position(|o| o == side).unwrap_or(0);
+        let side_left = match m.get("side").and_then(|s| s.get(*side)).and_then(Value::as_object) {
+            Some(e) if util::truthy(e.get("ended")) => 0.0,
+            Some(e) => {
+                let mut e = e.clone();
+                e.insert("label".into(), json!(side));
+                op_left(&e, rates, m, now)
+            }
+            // pas lancée alors que la suite a commencé : déjà faite (version de travail gardée)
+            None if at.is_some_and(|a| a > side_idx) => 0.0,
+            None => estimate(side, rates, m),
+        };
+        total += lane_left.max(side_left);
+        counted.push(side);
+        counted.extend(lane);
+    }
+    total + plan.iter().filter(|o| !counted.contains(o)).map(|o| left(o)).sum::<f64>()
+}
+
 /// (reste de l'opération en cours, reste de la tâche), en secondes.
 fn remaining_time(m: &Map<String, Value>) -> (Option<f64>, Option<f64>) {
     let base = load_rates();
@@ -397,39 +562,16 @@ fn remaining_time(m: &Map<String, Value>) -> (Option<f64>, Option<f64>) {
     let steps = steps_of(m);
     let step = gs(m, "step").to_string();
     let Some(i) = steps.iter().position(|s| *s == step) else { return (None, None) };
-    let plan = plan_of(&step);
-    let p = progress_obj(m);
-    let mut current = None;
-    let mut upcoming: &[&str] = plan;
-    let running = p.filter(|p| !util::truthy(p.get("ended")));
-    if let Some(p) = running {
-        let (done, total) = (p.get("done").and_then(Value::as_f64).unwrap_or(0.0), p.get("total").and_then(Value::as_f64).unwrap_or(0.0));
-        let f = if total != 0.0 { (done / total).min(1.0) } else { 0.0 };
-        let f0 = p.get("start").and_then(Value::as_f64).unwrap_or(0.0);
-        let label = p.get("label").and_then(Value::as_str).unwrap_or("");
-        let model = estimate(label, &rates, m) * (1.0 - f);
-        let elapsed = now - p.get("since").and_then(Value::as_f64).unwrap_or(now);
-        let live = if f > f0 && elapsed > 3.0 { elapsed * (1.0 - f) / (f - f0) } else { model };
-        let w = ((f - f0) / 0.25).min(1.0); // vitesse mesurée de plus en plus suivie
-        current = Some(w * live + (1.0 - w) * model);
-        if let Some(idx) = plan.iter().position(|o| *o == label) {
-            upcoming = &plan[idx + 1..];
-        }
-    } else if let Some(p) = p {
-        let label = p.get("label").and_then(Value::as_str).unwrap_or("");
-        if let Some(idx) = plan.iter().position(|o| *o == label) {
-            upcoming = &plan[idx + 1..];
-        }
-    }
-    let mut rest = current.unwrap_or(0.0) + upcoming.iter().map(|k| estimate(k, &rates, m)).sum::<f64>();
+    let running = running_progress(m);
+    let current = running.map(|p| (p.get("label").and_then(Value::as_str).unwrap_or(""), op_left(p, &rates, m, now)));
+    let mut rest = step_ops_left(m, &step, current, &rates, now);
     // Reste de l'étape hors barres (installation de Whisper, découpage de l'audio, montage…).
-    let in_op = running.map(|p| now - p.get("since").and_then(Value::as_f64).unwrap_or(now)).unwrap_or(0.0);
-    let outside = now - gf(m, "stepStart") - gf(m, "stepPhases") - in_op;
+    let outside = now - gf(m, "stepStart") - gf(m, "stepPhases") - busy_now(m, now);
     rest += (estimate(&format!("étape:{step}"), &rates, m) - outside).max(0.0);
     for s in &steps[i + 1..] {
         rest += plan_of(s).iter().map(|k| estimate(k, &rates, m)).sum::<f64>() + estimate(&format!("étape:{s}"), &rates, m);
     }
-    (current, Some(rest))
+    (current.map(|c| c.1), Some(rest))
 }
 
 /// Part de chaque étape et de ses opérations dans la barre d'ensemble, fixée au début de la
@@ -467,7 +609,8 @@ fn overall_progress(m: &mut Map<String, Value>) -> f64 {
             if o.get("step").and_then(Value::as_str) != Some(step.as_str()) {
                 continue;
             }
-            let running = p.as_ref().map(|p| p.get("label").and_then(Value::as_str) == Some(k.as_str())).unwrap_or(false);
+            let running = p.as_ref().map(|p| p.get("label").and_then(Value::as_str) == Some(k.as_str())).unwrap_or(false)
+                || m.get("side").and_then(|s| s.get(k)).is_some_and(|e| !util::truthy(e.get("ended")));
             let (od, ot) = (o.get("done").and_then(Value::as_f64).unwrap_or(0.0), o.get("total").and_then(Value::as_f64).unwrap_or(0.0));
             let f = if ot != 0.0 { (od / ot).min(1.0) } else { 0.0 };
             let spent = m.get("spent").and_then(|s| s.get(k)).is_some();
@@ -477,8 +620,7 @@ fn overall_progress(m: &mut Map<String, Value>) -> f64 {
     let rest = w["rest"].as_f64().unwrap_or(0.0);
     if rest != 0.0 && truthy(m, "stepStart") {
         let now = now();
-        let in_op = p.as_ref().map(|p| now - p.get("since").and_then(Value::as_f64).unwrap_or(now)).unwrap_or(0.0);
-        let outside = now - gf(m, "stepStart") - gf(m, "stepPhases") - in_op;
+        let outside = now - gf(m, "stepStart") - gf(m, "stepPhases") - busy_now(m, now);
         done += rest * (outside.max(0.0) / rest).min(0.95);
     }
     let f = if total > 0.0 { done / total } else { i as f64 / steps.len().max(1) as f64 };
@@ -699,6 +841,7 @@ fn run_steps(steps: &[Step], arg: &str, args: &[String], first: usize) -> Result
             let now = now();
             if truthy(&j.m, "stepStart") {
                 end_phase(&mut j.m, now);
+                end_sides(&mut j.m, now);
                 let key = format!("étape:{}", gs(&j.m, "step"));
                 let spent = obj(&mut j.m, "spent").get(&key).and_then(Value::as_f64).unwrap_or(0.0);
                 let add = now - gf(&j.m, "stepStart") - gf(&j.m, "stepPhases");
@@ -709,6 +852,9 @@ fn run_steps(steps: &[Step], arg: &str, args: &[String], first: usize) -> Result
             j.m.insert("progress".into(), Value::Null);
             j.m.insert("stepStart".into(), fnum(now));
             j.m.insert("stepPhases".into(), json!(0.0));
+            j.m.insert("busyFrom".into(), Value::Null);
+            j.m.insert("side".into(), json!({}));
+            j.m.insert("planAt".into(), Value::Null);
             save_task(&j, "running");
             write(&mut j, &format!("\n## {} Étape : {step} (auto-montage {})", hms(), cmd.join(" ")));
             check_memory(&mut j, step);
@@ -735,6 +881,7 @@ fn run_steps(steps: &[Step], arg: &str, args: &[String], first: usize) -> Result
             j.m.insert("memOp".into(), Value::Null);
             j.m.insert("memPeaks".into(), json!({}));
             j.m.insert("renderWorkers".into(), Value::Null);
+            j.m.insert("renderClips".into(), Value::Null);
         }
         let finished = Arc::new(AtomicBool::new(false));
         let sampler = {
@@ -744,6 +891,7 @@ fn run_steps(steps: &[Step], arg: &str, args: &[String], first: usize) -> Result
         };
         let mut last_progress = 0.0;
         static NAV: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^Navigateurs du rendu : (\d+)").unwrap());
+        static CLIPS: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^Plans par partie du rendu : (\d+)").unwrap());
         for_each_line(reader, |raw| {
             // journal en direct (progression du rendu, étapes…)
             let line = raw.trim_end();
@@ -753,10 +901,30 @@ fn run_steps(steps: &[Step], arg: &str, args: &[String], first: usize) -> Result
                 j.m.insert("memOp".into(), json!(op.trim()));
                 return;
             }
+            // opération lancée à côté des suivantes (prepare : copie du rush), puis sa fin
+            if let Some((pid, op)) = line.strip_prefix("@parallele ").and_then(|r| r.split_once(' ')) {
+                side_start(&mut j.m, op.trim(), pid.parse().unwrap_or(0));
+                return;
+            }
+            if let Some(op) = line.strip_prefix("@parallele-fin ") {
+                side_end(&mut j.m, op.trim(), now());
+                return;
+            }
+            if line == "@fin-operation" {
+                // opération en cours finie, avant une attente qui n'en fait pas partie
+                end_phase(&mut j.m, now());
+                return;
+            }
             if let Some(c) = NAV.captures(line) {
                 // nombre choisi d'après la mémoire libre : compte dans la mesure du rendu
                 if let Ok(n) = c[1].parse::<i64>() {
                     j.m.insert("renderWorkers".into(), json!(n));
+                }
+            }
+            if let Some(c) = CLIPS.captures(line) {
+                // plans de la plus grande page : comptent aussi
+                if let Ok(n) = c[1].parse::<i64>() {
+                    j.m.insert("renderClips".into(), json!(n));
                 }
             }
             let mut found = if line.is_empty() { None } else { progress_of(line) };
@@ -795,6 +963,8 @@ fn run_steps(steps: &[Step], arg: &str, args: &[String], first: usize) -> Result
             }
         });
         let code = procs::wait(&mut child);
+        // Navigateurs du rendu restés ouverts (étape arrêtée ou tuée : ils ont leur propre session).
+        procs::kill_marked(procs::RENDER_MARK);
         finished.store(true, Ordering::SeqCst);
         lock().pid = None;
         let _ = sampler.join();
@@ -813,6 +983,7 @@ fn run_steps(steps: &[Step], arg: &str, args: &[String], first: usize) -> Result
     let mut j = lock();
     let now = now();
     end_phase(&mut j.m, now);
+    end_sides(&mut j.m, now);
     let key = format!("étape:{}", gs(&j.m, "step"));
     let spent = obj(&mut j.m, "spent").get(&key).and_then(Value::as_f64).unwrap_or(0.0);
     let add = now - gf(&j.m, "stepStart") - gf(&j.m, "stepPhases");
@@ -1017,7 +1188,10 @@ pub fn busy() -> bool {
 pub fn resume_job() -> Option<String> {
     let Some(rec) = paused_task() else { return Some("Aucune tâche à reprendre.".into()) };
     let names: Vec<String> = rec["steps"].as_array().unwrap().iter().map(|s| s.as_str().unwrap_or("").to_string()).collect();
-    let every = if names.iter().any(|n| n == "consignes de montage (Claude)") { prepare_with_instructions() } else { prepare_steps() };
+    let every = prepare_plan(
+        names.iter().any(|n| n == "consignes de montage (Claude)" || n == "choix des moments (Claude)"),
+        names.iter().any(|n| n == "choix des moments (Claude)"),
+    );
     if !names.iter().all(|n| every.iter().any(|(e, _)| e == n)) {
         return Some("Cette tâche ne peut pas être reprise : abandonnez-la.".into());
     }
@@ -1026,7 +1200,7 @@ pub fn resume_job() -> Option<String> {
         return Some(format!("La vidéo {missing} n'est plus dans le dossier des rushes : la préparation ne peut pas reprendre."));
     }
     let index = rec.get("index").and_then(Value::as_u64).unwrap_or(0) as usize;
-    if names.iter().skip(index).any(|n| n == "consignes de montage (Claude)") && !super::claude::claude_connected(false) {
+    if names.iter().skip(index).any(|n| n == "consignes de montage (Claude)" || n == "choix des moments (Claude)") && !super::claude::claude_connected(false) {
         return Some("Claude Code n'est pas connecté : connectez-le (page « Connexion à Claude »), puis reprenez.".into());
     }
     if let Some(l) = rec.get("langue").and_then(Value::as_str) {
@@ -1082,9 +1256,19 @@ fn check_memory(j: &mut Job, step: &str) {
 fn sample_memory(pid: u32, step: &str, finished: &AtomicBool) {
     let alone = memoire::steps(step).unwrap_or_default();
     while !finished.load(Ordering::SeqCst) {
-        let used = memoire::tree_memory(pid);
+        let mut used = memoire::tree_memory(pid);
         {
             let mut j = lock();
+            // Opérations lancées à côté (copie du rush) : leur programme et ses enfants comptés à part.
+            for (side, side_pid) in running_sides(&j.m) {
+                let mine = if side_pid > 0 { memoire::tree_memory(side_pid) } else { 0 };
+                if mine > 0 && memoire::is_operation(&side) {
+                    used -= mine.min(used);
+                    let peaks = obj(&mut j.m, "memPeaks");
+                    let before = peaks.get(&side).and_then(Value::as_i64).unwrap_or(0);
+                    peaks.insert(side, json!(before.max(mine)));
+                }
+            }
             let mem_op = j.m.get("memOp").and_then(Value::as_str).filter(|s| !s.is_empty()).map(String::from);
             let label = progress_obj(&j.m).and_then(|p| p.get("label")).and_then(Value::as_str).filter(|l| memoire::is_operation(l)).map(String::from);
             let op = mem_op.or(label).or_else(|| (alone.len() == 1).then(|| alone[0].to_string()));
@@ -1119,10 +1303,12 @@ fn record_memory(j: &mut Job, partial: bool) {
         return;
     }
     let workers = j.m.get("renderWorkers").and_then(Value::as_u64).filter(|w| *w > 0);
+    let clips = j.m.get("renderClips").and_then(Value::as_u64);
     for (op, peak) in peaks {
         let mut v = info.clone();
         if let (Some(w), Some(_)) = (workers, memoire::render_hd(&op)) {
             v.workers = Some(w as usize);
+            v.clips = clips.map(|c| c as f64);
         }
         memoire::record(&op, peak.as_i64().unwrap_or(0), &v);
     }
@@ -1408,6 +1594,9 @@ pub fn start_job(kind: &str, steps: Vec<Step>, arg: &str, args: Option<Vec<Strin
             ("opStart", json!({})),
             ("stepStart", Value::Null),
             ("stepPhases", json!(0.0)),
+            ("busyFrom", Value::Null),
+            ("side", json!({})),
+            ("planAt", Value::Null),
             ("rushSeconds", json!(0.0)),
             ("steps", json!(names)),
             ("args", json!(args)),
@@ -1449,7 +1638,7 @@ pub fn start_job(kind: &str, steps: Vec<Step>, arg: &str, args: Option<Vec<Strin
 }
 
 pub fn job_status() -> Value {
-    const HIDDEN: [&str; 11] = ["log", "spent", "proc", "cancel", "logFile", "opStart", "memInfo", "memPeaks", "memOp", "renderWorkers", "weights"];
+    const HIDDEN: [&str; 14] = ["log", "spent", "proc", "cancel", "logFile", "opStart", "memInfo", "memPeaks", "memOp", "renderWorkers", "renderClips", "weights", "busyFrom", "planAt"];
     let mut j = lock();
     let mut status: Map<String, Value> = j.m.iter().filter(|(k, _)| !HIDDEN.contains(&k.as_str())).map(|(k, v)| (k.clone(), v.clone())).collect();
     let log = j.m.get("log").and_then(Value::as_array).cloned().unwrap_or_default();
@@ -1470,6 +1659,14 @@ pub fn job_status() -> Value {
         status.insert("overall".into(), json!(if state == "done" { 1.0 } else { 0.0 }));
     }
     Value::Object(status)
+}
+
+/// Tâche en cours ou préparation en pause, en bref (/api/status : boutons grisés des pages).
+pub fn job_brief() -> Value {
+    let j = lock();
+    let state = gs(&j.m, "state").to_string();
+    let paused = paused_task_state(&state).and_then(|r| r.get("arg").cloned()).unwrap_or(Value::Null);
+    json!({"kind": j.m.get("kind").cloned().unwrap_or(Value::Null), "state": state, "paused": paused})
 }
 
 /// Style : les vidéos d'exemple sont-elles là (pour /api/prepare) ?
@@ -1501,6 +1698,51 @@ mod tests {
         let log = vec![json!("Error: boom"), json!("    at x")];
         assert_eq!(job_error(&log, 1), "Error: boom");
         assert_eq!(job_error(&[], 137), "code 137, signal SIGKILL : tué de force, le plus souvent par manque de mémoire (fermez d'autres programmes)");
+    }
+
+    #[test]
+    fn copy_beside_transcription() {
+        // Rush de 100 s : copie 30 s, son 1 s, transcription 16 s, visage 10 s, locuteurs 3 s.
+        let rates: Map<String, Value> = [("Copie du rush en 1080p", 0.3), ("Extraction du son", 0.01), ("Transcription", 0.16), ("Position du visage", 0.1), ("Locuteurs", 0.03)]
+            .iter()
+            .map(|(k, v)| (k.to_string(), json!(v)))
+            .collect();
+        let step = "préparation du rush";
+        let mut m = Map::new();
+        m.insert("rushSeconds".into(), json!(100.0));
+        let left = |m: &Map<String, Value>, cur: Option<(&str, f64)>| util::round_to(step_ops_left(m, step, cur, &rates, now()), 3);
+        // rien de commencé : la copie (30 s) couvre son et transcription (17 s)
+        assert_eq!(left(&m, None), 43.0);
+        // transcription en cours (5 s restantes), copie lancée sans avancement
+        m.insert("planAt".into(), json!(2));
+        m.insert("side".into(), json!({"Copie du rush en 1080p": {"since": now(), "done": 0.0, "total": 0.0}}));
+        assert_eq!(left(&m, Some(("Transcription", 5.0))), 43.0);
+        // copie finie : la transcription décide
+        m.insert("side".into(), json!({"Copie du rush en 1080p": {"since": now(), "ended": true}}));
+        assert_eq!(left(&m, Some(("Transcription", 5.0))), 18.0);
+        // copie pas lancée (version de travail déjà faite) : rien à attendre
+        m.insert("side".into(), json!({}));
+        assert_eq!(left(&m, Some(("Transcription", 5.0))), 18.0);
+        // visage commencé : son et transcription faits
+        m.insert("planAt".into(), json!(3));
+        assert_eq!(left(&m, Some(("Position du visage", 4.0))), 7.0);
+    }
+
+    #[test]
+    fn busy_time_counted_once() {
+        let mut m = Map::new();
+        m.insert("step".into(), json!("préparation du rush"));
+        side_start(&mut m, "Copie du rush en 1080p", 0);
+        assert!(m.get("busyFrom").and_then(Value::as_f64).is_some());
+        set_progress(&mut m, "Copie du rush en 1080p", 10.0, 100.0);
+        assert!(m.get("progress").is_none(), "barre de la copie à part");
+        set_progress(&mut m, "Transcription", 5.0, 100.0);
+        end_phase(&mut m, now());
+        assert!(m.get("busyFrom").and_then(Value::as_f64).is_some(), "copie encore en cours");
+        side_end(&mut m, "Copie du rush en 1080p", now());
+        assert!(m.get("busyFrom").unwrap().is_null());
+        assert_eq!(m["ops"]["Copie du rush en 1080p"]["done"], json!(100.0));
+        assert!(m["spent"].get("Copie du rush en 1080p").is_some() && m["spent"].get("Transcription").is_some());
     }
 
     #[test]

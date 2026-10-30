@@ -53,7 +53,7 @@ pub fn caption_style_info() -> Value {
         .collect();
     json!({"style": style, "fonts": list,
            "sizeRange": range(fonts_lib::SIZE_RANGE), "shadowRange": range(fonts_lib::SHADOW_RANGE),
-           "blurRange": range(fonts_lib::BLUR_RANGE), "offsetMax": fonts_lib::OFFSET_MAX as i64,
+           "blurRange": range(fonts_lib::BLUR_RANGE), "offsetMax": fonts_lib::OFFSET_MAX as i64, "posMax": fonts_lib::POS_MAX as i64,
            "linesRange": range(fonts_lib::LINES_RANGE), "lineSizeRange": range(fonts_lib::LINE_SIZE_RANGE),
            "default": fonts_lib::default_style()})
 }
@@ -69,7 +69,7 @@ pub fn caption_style_for_page() -> Value {
            "files": faces.iter().map(|(w, p)| json!({"url": format!("/api/fonts/{}", fonts_lib::file_id(p)), "weight": w.to_string()})).collect::<Vec<_>>(),
            "weight": g("weight"), "size": g("size"), "uppercase": g("uppercase"), "color": g("color"),
            "shadow": g("shadow"), "blur": g("blur"), "ox": g("ox"), "oy": g("oy"),
-           "lines": g("lines"), "lineSizes": g("lineSizes")})
+           "lines": g("lines"), "lineSizes": g("lineSizes"), "posX": g("posX"), "posY": g("posY")})
 }
 
 // --- Éléments de style (page « Rushes et montages ») ---------------------------------
@@ -227,7 +227,36 @@ pub fn effects_info() -> Value {
             e
         })
         .collect();
-    json!({"effects": effects, "purge": effects_file("purge"), "volume": util::num(effects_volume())})
+    json!({"effects": effects, "purge": effects_file("purge"), "volume": util::num(effects_volume()), "used": effects_used()})
+}
+
+/// Nombre de moments du montage en cours où chaque effet est placé (documents de la page des
+/// moments, work/local_db/moments) : la page « Rushes et montages » ne propose de décocher un
+/// effet écarté de tous les moments que s'il est placé quelque part.
+fn effects_used() -> Map<String, Value> {
+    let mut used: Map<String, Value> = Map::new();
+    if !moments().join("index.html").exists() {
+        return used;
+    }
+    let folder = db().join("moments");
+    for name in util::list_dir(&folder) {
+        if !name.ends_with(".json") {
+            continue;
+        }
+        let Some(doc) = util::read_json(folder.join(&name)) else { continue };
+        let mut kinds: Vec<&str> = ["sfx", "vfx"]
+            .iter()
+            .flat_map(|k| doc.get(*k).and_then(Value::as_array).map(Vec::as_slice).unwrap_or(&[]))
+            .filter_map(|f| f.get("kind").and_then(Value::as_str))
+            .collect();
+        kinds.sort();
+        kinds.dedup();
+        for k in kinds {
+            let n = used.get(k).and_then(Value::as_u64).unwrap_or(0);
+            used.insert(k.to_string(), json!(n + 1));
+        }
+    }
+    used
 }
 
 pub fn save_effects(body: &Map<String, Value>) -> Value {
@@ -600,8 +629,17 @@ pub fn final_info() -> Value {
         let j = jobs::JOB.lock().unwrap();
         j.m["state"] == "running" && j.m["kind"] == "final"
     };
+    // autre tâche en cours ou préparation en pause : création refusée (bouton grisé, avec la raison)
+    let busy = if !running && jobs::busy() { json!(jobs::busy_error()) } else { Value::Null };
+    // choix de la page des moments changés depuis la vidéo entière : la 4K serait faite sans eux
+    let rendered = util::mtime(&apercu).unwrap_or(0.0);
+    let changed = ["moments", "variantes"]
+        .iter()
+        .flat_map(|c| util::list_dir(db().join(c)).into_iter().map(move |n| db().join(c).join(n)))
+        .filter_map(|p| util::mtime(&p))
+        .any(|t| t > rendered + 2.0);
     json!({"available": apercu.exists() && montage > 0.0, "estimate": util::round_int(estimate), "res": res,
-           "memory": mem, "running": running})
+           "memory": mem, "running": running, "busy": busy, "changed": apercu.exists() && changed})
 }
 
 // --- Montages enregistrés et rushes (page « Rushes et montages ») -----------------------

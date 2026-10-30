@@ -222,11 +222,10 @@ impl Montage {
             .collect()
     }
 
-    /// (lignes [(début, fin, taille relative)], réduction) : au plus « lines » lignes, coupées là où
-    /// leurs largeurs (multipliées par la taille de chaque ligne) sont les plus proches ; réduites
-    /// ensemble si la plus large dépasse. Peu de mots : moins de lignes, autant qu'il en faut pour
-    /// tenir dans les limites d'un sous-titre de ce nombre de lignes (`caption_lines`). Même règle
-    /// dans la page des moments (captionLayout).
+    /// (lignes [(début, fin, taille relative)], réduction) : « lines » lignes, coupées là où leurs
+    /// largeurs (multipliées par la taille de chaque ligne) sont les plus proches ; réduites ensemble
+    /// si la plus large dépasse. Sous-titre qui tient sur une ligne : une seule (`caption_lines`).
+    /// Même règle dans la page des moments (captionLayout).
     pub fn caption_layout(&mut self, words: &[String], big: &[bool]) -> (Vec<(usize, usize, f64)>, f64) {
         let space = self.measure(" ");
         let widths: Vec<f64> = words
@@ -235,8 +234,8 @@ impl Montage {
             .map(|(i, w)| self.measure(w) * if big.get(i).copied().unwrap_or(false) { HIGHLIGHT_SCALE } else { 1.0 })
             .collect();
         let width = |a: usize, b: usize| widths[a..b].iter().sum::<f64>() + space * (b as f64 - a as f64 - 1.0).max(0.0);
-        let lines_max = self.cap.get("lines").and_then(Value::as_i64).filter(|&l| l != 0).unwrap_or(2);
-        let n = caption_lines(words, lines_max);
+        let lines_wanted = self.cap.get("lines").and_then(Value::as_i64).filter(|&l| l != 0).unwrap_or(2);
+        let n = caption_lines(words, lines_wanted);
         let mut sizes: Vec<f64> = match self.cap.get("lineSizes").and_then(Value::as_array) {
             Some(a) if !a.is_empty() => a.iter().map(|s| s.as_f64().unwrap_or(100.0) / 100.0).collect(),
             _ => vec![1.0, 1.0, 1.0],
@@ -265,18 +264,14 @@ impl Montage {
     }
 }
 
-/// Lignes d'un sous-titre : le plus petit nombre de lignes dont le style aurait gardé ces mots en un
-/// seul sous-titre (limites de fonts_lib::caption_limits_for : mots, et lettres avant le dernier mot,
-/// comme le regroupement de build_edit), sans dépasser `lines_max`. 2 mots courts : une seule ligne
-/// même si le style en demande 2.
-pub fn caption_lines(words: &[String], lines_max: i64) -> usize {
+/// Lignes d'un sous-titre : le nombre voulu (`lines_wanted`), sauf pour un sous-titre qui tient sur
+/// une ligne (limites d'une ligne de fonts_lib::caption_limits_for : mots, et lettres avant le dernier
+/// mot, comme le regroupement de build_edit), et jamais plus que de mots. 2 mots courts : une seule
+/// ligne même si le style en demande 2.
+pub fn caption_lines(words: &[String], lines_wanted: i64) -> usize {
     let letters: i64 = words.iter().take(words.len().saturating_sub(1)).map(|w| w.chars().count() as i64).sum();
-    let n = (1..lines_max)
-        .find(|&k| {
-            let (mw, mc) = fonts_lib::caption_limits_for(k);
-            words.len() as i64 <= mw && letters <= mc
-        })
-        .unwrap_or(lines_max);
+    let (mw, mc) = fonts_lib::caption_limits_for(1);
+    let n = if words.len() as i64 <= mw && letters <= mc { 1 } else { lines_wanted.clamp(fonts_lib::LINES_RANGE.0, fonts_lib::LINES_RANGE.1) };
     n.min(words.len() as i64).max(1) as usize
 }
 
@@ -322,7 +317,10 @@ mod tests {
         assert_eq!(caption_lines(&w("la connaissance."), 2), 1);
         assert_eq!(caption_lines(&w("quantité très gigantesque"), 2), 1);
         assert_eq!(caption_lines(&w("gigantesque quantité très"), 2), 2); // 20 lettres avant le dernier mot
-        assert_eq!(caption_lines(&w("Donc on a juste besoin d'une"), 3), 2);
+        assert_eq!(caption_lines(&w("Donc on a juste besoin d'une"), 3), 3);
+        assert_eq!(caption_lines(&w("Donc on a juste besoin d'une"), 2), 2);
+        assert_eq!(caption_lines(&w("Donc on a juste"), 6), 4);
+        assert_eq!(caption_lines(&w("Donc on a juste besoin d'une"), 9), 6);
         assert_eq!(caption_lines(&w("Donc on a juste besoin d'une photo"), 3), 3);
         assert_eq!(caption_lines(&w("Oui"), 3), 1);
         assert_eq!(caption_lines(&w("Donc tout est disponible à nous"), 1), 1);

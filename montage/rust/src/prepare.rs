@@ -20,12 +20,23 @@
 //! fetch_fonts, make_sfx, build_edit…) : le groupe de processus de la tâche (annulation, pause) et
 //! la mesure de la mémoire de l'interface locale les voient comme avant. Une étape qui échoue
 //! arrête la préparation avec son code (comme `set -e` du script d'origine).
+//!
+//! Quand la carte graphique encode (gpu.rs), la copie du rush en 1080p (version_travail) tourne
+//! en même temps que le son, la détection de la parole et la transcription, qui ne lisent que le
+//! rush ; le visage l'attend (il la lit). `AM_PARALLELE=1` ou `0` : toujours, ou jamais.
+//!
+//! Vidéo d'un dérush validé (`--transcription`) : version de travail, positions du visage et
+//! locuteurs déjà recalés par derush_video (work/derush_suite/) repris tels quels, sans
+//! recalculer la copie 1080p, le visage ni les locuteurs.
 
 use crate::moments_lib::{audio_map_of, audio_streams, display_size, frame_size, language, language_label, work_size, MODES};
 use crate::{paths, procs, progress, util};
 use std::fs;
 use std::path::Path;
-use std::process::{Command, Stdio};
+use std::process::{Child, Command, Stdio};
+use std::sync::{Arc, Mutex};
+use std::thread::JoinHandle;
+use std::time::Duration;
 
 /// Code de sortie d'une étape comme le shell (tuée par le signal n : 128 + n).
 fn shell_code(code: i32) -> i32 {
@@ -43,6 +54,58 @@ fn step(args: &[&str]) -> i32 {
         Err(e) => {
             eprintln!("Impossible de lancer {} : {e}", args.first().unwrap_or(&""));
             127
+        }
+    }
+}
+
+/// Copie du rush en 1080p lancée à côté de la transcription, dans le groupe de processus de la
+/// préparation (annulation, pause). Un fil la surveille et annonce sa fin dès qu'elle arrive
+/// (progress::side_end : l'interface locale compte sa durée et sa mémoire à part).
+struct SideCopy {
+    child: Arc<Mutex<Child>>,
+    watch: Option<JoinHandle<i32>>,
+}
+
+impl SideCopy {
+    fn start(rush: &str) -> Result<SideCopy, i32> {
+        let child = match Command::new(paths::self_exe()).args(["version_travail", rush]).current_dir(paths::root()).spawn() {
+            Ok(c) => c,
+            Err(e) => {
+                eprintln!("Impossible de lancer version_travail : {e}");
+                return Err(127);
+            }
+        };
+        progress::side_start(crate::version_travail::LABEL, child.id());
+        let child = Arc::new(Mutex::new(child));
+        let watched = child.clone();
+        let watch = std::thread::spawn(move || loop {
+            if let Ok(Some(s)) = watched.lock().unwrap().try_wait() {
+                progress::side_end(crate::version_travail::LABEL);
+                return shell_code(procs::py_code(&s));
+            }
+            std::thread::sleep(Duration::from_millis(200));
+        });
+        Ok(SideCopy { child, watch: Some(watch) })
+    }
+
+    /// Attend la fin de la copie ; son code à la façon du shell.
+    fn join(&mut self) -> i32 {
+        let Some(watch) = self.watch.take() else { return 0 };
+        if !watch.is_finished() {
+            progress::end_op(); // l'attente ne compte pas dans la durée de la transcription
+            progress::say("Copie du rush en 1080p : pas encore finie, attendue avant la position du visage");
+        }
+        watch.join().unwrap_or(1)
+    }
+}
+
+impl Drop for SideCopy {
+    /// Préparation arrêtée par une étape en échec avant d'attendre la copie : la copie aussi
+    /// (un morceau en cours d'encodage reste en .part, refait par la prochaine préparation).
+    fn drop(&mut self) {
+        if let Some(watch) = self.watch.take() {
+            let _ = self.child.lock().unwrap().kill();
+            let _ = watch.join();
         }
     }
 }
@@ -186,13 +249,50 @@ pub fn main(args: &[String]) -> i32 {
         let _ = fs::remove_file(paths::out().join("montage_apercu.mp4"));
         let _ = fs::remove_file(work.join("moments").join("montage.mp4"));
     }
+    // Vidéo d'un dérush validé : ce que la préparation du rush d'origine a trouvé, recalé par
+    // derush_video, remis en place (gardé jusqu'à la fin : une reprise le remet aussi).
+    let suite = crate::derush_video::suite_dir();
+    let carried = transcription.is_some() && util::read_text(suite.join("cle.txt")).map(|k| k.trim() == base).unwrap_or(false);
+    if carried {
+        let work_video = paths::rushes().join("rush_1080.mp4");
+        if suite.join("rush_1080.mp4").is_file() {
+            let _ = fs::remove_file(&work_video);
+            if fs::rename(suite.join("rush_1080.mp4"), &work_video).is_ok() {
+                progress::say("Version de travail reprise du dérush");
+            }
+        }
+    } else {
+        util::remove_all(&suite);
+    }
+    let faces_carried = carried && suite.join("face.json").is_file() && {
+        util::mkdirs(paths::data());
+        let ok = fs::copy(suite.join("face.json"), paths::data().join("face.json")).is_ok();
+        util::remove_all(work.join("visages"));
+        if suite.join("visages").is_dir() {
+            let _ = util::copy_tree(&suite.join("visages"), &work.join("visages"));
+        }
+        ok
+    };
+    let speakers_carried = faces_carried && suite.join("locuteurs.json").is_file() && fs::copy(suite.join("locuteurs.json"), work.join("locuteurs.json")).is_ok();
     // Mémoire nécessaire à chaque étape d'après la vidéo, comparée à la mémoire libre (avertissement).
     let _ = step(&["memoire", &rush]);
     // Langue du rush (transcription, consignes appliquées par Claude) : celle choisie pour cette préparation.
     let langue = language(&work);
     let _ = fs::write(work.join("langue_rush.txt"), format!("{langue}\n"));
 
-    progress::say("Étape 1/4 : copie du rush en 1080p (quelques minutes)");
+    // En même temps que la transcription seulement quand la carte graphique encode : par le
+    // processeur, la copie et la transcription se disputent les cœurs (essai sur 4 cœurs, rush de
+    // 6 min : 484 s au lieu de 470). AM_PARALLELE=1 ou 0 : toujours, ou jamais.
+    let parallel = match std::env::var("AM_PARALLELE").as_deref() {
+        Ok("1") => true,
+        Ok("0") => false,
+        _ => crate::gpu::h264().is_gpu(),
+    };
+    progress::say(if parallel {
+        "Étape 1/4 : copie du rush en 1080p, en même temps que la transcription (quelques minutes)"
+    } else {
+        "Étape 1/4 : copie du rush en 1080p (quelques minutes)"
+    });
     // 1. Version de travail 1080p en MP4 (analyse du visage, extraits, rendu HyperFrames), au format
     //    du rush, petit côté à 1080 : 1080x1920 en 9:16, 1920x1080 en 16:9, 1440x1080 en 4:3…
     //    (moments_lib::work_size ; repris par tout le montage).
@@ -205,9 +305,17 @@ pub fn main(args: &[String]) -> i32 {
         let _ = fs::remove_file(&work_video);
     }
     //    Encodée par morceaux d'une minute (version_travail) : une reprise repart du premier
-    //    morceau manquant.
+    //    morceau manquant. Pendant ce temps : son, détection de la parole et transcription.
+    let mut copy: Option<SideCopy> = None;
     if !work_video.is_file() {
-        check!(step(&["version_travail", &rush]));
+        if parallel {
+            match SideCopy::start(&rush) {
+                Ok(c) => copy = Some(c),
+                Err(code) => return code,
+            }
+        } else {
+            check!(step(&["version_travail", &rush]));
+        }
     }
 
     let label = language_label(&langue).unwrap_or("Français").to_lowercase();
@@ -282,19 +390,34 @@ pub fn main(args: &[String]) -> i32 {
     }
     if transcription.is_none() {
         check!(step(&["transcribe_segments"]));
+        // Redites sans Claude : moments coupés là où commence et finit une prise abandonnée
+        // (work/decoupage.json d'un nouveau rush), pour n'en retirer que cette partie.
+        if step(&["redites"]) != 0 {
+            progress::say("Redites non cherchées : les moments restent entiers.");
+        }
+    }
+    // Copie 1080p, lue par le visage et tout le montage.
+    if let Some(c) = copy.as_mut() {
+        check!(c.join());
     }
 
     progress::say("Étape 3/4 : position du visage");
     // 3. Visages et cadrage (YuNet) : src/data/face.json.
-    util::mkdirs(work.join("models"));
-    if step(&["fetch_face_model"]) != 0 {
-        progress::say("Modèle YuNet indisponible : visages non détectés.");
+    if faces_carried {
+        progress::say("Positions du visage reprises du dérush");
+    } else {
+        util::mkdirs(work.join("models"));
+        if step(&["fetch_face_model"]) != 0 {
+            progress::say("Modèle YuNet indisponible : visages non détectés.");
+        }
+        check!(step(&["detect_face"]));
     }
-    check!(step(&["detect_face"]));
     // Qui parle (diarize) : locuteur de chaque mot (work/segments.json) et personne à l'image de
     // chacun (work/locuteurs.json), pour le cadrage « personne qui parle ». Facultatif : un échec
     // n'arrête pas la préparation.
-    if step(&["diarize"]) != 0 {
+    if speakers_carried {
+        progress::say("Locuteurs repris du dérush");
+    } else if step(&["diarize"]) != 0 {
         progress::say("Locuteurs non trouvés : cadrage « personne qui parle » indisponible.");
     }
 
@@ -304,5 +427,6 @@ pub fn main(args: &[String]) -> i32 {
     check!(step(&["fetch_fonts"]));
     check!(step(&["make_sfx"]));
     check!(step(&["build_edit"]));
+    util::remove_all(&suite);
     0
 }

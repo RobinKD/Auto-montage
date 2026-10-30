@@ -4,7 +4,7 @@
 use super::claude;
 use super::common::*;
 use super::info::*;
-use super::jobs::{self, busy, busy_error, cancel_job, job_status, paused_task, resume_job, start_job, Step, JOB_LOCK};
+use super::jobs::{self, busy, busy_error, cancel_job, job_brief, job_status, paused_task, resume_job, start_job, Step, JOB_LOCK};
 use crate::moments_lib::{app_mode, derush_subtitles, language_label, MODES};
 use crate::{decoupage, fonts_lib, memoire, paths, place, procs, pyjson, util};
 use regex::Regex;
@@ -292,6 +292,8 @@ fn do_get(req: &Req) -> Reply {
                         "styleAnalysis": read_text(work().join("analyse_style.md")),
                         "update": claude::update_summary(),
                         "tutorialSeen": tutorial_seen_path().exists(), "mode": app_mode(&work()),
+                        // boutons des pages grisés pendant une tâche (menu.js : mode du montage)
+                        "job": job_brief(), "montage": moments().join("index.html").exists(),
                         "derushSubtitles": derush_subtitles(&work())}),
                 200,
             )
@@ -321,8 +323,10 @@ fn do_get(req: &Req) -> Reply {
             }
             let parts: Vec<String> = rushes_q.into_iter().map(Option::unwrap).collect();
             let instr: Vec<&String> = q.iter().filter(|(k, _)| k == "instructions").map(|(_, v)| v).collect();
-            let with_claude = instr.len() == 1 && instr[0] == "1" && app_mode(&work()) != "derush";
-            let steps = if with_claude { jobs::prepare_with_instructions() } else { jobs::prepare_steps() };
+            let derush = app_mode(&work()) == "derush";
+            // dérushage : consignes écrites seulement (pas d'éléments de style)
+            let with_claude = instr.len() == 1 && instr[0] == "1" && (!derush || !instructions_info().is_null());
+            let steps = jobs::prepare_plan(with_claude, derush);
             let names: Vec<String> = steps.into_iter().map(|(n, _)| n).collect();
             let vpaths: Vec<PathBuf> = parts.iter().map(|n| rushes().join(n)).collect();
             let mut plan = memoire::summary(&names, &memoire::video_info(&vpaths, None));
@@ -657,6 +661,10 @@ fn do_put(req: &Req, body: &mut dyn Read) -> Reply {
         let b = read_obj(req, body);
         let mode = b.get("mode").and_then(Value::as_str).filter(|m| MODES.iter().any(|(c, _)| c == m));
         let Some(mode) = mode else { return err_json("Mode inconnu.", 400) };
+        if jobs::is_running() {
+            // build_edit, prepare et la page lisent le mode : pas de changement au milieu d'une tâche
+            return err_json("Une tâche est en cours : changez de mode quand elle sera finie.", 409);
+        }
         util::mkdirs(work());
         let _ = fs::write(work().join("mode.txt"), format!("{mode}\n"));
         return send_json(&json!({"mode": mode}), 200);
@@ -1230,15 +1238,20 @@ fn post_prepare(body: &Map<String, Value>) -> Reply {
         return err_json("Langue inconnue.", 400);
     }
     let mut steps = jobs::prepare_steps();
-    if util::truthy(body.get("instructions")) && app_mode(&work()) != "derush" {
-        // dérushage : sans Claude
+    if util::truthy(body.get("instructions")) {
+        // Dérushage (mode du montage en cours) : les consignes écrites servent seulement à choisir
+        // les moments ; le nouveau montage reste en dérushage. Auto-montage : montage complet.
+        let derush = app_mode(&work()) == "derush";
+        if derush && instructions_info().is_null() {
+            return err_json("Aucune consigne écrite : en dérushage, les consignes servent à choisir les moments.", 400);
+        }
         if instructions_info().is_null() && !jobs::style_has_content() {
             return err_json("Aucune consigne ni aucun élément de style choisi.", 400);
         }
         if !claude::claude_connected(false) {
             return err_json("Claude Code n'est pas connecté : connectez-le sur la page « Connexion à Claude ».", 400);
         }
-        steps = jobs::prepare_with_instructions();
+        steps = jobs::prepare_plan(true, derush);
     }
     let abandon = util::truthy(body.get("abandon"));
     let rec = if jobs::is_running() { None } else { paused_task() };

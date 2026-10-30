@@ -66,6 +66,7 @@ pub fn main(args: &[String]) -> i32 {
     claude::chat_load(); // réponse coupée par un arrêt du serveur : marquée « Interrompu »
     jobs::close_interrupted_logs();
     jobs::remove_partial_files(true);
+    crate::procs::kill_marked(crate::procs::RENDER_MARK); // navigateurs d'un rendu coupé par un arrêt
     std::thread::spawn(claude::update_loop);
     let addr = if host.contains(':') { format!("[{host}]:{port}") } else { format!("{host}:{port}") };
     if !matches!(host.as_str(), "127.0.0.1" | "localhost" | "::1") {

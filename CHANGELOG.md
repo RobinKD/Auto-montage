@@ -4,6 +4,83 @@ Chaque version publiée reprend sa section dans ses notes (onglet Releases). Une
 section, le numéro dans `VERSION` et le tag `v<numéro>` poussé publient la version avec ses
 installateurs (voir `packaging/README.md`).
 
+## 1.3
+
+- **« Valider le dérush » est beaucoup plus rapide** : le passage à l'auto-montage reprend ce que
+  la préparation du rush a déjà trouvé (positions des visages, personnes, locuteurs) pour les
+  seuls moments gardés, au lieu de tout recalculer. La copie 1080p sort en même temps que la vidéo
+  du dérush. Sur un essai (2 min gardées d'un rush de 6 min), la validation passe de 3 min 30 à
+  1 min 45.
+- **Préparation plus rapide avec une carte graphique** : quand la carte graphique encode (Mac, et
+  PC avec une carte NVIDIA, Intel ou AMD), la copie du rush en 1080p se fait en même temps que la
+  transcription. La page « Rushes et montages » montre les deux barres avancer ensemble. Sans carte
+  graphique, rien ne change : les deux à la fois ne vont pas plus vite.
+- **Zoom de la frise du moment bien plus grand pour un long moment** : après « Valider le dérush »,
+  le moment est la vidéo entière, et ses sous-titres et effets se chevauchaient même au zoom
+  maximal (×16). Le zoom va maintenant jusqu'à ne montrer que quelques secondes sur toute la
+  largeur, quelle que soit la durée du moment ; la tête de lecture et le défilement au bord suivent.
+- **Nombre de lignes des sous-titres au choix** : « Lignes au plus » devient un champ « Nombre de
+  lignes » (2 par défaut, de 1 à 6), avec une taille réglable pour chaque ligne, sur la page des
+  moments et sur « Rushes et montages ».
+- **Le nombre de lignes demandé est vraiment utilisé** : avec 3 lignes, la plupart des sous-titres
+  restaient sur 2, parce qu'un sous-titre ne prenait que les lignes nécessaires à son nombre de mots.
+  Seul un sous-titre qui tient sur une ligne (deux ou trois mots courts) en prend maintenant moins.
+- **Position des sous-titres** : un cercle, comme celui de l'ombre, déplace les sous-titres vers le
+  haut, le bas ou les côtés ; ils restent toujours dans l'image. Visible dans l'aperçu et dans la vidéo.
+- Cliquer dans le cercle de l'ombre ne fait plus défiler le panneau (le point arrivait ailleurs que
+  sous la souris).
+- **Les looks de couleur déplacent les curseurs** : choisir un look (Chaud, Cinéma, Nuit
+  américaine…) ou changer son intensité met la température, le contraste, la saturation… aux valeurs
+  du look, qu'on peut ensuite retoucher. Passer d'un look à un autre retire l'effet du premier et
+  garde les retouches faites à la main. Les montages déjà réglés avec un look gardent le même rendu.
+- **Lecteur adapté aux écrans verticaux** : une vidéo en largeur (16:9, 4:3) dans une fenêtre plus
+  haute que large n'est plus perdue au milieu de grandes bandes vides : le lecteur prend toute la
+  largeur et le panneau du moment passe dessous. Dans tous les cas, le lecteur ne dépasse plus la
+  hauteur de sa vidéo, et les commandes de lecture restent juste sous l'image.
+- **Tutoriel à jour** : il présente maintenant le dérushage et « Valider le dérush », annuler /
+  rétablir, la pastille « Modifié », le cadrage sur la personne qui parle, les couleurs, les effets
+  d'image et les transitions, le volume normalisé, les sous-titres en fichiers, les copies pour les
+  plateformes, la pause de la préparation, la mémoire, « Libérer de la place » et les commandes pour
+  Claude Code ; la préparation ne dit plus qu'elle fait une première vidéo entière.
+- **Redites mieux retirées sans Claude** : les faux départs (« je vais vous… je vais vous montrer »)
+  sont repérés au mot près, même au milieu d'une phrase, et seul le bout abandonné est retiré (le
+  moment est coupé à cet endroit ; « Recoller » défait la coupe). Une reprise est trouvée jusqu'à
+  45 s plus loin, même après un « attends, je recommence ». Les moments faits seulement de « euh »
+  ou d'un aparté sont décochés. Deux phrases qui commencent pareil (« c'est pour ça que… ») ne sont
+  plus prises pour une redite.
+- **Des consignes aussi pour le dérushage** : quand le montage en cours est en dérushage, la page
+  « Rushes et montages » garde une zone de consignes. Claude choisit alors les moments d'après elles
+  pendant la préparation (sujets à garder, prises à préférer), et le nouveau rush reste en dérushage,
+  sans effets. La page « Connexion à Claude » reste dans le menu en dérushage.
+- **Les boutons qui ne peuvent rien faire sont grisés, avec la raison au survol** : pendant une
+  tâche (préparation, génération, 4K, export) ou une préparation en pause, « Générer », « Valider le
+  dérush », « Couper », « Recoller », « Créer la version 4K », « Exporter », « Rouvrir » et
+  « Supprimer » un montage, « Analyser les vidéos d'exemple », « Mettre à jour », « Réinitialiser »,
+  « Redémarrer » et le choix du mode ne sont plus cliquables pour se faire refuser ensuite. Aussi
+  grisés : « Générer » sans aucun moment gardé, « Rechercher les bruits parasites » avant la première
+  vidéo entière, « Garder » ou « Retirer » quand rien ne changerait, et « Revenir aux moments
+  suggérés » (nouveau nom en auto-montage de « Revenir au derush initial ») quand la sélection est
+  déjà celle de départ.
+- **Décocher un effet proposé** (page « Rushes et montages ») ne demande plus s'il faut le retirer
+  de tous les moments quand il n'est placé sur aucun, ni pendant une préparation ; sinon la question
+  dit sur combien de moments il est placé.
+- **Préparation du même rush en cours** : la page des moments le dit, avec la barre d'avancement, et
+  se recharge à la fin.
+- **Créer la 4K** prévient quand des moments ont changé depuis la dernière vidéo entière (la 4K
+  serait faite sans eux). Le menu « Télécharger » sans vidéo générée dit simplement quoi faire.
+- « Couper ici », « Recoller » et « Garder / Retirer » ne sont plus en double dans le panneau du
+  moment (ils restent dans la barre d'outils et en tête du moment). La discussion avec Claude dit
+  quand il n'y a pas de montage en cours ou qu'une tâche tourne.
+- **La création de la vidéo ne prend plus toute la mémoire** : chaque navigateur du rendu garde en
+  mémoire tous les plans de sa partie (environ 40 Mo par plan en 1080p), ce qui n'était pas compté.
+  Un montage de 3 minutes en 60 plans montait à plus de 3 Go par navigateur et bloquait la machine.
+  Les parties sont maintenant limitées en nombre de plans pour tenir dans la mémoire libre, et si
+  elle s'épuise quand même (autre programme ouvert), la partie en cours est refaite avec moins de
+  navigateurs au lieu de tout bloquer.
+- **Plus de navigateurs oubliés** : après un rendu arrêté ou interrompu, les navigateurs restaient
+  ouverts et gardaient leur mémoire ; ils sont fermés à la fin de chaque étape, au début du rendu
+  suivant et au lancement d'Auto-montage.
+
 ## 1.2
 
 - **Les premiers mots d'un moment ne se superposent plus** : après un silence, la transcription

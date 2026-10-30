@@ -144,27 +144,39 @@ interne : les changements attendent la prochaine version.
   `work/mode.txt`, propre à chaque montage (rangé avec lui par `project`, `moments_lib.app_mode` ;
   sans ce fichier : Auto-montage). L'interface locale prépare un nouveau rush en dérushage
   (`prepare --mode derush`, écrit pour un nouveau rush ; `--mode montage` avec des consignes
-  appliquées par Claude) ; « Valider le dérush » (page des moments, dérushage seulement) propose
+  appliquées par Claude quand le montage en cours est en auto-montage ; en dérushage, des consignes
+  écrites font choisir les moments par Claude, `jobs::prepare_plan`, étape « choix des moments
+  (Claude) », `claude_tasks::derush_instructions` : seulement work/suggestions.json) ; « Valider le dérush » (page des moments, dérushage seulement) propose
   « Télécharger derush » (« Générer », puis menu « Télécharger » ; « Générer la vidéo entière »,
   `#regen`, est caché en dérushage), ou passe à l'auto-montage
   (`POST /api/derush/valider`, tâche `derush` : use_selection, build_edit, `rust/src/derush_video.rs`
   (moments gardés d'edit.json mis bout à bout depuis le rush d'origine → `public/rushes/<rush>
   (dérush).mp4`, et `work/derush_segments.json` : un seul segment avec les mots gardés et corrigés,
   `derushWords` d'edit.json écrit en dérushage), `prepare --mode montage --transcription
-  work/derush_segments.json` (sans Whisper), make_moments : un seul moment ; le dérush reste dans
+  work/derush_segments.json` (sans Whisper), make_moments : un seul moment ; derush_video reprend la
+  préparation du rush dans `work/derush_suite/` (commun, `project.SHARED`) : version de travail
+  sortie du même passage (ou la vidéo du dérush elle-même, `-g 15`, si le rush est à la taille de
+  travail), `face.json` recalé (instant du rush le plus proche, `face_samples`), vignettes,
+  `locuteurs.json` et `spk` des mots (`add_speakers`) ; `prepare` les installe et saute copie,
+  visage et locuteurs ; le dérush reste dans
   « Montages »). Le serveur l'écrit sur `<html data-mode>`
   (`with_mode` de `local_server`) ; en dérushage, les parties marquées `data-mode-montage` sont
-  masquées (consignes, style, effets, son, cadrage ; pages Claude retirées du menu), la page des
+  masquées (style, effets, son, cadrage ; « Discuter avec Claude » retirée du menu ; consignes réduites
+  au choix des moments sur /rush/), la page des
   moments (`DERUSH`) ne montre que le choix et la coupe des moments, et les sous-titres (« Corriger »
   et piste « Sous-titres » de la frise du moment toujours là ; onglet « Paramètres sous-titres ») :
   case « Sous-titres » (cochée par défaut, `work/derush.json`, `moments_lib.derush_subtitles`, PUT
   `/api/derush`, `<html data-subtitles>` ; « Style des sous-titres », marqué `data-subtitles-only`,
-  seulement cochée). La préparation se fait sans Claude (discussion et analyse du style refusées), et `build_edit`
+  seulement cochée). La préparation se fait sans Claude, sauf consignes écrites pour choisir les moments (discussion et analyse du style refusées), et `build_edit`
   (`DERUSH`) ignore effets, voix, cadrage, son.json, zooms, rebond et karaoké, et les sous-titres
   si la case est décochée (choix gardés pour le mode Auto-montage). Une nouvelle partie liée aux effets ou à Claude
   doit recevoir `data-mode-montage`.
 - Bandeau et menu des pages de l'interface locale : `local/menu.js`, ajouté par
   `local_server` à toutes ses pages (liste `PAGES`) ; pas de liens de navigation dans les pages.
+  Pendant une tâche (`job` de `/api/status`, `jobs::job_brief`), le choix du mode est grisé (PUT `/api/mode`
+  refusé) ; les pages grisent de même, avec la raison au survol, les boutons dont l'action serait refusée
+  (tâche en cours, préparation en pause : `busyReason` de /rush/, `setJobBusy` / `lockBtn` de la page des
+  moments, `final_info` `busy` / `changed`).
   Il marque aussi les parties qui ont besoin de Claude Code (attribut `data-needs-claude`) :
   pastille « Nécessite Claude Code », grisées et `inert` sans connexion (`/api/status`).
   Bouton « Raccourcis » (à gauche de « Menu ») sur les pages qui déclarent `window.AM_RACCOURCIS`
@@ -176,11 +188,15 @@ interne : les changements attendent la prochaine version.
   « haut de la page » (`to-top`) en bas à droite.
 - Sous-titres : jusqu'à 6 mots sur 2 lignes par défaut, coupées là où les largeurs mesurées (multipliées
   par la taille de chaque ligne) sont les plus proches (`render_lib.caption_layout` et `captionLayout` de la
-  page des moments) ; nombre de lignes au plus (`lines`, 1 à 3, mots par sous-titre :
-  `fonts_lib.CAPTION_LIMITS` ; peu de mots, moins de lignes : la plus petite limite qui les contient,
-  `render_lib::caption_lines` et `captionLines` de la page) et taille de chaque ligne en % de la première (`lineSizes`), réglés sur la
-  page des moments et sur /rush/ ; sous-titre remonté s'il dépasse 40 px du bas. Style (police, graisse,
-  taille, majuscules, couleur, lignes) : `work/caption_style.json` (`rust/src/fonts_lib.rs` : polices
+  page des moments) ; nombre de lignes voulu (`lines`, champ libre de 1 à `fonts_lib::LINES_MAX` = 6 : au-delà,
+  l'essai de toutes les coupures devient trop long ; mots par sous-titre : `fonts_lib::caption_limits_for`,
+  3 mots et 12 lettres de plus par ligne ; sous-titre qui tient sur une ligne : une seule,
+  `render_lib::caption_lines` et `captionLines` de la page) et taille de chaque ligne en % de la première
+  (`lineSizes`, une par ligne possible), réglés sur la page des moments et sur /rush/. Position : `posX`, `posY`
+  (décalage depuis la place d'origine en % de la moitié de l'image, cercle de la page des moments comme celui de
+  l'ombre ; `fonts_lib::caption_position`), appliquée par `draw` du rendu et `placeCaption` de la page, sous-titre
+  gardé à 40 px des bords. Style (police, graisse,
+  taille, majuscules, couleur, lignes, position) : `work/caption_style.json` (`rust/src/fonts_lib.rs` : polices
   d'Auto-montage, de la machine de rendu via fontconfig, et `public/fonts/perso/`), copié par
   `build_edit` dans edit.json (`captionStyle`, police dans `public/fonts/choisie/`).
   Effets proposés sur la page des moments : `work/effets_page.json` (`hidden`, et `volume` de
@@ -208,7 +224,9 @@ interne : les changements attendent la prochaine version.
   le rendu (`render_hyperframes` : chaque plan dans `box<i>` / `zb<i>` dans `#look`) et l'aperçu de la page
   (lecteur ; transitions dans « Vidéo entière » avec deux canevas, image du moment précédent figée).
   Couleurs de tout le montage : `work/couleur.json` (température, teinte, exposition, contraste, hautes,
-  ombres, blancs, noirs, saturation, vibrance, look et intensité, vignette ; filtre SVG `am-couleur`),
+  ombres, blancs, noirs, saturation, vibrance, look et intensité, vignette ; filtre SVG `am-couleur` ; choisir
+  un look ou son intensité déplace les curseurs, `with_look` / `withLook`, le look ne garde à part que son virage
+  partiel, `"v": 2`, ancien fichier converti à la lecture),
   panneau « Couleurs », `/api/couleur`. Effet d'image d'un moment : effet visuel `filtre` (`effect` de
   `EFFECTS`, `at`, `dur`, `force`) → `looks` d'edit.json. Transitions entre moments (pas dans un moment) :
   `work/transitions.json` (`kind`, `dur`), panneau « Transitions », `/api/transitions`, ou `transition`
@@ -258,7 +276,7 @@ interne : les changements attendent la prochaine version.
   sur une frise : défilement (`wheelPan`) ; Ctrl + molette ou pincement : zoom (`setRushPps`,
   `setZoom`). Tête de lecture déplacée : l'autre frise se centre sur elle (`center`, `scrubFrom`) ;
   glissée dans les 5 % du bord de la frise du moment, celle-ci défile (`edgePan`). Moment ouvert :
-  lecteur à la taille qu'il a sans la frise du moment (`lockScreen`, la page s'allonge). Images : planches `work/moments/frames/sNNN.jpg` (une image toutes les
+  lecteur à la taille qu'il a sans la frise du moment (`lockScreen`, la page s'allonge) ; lecteur jamais plus haut que sa vidéo (`aspect-ratio` de `.screen-box`), et vidéo en largeur dans une fenêtre plus haute que large : inspecteur sous le lecteur (`.stage.paysage`, `--insp-h`). Images : planches `work/moments/frames/sNNN.jpg` (une image toutes les
   0,5 s, `moments_lib.timeline_strip`, DATA `strip`) ; forme d'onde : `timeline_wave` (DATA
   `wave`, 20 crêtes par seconde). Sélection Maj / Ctrl + clic (`pickMoment` : garder ou retirer
   d'un coup) ; clavier (modifiable, « Raccourcis ») : Espace, ← →, Maj + ← →, C (couper), Échap. Effets réglés dans
@@ -280,6 +298,14 @@ interne : les changements attendent la prochaine version.
   d'un cadre sur l'image du lecteur (`openFramer` : molette, pincement, glisser), losanges `kf`
   sur la frise du moment ; `build_edit` → `zoomFx` de type `key` (instants `a`, `b` du rush,
   sur tout le moment) ; `render_hyperframes` `draw` (`kz`), même calcul.
+- Redites sans Claude (`rust/src/redites.rs`, `./am redites [--essai]`) : mots de tout le rush à la
+  suite sans les « euh », reprise = la parole repart sur les mêmes mots (45 s au plus) ; bégaiement
+  (2 mots redits aussitôt), faux départ (3 mots repris, dont un plein, 1re prise arrêtée 8 mots
+  après au plus, sans fin de phrase avant), 1re prise entière (ressemblance 70 %) ; mots pleins de la
+  1re prise retrouvés dans la suivante (un de moins si elle n'est pas finie). `prepare` l'appelle après
+  la transcription : coupes aux bords des prises abandonnées dans `work/decoupage.json` (nouveau rush
+  seulement) ; `moments_lib.suggested_keep` retire sans Claude les moments entièrement abandonnés,
+  d'hésitations ou d'aparté, et avec Claude les parties coupées entièrement abandonnées.
 - Moments coupés (page des moments, interface locale : « Couper » de la barre d'outils,
   « Couper ici », touche C : deux moments séparés, avant le mot le plus proche de la tête de
   lecture ; « Recoller » défait la coupe ; pas de fusion de moments) : `work/decoupage.json`
@@ -308,9 +334,16 @@ interne : les changements attendent la prochaine version.
   de mémoire. HyperFrames extrait les images de chaque plan avec un ffmpeg par
   plan, tous à la fois : son ffmpeg est `rust/src/ffmpeg_limite.rs` (verrous flock, `EXTRACTIONS`
   à la fois, 2 en 4K ; délai de chaque ffmpeg porté à 6 h) ; cache d'extraction de HyperFrames coupé (`HYPERFRAMES_EXTRACT_CACHE_DIR=off` : il gardait dans /tmp les images de tout le montage pendant 1 h, disque plein), restes effacés (`place.extract_caches`). Long montage (plus de 3 min) : rendu par parties d'environ 2 min (`PART_SECONDS` = `memoire.RENDER_PART`), chaque partie dans sa propre page avec ses seuls plans (`build(m, k, part)`, temps décalé de `OFF` images), parties raccourcies (et navigateurs moins nombreux) si le disque ne suffit pas ; en 4K, aussi pour la mémoire (`memory_part` : chaque navigateur garde environ 4 Mo par image affichée, `CAPTURE_BYTES`, parties de 30 s au moins) ; images capturées envoyées à l'encodeur même à plusieurs navigateurs (`HF_CAPTURE_PARALLEL_STREAM`, sinon 18 Go sur le disque par partie en 4K) (`disk_part` : images extraites d'une partie, mémoire partagée des navigateurs écrite dans /tmp, vidéos rendues, dans 80 % du disque libre ; sinon arrêt avec un message), gardées dans `work/rendu_parties/<empreinte>_<image début>-<image fin>.mp4` (`parts_key` : edit.json, face.json, son.json, code du rendu) pour reprendre un rendu interrompu, puis `join_parts` (image copiée, son de chaque partie ramené à sa durée exacte). Navigateurs (plus de 1 Go chacun en
-  1080p) : `memoire.choose_workers`, un par cœur (8 au plus) tant que le besoin (mesures comprises)
-  tient dans 80 % de la mémoire libre (`RENDER_SHARE`), ligne « Navigateurs du
-  rendu : N » lue par `local_server` ; page prête en 15 min au plus. Transcription : `./am setup_whisper` (whisper.cpp 1.7.6
+  1080p, plus environ 40 Mo par plan de leur page, `memoire.CLIP_MB` par million de pixels) :
+  `memoire.render_plan`, un par cœur (8 au plus) avec des parties d'au moins `MIN_CLIPS` plans, et le plus
+  de plans par partie (`split_by_clips`, coupe au début d'un plan) que 80 % de la mémoire libre permet
+  (`RENDER_SHARE`, mesures comprises ; mémoire libre bornée par les cgroups du programme et de ses
+  parents), lignes « Navigateurs du rendu : N » et « Plans par partie du rendu : N » lues par
+  `local_server` ; pendant le rendu, mémoire libre sous 1 Go ou 8 % pendant 2 s : node et ses
+  navigateurs arrêtés, partie refaite avec moitié moins de navigateurs, puis coupée en deux (`halve`).
+  Les navigateurs ont leur propre session : marqués par `AM_RENDU_HYPERFRAMES=1` (`procs::kill_marked`),
+  arrêtés après chaque rendu, chaque étape, au début d'un rendu et au démarrage du serveur ; page prête
+  en 15 min au plus. Transcription : `./am setup_whisper` (whisper.cpp 1.7.6
   compilé pour le VAD et Whisper, modèles de Hugging Face, Parakeet en ONNX dans
   `parakeet-tdt-0.6b-v3/` à côté de whisper.cpp avec la bibliothèque ONNX Runtime de Microsoft dans
   `onnxruntime/`, chargée au lancement : crate `ort`, `rust/src/parakeet.rs`) ; `transcribe_segments` :
@@ -329,7 +362,10 @@ interne : les changements attendent la prochaine version.
   une fiche par sujet, sons et voix à écouter) ; captures et vidéos dans `local/tutoriel/`,
   tirées d'une intervention en 16:9 sous CC BY-SA (Wikimania 2023, Wikimedia Commons : crédit en
   bas de la page et `local/tutoriel/LICENCE.txt`, à garder) montée dans l'interface avec les
-  consignes citées dans l'onglet Claude. À refaire quand l'interface change beaucoup.
+  consignes citées dans l'onglet Claude. **À tenir à jour dans le même changement** : une
+  fonctionnalité ajoutée, changée ou retirée (bouton, réglage, page, effet, raccourci) met à jour ses
+  étapes ou fiches (`BASE`, `CLAUDE`, `DETAILS`, catalogues `VISUALS` / `SOUNDS` / `VOICES`) et retire
+  ce qui n'existe plus ; captures à refaire quand l'interface change beaucoup.
 - Format : celui du rush. `prepare` fait la version de travail aux proportions du rush, petit
   côté à 1080 (`moments_lib.work_size` : 1080x1920, 1920x1080, 1440x1080 en 4:3… ; `setsar=1` ;
   refaite si sa taille ne correspond plus) ; `build_edit` écrit `width`/`height` dans edit.json
@@ -363,7 +399,14 @@ interne : les changements attendent la prochaine version.
   `UNITS`), montrés par opération sous chaque étape de /rush/ (`job.ops`). Temps restant : `PLAN` et `RATES`
   (secondes par seconde de rush ou de montage), recalés sur la machine dans `work/timings.json`. Barre d'ensemble (`overall_progress`) : part de vidéo traitée de chaque opération, pesée par les
   durées prévues au début de la tâche (`step_weights`), jamais en recul ; seul le reste d'une étape hors
-  barres suit le temps passé (95 % au plus).
+  barres suit le temps passé (95 % au plus). Préparation : quand la carte graphique encode (`gpu::h264`), la copie
+  du rush en 1080p (`version_travail`) tourne pendant le son, la détection de la parole et la
+  transcription, le visage l'attend (`prepare`, `SideCopy` ; `AM_PARALLELE=1` ou `0` : toujours, ou
+  jamais ; par le processeur, pas de gain mesuré) ; lignes `@parallele <pid> <libellé>` et
+  `@parallele-fin <libellé>` (`progress::side_start`), `@fin-operation` avant l'attente : barre, durée
+  et mémoire (programme et enfants) comptées à part (`side` de la tâche ; `busy_update` : temps des
+  opérations sans double compte) ; temps restant : la plus longue des deux (`step_ops_left`,
+  `memoire::PARALLEL`, où les besoins de mémoire s'additionnent).
 - Connexion à Claude (/claude/) : `claude auth login` dans un pseudo-terminal (adresse
   d'autorisation renvoyée à la page, code collé transmis) ; état par `claude auth status`.
 - Mises à jour (/updates/) : `rust/src/update.rs` (check : versions publiées via l'API GitHub,

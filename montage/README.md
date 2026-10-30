@@ -33,7 +33,10 @@ npm i
    transcription par segment (`work/segments.json`).
 2. Claude peut écrire ses suggestions dans `work/suggestions.json`
    (`{"keep": [ids], "reasons": {"id": "aparté"}}`). Sans elles, la pré-sélection est
-   automatique : une phrase reprise juste après est une 1re prise, décochée.
+   automatique (`rust/src/redites.rs`) : prises abandonnées repérées au mot près (faux départs,
+   bégaiements, 1res prises reprises dans les 45 s), moments faits seulement de « euh » ou d'un
+   aparté (« attends, je recommence ») décochés ; `prepare` coupe les moments là où commence et
+   finit une prise abandonnée, pour ne retirer qu'elle (`./am redites --essai` : ce qui est repéré).
 3. `./am make_moments` génère la page `work/moments/index.html` (gabarit
    `selection/page.html`), un extrait vidéo et une vignette par moment, et une copie compressée
    de la version de travail (`out/montage_apercu.mp4`) avec la correspondance clip → moment.
@@ -66,7 +69,7 @@ npm i
    chaque moment, forme d'onde de la voix, case garder / retirer, poignées pour raccourcir le
    début ou la fin du moment choisi), et frise du moment choisi dessous (ses effets et ses sous-titres mot à mot
    s'il en a, et une ligne de coupe ; règle : image et mot à
-   l'instant choisi, « ‹ › » ou ← → une image, zoom jusqu'à ×16 pour placer chaque image à la
+   l'instant choisi, « ‹ › » ou ← → une image, zoom ×2 par pas, au moins jusqu'à ×16 et jusqu'à environ 4 s sur toute la largeur, pour placer chaque image à la
    souris) ; puis « Couper ici » découpe un moment en parties à garder ou retirer une à une
    (étiquette de chaque partie sur la ligne de coupe), par exemple pour retirer une
    répétition que la transcription n'a pas écrite. La coupe tombe sur l'image choisie (positions
