@@ -12,6 +12,11 @@ installateurs (voir `packaging/README.md`).
   effacés, et Auto-montage revient à son état de départ, prêt pour un nouveau rush ; la vidéo
   envoyée reste, à supprimer à part si besoin. Jusqu'ici, seul un montage mis de côté pouvait être
   supprimé : le dernier restait sur le disque.
+- **Temps restant montré seulement quand il est fiable** : tant que l'ordinateur n'a pas fait une
+  étape (préparation du rush, page des moments, rendu, 4K, export…) au moins trois fois, sa barre
+  montre l'avancement sans « encore ~N min », et la création de la 4K ou l'analyse des vidéos
+  d'exemple ne donne pas de durée prévue. Les estimations du début étaient souvent très loin du
+  temps réel ; elles apparaissent dès que la machine a mesuré sa propre vitesse.
 
 ## 1.3
 

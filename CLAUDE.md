@@ -399,7 +399,7 @@ interne : les changements attendent la prochaine version.
   `@progression <fait> <total> <libellé>` (`rust/src/progress.rs`, aussi pour suivre un ffmpeg) ;
   `local_server` les lit. Fait et total en secondes de vidéo (rush, ou montage pour le rendu :
   `UNITS`), montrés par opération sous chaque étape de /rush/ (`job.ops`). Temps restant : `PLAN` et `RATES`
-  (secondes par seconde de rush ou de montage), recalés sur la machine dans `work/timings.json`. Barre d'ensemble (`overall_progress`) : part de vidéo traitée de chaque opération, pesée par les
+  (secondes par seconde de rush ou de montage), recalés sur la machine dans `work/timings.json` ; temps restant (et durées prévues de la 4K et de l'analyse du style) montré seulement pour les étapes réussies au moins `MIN_SAMPLES` = 3 fois hors reprises (`work/timings_mesures.json`, `count_samples`, `measured`), sinon `null`. Barre d'ensemble (`overall_progress`) : part de vidéo traitée de chaque opération, pesée par les
   durées prévues au début de la tâche (`step_weights`), jamais en recul ; seul le reste d'une étape hors
   barres suit le temps passé (95 % au plus). Préparation : quand la carte graphique encode (`gpu::h264`), la copie
   du rush en 1080p (`version_travail`) tourne pendant le son, la détection de la parole et la

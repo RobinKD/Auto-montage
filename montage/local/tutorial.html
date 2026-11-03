@@ -106,7 +106,7 @@
   const BASE = [
     { title: "Préparer un rush", where: "Menu > Rushes et montages",
       html: `<p>Choisissez la vidéo filmée (ou plusieurs, si la caméra s'est coupée : elles sont assemblées dans l'ordre) et la <b>langue parlée</b> (français ou anglais), puis <b>Préparer ce rush</b>. Avant de commencer, la page dit combien de mémoire la préparation demandera.</p>
-        <p>Auto-montage prépare une copie du rush en 1080p, écrit ce qui est dit (transcription), repère les visages et qui parle, et découpe la vidéo en <b>moments</b> (une phrase chacun). Comptez moins que la durée du rush ; la barre montre l'avancement et le temps restant. <b>Mettre en pause</b> arrête en gardant ce qui est fait (<b>Reprendre la préparation</b> repart de là, même après avoir éteint l'ordinateur), <b>Annuler</b> arrête tout.</p>`,
+        <p>Auto-montage prépare une copie du rush en 1080p, écrit ce qui est dit (transcription), repère les visages et qui parle, et découpe la vidéo en <b>moments</b> (une phrase chacun). Comptez moins que la durée du rush ; la barre montre l'avancement, et le temps restant une fois que l'ordinateur a fait chaque étape au moins trois fois (avant, il ne connaît pas encore sa vitesse). <b>Mettre en pause</b> arrête en gardant ce qui est fait (<b>Reprendre la préparation</b> repart de là, même après avoir éteint l'ordinateur), <b>Annuler</b> arrête tout.</p>`,
       media: [{ img: "rush-video.jpg", caption: "Choisir une ou plusieurs vidéos" }, { img: "rush-preparation.jpg", caption: "La préparation en cours" }] },
     { title: "Choisir les moments", where: "Menu > Page des moments",
       html: `<p>Chaque moment est une phrase. Les moments cochés forment la vidéo ; Auto-montage décoche déjà les <b>premières prises</b> (une phrase redite juste après) et les ratés.</p>
@@ -294,7 +294,7 @@
     { id: "lecture", title: "Lecture, génération et téléchargement", where: "Page des moments ; menu > Téléchargements",
       html: `<ul><li>Onglets du lecteur : <b>Vidéo entière</b> (les moments gardés bout à bout, en direct, avec leurs réglages actuels) et <b>Moment</b> (l'aperçu habillé du moment choisi). Les boutons <b>−</b> et <b>+</b> reculent et avancent d'une image.</li>
         <li><b>Plein écran</b> : <kbd>Espace</kbd> ou un clic pour lecture et pause, barre de lecture en bas, <kbd>Échap</kbd> pour sortir.</li>
-        <li><b>Générer la vidéo entière</b> monte la vidéo avec vos choix. Deux barres montrent l'étape en cours et l'ensemble, avec le temps restant. <b>Annuler</b> garde la version précédente.</li>
+        <li><b>Générer la vidéo entière</b> monte la vidéo avec vos choix. Deux barres montrent l'étape en cours et l'ensemble, avec le temps restant après trois générations sur cet ordinateur. <b>Annuler</b> garde la version précédente.</li>
         <li><b>Télécharger</b> : 720p (léger, pour partager), 1080p, ou <b>création de la 4K</b> finale, plus longue à créer ; aussi les <b>sous-titres</b> en fichiers SRT et WebVTT, pour les ajouter sur YouTube ou dans un autre logiciel.</li>
         <li><b>Pour une plateforme</b> (menu « Télécharger ») : une copie au format, au débit et au volume de YouTube, Shorts, TikTok, Instagram (Reels, fil 4:5, carré), Facebook, LinkedIn, X ou Vimeo. Un format différent du montage garde toute l'image, sur un fond flou ; une vidéo trop longue pour la plateforme est signalée.</li></ul>` },
     { id: "montages", title: "Montages, journal et mises à jour", where: "Rushes et montages > Montages ; menu > Journal, Mises à jour",

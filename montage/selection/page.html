@@ -3769,7 +3769,8 @@ ${HFAudio.voiceElements(spec)}
 
   // Avancement d'une génération locale (/api/job) : barre de l'opération en cours (rendu,
   // découpage des moments…) et de l'ensemble, avec le temps restant estimé.
-  // Temps restant estimé par le serveur (durée du rush, vitesse mesurée de la machine).
+  // Temps restant estimé par le serveur (durée du rush, vitesse mesurée de la machine) ; absent
+  // tant que l'étape n'a pas été mesurée au moins 3 fois sur cette machine (jobs::MIN_SAMPLES).
   const remaining = (s) => {
     if (typeof s !== "number" || !isFinite(s)) return "";
     return s < 60 ? " · moins d'une minute" : ` · encore ~${Math.round(s / 60)} min`;
@@ -4571,6 +4572,8 @@ ${HFAudio.voiceElements(spec)}
   // Interface locale : « Télécharger » ouvre le choix de la qualité (720p, 1080p, 4K) ; la 4K
   // se crée à la demande (source 4K + rendu final, long), avec la barre d'avancement.
   const minutes = (s) => (s < 90 ? "1 à 2 min" : `environ ${Math.round(s / 60)} min`);
+  // Durée prévue (absente tant que la machine n'a pas mesuré ces étapes au moins 3 fois).
+  const took = (s) => (typeof s === "number" ? ` (${minutes(s)} sur cet ordinateur)` : "");
   async function openDownloadMenu() {
     const menu = $("dl-menu");
     const data = await fetch("/api/downloads", { cache: "no-store" }).then((r) => r.json()).catch(() => null);
@@ -4614,7 +4617,7 @@ ${HFAudio.voiceElements(spec)}
         hint.className = "hint";
         hint.style.flexBasis = "100%";
         hint.textContent = f.available
-          ? `La création de la 4K prend du temps (${minutes(f.estimate || 0)} sur cet ordinateur) : l'avancement s'affiche sous la sélection, et la page reste utilisable.`
+          ? `La création de la 4K prend du temps${took(f.estimate)} : l'avancement s'affiche sous la sélection, et la page reste utilisable.`
           : "Générez d'abord la vidéo entière.";
         row.append(hint);
       } else {
@@ -4717,7 +4720,7 @@ ${HFAudio.voiceElements(spec)}
   async function createFinal(btn, estimate) {
     const n = changedSinceWork;
     const stale = n ? `${n} moment${n > 1 ? "s ont" : " a"} changé depuis la dernière vidéo entière : la 4K sera faite sans ${n > 1 ? "ces changements" : "ce changement"}. Pour ${n > 1 ? "les" : "l'"}inclure, générez d'abord la vidéo entière.\n\n` : "";
-    if (!confirm(`${stale}Créer la version 4K${n ? " quand même" : ""} ? Cela prend du temps (${minutes(estimate || 0)} sur cet ordinateur). Vous pourrez continuer à utiliser la page pendant ce temps.`)) return;
+    if (!confirm(`${stale}Créer la version 4K${n ? " quand même" : ""} ? Cela prend du temps${took(estimate)}. Vous pourrez continuer à utiliser la page pendant ce temps.`)) return;
     btn.disabled = true;
     const r = await fetch("/api/final", { method: "POST" });
     if (!r.ok) { setStatus((await r.json().catch(() => ({}))).error || `erreur ${r.status}`, "err"); btn.disabled = false; return; }

@@ -339,7 +339,8 @@
     $("instructions-text").placeholder = "Par exemple : garde seulement les 3 conseils, retire le passage sur le budget, préfère les prises les plus courtes…";
     $("apply-instructions").nextSibling.textContent = " Choisir les moments avec Claude d'après ces consignes pendant la préparation";
   }
-  // Temps restant estimé par le serveur (durée du rush, vitesse mesurée de la machine).
+  // Temps restant estimé par le serveur (durée du rush, vitesse mesurée de la machine) ; absent
+  // tant que l'étape n'a pas été mesurée au moins 3 fois sur cette machine (jobs::MIN_SAMPLES).
   const remaining = (s) => {
     if (typeof s !== "number" || !isFinite(s)) return "";
     return s < 60 ? " · moins d'une minute" : ` · encore ~${Math.round(s / 60)} min`;
@@ -1298,7 +1299,7 @@
     lockAnalyse();
     $("analyse-style").textContent = a.result ? "Relancer l'analyse" : "Analyser les vidéos d'exemple";
     $("analyse-estimate").textContent = a.videos.length
-      ? `${a.videos.length} vidéo${a.videos.length > 1 ? "s" : ""} (${Math.round(a.seconds)} s) : ${minutes(a.estimate)} · nécessite Claude Code`
+      ? `${a.videos.length} vidéo${a.videos.length > 1 ? "s" : ""} (${Math.round(a.seconds)} s)${typeof a.estimate === "number" ? ` : ${minutes(a.estimate)}` : ""} · nécessite Claude Code`
       : "Ajoutez d'abord une vidéo d'exemple.";
     const box = $("analyse");
     box.replaceChildren();
