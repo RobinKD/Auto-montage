@@ -1521,6 +1521,7 @@ ${HFAudio.voiceElements(spec)}
   function drawOverlay() {
     if ((mode !== "moment" && mode !== "live") || !fx) return;
     if (mode === "live" && liveFollow()) { cancelAnimationFrame(ovFrame); ovFrame = requestAnimationFrame(drawOverlay); return; }
+    if (mode === "live") liveRelease();
     const t = player.currentTime;
     // Moment raccourci (poignées) : la lecture s'arrête à la fin gardée.
     if (mode === "moment" && !player.paused && isTrimmed(fx.m) && t >= trimOf(fx.m).out) player.pause();
@@ -1626,7 +1627,7 @@ ${HFAudio.voiceElements(spec)}
   // (comme draw et look du rendu, render_hyperframes) ; pendant une transition de la vidéo
   // entière en direct, les deux plans sont dessinés dans les canevas tr-out (dernière image du
   // moment précédent) et tr-in (le lecteur), avec les styles de HFLook.transitionStyles.
-  let zoomNow = { s: 1, ox: 0.5, oy: 0.5, tx: 0, ty: 0 }, liveTr = null;
+  let zoomNow = { s: 1, ox: 0.5, oy: 0.5, tx: 0, ty: 0 }, liveTr = null, lookFlip = null;
   const zoomCss = (z, flip) => (flip ? `translate(${(flip[0] < 0 ? 1 - 2 * z.ox : 0) * 100}%, ${(flip[1] < 0 ? 1 - 2 * z.oy : 0) * 100}%) scale(${flip[0]}, ${flip[1]}) ` : "")
     + `translate(${z.tx}%, ${z.ty}%) scale(${z.s})`;
   function drawZoomed(cv, z) {  // image du lecteur avec le zoom z, comme la transformation CSS
@@ -1648,6 +1649,7 @@ ${HFAudio.voiceElements(spec)}
     if (svg !== defsKey) { defsKey = svg; $("amdefs").innerHTML = svg; }
     const filter = DERUSH ? "" : [colorF.css, L ? L.css : ""].filter(Boolean).join(" ");
     const flip = L && L.flip;
+    lookFlip = flip || null;
     const vg = $("ov-vign"), fo = $("ov-fx");
     vg.hidden = DERUSH || !colorF.vignette; vg.style.background = colorF.vignette || "";
     fo.hidden = !(L && L.over); fo.style.cssText = L && L.over ? L.over : "";
@@ -1685,12 +1687,39 @@ ${HFAudio.voiceElements(spec)}
   }
   function endLiveTr() {
     liveTr = null;
-    for (const id of ["tr-out", "tr-in"]) { const cv = $(id); cv.hidden = true; if (LOOK) LOOK.applyStyle(cv, null); }
+    for (const id of ["tr-out", "tr-in"]) { const cv = $(id); if (!(live.hold && id === "tr-out")) cv.hidden = true; if (LOOK) LOOK.applyStyle(cv, null); }
+    if (live.hold) holdStyle($("tr-out"));
     $("ov-tr").hidden = true;
+    player.style.opacity = live.hold ? "0" : "";
+  }
+  // Passage d'un extrait à l'autre (vidéo entière) : changer la source du lecteur l'efface (image
+  // noire) jusqu'à ce que la nouvelle image soit décodée. La dernière image du moment précédent
+  // reste donc affichée dans tr-out (comme pour une transition) jusqu'à ce que le lecteur montre
+  // la première image du moment suivant (live.hold, levée par liveRelease).
+  function holdStyle(cv) {
+    cv.style.filter = player.style.filter;
+    cv.style.transform = lookFlip ? `scale(${lookFlip[0]}, ${lookFlip[1]})` : "";
+  }
+  function liveHoldFrame() {
+    if (player.readyState < 2 || !player.videoWidth) return;
+    const cv = $("tr-out");
+    drawZoomed(cv, DERUSH ? { s: 1, ox: 0.5, oy: 0.5, tx: 0, ty: 0 } : zoomNow);
+    if (LOOK) LOOK.applyStyle(cv, null);
+    holdStyle(cv);
+    cv.hidden = false;
+    player.style.opacity = "0";
+    live.hold = { ready: false };
+  }
+  function liveRelease() {
+    if (!live.hold || !live.hold.ready || live.pending !== null) return;
+    live.hold = null;
+    if (liveTr) return;  // la transition en cours garde tr-out et le lecteur à sa main (drawLook)
+    $("tr-out").hidden = true;
     player.style.opacity = "";
   }
   function resetOverlay() {
     setVoice(null);
+    live.hold = null;
     endLiveTr();
     player.style.transform = "";
     player.style.filter = "";
@@ -1707,7 +1736,9 @@ ${HFAudio.voiceElements(spec)}
   // parole réduits à leur partie gardée). Recalculée à chaque image : un moment coché, retiré,
   // découpé ou réglé se voit tout de suite. live.id : moment en cours (le temps est celui du
   // lecteur, dans son extrait).
-  const live = { id: null, ended: false, pending: null, T: 0 };  // T : position gardée en quittant l'onglet
+  // T : position gardée en quittant l'onglet ; hold : dernière image du moment précédent affichée
+  // pendant le chargement du suivant (liveHoldFrame).
+  const live = { id: null, ended: false, pending: null, T: 0, hold: null };
   function liveSpans(m) {
     const [a, b] = speechSpan(m);
     return isKept(m) && b - a >= 0.1 ? [[a, b]] : [];
@@ -1747,17 +1778,30 @@ ${HFAudio.voiceElements(spec)}
     }
     if (same) {
       live.pending = null;
+      if (live.hold) live.hold.ready = true;
       player.currentTime = t;
       if (!play) player.pause(); else if (player.paused) player.play().catch(() => {});
       return;
     }
+    if (!live.hold && player.getAttribute("src")) liveHoldFrame();
     live.pending = t;
     player.src = m.clip;
-    player.addEventListener("loadedmetadata", () => {
-      if (mode !== "live" || live.id !== m.id) return;
-      player.currentTime = live.pending ?? t;
+    // Lecture relancée seulement quand l'image de départ est décodée (seeked), et image figée levée
+    // quand le lecteur l'a vraiment affichée (requestVideoFrameCallback, sinon peu après).
+    const src = player.src, here = () => mode === "live" && live.id === m.id && player.src === src;
+    const shown = () => { const h = live.hold; if (h && here()) h.ready = true; };
+    const ready = () => {
+      if (!here() || live.pending === null) return;
       live.pending = null;
       if (play) player.play().catch(() => {});
+      if (player.requestVideoFrameCallback) player.requestVideoFrameCallback(shown);
+      setTimeout(shown, player.requestVideoFrameCallback ? 400 : 60);
+    };
+    player.addEventListener("loadedmetadata", () => {
+      if (!here() || live.pending === null) return;
+      player.addEventListener("seeked", ready, { once: true });
+      player.currentTime = live.pending;
+      setTimeout(ready, 3000);  // seeked jamais reçu : ne pas rester bloqué
     }, { once: true });
     // Extrait suivant chargé d'avance : le passage d'un moment à l'autre attend moins.
     const plan = livePlan(), k = plan.list.indexOf(plan.list.find((x) => x.m === m && x.a === e.a));

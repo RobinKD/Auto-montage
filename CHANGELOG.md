@@ -52,6 +52,11 @@ installateurs (voir `packaging/README.md`).
   de swap). Tous leurs processus sont maintenant arrêtés. Le rendu se règle aussi sur la mémoire
   vraiment prise (celle de la carte graphique intégrée comprise) et sur le swap qui se remplit, pour
   ouvrir moins de navigateurs la fois suivante.
+- **Plus d'écran noir entre deux moments dans « Vidéo entière »** : sur la page des moments, la
+  lecture des moments bout à bout clignotait souvent en noir au passage d'un moment au suivant (le
+  temps que le lecteur charge l'extrait suivant). La dernière image du moment qui finit reste
+  maintenant affichée jusqu'à ce que la première image du suivant soit prête, et la lecture ne
+  repart qu'à ce moment-là. La vidéo générée n'avait pas ce défaut.
 
 ## 1.3
 
