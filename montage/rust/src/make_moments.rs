@@ -380,6 +380,9 @@ fn run() -> Result<(), String> {
                 if w.get("p").and_then(Value::as_f64).unwrap_or(1.0) < DOUBT && fixes.get(i.to_string()).is_none() {
                     o["d"] = json!(1);
                 }
+                if truthy(w.get("cut")) {
+                    o["cut"] = json!(1); // début d'un moment du dérush validé : un sous-titre commence ici
+                }
                 if let Some(k) = w.get("spk").filter(|k| k.is_i64()) {
                     o["s"] = k.clone(); // locuteur du mot (diarize)
                 }

@@ -8,6 +8,7 @@
 //! Usage : auto-montage project save            met de côté le montage en cours
 //!         auto-montage project open <dossier>   rouvre un montage (l'actuel est mis de côté)
 //!         auto-montage project delete <dossier> supprime un montage enregistré
+//!         auto-montage project delete_current   supprime le montage en cours (même s'il est le seul)
 //!         auto-montage project list             montages enregistrés (JSON)
 //! prepare appelle « save » quand le rush change ; la page « Nouveau rush » (interface locale)
 //! appelle les autres.
@@ -29,6 +30,7 @@ use std::sync::LazyLock;
 const USAGE: &str = "Usage : auto-montage project save            met de côté le montage en cours
         auto-montage project open <dossier>   rouvre un montage (l'actuel est mis de côté)
         auto-montage project delete <dossier> supprime un montage enregistré
+        auto-montage project delete_current   supprime le montage en cours (même s'il est le seul)
         auto-montage project list             montages enregistrés (JSON)";
 
 /// Fichiers de work/ communs à tous les rushes : jamais déplacés.
@@ -37,10 +39,10 @@ const USAGE: &str = "Usage : auto-montage project save            met de côté 
 /// tache.json et reprise : préparation en cours ou en pause (local_server) : jamais rangée.
 /// derush_suite : ce que la préparation du rush passe à celle de la vidéo du dérush (derush_video).
 /// Le mode (mode.txt : dérushage ou auto-montage) est propre à chaque montage : rangé avec lui.
-pub const SHARED: [&str; 21] = [
+pub const SHARED: [&str; 22] = [
     "projets", "local_db", "timings.json", "models", "regen_trigger.txt", "instructions.md", "instructions.name", "langue.txt",
     "derush.json", "style", "logs", "sauvegardes", "caption_style_default.json", "effets_page.json", "tutoriel_vu", "rendu_hyperframes",
-    "rendu_parties", "memoire_mesures.json", "tache.json", "reprise", "derush_suite",
+    "rendu_parties", "memoire_mesures.json", "timings_mesures.json", "tache.json", "reprise", "derush_suite",
 ];
 /// Hors de work/ : déplacés (lourds) ou copiés (suivis par git, restent en place).
 pub const MOVED: [&str; 8] = [
@@ -343,6 +345,39 @@ pub fn delete(name: &str) -> Result<String, String> {
     Ok(format!("Montage {name} supprimé"))
 }
 
+/// Rush du montage en cours (nom du fichier), ou None s'il n'y en a pas.
+pub fn current() -> Option<String> {
+    let rush = read(&paths::work().join("rush.txt")).filter(|r| !r.trim().is_empty())?;
+    Path::new(rush.trim()).file_name().map(|n| n.to_string_lossy().into_owned())
+}
+
+/// Ce que la suppression du montage en cours effacerait (comme save le range, puis delete) :
+/// fichiers de work/ propres au rush, vidéos de MOVED, choix de la page.
+pub fn current_paths() -> Vec<PathBuf> {
+    let root = paths::root();
+    let work = paths::work();
+    let mut out: Vec<PathBuf> = util::list_dir(&work).into_iter().filter(|e| !SHARED.contains(&e.as_str())).map(|e| work.join(e)).collect();
+    out.extend(MOVED.iter().map(|r| rel(&root, r)).filter(|p| lexists(p)));
+    if let Some(rush) = read(&work.join("rush.txt")) {
+        out.extend(page_docs(rush.trim()).into_iter().map(|(c, f)| work.join("local_db").join(c).join(f)));
+    }
+    out
+}
+
+/// Supprime le montage en cours, même quand c'est le seul : il est rangé comme par save (vidéos
+/// du dernier rendu effacées), puis effacé, avec les parties d'un rendu interrompu. Auto-montage
+/// revient à l'état sans montage ouvert (la page des moments renvoie vers « Rushes et montages ») ;
+/// la vidéo envoyée reste dans public/rushes, les montages enregistrés et les fichiers communs aussi.
+pub fn delete_current() -> Result<String, String> {
+    let Some(rush) = current() else { return Err("Aucun montage en cours.".into()) };
+    let Some((name, _)) = save()? else { return Err("Aucun montage en cours.".into()) };
+    fs::remove_dir_all(store().join(&name)).map_err(err)?;
+    for part in crate::place::render_parts() {
+        util::remove_all(&part);
+    }
+    Ok(format!("Montage de {rush} supprimé"))
+}
+
 /// Montages enregistrés, du plus récent au plus ancien (projet.json + id, rushPresent, thumb).
 pub fn listing() -> Vec<Value> {
     let mut out: Vec<Value> = vec![];
@@ -367,6 +402,7 @@ pub fn main(args: &[String]) -> i32 {
         ("save", _) => save().map(|r| r.map(|(_, m)| m).unwrap_or_default()),
         ("open", 2) => open_project(&args[1]),
         ("delete", 2) => delete(&args[1]),
+        ("delete_current", 1) => delete_current(),
         ("list", _) => Ok(pyjson::dumps_with(&Value::Array(listing()), pyjson::Opts { indent: Some(1), ensure_ascii: false, sort_keys: false })),
         _ => Err(USAGE.to_string()),
     };

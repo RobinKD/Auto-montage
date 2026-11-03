@@ -106,7 +106,7 @@
   const BASE = [
     { title: "Préparer un rush", where: "Menu > Rushes et montages",
       html: `<p>Choisissez la vidéo filmée (ou plusieurs, si la caméra s'est coupée : elles sont assemblées dans l'ordre) et la <b>langue parlée</b> (français ou anglais), puis <b>Préparer ce rush</b>. Avant de commencer, la page dit combien de mémoire la préparation demandera.</p>
-        <p>Auto-montage prépare une copie du rush en 1080p, écrit ce qui est dit (transcription), repère les visages et qui parle, et découpe la vidéo en <b>moments</b> (une phrase chacun). Comptez moins que la durée du rush ; la barre montre l'avancement et le temps restant. <b>Mettre en pause</b> arrête en gardant ce qui est fait (<b>Reprendre la préparation</b> repart de là, même après avoir éteint l'ordinateur), <b>Annuler</b> arrête tout.</p>`,
+        <p>Auto-montage prépare une copie du rush en 1080p, écrit ce qui est dit (transcription), repère les visages et qui parle, et découpe la vidéo en <b>moments</b> (une phrase chacun). Comptez moins que la durée du rush ; la barre montre l'avancement, et le temps restant une fois que l'ordinateur a fait chaque étape au moins trois fois (avant, il ne connaît pas encore sa vitesse). <b>Mettre en pause</b> arrête en gardant ce qui est fait (<b>Reprendre la préparation</b> repart de là, même après avoir éteint l'ordinateur), <b>Annuler</b> arrête tout.</p>`,
       media: [{ img: "rush-video.jpg", caption: "Choisir une ou plusieurs vidéos" }, { img: "rush-preparation.jpg", caption: "La préparation en cours" }] },
     { title: "Choisir les moments", where: "Menu > Page des moments",
       html: `<p>Chaque moment est une phrase. Les moments cochés forment la vidéo ; Auto-montage décoche déjà les <b>premières prises</b> (une phrase redite juste après) et les ratés.</p>
@@ -118,7 +118,7 @@
       media: [{ img: "moments.jpg", caption: "La page des moments : lecteur, inspecteur, et les frises en bas" }] },
     { title: "Valider le dérush", where: "Page des moments > Valider le dérush",
       html: `<p>Un nouveau rush s'ouvre en <b>dérushage</b> : on n'y fait que choisir et couper les moments, et corriger les sous-titres (case « Sous-titres » pour les garder ou non). Une fois le tri fait, <b>Valider le dérush</b> propose :</p>
-        <ul><li><b>Télécharger derush</b> : les moments gardés mis bout à bout, sans effets ;</li>
+        <ul><li><b>Télécharger derush</b> : les moments gardés mis bout à bout, sans effets, dans la <b>qualité choisie</b> juste en dessous (720p légère, 1080p, ou 4K, plus longue à créer) ; la vidéo se télécharge d'elle-même à la fin ;</li>
         <li>ou de <b>passer à l'auto-montage</b> : les moments gardés deviennent une seule vidéo, un seul moment avec vos sous-titres corrigés, sur laquelle on ajoute effets, son, couleurs et transitions (étapes suivantes). Le dérush reste dans « Montages ».</li></ul>
         <p>En tête du menu, <b>Dérushage</b> / <b>Auto-montage</b> change de mode à tout moment.</p>` },
     { title: "Ajouter des effets", where: "Page des moments, sur chaque moment",
@@ -140,6 +140,7 @@
       media: [{ video: "demo-montage.mp4", caption: "Le début du montage : intro tapée, puis sous-titres" }, { img: "telecharger.jpg", caption: "Téléchargements" }] },
     { title: "Retrouver ses montages, et en cas de souci", where: "Rushes et montages > Montages ; menu > Journal, Mises à jour",
       html: `<ul><li>Préparer un autre rush met le montage en cours de côté : <b>Rouvrir</b> le reprend tel quel, sans rien recalculer.</li>
+        <li><b>Supprimer</b> efface un montage, y compris celui en cours (même s'il est le seul) : Auto-montage revient alors à son état de départ.</li>
         <li><b>Libérer de la place</b> (en bas de « Rushes et montages ») liste les montages, rushes et vidéos qui prennent de la place, à supprimer.</li>
         <li>Le <b>Journal</b> garde le détail de chaque tâche ; « Télécharger le rapport » le regroupe pour demander de l'aide.</li>
         <li><b>Mises à jour</b> installe les nouvelles versions en un clic (vos montages sont gardés).</li></ul>` },
@@ -225,7 +226,7 @@
         <li>Un bouton grisé dit pourquoi au survol : une tâche est déjà en cours (génération, 4K, préparation…), aucun moment n'est gardé, ou la vidéo entière n'est pas encore générée.</li>
         <li><b>Annuler</b> / <b>Rétablir</b> (en haut, <kbd>Ctrl</kbd>+<kbd>Z</kbd> et <kbd>Ctrl</kbd>+<kbd>Maj</kbd>+<kbd>Z</kbd>) défont et refont les 50 derniers changements : cases, coupes, textes, effets, réglages de tout le montage.</li>
         <li>Une pastille jaune <b>Modifié</b> marque un moment changé depuis la dernière vidéo générée (au survol : ce qui a changé), avec un point jaune sur la frise du rush.</li>
-        <li>Un nouveau rush commence en <b>dérushage</b> : couper, choisir les moments, corriger les sous-titres. <b>Valider le dérush</b> (en haut) propose <b>Télécharger derush</b> (la vidéo des moments gardés), ou passe à l'auto-montage (effets, son, Claude) : les moments gardés deviennent une seule vidéo, un seul moment avec vos sous-titres corrigés, et le dérush reste dans « Montages » (page « Rushes et montages »).</li>
+        <li>Un nouveau rush commence en <b>dérushage</b> : couper, choisir les moments, corriger les sous-titres. <b>Valider le dérush</b> (en haut) propose <b>Télécharger derush</b> (la vidéo des moments gardés, en 720p, 1080p ou 4K au choix), ou passe à l'auto-montage (effets, son, Claude) : les moments gardés deviennent une seule vidéo, un seul moment avec vos sous-titres corrigés, et le dérush reste dans « Montages » (page « Rushes et montages »).</li>
         <li>Pendant la lecture de la vidéo entière, le moment en cours est encadré de jaune sur la frise, avec la tête de lecture ; « Dans la vidéo générée » marque, dans l'inspecteur, les moments présents dans la dernière vidéo générée.</li>
         <li><b>Variante</b> : <b>Nouvelle variante</b> garde une autre sélection du même rush (une courte, une longue…). On passe de l'une à l'autre par la liste, et « Générer » monte celle qui est affichée.</li></ul>` },
     { id: "decoupe", title: "Couper à l'image près", where: "Page des moments, frise du moment",
@@ -293,7 +294,7 @@
     { id: "lecture", title: "Lecture, génération et téléchargement", where: "Page des moments ; menu > Téléchargements",
       html: `<ul><li>Onglets du lecteur : <b>Vidéo entière</b> (les moments gardés bout à bout, en direct, avec leurs réglages actuels) et <b>Moment</b> (l'aperçu habillé du moment choisi). Les boutons <b>−</b> et <b>+</b> reculent et avancent d'une image.</li>
         <li><b>Plein écran</b> : <kbd>Espace</kbd> ou un clic pour lecture et pause, barre de lecture en bas, <kbd>Échap</kbd> pour sortir.</li>
-        <li><b>Générer la vidéo entière</b> monte la vidéo avec vos choix. Deux barres montrent l'étape en cours et l'ensemble, avec le temps restant. <b>Annuler</b> garde la version précédente.</li>
+        <li><b>Générer la vidéo entière</b> monte la vidéo avec vos choix. Deux barres montrent l'étape en cours et l'ensemble, avec le temps restant après trois générations sur cet ordinateur. <b>Annuler</b> garde la version précédente.</li>
         <li><b>Télécharger</b> : 720p (léger, pour partager), 1080p, ou <b>création de la 4K</b> finale, plus longue à créer ; aussi les <b>sous-titres</b> en fichiers SRT et WebVTT, pour les ajouter sur YouTube ou dans un autre logiciel.</li>
         <li><b>Pour une plateforme</b> (menu « Télécharger ») : une copie au format, au débit et au volume de YouTube, Shorts, TikTok, Instagram (Reels, fil 4:5, carré), Facebook, LinkedIn, X ou Vimeo. Un format différent du montage garde toute l'image, sur un fond flou ; une vidéo trop longue pour la plateforme est signalée.</li></ul>` },
     { id: "montages", title: "Montages, journal et mises à jour", where: "Rushes et montages > Montages ; menu > Journal, Mises à jour",
@@ -301,7 +302,8 @@
         <li>Une longue tâche (préparation, génération, 4K) s'annule à tout moment ; les fichiers à moitié écrits sont effacés. Pendant qu'elle tourne, ce qui en lancerait une autre est grisé (générer, couper, créer la 4K, mettre à jour, changer de mode, rouvrir un montage), avec la raison au survol.</li>
         <li>Une préparation se met en <b>pause</b> et se reprend plus tard, même après un arrêt ou une erreur. <b>Abandonner…</b> liste ce qui est déjà fait : une partie décochée est gardée pour la prochaine préparation du même rush.</li>
         <li><b>Mémoire</b> : avant de préparer et au début de chaque étape, la page prévient si la mémoire libre est juste ou insuffisante (les estimations s'affinent avec les préparations faites sur l'ordinateur).</li>
-        <li><b>Libérer de la place</b> (en bas de « Rushes et montages ») : montages enregistrés, rushes envoyés, source 4K, restes de rendus, avec la place que chacun libère.</li>
+        <li><b>Supprimer</b> efface un montage enregistré, ou celui en cours, même s'il est le seul : ses moments, choix, versions de travail et rendus partent, la vidéo envoyée reste, et Auto-montage revient à son état de départ, prêt pour un nouveau rush.</li>
+        <li><b>Libérer de la place</b> (en bas de « Rushes et montages ») : montage en cours, montages enregistrés, rushes envoyés, source 4K, restes de rendus, avec la place que chacun libère.</li>
         <li>Le <b>Journal</b> garde le détail des 40 dernières tâches ; <b>Télécharger le rapport</b> les regroupe pour demander de l'aide.</li>
         <li><b>Mises à jour</b> installe une nouvelle version en un clic, en gardant vos montages, vos sons et vos polices.</li></ul>` },
   ];

@@ -4,6 +4,55 @@ Chaque version publiée reprend sa section dans ses notes (onglet Releases). Une
 section, le numéro dans `VERSION` et le tag `v<numéro>` poussé publient la version avec ses
 installateurs (voir `packaging/README.md`).
 
+## 1.4
+
+- **« Télécharger derush » bien plus rapide** : la vidéo du dérush n'est plus redessinée image par
+  image comme un montage avec effets. Les moments gardés sont coupés directement dans la copie du
+  rush faite à la préparation (ou dans la source 4K), et seuls les sous-titres sont dessinés, une
+  fois chacun, puis posés sur la vidéo, avec le même aspect qu'avant. Sur un essai, 22 s au lieu de
+  100 s pour 41 s de vidéo.
+- **Qualité choisie en validant le dérush** : « Valider le dérush » propose maintenant, sous
+  « Télécharger derush », la qualité de la vidéo à télécharger : 720p (légère, pour le téléphone),
+  1080p ou 4K. La vidéo se télécharge d'elle-même une fois prête ; pour la 4K, sa création (plus
+  longue) se lance juste après la génération, avec sa barre d'avancement. Le choix est gardé pour
+  la prochaine fois. Jusqu'ici, il fallait attendre la fin de la génération puis choisir dans le
+  menu « Télécharger », et créer la 4K à part.
+- **Le dernier montage peut enfin être supprimé** : le montage en cours, même s'il est le seul, a
+  maintenant un bouton « Supprimer » dans « Montages » (page « Rushes et montages »), et il apparaît
+  aussi dans « Libérer de la place ». Ses moments, ses choix, sa copie du rush et ses rendus sont
+  effacés, et Auto-montage revient à son état de départ, prêt pour un nouveau rush ; la vidéo
+  envoyée reste, à supprimer à part si besoin. Jusqu'ici, seul un montage mis de côté pouvait être
+  supprimé : le dernier restait sur le disque.
+- **Temps restant montré seulement quand il est fiable** : tant que l'ordinateur n'a pas fait une
+  étape (préparation du rush, page des moments, rendu, 4K, export…) au moins trois fois, sa barre
+  montre l'avancement sans « encore ~N min », et la création de la 4K ou l'analyse des vidéos
+  d'exemple ne donne pas de durée prévue. Les estimations du début étaient souvent très loin du
+  temps réel ; elles apparaissent dès que la machine a mesuré sa propre vitesse.
+- **La carte graphique sert enfin sous Linux** : le ffmpeg fourni avec Auto-montage sous Linux ne
+  sait pas utiliser les cartes graphiques, si bien que tout était encodé par le processeur. Quand
+  le ffmpeg de l'ordinateur (celui de la distribution) sait le faire, il encode maintenant la copie
+  du rush en 1080p, la source 4K et les exports par la carte graphique (NVIDIA, AMD ou Intel), et la
+  copie du rush se fait en même temps que la transcription. Le journal l'indique : « Encodage :
+  carte graphique (…, ffmpeg de la machine : …) ».
+- **Sous-titres bien calés dans la vidéo entière** : quand un moment finissait sans point, ses
+  derniers mots et les premiers du moment suivant formaient un seul sous-titre dans la vidéo
+  générée. Les mots du moment suivant s'affichaient donc avant d'être dits, et tous ses
+  sous-titres étaient découpés autrement que dans l'aperçu du moment, d'où des sous-titres qui
+  sautaient. Chaque sous-titre reste maintenant dans son moment, exactement comme dans l'aperçu,
+  et disparaît à la coupe au lieu de déborder sur le moment suivant. Même chose après « Valider le
+  dérush » : les anciens moments ne se mélangent plus dans un même sous-titre.
+- **L'aperçu montre tout de suite le texte corrigé** : après une correction ou « Texte juste »
+  (pastille « À vérifier »), le sous-titre affiché restait parfois l'ancien, et en passant d'un
+  moment à l'autre on pouvait voir un sous-titre du moment précédent. Le sous-titre est maintenant
+  redessiné dès que le moment ou son texte change, même pendant la lecture.
+
+- **Le rendu ne déborde plus sur la mémoire sous Linux** : quand la mémoire s'épuisait, les
+  navigateurs du rendu étaient arrêtés mais une partie de leurs processus restait ouverte et gardait
+  la mémoire, si bien que chaque nouvel essai en ajoutait d'autres (jusqu'à 18 Go de mémoire et 12 Go
+  de swap). Tous leurs processus sont maintenant arrêtés. Le rendu se règle aussi sur la mémoire
+  vraiment prise (celle de la carte graphique intégrée comprise) et sur le swap qui se remplit, pour
+  ouvrir moins de navigateurs la fois suivante.
+
 ## 1.3
 
 - **« Valider le dérush » est beaucoup plus rapide** : le passage à l'auto-montage reprend ce que

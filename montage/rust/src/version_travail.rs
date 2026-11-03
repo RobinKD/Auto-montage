@@ -264,7 +264,7 @@ pub fn run(rush: &Path) -> i32 {
                 continue;
             }
             let part = dir.join(format!("{i:04}.part.mkv"));
-            let mut cmd: Vec<String> = vec![ffmpeg.clone(), "-v".into(), "error".into(), "-y".into(), "-ss".into(), format!("{start:.6}")];
+            let mut cmd: Vec<String> = vec![paths::display(&enc.ffmpeg()), "-v".into(), "error".into(), "-y".into(), "-ss".into(), format!("{start:.6}")];
             cmd.extend(enc.input_args());
             cmd.extend(["-i".into(), rush_s.clone(), "-t".into(), format!("{length:.6}"), "-map".into(), "0:v:0".into(), "-an".into()]);
             cmd.extend(["-vf".into(), format!("scale={w}:{h},setsar=1{}", enc.filter_tail()), "-fps_mode".into(), "cfr".into(), "-r".into(), fps.to_string()]);

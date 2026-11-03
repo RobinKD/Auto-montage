@@ -4,8 +4,12 @@
 //! h264_nvenc, h264_qsv, h264_amf (Windows), h264_nvenc, h264_vaapi, h264_qsv (Linux). Un encodeur
 //! est retenu s'il est dans le ffmpeg utilisé (`ffmpeg -encoders`) et s'il encode vraiment sur
 //! cette machine (essai de quelques images, avec les réglages de qualité et de débit utilisés
-//! ensuite). Résultat gardé dans work/gpu.json, refait quand le ffmpeg change (chemin, taille,
-//! date). Sinon : libx264 (processeur). `AM_GPU=0` : toujours le processeur (dépannage).
+//! ensuite). Le ffmpeg fourni sous Linux (statique, d'imageio-ffmpeg) n'a aucun encodeur
+//! matériel : sans encodeur qui marche dans le ffmpeg utilisé, celui de la machine (PATH) est
+//! essayé, et sert alors aux seuls encodages par la carte graphique (`Encoder::ffmpeg`), le
+//! ffmpeg fourni gardant tout le reste (voix, analyses, son, rendu HyperFrames). Résultat gardé
+//! dans work/gpu.json, refait quand l'un de ces ffmpeg change (chemin, taille, date). Sinon :
+//! libx264 (processeur). `AM_GPU=0` : toujours le processeur (dépannage).
 //!
 //! Qualité comparable : le crf de libx264 devient le cq de NVENC, le global_quality de QSV, le qp
 //! de VAAPI et d'AMF, ou une qualité de 1 à 100 pour VideoToolbox (`quality_value`). Avec la carte
@@ -20,6 +24,7 @@
 
 use crate::{paths, progress, util};
 use serde_json::{json, Value};
+use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
@@ -52,11 +57,23 @@ pub enum Rate {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Encoder {
     pub name: String,
+    /// ffmpeg qui a cet encodeur, s'il n'est pas celui utilisé partout (paths::ffmpeg) : celui de
+    /// la machine, avec la carte graphique.
+    pub program: Option<PathBuf>,
 }
 
 impl Encoder {
     pub fn cpu() -> Encoder {
-        Encoder { name: CPU.into() }
+        Encoder::named(CPU)
+    }
+
+    pub fn named(name: &str) -> Encoder {
+        Encoder { name: name.into(), program: None }
+    }
+
+    /// ffmpeg à lancer pour encoder avec cet encodeur.
+    pub fn ffmpeg(&self) -> PathBuf {
+        self.program.clone().unwrap_or_else(|| paths::ffmpeg().to_path_buf())
     }
 
     pub fn is_gpu(&self) -> bool {
@@ -66,7 +83,10 @@ impl Encoder {
     /// « carte graphique (h264_nvenc) » ou « processeur ».
     pub fn label(&self) -> String {
         if self.is_gpu() {
-            format!("carte graphique ({})", self.name)
+            match &self.program {
+                Some(p) => format!("carte graphique ({}, ffmpeg de la machine : {})", self.name, paths::display(p)),
+                None => format!("carte graphique ({})", self.name),
+            }
         } else {
             "processeur".into()
         }
@@ -201,7 +221,7 @@ pub fn compiled(listing: &str, wanted: &[&'static str]) -> Vec<&'static str> {
 /// Premier encodeur de `wanted` présent dans le ffmpeg et qui marche (`works`), sinon le processeur.
 pub fn choose(listing: &str, wanted: &[&'static str], mut works: impl FnMut(&Encoder) -> bool) -> Encoder {
     for name in compiled(listing, wanted) {
-        let enc = Encoder { name: name.into() };
+        let enc = Encoder::named(name);
         if works(&enc) {
             return enc;
         }
@@ -220,6 +240,7 @@ fn disabled() -> bool {
 
 /// Essai d'un encodeur : quelques images en qualité constante, puis à débit visé.
 fn probe(enc: &Encoder) -> bool {
+    let program = enc.ffmpeg();
     [Rate::Crf(20), Rate::Bitrate { kbps: 2000, max_kbps: 3000 }].into_iter().all(|rate| {
         let mut args: Vec<String> = vec!["-hide_banner".into(), "-v".into(), "error".into()];
         if enc.name == "h264_vaapi" {
@@ -229,12 +250,12 @@ fn probe(enc: &Encoder) -> bool {
         args.push(format!("format=yuv420p{}", enc.filter_tail()));
         args.extend(enc.video_args(rate, "veryfast"));
         args.extend(["-g", "15", "-an", "-f", "null", "-"].map(String::from));
-        run_with_timeout(&args)
+        run_with_timeout(&program, &args)
     })
 }
 
-fn run_with_timeout(args: &[String]) -> bool {
-    let Ok(mut child) = Command::new(paths::ffmpeg()).args(args).stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::null()).spawn() else {
+fn run_with_timeout(program: &Path, args: &[String]) -> bool {
+    let Ok(mut child) = Command::new(program).args(args).stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::null()).spawn() else {
         return false;
     };
     let start = Instant::now();
@@ -251,20 +272,65 @@ fn run_with_timeout(args: &[String]) -> bool {
     }
 }
 
-/// Identité du ffmpeg utilisé (le résultat de l'essai en dépend).
-fn ffmpeg_key() -> String {
-    let p = paths::ffmpeg();
+fn file_key(p: &Path) -> String {
     let (size, mtime) = std::fs::metadata(p).map(|m| (m.len(), util::mtime(p).unwrap_or(0.0) as i64)).unwrap_or((0, 0));
     format!("{} {size} {mtime}", paths::display(p))
+}
+
+/// ffmpeg de la machine : le premier du PATH qui n'est pas celui utilisé partout (le PATH commence
+/// par montage/bin/, paths::extend_path).
+fn system_ffmpeg() -> Option<PathBuf> {
+    let ours = paths::ffmpeg().canonicalize().ok();
+    let name = if cfg!(windows) { "ffmpeg.exe" } else { "ffmpeg" };
+    std::env::split_paths(&std::env::var_os("PATH")?)
+        .map(|d| d.join(name))
+        .filter(|p| p.is_file())
+        .find(|p| p.canonicalize().ok() != ours)
+}
+
+/// Identité des ffmpeg essayés (le résultat de l'essai en dépend).
+fn ffmpeg_key() -> String {
+    match system_ffmpeg() {
+        Some(sys) => format!("{} + {}", file_key(paths::ffmpeg()), file_key(&sys)),
+        None => file_key(paths::ffmpeg()),
+    }
 }
 
 fn cache_path() -> std::path::PathBuf {
     paths::work().join("gpu.json")
 }
 
+/// Premier encodeur matériel qui marche avec le ffmpeg `program` (None : celui utilisé partout).
+fn detect_with(program: Option<PathBuf>, mut report: impl FnMut(&Encoder, bool)) -> Encoder {
+    let ff = program.clone().unwrap_or_else(|| paths::ffmpeg().to_path_buf());
+    let listing = crate::procs::run(&ff, ["-hide_banner", "-encoders"]).1;
+    let enc = choose(&listing, candidates(), |e| {
+        let e = Encoder { program: program.clone(), ..e.clone() };
+        let ok = probe(&e);
+        report(&e, ok);
+        ok
+    });
+    if enc.is_gpu() {
+        Encoder { program, ..enc }
+    } else {
+        enc
+    }
+}
+
+/// Encodeur matériel du ffmpeg utilisé, sinon de celui de la machine, sinon le processeur.
+fn detect_all(mut report: impl FnMut(&Encoder, bool)) -> Encoder {
+    let enc = detect_with(None, &mut report);
+    if enc.is_gpu() {
+        return enc;
+    }
+    match system_ffmpeg() {
+        Some(sys) => detect_with(Some(sys), report),
+        None => enc,
+    }
+}
+
 fn detect() -> Encoder {
-    let listing = crate::procs::run(paths::ffmpeg(), ["-hide_banner", "-encoders"]).1;
-    choose(&listing, candidates(), probe)
+    detect_all(|_, _| {})
 }
 
 static CHOSEN: Mutex<Option<Encoder>> = Mutex::new(None);
@@ -282,7 +348,9 @@ pub fn h264() -> Encoder {
         let key = ffmpeg_key();
         let cached = util::read_json(cache_path()).filter(|c| util::s(c, "ffmpeg") == Some(key.as_str()));
         match cached.as_ref().and_then(|c| util::s(c, "encoder")) {
-            Some(name) if name == CPU || candidates().contains(&name) => Encoder { name: name.into() },
+            Some(name) if name == CPU || candidates().contains(&name) => {
+                Encoder { program: cached.as_ref().and_then(|c| util::s(c, "program")).map(PathBuf::from), ..Encoder::named(name) }
+            }
             _ => {
                 let enc = detect();
                 save(&key, &enc, None);
@@ -297,6 +365,9 @@ pub fn h264() -> Encoder {
 
 fn save(key: &str, enc: &Encoder, failed: Option<&str>) {
     let mut v = json!({"ffmpeg": key, "encoder": enc.name});
+    if let Some(p) = &enc.program {
+        v["program"] = Value::from(paths::display(p));
+    }
     if let Some(f) = failed {
         v["failed"] = Value::from(f);
     }
@@ -350,14 +421,14 @@ pub fn main(_args: &[String]) -> i32 {
         println!("Carte graphique coupée (AM_GPU) : processeur");
         return 0;
     }
-    let listing = crate::procs::run(paths::ffmpeg(), ["-hide_banner", "-encoders"]).1;
-    let found = compiled(&listing, candidates());
-    println!("ffmpeg : {}", paths::display(paths::ffmpeg()));
-    println!("Encodeurs matériels de ce ffmpeg : {}", if found.is_empty() { "aucun".into() } else { found.join(", ") });
-    let enc = choose(&listing, candidates(), |e| {
-        let ok = probe(e);
-        println!("  {} : {}", e.name, if ok { "marche" } else { "ne marche pas ici" });
-        ok
+    for ff in std::iter::once(paths::ffmpeg().to_path_buf()).chain(system_ffmpeg()) {
+        let listing = crate::procs::run(&ff, ["-hide_banner", "-encoders"]).1;
+        let found = compiled(&listing, candidates());
+        println!("ffmpeg : {}", paths::display(&ff));
+        println!("  encodeurs matériels : {}", if found.is_empty() { "aucun".into() } else { found.join(", ") });
+    }
+    let enc = detect_all(|e, ok| {
+        println!("  {} ({}) : {}", e.name, paths::display(&e.ffmpeg()), if ok { "marche" } else { "ne marche pas ici" });
     });
     save(&ffmpeg_key(), &enc, None);
     println!("Encodage : {}", enc.label());
@@ -395,7 +466,20 @@ mod tests {
         assert_eq!(choose(LISTING, &wanted, |_| false), Encoder::cpu());
         assert!(!Encoder::cpu().is_gpu());
         assert_eq!(Encoder::cpu().label(), "processeur");
-        assert_eq!(Encoder { name: "h264_nvenc".into() }.label(), "carte graphique (h264_nvenc)");
+        assert_eq!(Encoder::named("h264_nvenc").label(), "carte graphique (h264_nvenc)");
+    }
+
+    #[test]
+    fn encoder_of_the_machine_ffmpeg() {
+        let own = Encoder::named("h264_nvenc");
+        assert_eq!(own.ffmpeg(), paths::ffmpeg());
+        let sys = Encoder { program: Some(PathBuf::from("/usr/bin/ffmpeg")), ..Encoder::named("h264_nvenc") };
+        assert_eq!(sys.ffmpeg(), PathBuf::from("/usr/bin/ffmpeg"));
+        assert!(sys.is_gpu());
+        assert_eq!(sys.label(), "carte graphique (h264_nvenc, ffmpeg de la machine : /usr/bin/ffmpeg)");
+        let va = Encoder { program: Some(PathBuf::from("/usr/bin/ffmpeg")), ..Encoder::named("h264_vaapi") };
+        let cmd = crate::make_hd::command(&va, Path::new("r.mov"), "1", (3840, 2160), Path::new("o.mp4"));
+        assert_eq!(cmd[0], "/usr/bin/ffmpeg");
     }
 
     #[test]
@@ -417,18 +501,18 @@ mod tests {
         );
         assert!(cpu.input_args().is_empty());
         assert_eq!(cpu.filter_tail(), "");
-        let nv = Encoder { name: "h264_nvenc".into() };
+        let nv = Encoder::named("h264_nvenc");
         assert_eq!(nv.video_args(Rate::Crf(16), "veryfast").join(" "), "-c:v h264_nvenc -preset p4 -tune hq -rc vbr -cq 17 -b:v 0 -pix_fmt yuv420p");
         assert_eq!(nv.input_args(), ["-hwaccel", "auto"]);
-        let va = Encoder { name: "h264_vaapi".into() };
+        let va = Encoder::named("h264_vaapi");
         assert_eq!(va.input_args(), ["-vaapi_device", VAAPI_DEVICE, "-hwaccel", "auto"]);
         assert_eq!(va.filter_tail(), ",format=nv12,hwupload");
         assert_eq!(va.video_args(Rate::Crf(18), "veryfast").join(" "), "-c:v h264_vaapi -rc_mode CQP -qp 18");
-        let qsv = Encoder { name: "h264_qsv".into() };
+        let qsv = Encoder::named("h264_qsv");
         assert_eq!(qsv.video_args(Rate::Crf(18), "veryfast").join(" "), "-c:v h264_qsv -preset veryfast -global_quality 19 -pix_fmt nv12");
-        let amf = Encoder { name: "h264_amf".into() };
+        let amf = Encoder::named("h264_amf");
         assert!(amf.video_args(Rate::Crf(18), "veryfast").join(" ").contains("-rc cqp -qp_i 18 -qp_p 18"));
-        let vt = Encoder { name: "h264_videotoolbox".into() };
+        let vt = Encoder::named("h264_videotoolbox");
         assert_eq!(vt.video_args(Rate::Crf(16), "veryfast").join(" "), "-c:v h264_videotoolbox -q:v 70 -pix_fmt yuv420p");
         assert_eq!(vt.video_args(Rate::Bitrate { kbps: 8000, max_kbps: 12000 }, "fast").join(" "), "-c:v h264_videotoolbox -b:v 8000k -pix_fmt yuv420p");
         assert_eq!(quality_value("h264_videotoolbox", 18), 64);

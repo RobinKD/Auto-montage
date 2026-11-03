@@ -2,6 +2,7 @@
 //! (page « Rushes et montages », section « Libérer de la place »).
 //!
 //! Éléments proposés :
+//!   en-cours             montage ouvert (même seul) : rangé puis effacé (project::delete_current)
 //!   projet:<dossier>     montage enregistré (work/projets/<dossier>)
 //!   rush:<fichier>       vidéo envoyée (public/rushes), copie de l'original de l'ordinateur
 //!   hd                   source 4K du montage en cours (public/rushes/rush_2160.mp4), refaite à la
@@ -137,6 +138,13 @@ pub fn inventory() -> Value {
         }
     }
     let mut items: Vec<Value> = vec![];
+    if let Some(rush) = crate::project::current() {
+        // montage ouvert : supprimable aussi (même seul), comme « Supprimer » de « Montages »
+        let size: u64 = crate::project::current_paths().iter().chain(render_copies().iter()).chain(render_parts().iter()).map(|p| freed(p)).sum();
+        items.push(json!({"id": "en-cours", "group": "montages", "label": format!("{rush} (montage en cours)"), "size": size,
+                          "note": "Montage ouvert : moments, choix, versions de travail et rendus effacés ; la page des moments restera vide jusqu'au prochain rush préparé. La vidéo envoyée reste (ci-dessous).",
+                          "keep": true}));
+    }
     for (name, info) in &projects {
         let rush = util::s(info, "rush").filter(|s| !s.is_empty()).unwrap_or(name);
         let saved = util::s(info, "savedAt")
@@ -224,6 +232,13 @@ pub fn delete(ids: &[String]) -> Vec<String> {
         }
         let (kind, name) = item.split_once(':').unwrap_or((item.as_str(), ""));
         let paths: Vec<PathBuf> = match kind {
+            "en-cours" => {
+                // rangé puis effacé par project (vidéos du dernier rendu et parties comprises)
+                if crate::project::delete_current().is_ok() {
+                    done.push(item.clone());
+                }
+                continue;
+            }
             "projet" => vec![store().join(name)],
             "rush" => vec![paths::rushes().join(name)],
             "sauvegarde" => vec![backups().join(name)],

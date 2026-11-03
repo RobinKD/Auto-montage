@@ -54,7 +54,7 @@ pub fn video_filter(select: &str, width: i64, height: i64, tail: &str) -> String
 /// Commande ffmpeg de la source 4K avec l'encodeur `enc`.
 pub fn command(enc: &Encoder, rush: &Path, select: &str, size: (i64, i64), out: &Path) -> Vec<String> {
     let s = |x: &str| x.to_string();
-    let mut cmd = vec![paths::display(paths::ffmpeg()), s("-v"), s("error"), s("-y")];
+    let mut cmd = vec![paths::display(&enc.ffmpeg()), s("-v"), s("error"), s("-y")];
     cmd.extend(enc.input_args());
     cmd.extend([s("-i"), paths::display(rush), s("-map"), s("0:v:0"), s("-an"), s("-vf"), video_filter(select, size.0, size.1, enc.filter_tail())]);
     cmd.extend(enc.video_args(Rate::Crf(CRF), "veryfast"));
@@ -149,7 +149,7 @@ mod tests {
         assert!(cmd.contains("-vf fps=30,select='between(n\\,0\\,149)',scale=3840:2160,setsar=1,settb=1/30,setpts=N "), "{cmd}");
         assert!(cmd.ends_with("-c:v libx264 -preset veryfast -crf 16 -pix_fmt yuv420p -r 30 -g 15 o.mp4"), "{cmd}");
         assert!(!cmd.contains("hwaccel"));
-        let va = command(&Encoder { name: "h264_vaapi".into() }, Path::new("r.mov"), "between(n\\,0\\,149)", (3840, 2160), Path::new("o.mp4")).join(" ");
+        let va = command(&Encoder::named("h264_vaapi"), Path::new("r.mov"), "between(n\\,0\\,149)", (3840, 2160), Path::new("o.mp4")).join(" ");
         assert!(va.contains("-vaapi_device /dev/dri/renderD128 -hwaccel auto -i r.mov"), "{va}");
         assert!(va.contains("setpts=N,format=nv12,hwupload -c:v h264_vaapi"), "{va}");
     }

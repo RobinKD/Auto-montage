@@ -163,7 +163,11 @@ pub fn style_analysis() -> Value {
     } else {
         Value::Null
     };
-    json!({"videos": videos, "seconds": util::num(util::round_to(seconds, 1)), "estimate": util::round_int(estimate),
+    // durée prévue seulement si ces étapes ont été assez mesurées sur cette machine
+    let samples = jobs::load_samples();
+    let known = jobs::style_steps().iter().all(|s| jobs::measured(&samples, &s.0));
+    let estimate = if known { json!(util::round_int(estimate)) } else { Value::Null };
+    json!({"videos": videos, "seconds": util::num(util::round_to(seconds, 1)), "estimate": estimate,
            "facts": facts, "result": result, "stale": stale, "at": at})
 }
 
@@ -638,7 +642,10 @@ pub fn final_info() -> Value {
         .flat_map(|c| util::list_dir(db().join(c)).into_iter().map(move |n| db().join(c).join(n)))
         .filter_map(|p| util::mtime(&p))
         .any(|t| t > rendered + 2.0);
-    json!({"available": apercu.exists() && montage > 0.0, "estimate": util::round_int(estimate), "res": res,
+    // durée prévue seulement si la source 4K et le rendu 4K ont été assez mesurés sur cette machine
+    let samples = jobs::load_samples();
+    let estimate = if names.iter().all(|n| jobs::measured(&samples, n)) { json!(util::round_int(estimate)) } else { Value::Null };
+    json!({"available": apercu.exists() && montage > 0.0, "estimate": estimate, "res": res,
            "memory": mem, "running": running, "busy": busy, "changed": apercu.exists() && changed})
 }
 

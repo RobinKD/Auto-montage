@@ -273,6 +273,10 @@
   .dlg-choice.regen span { color: inherit; opacity: 0.85; }
   .dlg-foot { display: flex; justify-content: flex-end; gap: 8px; margin-top: 14px; flex-wrap: wrap; align-items: center; }
   .dlg-foot .sub { margin-right: auto; }
+  .dlg-quality { border: 1px solid var(--line); border-radius: 10px; padding: 8px 12px 10px; margin: 0; font-size: 13px; }
+  .dlg-quality legend { padding: 0 4px; color: var(--muted); }
+  .dlg-quality label { display: flex; align-items: baseline; gap: 6px; padding: 3px 0; flex-wrap: wrap; }
+  .dlg-quality small { color: var(--muted); font-size: 12px; }
   .keys-list { display: grid; grid-template-columns: 1fr auto auto; gap: 6px 10px; align-items: center; font-size: 14px; max-height: 60vh; overflow: auto; }
   .keys-list kbd { font: 600 13px/1.4 var(--body, sans-serif); background: var(--bg); border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 6px; padding: 1px 7px; white-space: nowrap; }
   .keys-list .combos { display: flex; gap: 4px; flex-wrap: wrap; justify-content: flex-end; }
@@ -703,7 +707,13 @@
   <p id="valider-sum"></p>
   <div class="dlg-choices">
     <button type="button" class="dlg-choice regen" id="valider-dl"><b>Télécharger derush</b>
-      <span>Les moments gardés mis bout à bout, avec leurs sous-titres si la case « Sous-titres » est cochée ; le menu « Télécharger » s'ouvre à la fin.</span></button>
+      <span>Les moments gardés mis bout à bout, avec leurs sous-titres si la case « Sous-titres » est cochée ; la vidéo se télécharge à la fin, dans la qualité choisie ci-dessous.</span></button>
+    <fieldset class="dlg-quality" id="valider-quality" hidden>
+      <legend>Qualité de la vidéo téléchargée</legend>
+      <label><input type="radio" name="valider-q" value="720p"> <b>720p</b> <small>légère, pour le téléphone ou pour partager vite</small></label>
+      <label><input type="radio" name="valider-q" value="1080p" checked> <b>1080p</b> <small>vidéo entière, la plus courante</small></label>
+      <label><input type="radio" name="valider-q" value="4k"> <b>4K</b> <small id="valider-4k-note">pour la publication ; plus longue à créer (source 4K et nouveau rendu après la vidéo entière)</small></label>
+    </fieldset>
     <button type="button" class="dlg-choice" id="valider-montage" hidden><b>Passer à l'auto-montage</b>
       <span>Les moments gardés deviennent une seule vidéo, un seul moment avec ses sous-titres corrigés, sur lequel vous réglez ensuite les effets et le son. Le dérush reste dans « Montages » (page « Rushes et montages »).</span></button>
   </div>
@@ -1170,7 +1180,7 @@
     // d : transcription incertaine (confiance du modèle sous moments_lib::DOUBT), tant que le texte
     // du moment n'a été ni corrigé ni enregistré tel quel (« checked » du document du moment).
     const open = !t && !(edits[m.id] && edits[m.id].checked);
-    return m.words.map((w, k) => ({ text: texts[k], a: w.a, b: w.b, s: w.s, d: open && !!w.d }));
+    return m.words.map((w, k) => ({ text: texts[k], a: w.a, b: w.b, s: w.s, d: open && !!w.d, cut: !!w.cut }));
   }
   // Mots à vérifier d'un moment (sous-titres affichés : partout sauf en dérushage sans sous-titres).
   const doubtsOf = (m) => (m.gap || (DERUSH && !derushSubs()) ? [] : wordsOf(m).filter((w) => w.d && w.text));
@@ -1203,7 +1213,8 @@
     };
     for (const w of words.filter((x) => x.text)) {
       const t = w.text.trim();
-      if (g.length && w.a - g[g.length - 1].b > 0.35) flush();
+      // cut : premier mot d'un ancien moment (vidéo d'un dérush validé), comme build_edit::caption_groups
+      if (g.length && (w.cut || w.a - g[g.length - 1].b > 0.35)) flush();
       g.push(w);
       const chars = g.reduce((s2, x) => s2 + x.text.length, 0);
       if (/[.!?]$/.test(t) || g.length >= maxWords || chars > maxChars || (/,$/.test(t) && g.length >= 3)) flush();
@@ -1214,10 +1225,13 @@
   const sounds = {};
   const sound = (name) => (sounds[name] ||= Object.assign(new Audio(`sfx/${name}.mp3`), { preload: "auto" }));
   let fx = null; // habillage du moment en cours : { m, caps, events, intro, chip, zoomStart }
+  // Numéro de chaque habillage construit : le sous-titre affiché est redessiné dès qu'il change
+  // (autre moment, texte corrigé), même quand le sous-titre commence au même instant.
+  let overlaySerial = 0;
 
   function buildOverlay(m) {
     const words = wordsOf(m);
-    if (DERUSH) return { m, caps: derushSubs() ? captionGroups(words) : [], events: [], typed: [], chips: [], voice: [], zoomType: 0,
+    if (DERUSH) return { m, serial: ++overlaySerial, caps: derushSubs() ? captionGroups(words) : [], events: [], typed: [], chips: [], voice: [], zoomType: 0,
                          zooms: [], shakes: [], flashes: [], hl: [], looks: [] };
     const events = [], voice = [];
     for (const f of sfxOf(m)) {
@@ -1257,7 +1271,7 @@
       else if (f.kind === "highlight" && String(f.text || "").trim()) hl.push({ words: String(f.text).split(/\s+/).map(normWord).filter(Boolean), color: f.color || "#ffd84d" });
     }
     const key = vfxOf(m).find((f) => f.kind === "zoomlibre") || null;  // zoom libre : tout le moment
-    return { m, caps: captionGroups(words), events: events.map((e) => ({ ...e, done: false })), typed, chips, voice, zoomType: m.id % 2,
+    return { m, serial: ++overlaySerial, caps: captionGroups(words), events: events.map((e) => ({ ...e, done: false })), typed, chips, voice, zoomType: m.id % 2,
              zooms, shakes, flashes, hl, key, looks };
   }
 
@@ -1568,10 +1582,16 @@ ${HFAudio.voiceElements(spec)}
     const capEl = $("ov-cap");
     let cur = -1;  // mot prononcé (option « mot prononcé en couleur »)
     if (cap && HAB.karaoke && !DERUSH) cap.times.forEach((a, i) => { if (t >= a) cur = i; });
-    const key = cap ? `${cap.a}/${cur}` : "";
+    // Clé du sous-titre affiché : habillage (moment, texte), début du sous-titre et mot prononcé.
+    // Sans le numéro de l'habillage, deux moments dont le premier sous-titre commence au même
+    // instant de leur extrait (le plus souvent 0,05 s) gardaient à l'écran le sous-titre du moment
+    // précédent, et un texte corrigé ne s'affichait qu'au sous-titre suivant.
+    const key = cap ? `${fx.serial}/${cap.a}/${cur}` : "";
     if (capEl.dataset.key !== key) {
-      const isNew = !capEl.dataset.key || capEl.dataset.key.split("/")[0] !== (cap ? `${cap.a}` : "");
+      const who = cap ? `${fx.m.id}:${cap.a}` : "";  // rebond seulement pour un autre sous-titre
+      const isNew = capEl.dataset.who !== who;
       capEl.dataset.key = key;
+      capEl.dataset.who = who;
       capEl.replaceChildren();
       if (cap) {
         const colors = cap.words.map((w) => {
@@ -1676,7 +1696,7 @@ ${HFAudio.voiceElements(spec)}
     player.style.filter = "";
     $("ov-vign").hidden = true; $("ov-fx").hidden = true;
     $("ov").hidden = true;
-    $("ov-cap").replaceChildren(); $("ov-cap").dataset.key = "";
+    $("ov-cap").replaceChildren(); $("ov-cap").dataset.key = ""; $("ov-cap").dataset.who = "";
   }
 
   // --- Lecteur ---------------------------------------------------------------
@@ -3727,7 +3747,13 @@ ${HFAudio.voiceElements(spec)}
   }
   // Document « moments/<id> » écrit d'après edits[id] (aussi pour Annuler / Rétablir).
   async function writeMoment(id) {
-    if (fx && fx.m.id === id && player.paused) fx = buildOverlay(fx.m);  // aperçu à jour (zoom libre, texte…)
+    // Aperçu à jour (zoom libre, texte…), aussi pendant la lecture : les sons déjà passés ne sont
+    // pas rejoués.
+    if (fx && fx.m.id === id) {
+      const t = player.currentTime;
+      fx = buildOverlay(fx.m);
+      if (!player.paused) fx.events.forEach((e) => { if (e.t <= t) e.done = true; });
+    }
     render();  // frise, inspecteur et nombre de moments changés
     if (!db) { setStatus("Non enregistré : ouvrez la page connecté à claude.ai", "err"); return; }
     const m = byId.get(id), e = edits[id] || {};
@@ -3769,7 +3795,8 @@ ${HFAudio.voiceElements(spec)}
 
   // Avancement d'une génération locale (/api/job) : barre de l'opération en cours (rendu,
   // découpage des moments…) et de l'ensemble, avec le temps restant estimé.
-  // Temps restant estimé par le serveur (durée du rush, vitesse mesurée de la machine).
+  // Temps restant estimé par le serveur (durée du rush, vitesse mesurée de la machine) ; absent
+  // tant que l'étape n'a pas été mesurée au moins 3 fois sur cette machine (jobs::MIN_SAMPLES).
   const remaining = (s) => {
     if (typeof s !== "number" || !isFinite(s)) return "";
     return s < 60 ? " · moins d'une minute" : ` · encore ~${Math.round(s / 60)} min`;
@@ -3831,6 +3858,7 @@ ${HFAudio.voiceElements(spec)}
   // Après la génération (page rechargée) : « telecharger » ouvre le menu « Télécharger »
   // (« Valider le dérush » > « Générer et télécharger la vidéo »). sessionStorage, par onglet.
   const AFTER_REGEN = "am-apres-generation";
+  const DERUSH_QUALITY = "am-derush-qualite";  // localStorage : qualité choisie dans « Valider le dérush »
   const afterRegen = (what) => {
     try { if (what) sessionStorage.setItem(AFTER_REGEN, what); else sessionStorage.removeItem(AFTER_REGEN); } catch (e) { /* stockage indisponible */ }
   };
@@ -3886,12 +3914,25 @@ ${HFAudio.voiceElements(spec)}
         : "Aucun moment gardé : cochez d'abord les moments à garder sur la frise.";
       $("valider-dl").disabled = $("valider-montage").disabled = !n;
       $("valider-msg").textContent = "";
+      // Qualité du fichier téléchargé (interface locale) : 720p et 1080p sortent de la génération,
+      // la 4K se crée ensuite (/api/final) ; choix gardé sur cet ordinateur.
+      $("valider-quality").hidden = !window.AUTO_MONTAGE_LOCAL;
+      let q = null;
+      try { q = localStorage.getItem(DERUSH_QUALITY); } catch (e) { /* stockage indisponible */ }
+      const radio = document.querySelector(`input[name="valider-q"][value="${q}"]`);
+      if (radio) radio.checked = true;
+      if (window.AUTO_MONTAGE_LOCAL) fetch("/api/downloads", { cache: "no-store" }).then((r) => r.json()).then((d) => {
+        const est = d && d.final && d.final.estimate;
+        $("valider-4k-note").textContent = `pour la publication ; plus longue à créer${took(est)} : source 4K et nouveau rendu, après la vidéo entière`;
+      }).catch(() => {});
       dlg.showModal();
     });
     $("valider-close").addEventListener("click", () => dlg.close());
     $("valider-dl").addEventListener("click", async () => {
+      const q = window.AUTO_MONTAGE_LOCAL ? (document.querySelector('input[name="valider-q"]:checked') || {}).value || "1080p" : "";
+      try { if (q) localStorage.setItem(DERUSH_QUALITY, q); } catch (e) { /* stockage indisponible */ }
       dlg.close();
-      afterRegen("telecharger");
+      afterRegen(q ? `telecharger:${q}` : "telecharger");
       await startRegen();
     });
     // Passer à l'auto-montage (interface locale) : les moments gardés deviennent une vidéo, nouveau
@@ -4571,6 +4612,8 @@ ${HFAudio.voiceElements(spec)}
   // Interface locale : « Télécharger » ouvre le choix de la qualité (720p, 1080p, 4K) ; la 4K
   // se crée à la demande (source 4K + rendu final, long), avec la barre d'avancement.
   const minutes = (s) => (s < 90 ? "1 à 2 min" : `environ ${Math.round(s / 60)} min`);
+  // Durée prévue (absente tant que la machine n'a pas mesuré ces étapes au moins 3 fois).
+  const took = (s) => (typeof s === "number" ? ` (${minutes(s)} sur cet ordinateur)` : "");
   async function openDownloadMenu() {
     const menu = $("dl-menu");
     const data = await fetch("/api/downloads", { cache: "no-store" }).then((r) => r.json()).catch(() => null);
@@ -4614,7 +4657,7 @@ ${HFAudio.voiceElements(spec)}
         hint.className = "hint";
         hint.style.flexBasis = "100%";
         hint.textContent = f.available
-          ? `La création de la 4K prend du temps (${minutes(f.estimate || 0)} sur cet ordinateur) : l'avancement s'affiche sous la sélection, et la page reste utilisable.`
+          ? `La création de la 4K prend du temps${took(f.estimate)} : l'avancement s'affiche sous la sélection, et la page reste utilisable.`
           : "Générez d'abord la vidéo entière.";
         row.append(hint);
       } else {
@@ -4714,10 +4757,16 @@ ${HFAudio.voiceElements(spec)}
       return;
     }
   }
+  // Téléchargement direct d'une qualité (« Valider le dérush ») : le lien du menu « Télécharger ».
+  function saveVersion(id) {
+    const a = [...$("dl-menu").querySelectorAll("a[download]")].find((x) => x.closest(".row")?.querySelector("b")?.textContent.toLowerCase() === id.toLowerCase());
+    if (a) a.click();
+    else setStatus(`La vidéo en ${id === "4k" ? "4K" : id} n'est pas disponible : choisissez une autre qualité dans « Télécharger ».`, "err");
+  }
   async function createFinal(btn, estimate) {
     const n = changedSinceWork;
     const stale = n ? `${n} moment${n > 1 ? "s ont" : " a"} changé depuis la dernière vidéo entière : la 4K sera faite sans ${n > 1 ? "ces changements" : "ce changement"}. Pour ${n > 1 ? "les" : "l'"}inclure, générez d'abord la vidéo entière.\n\n` : "";
-    if (!confirm(`${stale}Créer la version 4K${n ? " quand même" : ""} ? Cela prend du temps (${minutes(estimate || 0)} sur cet ordinateur). Vous pourrez continuer à utiliser la page pendant ce temps.`)) return;
+    if (!confirm(`${stale}Créer la version 4K${n ? " quand même" : ""} ? Cela prend du temps${took(estimate)}. Vous pourrez continuer à utiliser la page pendant ce temps.`)) return;
     btn.disabled = true;
     const r = await fetch("/api/final", { method: "POST" });
     if (!r.ok) { setStatus((await r.json().catch(() => ({}))).error || `erreur ${r.status}`, "err"); btn.disabled = false; return; }
@@ -4734,7 +4783,13 @@ ${HFAudio.voiceElements(spec)}
       if (job.state === "running") { setStatus(`Création de la version 4K : ${job.step}…`); continue; }
       $("regen").disabled = false;
       if (job.state === "cancelled") { setStatus("Création de la 4K annulée"); return; }
-      if (job.state === "done") { setStatus("Version 4K prête : « Télécharger » pour l'enregistrer", "ok"); openDownloadMenu(); }
+      let wanted = null;  // 4K demandée par « Valider le dérush » : téléchargée dès qu'elle est prête
+      try { wanted = sessionStorage.getItem(AFTER_REGEN) === "telecharger-4k"; } catch (e) { /* stockage indisponible */ }
+      afterRegen(null);
+      if (job.state === "done" && wanted) {
+        setStatus("Version 4K prête : téléchargement lancé", "ok");
+        openDownloadMenu().then(() => saveVersion("4k"));
+      } else if (job.state === "done") { setStatus("Version 4K prête : « Télécharger » pour l'enregistrer", "ok"); openDownloadMenu(); }
       else setStatus(`La création de la 4K a échoué à l'étape « ${job.step} » : ${job.error || "erreur inconnue"} (détail : lien « Journal »)`, "err");
       return;
     }
@@ -4745,11 +4800,29 @@ ${HFAudio.voiceElements(spec)}
     $("download").addEventListener("click", () => ($("dl-menu").hidden ? openDownloadMenu() : ($("dl-menu").hidden = true)));
     let after = null;
     try { after = sessionStorage.getItem(AFTER_REGEN); } catch (e) { /* stockage indisponible */ }
-    if (after === "telecharger" && working) {
+    // « telecharger:<qualité> » (« Valider le dérush ») : 720p ou 1080p téléchargée tout de suite ;
+    // 4K : création lancée (/api/final), puis téléchargée à la fin (followFinal).
+    const quality = after && after.startsWith("telecharger:") ? after.slice(12) : null;
+    if (quality === "4k" && working) {
       afterRegen(null);
-      openDownloadMenu().then(() => $("dl-menu").scrollIntoView({ block: "nearest" }));
+      (async () => {
+        const r = await fetch("/api/final", { method: "POST" }).catch(() => null);
+        if (!r || !r.ok) {
+          setStatus(`Vidéo générée, mais la création de la 4K n'a pas pu démarrer : ${(r && (await r.json().catch(() => ({}))).error) || "serveur local injoignable"}. « Télécharger » pour réessayer.`, "err");
+          return;
+        }
+        afterRegen("telecharger-4k");
+        followFinal();
+      })();
+    } else if (after && after.startsWith("telecharger") && after !== "telecharger-4k" && working) {
+      afterRegen(null);
+      openDownloadMenu().then(() => {
+        $("dl-menu").scrollIntoView({ block: "nearest" });
+        if (quality) saveVersion(quality);
+      });
       // (redit après le chargement de la sélection, qui écrit son propre message)
-      const said = () => setStatus("Vidéo générée : choisissez la qualité à télécharger.", "ok");
+      const said = () => setStatus(quality ? `Vidéo générée : téléchargement en ${quality} lancé (autres qualités dans « Télécharger »).`
+        : "Vidéo générée : choisissez la qualité à télécharger.", "ok");
       said();
       setTimeout(said, 2000);
     }

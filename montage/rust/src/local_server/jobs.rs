@@ -168,6 +168,43 @@ fn timings_path() -> PathBuf {
     work().join("timings.json")
 }
 
+/// Nombre de tâches réussies (hors reprises) qui ont mesuré chaque étape sur cette machine
+/// (work/timings_mesures.json, { étape: nombre }). Tant qu'une étape en a moins de
+/// `MIN_SAMPLES`, ses vitesses sont celles de départ ou trop peu recalées : son temps restant
+/// n'est pas montré (ni celui de la tâche, ni la durée prévue avant de la lancer).
+pub const MIN_SAMPLES: u64 = 3;
+
+fn samples_path() -> PathBuf {
+    work().join("timings_mesures.json")
+}
+
+pub fn load_samples() -> Map<String, Value> {
+    match util::read_json(samples_path()) {
+        Some(Value::Object(m)) => m,
+        _ => Map::new(),
+    }
+}
+
+/// L'étape a-t-elle été mesurée assez de fois pour prévoir sa durée ?
+pub fn measured(samples: &Map<String, Value>, step: &str) -> bool {
+    samples.get(step).and_then(Value::as_u64).unwrap_or(0) >= MIN_SAMPLES
+}
+
+/// Compte une mesure de plus pour chaque étape faite par la tâche qui vient de réussir.
+fn count_samples(m: &Map<String, Value>) {
+    let mut samples = load_samples();
+    add_samples(&mut samples, m);
+    let _ = write_json(samples_path(), &Value::Object(samples), Some(1), true);
+}
+
+fn add_samples(samples: &mut Map<String, Value>, m: &Map<String, Value>) {
+    let Some(Value::Object(spent)) = m.get("spent") else { return };
+    for step in spent.keys().filter_map(|k| k.strip_prefix("étape:")) {
+        let n = samples.get(step).and_then(Value::as_u64).unwrap_or(0);
+        samples.insert(step.to_string(), json!(n + 1));
+    }
+}
+
 /// Avancement affiché en temps de vidéo traité : unité de chaque opération (« rush » : secondes du
 /// rush, « montage » : secondes du montage) ; les autres sont des nombres (segments…).
 fn unit_of(label: &str) -> Value {
@@ -547,8 +584,21 @@ fn step_ops_left(m: &Map<String, Value>, step: &str, current: Option<(&str, f64)
     total + plan.iter().filter(|o| !counted.contains(o)).map(|o| left(o)).sum::<f64>()
 }
 
-/// (reste de l'opération en cours, reste de la tâche), en secondes.
+/// (reste de l'opération en cours, reste de la tâche), en secondes ; rien tant que l'étape en
+/// cours (et, pour la tâche, chaque étape qui reste) n'a pas `MIN_SAMPLES` mesures.
 fn remaining_time(m: &Map<String, Value>) -> (Option<f64>, Option<f64>) {
+    let samples = load_samples();
+    let steps = steps_of(m);
+    let step = gs(m, "step").to_string();
+    let Some(i) = steps.iter().position(|s| *s == step) else { return (None, None) };
+    if !measured(&samples, &step) {
+        return (None, None);
+    }
+    let (current, rest) = remaining_estimate(m);
+    (current, rest.filter(|_| steps[i + 1..].iter().all(|s| measured(&samples, s))))
+}
+
+fn remaining_estimate(m: &Map<String, Value>) -> (Option<f64>, Option<f64>) {
     let base = load_rates();
     let k = speed_factor(m, &base);
     let rates: Map<String, Value> = base
@@ -990,6 +1040,7 @@ fn run_steps(steps: &[Step], arg: &str, args: &[String], first: usize) -> Result
     obj(&mut j.m, "spent").insert(key, fnum(spent + add));
     if !reprise {
         learn_timings(&j.m); // durées d'une tâche reprise : pas représentatives
+        count_samples(&j.m);
     }
     if resumable(&kind) {
         remove_task(); // une mise à jour garde la préparation en pause
@@ -1255,8 +1306,15 @@ fn check_memory(j: &mut Job, step: &str) {
 /// d'avancement en cours, ou d'une ligne « @memoire <opération> », ou la seule de l'étape.
 fn sample_memory(pid: u32, step: &str, finished: &AtomicBool) {
     let alone = memoire::steps(step).unwrap_or_default();
+    // Rendu : mémoire libre prise depuis le début de l'étape, si elle dépasse la somme des PSS
+    // (carte graphique intégrée : images des navigateurs dans la mémoire du système, hors PSS).
+    let avail0 = memoire::available().0;
     while !finished.load(Ordering::SeqCst) {
         let mut used = memoire::tree_memory(pid);
+        let taken = match (avail0, memoire::available().0) {
+            (Some(a), Some(b)) => a - b,
+            _ => 0,
+        };
         {
             let mut j = lock();
             // Opérations lancées à côté (copie du rush) : leur programme et ses enfants comptés à part.
@@ -1273,6 +1331,9 @@ fn sample_memory(pid: u32, step: &str, finished: &AtomicBool) {
             let label = progress_obj(&j.m).and_then(|p| p.get("label")).and_then(Value::as_str).filter(|l| memoire::is_operation(l)).map(String::from);
             let op = mem_op.or(label).or_else(|| (alone.len() == 1).then(|| alone[0].to_string()));
             if let Some(op) = op.filter(|o| memoire::is_operation(o)) {
+                if memoire::render_hd(&op).is_some() {
+                    used = used.max(taken);
+                }
                 if used > 0 {
                     let peaks = obj(&mut j.m, "memPeaks");
                     let before = peaks.get(&op).and_then(Value::as_i64).unwrap_or(0);
@@ -1726,6 +1787,19 @@ mod tests {
         // visage commencé : son et transcription faits
         m.insert("planAt".into(), json!(3));
         assert_eq!(left(&m, Some(("Position du visage", 4.0))), 7.0);
+    }
+
+    #[test]
+    fn remaining_needs_three_samples() {
+        let mut m = Map::new();
+        m.insert("spent".into(), json!({"étape:préparation du rush": 40.0, "étape:page des moments": 9.0, "Transcription": 20.0}));
+        let mut samples = Map::new();
+        for n in 1..=3 {
+            assert!(!measured(&samples, "préparation du rush"), "{} mesure(s) : pas de temps restant", n - 1);
+            add_samples(&mut samples, &m);
+        }
+        assert!(measured(&samples, "préparation du rush") && measured(&samples, "page des moments"));
+        assert!(!measured(&samples, "Transcription") && !measured(&samples, "rendu 4K"));
     }
 
     #[test]

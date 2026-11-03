@@ -98,7 +98,9 @@ interne : les changements attendent la prochaine version.
 - Quand le rush change, `prepare` met le montage de l'ancien rush de côté dans
   `work/projets/<rush>/` (`./am project save` : work/ hors fichiers communs, versions de
   travail, rendus, choix de la page) ; `./am project open <dossier>` le rouvre sans rien recalculer
-  (page « Rushes et montages » /rush/, section « Montages »). Les tâches de l'interface locale
+  (page « Rushes et montages » /rush/, section « Montages ») ; `./am project delete_current` (bouton
+  « Supprimer » du montage en cours, élément `en-cours` de « Libérer de la place ») supprime le montage
+  ouvert, même seul (rangé par `save`, puis effacé avec les parties de rendu) : retour à l'état vide. Les tâches de l'interface locale
   s'annulent (`/api/job/cancel`, groupe de processus) ; les vidéos longues s'écrivent en
   `*.part.*` puis sont renommées, et une annulation efface ces fichiers provisoires.
 - En local (installateurs des versions publiées, ou `./am start` depuis un clone avec Rust ;
@@ -186,7 +188,9 @@ interne : les changements attendent la prochaine version.
   Il pose `--am-top` (hauteur du bandeau) : le lecteur et la synthèse de la page des moments, figés
   en haut pendant le défilement (`.viewer`, `.bar`, `--fix-top`), se placent dessous ; bouton
   « haut de la page » (`to-top`) en bas à droite.
-- Sous-titres : jusqu'à 6 mots sur 2 lignes par défaut, coupées là où les largeurs mesurées (multipliées
+- Sous-titres : jamais à cheval sur deux moments (`build_edit::caption_groups` comme `captionGroups` de la
+  page ; vidéo d'un dérush validé : `cut` du premier mot de chaque ancien moment, `derushWords`), fin à la
+  coupe ; jusqu'à 6 mots sur 2 lignes par défaut, coupées là où les largeurs mesurées (multipliées
   par la taille de chaque ligne) sont les plus proches (`render_lib.caption_layout` et `captionLayout` de la
   page des moments) ; nombre de lignes voulu (`lines`, champ libre de 1 à `fonts_lib::LINES_MAX` = 6 : au-delà,
   l'essai de toutes les coupures devient trop long ; mots par sous-titre : `fonts_lib::caption_limits_for`,
@@ -324,6 +328,12 @@ interne : les changements attendent la prochaine version.
 - Sous-titres supprimés pour un moment (page des moments, « Corriger » : texte vide ou
   « Supprimer les sous-titres ») : `"nosub": true` dans le document du moment, transmis par
   `use_selection` comme correction vide, que `build_edit` applique (mots sans texte).
+- Rendu du dérush (edit.json sans effets, zooms, couleurs, transitions ni bruitages : `plain` de
+  `render_hyperframes.rs`) : `plain_render`, plans coupés par ffmpeg dans `rush_1080.mp4` (ou
+  `rush_2160.mp4` en 4K), voix avec limiteur, et chaque sous-titre dessiné une seule fois par la page
+  du rendu (`caption_images` : une image par sous-titre, PNG transparents, `--format png-sequence`)
+  posé par `overlay` pendant sa durée (démultiplexeur concat) ; un effet ajouté au dérush doit en
+  sortir `plain`.
 - Rendu : `./am render apercu|final` lance `rust/src/render_hyperframes.rs`, qui écrit le
   montage (edit.json, face.json) en page HTML + GSAP dans `work/rendu_hyperframes/` et la rend
   avec `hyperframes render` (Chrome sans écran : `render_lib.headless_chrome` → `./am ensure_browser`, Chromium de
@@ -341,7 +351,12 @@ interne : les changements attendent la prochaine version.
   parents), lignes « Navigateurs du rendu : N » et « Plans par partie du rendu : N » lues par
   `local_server` ; pendant le rendu, mémoire libre sous 1 Go ou 8 % pendant 2 s : node et ses
   navigateurs arrêtés, partie refaite avec moitié moins de navigateurs, puis coupée en deux (`halve`).
-  Les navigateurs ont leur propre session : marqués par `AM_RENDU_HYPERFRAMES=1` (`procs::kill_marked`),
+  Swap (Linux : la mémoire disponible ne baisse pas pendant que le rendu part dans le swap) : plus de 1 Go
+  ou 5 % de swap pris depuis le début de la partie compte aussi (`SWAP_MB`, `memoire::swap_used`).
+  Pic mesuré du rendu : PSS et SwapPss des programmes, ou mémoire libre prise depuis le début de l'étape si
+  plus (`sample_memory` : carte graphique intégrée, images hors PSS) ; mesures marquées `"swap"`.
+  Les navigateurs ont leur propre session : marqués par `AM_RENDU_HYPERFRAMES=1` (`procs::kill_marked` :
+  marqués, leurs descendants et toute session dont un marqué est le chef, puis attente de leur fin),
   arrêtés après chaque rendu, chaque étape, au début d'un rendu et au démarrage du serveur ; page prête
   en 15 min au plus. Transcription : `./am setup_whisper` (whisper.cpp 1.7.6
   compilé pour le VAD et Whisper, modèles de Hugging Face, Parakeet en ONNX dans
@@ -397,7 +412,7 @@ interne : les changements attendent la prochaine version.
   `@progression <fait> <total> <libellé>` (`rust/src/progress.rs`, aussi pour suivre un ffmpeg) ;
   `local_server` les lit. Fait et total en secondes de vidéo (rush, ou montage pour le rendu :
   `UNITS`), montrés par opération sous chaque étape de /rush/ (`job.ops`). Temps restant : `PLAN` et `RATES`
-  (secondes par seconde de rush ou de montage), recalés sur la machine dans `work/timings.json`. Barre d'ensemble (`overall_progress`) : part de vidéo traitée de chaque opération, pesée par les
+  (secondes par seconde de rush ou de montage), recalés sur la machine dans `work/timings.json` ; temps restant (et durées prévues de la 4K et de l'analyse du style) montré seulement pour les étapes réussies au moins `MIN_SAMPLES` = 3 fois hors reprises (`work/timings_mesures.json`, `count_samples`, `measured`), sinon `null`. Barre d'ensemble (`overall_progress`) : part de vidéo traitée de chaque opération, pesée par les
   durées prévues au début de la tâche (`step_weights`), jamais en recul ; seul le reste d'une étape hors
   barres suit le temps passé (95 % au plus). Préparation : quand la carte graphique encode (`gpu::h264`), la copie
   du rush en 1080p (`version_travail`) tourne pendant le son, la détection de la parole et la
@@ -460,4 +475,9 @@ interne : les changements attendent la prochaine version.
   utilisé (avec `-hwaccel auto`) par la version de travail, la source 4K, les exports et le rendu
   HyperFrames (`--gpu`), jamais pour les analyses ; ligne « Encodage : carte graphique (…) » ou
   « Encodage : processeur » ; échec : refait par le processeur, carte écartée ; `AM_GPU=0` la coupe.
+  Le ffmpeg fourni sous Linux (statique) n'a aucun encodeur matériel : sans encodeur qui marche, le
+  premier ffmpeg du PATH qui n'est pas le nôtre est essayé (`system_ffmpeg`, `program` de
+  `gpu::Encoder`, `Encoder::ffmpeg` à lancer pour encoder) ; il ne sert qu'à ces encodages (version de
+  travail, source 4K, exports), le rendu HyperFrames reste alors au processeur (`--gpu` seulement
+  avec le ffmpeg fourni).
   whisper.cpp compilé ici avec CUDA (nvcc) ou Vulkan (glslc, vulkaninfo) si présents, sinon CPU.

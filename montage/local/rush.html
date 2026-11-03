@@ -339,7 +339,8 @@
     $("instructions-text").placeholder = "Par exemple : garde seulement les 3 conseils, retire le passage sur le budget, préfère les prises les plus courtes…";
     $("apply-instructions").nextSibling.textContent = " Choisir les moments avec Claude d'après ces consignes pendant la préparation";
   }
-  // Temps restant estimé par le serveur (durée du rush, vitesse mesurée de la machine).
+  // Temps restant estimé par le serveur (durée du rush, vitesse mesurée de la machine) ; absent
+  // tant que l'étape n'a pas été mesurée au moins 3 fois sur cette machine (jobs::MIN_SAMPLES).
   const remaining = (s) => {
     if (typeof s !== "number" || !isFinite(s)) return "";
     return s < 60 ? " · moins d'une minute" : ` · encore ~${Math.round(s / 60)} min`;
@@ -482,15 +483,19 @@
     list.replaceChildren();
     if (!projects) return;
     const busy = busyReason();
-    if (projects.current && projects.currentPrepared) {  // montage en cours
+    if (projects.current) {  // montage en cours (même inachevé) : ouvert, et supprimable même s'il est le seul
       const li = document.createElement("li");
       const img = projects.currentThumb ? Object.assign(document.createElement("img"), { src: projects.currentThumb, alt: "" })
         : Object.assign(document.createElement("span"), { className: "noimg" });
       const name = Object.assign(document.createElement("span"), { className: "name", textContent: projects.current });
       const acts = Object.assign(document.createElement("span"), { className: "acts" });
-      const open = Object.assign(document.createElement("a"), { href: "/", textContent: "Ouvrir", className: "btnlink" });
-      acts.append(open);
-      const facts = Object.assign(document.createElement("span"), { className: "facts", textContent: "en cours · page des moments" });
+      if (projects.currentPrepared) acts.append(Object.assign(document.createElement("a"), { href: "/", textContent: "Ouvrir", className: "btnlink" }));
+      const del = Object.assign(document.createElement("button"), { type: "button", textContent: "Supprimer" });
+      lock(del, busy);
+      del.addEventListener("click", () => act("delete_current", { rush: projects.current }, del));
+      acts.append(del);
+      const facts = Object.assign(document.createElement("span"), { className: "facts",
+        textContent: projects.currentPrepared ? "en cours · page des moments" : "en cours · préparation inachevée" });
       li.append(img, name, acts, facts);
       list.append(li);
     }
@@ -538,6 +543,8 @@
   async function act(action, p, btn) {
     const msg = action === "open"
       ? (projects.current && projects.currentPrepared ? `Rouvrir le montage de ${p.rush} ? Le montage en cours (${projects.current}) sera mis de côté et pourra être rouvert à son tour.` : null)
+      : action === "delete_current"
+      ? `Supprimer le montage en cours de ${p.rush} ? Ses moments, ses choix, sa copie du rush et ses rendus seront effacés ; la vidéo d'origine reste dans les rushes (à supprimer à part dans « Libérer de la place » si besoin).`
       : `Supprimer le montage enregistré de ${p.rush} (${mb(p.size || 0)}) ? Ses choix, sa copie du rush et ses rendus seront effacés ; la vidéo d'origine reste dans les rushes.`;
     if (msg && !confirm(msg)) return;
     btn.disabled = true;
@@ -551,7 +558,7 @@
   }
 
   // Libérer de la place (rust/src/place.rs) : montages enregistrés, vidéos envoyées, copies, restes.
-  const SPACE_GROUPS = { montages: "Montages enregistrés", videos: "Vidéos gardées par Auto-montage", autres: "Autres fichiers" };
+  const SPACE_GROUPS = { montages: "Montages", videos: "Vidéos gardées par Auto-montage", autres: "Autres fichiers" };
   let space = null;
   async function showSpace() {
     space = await fetch("/api/place").then((r) => r.json()).catch(() => null);
@@ -1292,7 +1299,7 @@
     lockAnalyse();
     $("analyse-style").textContent = a.result ? "Relancer l'analyse" : "Analyser les vidéos d'exemple";
     $("analyse-estimate").textContent = a.videos.length
-      ? `${a.videos.length} vidéo${a.videos.length > 1 ? "s" : ""} (${Math.round(a.seconds)} s) : ${minutes(a.estimate)} · nécessite Claude Code`
+      ? `${a.videos.length} vidéo${a.videos.length > 1 ? "s" : ""} (${Math.round(a.seconds)} s)${typeof a.estimate === "number" ? ` : ${minutes(a.estimate)}` : ""} · nécessite Claude Code`
       : "Ajoutez d'abord une vidéo d'exemple.";
     const box = $("analyse");
     box.replaceChildren();

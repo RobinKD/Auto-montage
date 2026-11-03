@@ -400,7 +400,7 @@ pub fn ffmpeg_args(src: &Path, audio: Option<&Path>, info: &Probe, preset: &Pres
     let fps = out_fps(info.fps, preset.max_fps);
     let (rate, max) = video_rate(preset, fps);
     let s = |x: &str| x.to_string();
-    let mut a: Vec<String> = vec![paths::ffmpeg().to_string_lossy().into_owned(), s("-v"), s("error"), s("-y")];
+    let mut a: Vec<String> = vec![enc.ffmpeg().to_string_lossy().into_owned(), s("-v"), s("error"), s("-y")];
     a.extend(enc.input_args());
     a.extend([s("-i"), paths::display(src)]);
     if let Some(raw) = audio {
