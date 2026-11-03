@@ -863,11 +863,13 @@ pub fn main(args: &[String]) -> i32 {
                 say(&format!("Partie {} sur {}", i + 1, parts.len()));
             }
             // Vidéo encodée par la carte graphique si elle marche (gpu.rs ; HyperFrames choisit
-            // son encodeur matériel) ; échec : partie refaite par le processeur.
+            // son encodeur matériel) ; échec : partie refaite par le processeur. Encodeur du seul
+            // ffmpeg de la machine (Linux) : HyperFrames garde le ffmpeg fourni, donc le processeur.
             let enc = crate::gpu::h264();
+            let gpu = enc.is_gpu() && enc.program.is_none();
             let watch = workers > 1 || halve(&spans, (f0, f1)).is_some();
-            let mut code = run_hyperframes(&[cmd.clone(), if enc.is_gpu() { vec!["--gpu".into()] } else { vec![] }].concat(), &env, f0 as f64 / fps, part_len, total, watch);
-            if code != 0 && code != LOW_MEMORY && enc.is_gpu() {
+            let mut code = run_hyperframes(&[cmd.clone(), if gpu { vec!["--gpu".into()] } else { vec![] }].concat(), &env, f0 as f64 / fps, part_len, total, watch);
+            if code != 0 && code != LOW_MEMORY && gpu {
                 crate::gpu::give_up(&enc);
                 code = run_hyperframes(&cmd, &env, f0 as f64 / fps, part_len, total, watch);
             }

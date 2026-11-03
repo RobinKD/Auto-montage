@@ -462,4 +462,9 @@ interne : les changements attendent la prochaine version.
   utilisé (avec `-hwaccel auto`) par la version de travail, la source 4K, les exports et le rendu
   HyperFrames (`--gpu`), jamais pour les analyses ; ligne « Encodage : carte graphique (…) » ou
   « Encodage : processeur » ; échec : refait par le processeur, carte écartée ; `AM_GPU=0` la coupe.
+  Le ffmpeg fourni sous Linux (statique) n'a aucun encodeur matériel : sans encodeur qui marche, le
+  premier ffmpeg du PATH qui n'est pas le nôtre est essayé (`system_ffmpeg`, `program` de
+  `gpu::Encoder`, `Encoder::ffmpeg` à lancer pour encoder) ; il ne sert qu'à ces encodages (version de
+  travail, source 4K, exports), le rendu HyperFrames reste alors au processeur (`--gpu` seulement
+  avec le ffmpeg fourni).
   whisper.cpp compilé ici avec CUDA (nvcc) ou Vulkan (glslc, vulkaninfo) si présents, sinon CPU.

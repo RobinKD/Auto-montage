@@ -17,6 +17,12 @@ installateurs (voir `packaging/README.md`).
   montre l'avancement sans « encore ~N min », et la création de la 4K ou l'analyse des vidéos
   d'exemple ne donne pas de durée prévue. Les estimations du début étaient souvent très loin du
   temps réel ; elles apparaissent dès que la machine a mesuré sa propre vitesse.
+- **La carte graphique sert enfin sous Linux** : le ffmpeg fourni avec Auto-montage sous Linux ne
+  sait pas utiliser les cartes graphiques, si bien que tout était encodé par le processeur. Quand
+  le ffmpeg de l'ordinateur (celui de la distribution) sait le faire, il encode maintenant la copie
+  du rush en 1080p, la source 4K et les exports par la carte graphique (NVIDIA, AMD ou Intel), et la
+  copie du rush se fait en même temps que la transcription. Le journal l'indique : « Encodage :
+  carte graphique (…, ffmpeg de la machine : …) ».
 
 ## 1.3
 
