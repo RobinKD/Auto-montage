@@ -238,8 +238,8 @@ pub fn factor(op: &str, measures: &serde_json::Map<String, Value>) -> (f64, usiz
         .map(|a| {
             a.iter()
                 .filter(|o| util::truthy(o.get("model")) && util::truthy(o.get("peak")))
-                // rendu : mesures prises depuis que la formule compte les plans
-                .filter(|o| render_hd(op).is_none() || o.get("clips").is_some())
+                // rendu : mesures prises depuis que la formule compte les plans et le pic le swap
+                .filter(|o| render_hd(op).is_none() || o.get("swap").is_some())
                 .collect()
         })
         .unwrap_or_default();
@@ -268,6 +268,7 @@ pub fn record(op: &str, peak: i64, info: &VideoInfo) {
                        "at": chrono::Local::now().format("%Y-%m-%dT%H:%M:%S").to_string()});
     if render_hd(op).is_some() {
         o["clips"] = json!(round_int(clips(info)));
+        o["swap"] = json!(true);
     }
     obs.push(o);
     let start = obs.len().saturating_sub(KEEP_MEASURES);
@@ -298,8 +299,10 @@ pub fn tree_memory(root: u32) -> i64 {
             if let Some(c) = children.get(&pid) {
                 todo.extend(c);
             }
+            // Mémoire passée en swap comprise (SwapPss) : sans elle, un rendu qui débordait sur le
+            // swap paraissait léger, et le suivant prenait encore plus de navigateurs.
             if let Ok(text) = fs::read_to_string(format!("/proc/{pid}/smaps_rollup")) {
-                if let Some(line) = text.lines().find(|l| l.starts_with("Pss:")) {
+                for line in text.lines().filter(|l| l.starts_with("Pss:") || l.starts_with("SwapPss:")) {
                     total += line.split_whitespace().nth(1).and_then(|s| s.parse::<i64>().ok()).unwrap_or(0) * 1024;
                 }
             }
@@ -506,6 +509,28 @@ fn cgroup_dirs() -> Vec<(PathBuf, bool)> {
     out.push((root.to_path_buf(), true));
     out.push((root.join("memory"), false));
     out
+}
+
+/// Swap utilisé (octets) : /proc/meminfo, ou sysinfo hors Linux ; None si illisible.
+pub fn swap_used() -> Option<i64> {
+    #[cfg(target_os = "linux")]
+    {
+        let text = fs::read_to_string("/proc/meminfo").ok()?;
+        let get = |k: &str| {
+            text.lines()
+                .find(|l| l.split(':').next() == Some(k))
+                .and_then(|l| l.split(':').nth(1))
+                .and_then(|v| v.split_whitespace().next())
+                .and_then(|v| v.parse::<i64>().ok())
+        };
+        Some((get("SwapTotal")? - get("SwapFree")?) * 1024)
+    }
+    #[cfg(not(target_os = "linux"))]
+    {
+        let mut sys = sysinfo::System::new();
+        sys.refresh_memory();
+        Some(sys.used_swap() as i64)
+    }
 }
 
 /// Place libre sur le disque qui contient `path`, en octets.

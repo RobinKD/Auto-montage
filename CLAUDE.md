@@ -351,7 +351,12 @@ interne : les changements attendent la prochaine version.
   parents), lignes « Navigateurs du rendu : N » et « Plans par partie du rendu : N » lues par
   `local_server` ; pendant le rendu, mémoire libre sous 1 Go ou 8 % pendant 2 s : node et ses
   navigateurs arrêtés, partie refaite avec moitié moins de navigateurs, puis coupée en deux (`halve`).
-  Les navigateurs ont leur propre session : marqués par `AM_RENDU_HYPERFRAMES=1` (`procs::kill_marked`),
+  Swap (Linux : la mémoire disponible ne baisse pas pendant que le rendu part dans le swap) : plus de 1 Go
+  ou 5 % de swap pris depuis le début de la partie compte aussi (`SWAP_MB`, `memoire::swap_used`).
+  Pic mesuré du rendu : PSS et SwapPss des programmes, ou mémoire libre prise depuis le début de l'étape si
+  plus (`sample_memory` : carte graphique intégrée, images hors PSS) ; mesures marquées `"swap"`.
+  Les navigateurs ont leur propre session : marqués par `AM_RENDU_HYPERFRAMES=1` (`procs::kill_marked` :
+  marqués, leurs descendants et toute session dont un marqué est le chef, puis attente de leur fin),
   arrêtés après chaque rendu, chaque étape, au début d'un rendu et au démarrage du serveur ; page prête
   en 15 min au plus. Transcription : `./am setup_whisper` (whisper.cpp 1.7.6
   compilé pour le VAD et Whisper, modèles de Hugging Face, Parakeet en ONNX dans

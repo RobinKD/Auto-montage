@@ -121,19 +121,55 @@ pub fn kill_group(pid: u32, sig: Sig) -> bool {
 /// et survivent à node quand il est tué (manque de mémoire, arrêt forcé).
 pub const RENDER_MARK: &str = "AM_RENDU_HYPERFRAMES";
 
-/// Arrête (sans attendre) tous les programmes dont l'environnement contient `name=1`, sauf
-/// celui-ci ; renvoie leur nombre.
+/// Arrête tous les programmes dont l'environnement contient `name=1`, sauf celui-ci, avec tout ce
+/// qu'ils ont lancé : leurs descendants et, pour ceux qui ont ouvert leur propre session
+/// (navigateurs), toute cette session (processus du GPU, zygote, pages, qui ne gardent pas
+/// toujours la marque et survivaient au navigateur tué). Attend leur fin (10 s au plus) ; renvoie
+/// leur nombre.
 pub fn kill_marked(name: &str) -> usize {
-    use sysinfo::{ProcessRefreshKind, ProcessesToUpdate, System, UpdateKind};
+    use std::collections::{HashMap, HashSet};
+    use sysinfo::{Pid, ProcessRefreshKind, ProcessesToUpdate, System, UpdateKind};
     let mark = std::ffi::OsString::from(format!("{name}=1"));
     let mut sys = System::new();
     sys.refresh_processes_specifics(ProcessesToUpdate::All, true, ProcessRefreshKind::nothing().with_environ(UpdateKind::Always));
     let me = sysinfo::get_current_pid().ok();
-    sys.processes()
+    let procs: Vec<(&Pid, &sysinfo::Process)> = sys.processes().iter().filter(|(_, p)| p.thread_kind().is_none()).collect();
+    let marked: Vec<Pid> = procs.iter().filter(|(_, p)| p.environ().iter().any(|e| *e == mark)).map(|(pid, _)| **pid).collect();
+    // Sessions ouvertes par un programme marqué (il en est le chef), jamais celle de ce programme.
+    let mine = me.and_then(|m| sys.process(m)).and_then(|p| p.session_id());
+    let sessions: HashSet<Pid> = marked
         .iter()
-        .filter(|(pid, p)| Some(**pid) != me && p.thread_kind().is_none() && p.environ().iter().any(|e| *e == mark))
-        .filter(|(_, p)| p.kill())
-        .count()
+        .filter(|pid| sys.process(**pid).and_then(|p| p.session_id()) == Some(**pid) && Some(**pid) != mine)
+        .copied()
+        .collect();
+    let mut children: HashMap<Pid, Vec<Pid>> = HashMap::new();
+    for (pid, p) in &procs {
+        if let Some(parent) = p.parent() {
+            children.entry(parent).or_default().push(**pid);
+        }
+    }
+    let mut doomed: HashSet<Pid> = HashSet::new();
+    let mut todo: Vec<Pid> = marked.clone();
+    todo.extend(procs.iter().filter(|(_, p)| p.session_id().map(|s| sessions.contains(&s)).unwrap_or(false)).map(|(pid, _)| **pid));
+    while let Some(pid) = todo.pop() {
+        if Some(pid) == me || !doomed.insert(pid) {
+            continue;
+        }
+        if let Some(c) = children.get(&pid) {
+            todo.extend(c);
+        }
+    }
+    let killed = doomed.iter().filter(|pid| sys.process(**pid).map(|p| p.kill()).unwrap_or(false)).count();
+    let pids: Vec<Pid> = doomed.into_iter().collect();
+    for _ in 0..100 {
+        sys.refresh_processes(ProcessesToUpdate::Some(&pids), true);
+        // arrêtés : disparus, ou zombies en attente de leur parent (mémoire déjà rendue)
+        if pids.iter().all(|p| sys.process(*p).map(|q| q.status() == sysinfo::ProcessStatus::Zombie).unwrap_or(true)) {
+            break;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(100));
+    }
+    killed
 }
 
 /// Attend la fin d'un enfant et renvoie son code à la façon de Python.

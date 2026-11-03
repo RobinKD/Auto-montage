@@ -46,6 +46,13 @@ installateurs (voir `packaging/README.md`).
   moment à l'autre on pouvait voir un sous-titre du moment précédent. Le sous-titre est maintenant
   redessiné dès que le moment ou son texte change, même pendant la lecture.
 
+- **Le rendu ne déborde plus sur la mémoire sous Linux** : quand la mémoire s'épuisait, les
+  navigateurs du rendu étaient arrêtés mais une partie de leurs processus restait ouverte et gardait
+  la mémoire, si bien que chaque nouvel essai en ajoutait d'autres (jusqu'à 18 Go de mémoire et 12 Go
+  de swap). Tous leurs processus sont maintenant arrêtés. Le rendu se règle aussi sur la mémoire
+  vraiment prise (celle de la carte graphique intégrée comprise) et sur le swap qui se remplit, pour
+  ouvrir moins de navigateurs la fois suivante.
+
 ## 1.3
 
 - **« Valider le dérush » est beaucoup plus rapide** : le passage à l'auto-montage reprend ce que

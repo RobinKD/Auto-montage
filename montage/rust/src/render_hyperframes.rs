@@ -69,6 +69,11 @@ const MIN_MEM_PART: f64 = 30.0;
 const LOW_MB: f64 = 1000.0;
 const LOW_SHARE: f64 = 0.08;
 const LOW_SECONDS: u32 = 2;
+// Swap : la mémoire disponible reste au-dessus du seuil pendant que le système envoie le rendu
+// dans le swap (Linux) ; plus de SWAP_MB ou de SWAP_SHARE de la mémoire totale passés en swap
+// depuis le début de la partie compte aussi comme mémoire épuisée.
+const SWAP_MB: f64 = 1000.0;
+const SWAP_SHARE: f64 = 0.05;
 const LOW_MEMORY: i32 = i32::MIN; // code de run_hyperframes : arrêté par la surveillance
 
 fn cpus() -> usize {
@@ -486,10 +491,17 @@ fn pump(mut r: impl Read, done: f64, part_len: f64, total: f64) {
     hf_line(&buf, done, part_len, total);
 }
 
-/// Mémoire libre presque épuisée (LOW_MB, LOW_SHARE).
-fn low_memory() -> bool {
+/// Mémoire libre presque épuisée (LOW_MB, LOW_SHARE), ou rendu qui part dans le swap (SWAP_MB,
+/// SWAP_SHARE).
+/// swap0 : swap utilisé au début de la partie.
+fn low_memory(swap0: Option<i64>) -> bool {
     let (Some(avail), total) = memoire::available() else { return false };
-    (avail as f64) < (LOW_MB * memoire::MO).max(LOW_SHARE * total.unwrap_or(0) as f64)
+    let total = total.unwrap_or(0) as f64;
+    let swapped = match (swap0, memoire::swap_used()) {
+        (Some(a), Some(b)) => (b - a) as f64 > (SWAP_MB * memoire::MO).max(SWAP_SHARE * total),
+        _ => false,
+    };
+    swapped || (avail as f64) < (LOW_MB * memoire::MO).max(LOW_SHARE * total)
 }
 
 /// Rend une page ; avancement en secondes de montage (done : déjà rendu avant cette partie).
@@ -514,8 +526,9 @@ fn run_hyperframes(cmd: &[String], env: &[(String, String)], done: f64, part_len
         let (finished, tripped) = (finished.clone(), tripped.clone());
         std::thread::spawn(move || {
             let mut low = 0;
+            let swap0 = memoire::swap_used();
             while !finished.load(Ordering::SeqCst) {
-                low = if low_memory() { low + 1 } else { 0 };
+                low = if low_memory(swap0) { low + 1 } else { 0 };
                 if low >= LOW_SECONDS {
                     tripped.store(true, Ordering::SeqCst);
                     procs::kill_marked(procs::RENDER_MARK);
@@ -885,6 +898,9 @@ pub fn main(args: &[String]) -> i32 {
             }
             if code == LOW_MEMORY {
                 let _ = fs::remove_file(&tmp);
+                if let Some(a) = memoire::available().0 {
+                    say(&format!("Navigateurs arrêtés, mémoire libre : {}", memoire::go(a)));
+                }
                 if workers > 1 {
                     workers = (workers / 2).max(1);
                     say(&format!("Mémoire presque épuisée : partie {} refaite avec {workers} navigateur{}", i + 1, if workers > 1 { "s" } else { "" }));

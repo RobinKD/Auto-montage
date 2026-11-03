@@ -1306,8 +1306,15 @@ fn check_memory(j: &mut Job, step: &str) {
 /// d'avancement en cours, ou d'une ligne « @memoire <opération> », ou la seule de l'étape.
 fn sample_memory(pid: u32, step: &str, finished: &AtomicBool) {
     let alone = memoire::steps(step).unwrap_or_default();
+    // Rendu : mémoire libre prise depuis le début de l'étape, si elle dépasse la somme des PSS
+    // (carte graphique intégrée : images des navigateurs dans la mémoire du système, hors PSS).
+    let avail0 = memoire::available().0;
     while !finished.load(Ordering::SeqCst) {
         let mut used = memoire::tree_memory(pid);
+        let taken = match (avail0, memoire::available().0) {
+            (Some(a), Some(b)) => a - b,
+            _ => 0,
+        };
         {
             let mut j = lock();
             // Opérations lancées à côté (copie du rush) : leur programme et ses enfants comptés à part.
@@ -1324,6 +1331,9 @@ fn sample_memory(pid: u32, step: &str, finished: &AtomicBool) {
             let label = progress_obj(&j.m).and_then(|p| p.get("label")).and_then(Value::as_str).filter(|l| memoire::is_operation(l)).map(String::from);
             let op = mem_op.or(label).or_else(|| (alone.len() == 1).then(|| alone[0].to_string()));
             if let Some(op) = op.filter(|o| memoire::is_operation(o)) {
+                if memoire::render_hd(&op).is_some() {
+                    used = used.max(taken);
+                }
                 if used > 0 {
                     let peaks = obj(&mut j.m, "memPeaks");
                     let before = peaks.get(&op).and_then(Value::as_i64).unwrap_or(0);
