@@ -6,6 +6,17 @@ installateurs (voir `packaging/README.md`).
 
 ## 1.4
 
+- **« Télécharger derush » bien plus rapide** : la vidéo du dérush n'est plus redessinée image par
+  image comme un montage avec effets. Les moments gardés sont coupés directement dans la copie du
+  rush faite à la préparation (ou dans la source 4K), et seuls les sous-titres sont dessinés, une
+  fois chacun, puis posés sur la vidéo, avec le même aspect qu'avant. Sur un essai, 22 s au lieu de
+  100 s pour 41 s de vidéo.
+- **Qualité choisie en validant le dérush** : « Valider le dérush » propose maintenant, sous
+  « Télécharger derush », la qualité de la vidéo à télécharger : 720p (légère, pour le téléphone),
+  1080p ou 4K. La vidéo se télécharge d'elle-même une fois prête ; pour la 4K, sa création (plus
+  longue) se lance juste après la génération, avec sa barre d'avancement. Le choix est gardé pour
+  la prochaine fois. Jusqu'ici, il fallait attendre la fin de la génération puis choisir dans le
+  menu « Télécharger », et créer la 4K à part.
 - **Le dernier montage peut enfin être supprimé** : le montage en cours, même s'il est le seul, a
   maintenant un bouton « Supprimer » dans « Montages » (page « Rushes et montages »), et il apparaît
   aussi dans « Libérer de la place ». Ses moments, ses choix, sa copie du rush et ses rendus sont

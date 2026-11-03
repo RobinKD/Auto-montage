@@ -13,6 +13,7 @@ use crate::moments_lib::{frame_layout, is_hf_voice};
 use crate::paths;
 use crate::place;
 use crate::procs;
+use crate::progress;
 use crate::progress::{report, report_every, say};
 use crate::pyjson;
 use crate::render_lib::{poppins, Montage};
@@ -719,6 +720,15 @@ pub fn main(args: &[String]) -> i32 {
     let k = if hd && preset.is_none() { 2 } else { 1 };
     let fps = m.fps;
     let total = round_to(m.frames as f64 / fps, 2);
+    // Dérush sans rien d'autre à dessiner que les sous-titres : coupé par ffmpeg dans la copie du
+    // rush, sans redessiner chaque image (plain_render).
+    if plain(&m) {
+        let left = procs::kill_marked(procs::RENDER_MARK);
+        if left > 0 {
+            say(&format!("Programmes d'un rendu précédent encore ouverts arrêtés : {left}"));
+        }
+        return plain_render(&mut m, k, preset, out);
+    }
     for cache in place::extract_caches() {
         // images extraites gardées par un rendu précédent
         let _ = fs::remove_dir_all(cache);
@@ -917,6 +927,223 @@ pub fn main(args: &[String]) -> i32 {
     let _ = fs::remove_dir_all(dir().join("assets"));
     let _ = fs::remove_dir_all(dir().join("bin"));
     say(&format!("Rendu HyperFrames : {out}"));
+    0
+}
+
+// --- Dérush : vidéo coupée par ffmpeg, sous-titres posés en images -----------------------------
+// En mode Dérushage, build_edit ne met dans edit.json ni effets, ni zooms, ni cadrage, ni couleurs,
+// ni transitions, ni bruitages : chaque image du montage est celle de la copie du rush, avec
+// seulement les sous-titres. Plutôt que de redessiner chaque image dans le navigateur (plus de deux
+// fois la durée de la vidéo), ffmpeg coupe les plans dans la copie du rush (rush_1080.mp4 faite par
+// la préparation, ou rush_2160.mp4 de make_hd en 4K), et chaque sous-titre est dessiné une seule fois
+// par la page du rendu (même code, même police : une image par sous-titre, fond transparent), puis
+// posé sur la vidéo pendant sa durée.
+
+/// Montage qui n'a rien d'autre à dessiner que les sous-titres (dérush).
+fn plain(m: &Montage) -> bool {
+    let e = &m.edit;
+    let none = |k: &str| util::arr(e, k).is_empty();
+    let off = |k: &str| !util::truthy(m.hab.get(k));
+    let son = |k: &str| !util::truthy(e.get("son").and_then(|s| s.get(k)));
+    e.get("derushWords").is_some()
+        && ["zooms", "zoomFx", "shakes", "flashes", "highlights", "looks", "transitions", "chips", "funny", "focus", "sfx"].iter().all(|k| none(k))
+        && m.typed.is_empty()
+        && e.get("couleur").map_or(true, Value::is_null)
+        && num(m.hab.get("autoZoom")) == 0.0
+        && off("pop")
+        && off("karaoke")
+        && son("highpass")
+        && son("clarity")
+}
+
+/// Images des sous-titres : la page du rendu avec une image par sous-titre (sans plans, fond
+/// transparent), rendue en PNG. Renvoie les fichiers, dans l'ordre des sous-titres.
+fn caption_images(m: &mut Montage, k: i64, preset: Option<&str>, n: usize) -> Result<Vec<PathBuf>, String> {
+    let fps = m.fps;
+    let (edit, frames) = (m.edit.clone(), m.frames);
+    // Sous-titre i à l'image i (bornes à 0,4 image de part et d'autre : sans doute d'arrondi).
+    if let Some(o) = m.edit.as_object_mut() {
+        // un plan sur toute la page (la page en a besoin), dont la vidéo est retirée ensuite
+        o.insert("clips".into(), json!([{"from": 0, "durationInFrames": n, "trimBefore": 0, "trimBeforeHd": 0}]));
+        if let Some(Value::Array(caps)) = o.get_mut("captions") {
+            for (i, c) in caps.iter_mut().enumerate() {
+                let t = i as f64 / fps;
+                let shift = t - num(c.get("start"));
+                if let Some(Value::Array(times)) = c.get_mut("times") {
+                    for x in times.iter_mut() {
+                        *x = json!(x.as_f64().unwrap_or(0.0) + shift);
+                    }
+                }
+                c["start"] = json!(t - 0.4 / fps);
+                c["end"] = json!(t + 0.4 / fps);
+            }
+        }
+    }
+    m.frames = n as i64;
+    let _ = fs::remove_dir_all(dir());
+    util::mkdirs(dir().join("assets"));
+    let _ = fs::write(dir().join("hyperframes.json"), pyjson::dumps(&json!({"paths": {"assets": "assets"}})));
+    let built = build(m, k, Some((0, n as i64)));
+    (m.edit, m.frames) = (edit, frames);
+    built?;
+    let index = dir().join("index.html");
+    let page = fs::read_to_string(&index).map_err(|e| format!("work/rendu_hyperframes/index.html : {e}"))?;
+    let page: Vec<&str> = page.lines().filter(|l| !l.contains("<video id=\"clip")).collect();
+    fs::write(&index, page.join("\n").replace("background: black", "background: transparent")).map_err(|e| e.to_string())?;
+    let mut env = tools(m.hd)?;
+    if let Ok(p) = limiter_exe() {
+        env.retain(|(k, _)| k != "HYPERFRAMES_FFMPEG_PATH");
+        env.push(("HYPERFRAMES_FFMPEG_PATH".into(), paths::display(&p)));
+    }
+    let pngs = std::path::absolute(dir().join("sous-titres")).unwrap_or_else(|_| dir().join("sous-titres"));
+    let mut cmd = vec![
+        paths::display(&paths::node()),
+        paths::display(&node_modules().join("hyperframes").join("dist").join("cli.js")),
+        "render".into(),
+        paths::display(&dir()),
+        "-o".into(),
+        paths::display(&pngs),
+        "--format".into(),
+        "png-sequence".into(),
+        "--workers".into(),
+        "1".into(),
+    ];
+    if let Some(p) = preset {
+        cmd.extend(["--resolution".into(), p.to_string()]);
+    }
+    say(&format!("Sous-titres : {n} images"));
+    let code = run_hyperframes(&cmd, &env, 0.0, 0.0, 0.0, false);
+    let mut files: Vec<PathBuf> = util::list_dir(&pngs).into_iter().filter(|f| f.ends_with(".png")).map(|f| pngs.join(f)).collect();
+    files.sort();
+    if code != 0 || files.len() < n {
+        return Err(format!("Échec du dessin des sous-titres (code {code}, {} images sur {n})", files.len()));
+    }
+    files.truncate(n);
+    Ok(files)
+}
+
+/// Vidéo du dérush : plans coupés dans la copie du rush, voix du montage (voice.wav, limiteur à
+/// -1,5 dB comme hf_audio.js), sous-titres posés pendant leur durée.
+fn plain_render(m: &mut Montage, k: i64, preset: Option<&str>, out: &str) -> i32 {
+    let fps = m.fps;
+    let total = m.frames as f64 / fps;
+    let (w, h) = (m.width * if m.hd { 2 } else { 1 }, m.height * if m.hd { 2 } else { 1 });
+    let (rush, key) = m.rush();
+    if !rush.is_file() {
+        return fail(format!("Copie du rush introuvable : {}", paths::display(&rush)));
+    }
+    let voice = paths::public().join("audio").join("voice.wav");
+    say(&format!("Dérush sans effets : vidéo coupée dans {}, sans redessiner chaque image", rush.file_name().map(|s| s.to_string_lossy().into_owned()).unwrap_or_default()));
+    report("Rendu de la vidéo", 0.0, total);
+    // Sous-titres : (début, fin) en images du montage, et leur image.
+    let caps: Vec<(i64, i64)> = util::arr(&m.edit, "captions")
+        .iter()
+        .map(|c| (round_int(num(c.get("start")) * fps), round_int(num(c.get("end")) * fps)))
+        .collect();
+    let images = if caps.is_empty() {
+        vec![]
+    } else {
+        match caption_images(m, k, preset, caps.len()) {
+            Ok(f) => f,
+            Err(e) => return fail(e),
+        }
+    };
+    let work = paths::work().join("rendu_hyperframes");
+    util::mkdirs(&work);
+    // Liste du démultiplexeur concat : image vide entre les sous-titres, chacun pendant sa durée.
+    let list = work.join("sous-titres.txt");
+    if !images.is_empty() {
+        let blank = work.join("vide.png");
+        let (code, _, _) = procs::run(
+            paths::ffmpeg(),
+            ["-v".into(), "error".into(), "-y".into(), "-f".into(), "lavfi".into(), "-i".into(),
+             format!("color=c=black@0.0:s={w}x{h},format=rgba"), "-frames:v".into(), "1".into(), paths::display(&blank)],
+        );
+        if code != 0 {
+            return fail("Échec de l'image vide des sous-titres (ffmpeg)");
+        }
+        let quote = |p: &Path| format!("file '{}'\n", paths::display(&std::path::absolute(p).unwrap_or_else(|_| p.to_path_buf())).replace('\'', "'\\''"));
+        let mut txt = String::from("ffconcat version 1.0\n");
+        let mut at = 0i64;
+        let push = |file: &Path, frames: i64, txt: &mut String| {
+            if frames > 0 {
+                txt.push_str(&quote(file));
+                txt.push_str(&format!("duration {}\n", util::fmt_g(frames as f64 / fps, 12)));
+            }
+        };
+        for (i, &(a, b)) in caps.iter().enumerate() {
+            let a = a.max(at).min(m.frames);
+            let b = b.min(m.frames);
+            push(&blank, a - at, &mut txt);
+            if b > a {
+                push(&images[i], b - a, &mut txt);
+                at = b;
+            } else {
+                at = a;
+            }
+        }
+        push(&blank, (m.frames - at).max(1), &mut txt);
+        txt.push_str(&quote(&blank)); // dernière image répétée : sa durée est alors prise en compte
+        if let Err(e) = fs::write(&list, txt) {
+            return fail(format!("work/rendu_hyperframes/sous-titres.txt : {e}"));
+        }
+    }
+    // Plans : coupés à l'image dans la copie du rush (30 images/s), mis bout à bout.
+    let clips: Vec<(i64, i64)> = util::arr(&m.edit, "clips")
+        .iter()
+        .map(|c| (round_int(num(c.get(key))), round_int(num(c.get("durationInFrames")))))
+        .filter(|&(_, d)| d > 0)
+        .collect();
+    if clips.is_empty() {
+        return fail("Aucun plan dans le montage");
+    }
+    let n = clips.len();
+    let mut g = format!("[0:v]fps={},format=yuv420p,split={n}", util::fmt_g(fps, 12));
+    for i in 0..n {
+        g.push_str(&format!("[v{i}]"));
+    }
+    for (i, (a, d)) in clips.iter().enumerate() {
+        g.push_str(&format!(";[v{i}]trim=start_frame={a}:end_frame={},setpts=PTS-STARTPTS[c{i}]", a + d));
+    }
+    g.push(';');
+    for i in 0..n {
+        g.push_str(&format!("[c{i}]"));
+    }
+    g.push_str(&format!("concat=n={n}:v=1:a=0,scale={w}:{h},setsar=1"));
+    if images.is_empty() {
+        g.push_str("[vout]");
+    } else {
+        g.push_str(&format!("[base];[2:v]fps={0},format=rgba[subs];[base][subs]overlay=0:0:eof_action=pass:format=auto,format=yuv420p[vout]", util::fmt_g(fps, 12)));
+    }
+    g.push_str(";[1:a]alimiter=limit=0.841:attack=5:release=50:level=disabled[aout]");
+    let script = work.join("derush_filtre.txt");
+    if let Err(e) = fs::write(&script, &g) {
+        return fail(format!("work/rendu_hyperframes/derush_filtre.txt : {e}"));
+    }
+    let mut cmd: Vec<String> = vec![paths::display(paths::ffmpeg()), "-v".into(), "error".into(), "-y".into(), "-i".into(), paths::display(&rush), "-i".into(), paths::display(&voice)];
+    if !images.is_empty() {
+        cmd.extend(["-f".into(), "concat".into(), "-safe".into(), "0".into(), "-i".into(), paths::display(&list)]);
+    }
+    let tmp = format!("{}.part.mp4", out.strip_suffix(".mp4").unwrap_or(out));
+    cmd.extend(
+        [
+            "-filter_complex_script", &paths::display(&script), "-map", "[vout]", "-map", "[aout]", "-r", &util::fmt_g(fps, 12), "-frames:v", &m.frames.to_string(), "-t", &util::fmt_g(total + 0.5 / fps, 12),
+            "-c:v", "libx264", "-crf", if m.hd { "16" } else { "20" }, "-preset", "veryfast", "-pix_fmt", "yuv420p",
+            "-c:a", "aac", "-b:a", "192k", "-ar", "48000", "-movflags", "+faststart", &tmp,
+        ]
+        .iter()
+        .map(|s| s.to_string()),
+    );
+    let code = progress::ffmpeg("Rendu de la vidéo", &cmd, Some(total), 0.0, None);
+    let _ = fs::remove_dir_all(dir());
+    if code != 0 || !Path::new(&tmp).exists() {
+        let _ = fs::remove_file(&tmp);
+        return fail(format!("Échec du rendu du dérush (ffmpeg, code {code})"));
+    }
+    if let Err(e) = fs::rename(&tmp, out) {
+        return fail(format!("Échec du rendu du dérush : {e}"));
+    }
+    say(&format!("Rendu du dérush : {out}"));
     0
 }
 

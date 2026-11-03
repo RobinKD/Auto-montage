@@ -328,6 +328,12 @@ interne : les changements attendent la prochaine version.
 - Sous-titres supprimés pour un moment (page des moments, « Corriger » : texte vide ou
   « Supprimer les sous-titres ») : `"nosub": true` dans le document du moment, transmis par
   `use_selection` comme correction vide, que `build_edit` applique (mots sans texte).
+- Rendu du dérush (edit.json sans effets, zooms, couleurs, transitions ni bruitages : `plain` de
+  `render_hyperframes.rs`) : `plain_render`, plans coupés par ffmpeg dans `rush_1080.mp4` (ou
+  `rush_2160.mp4` en 4K), voix avec limiteur, et chaque sous-titre dessiné une seule fois par la page
+  du rendu (`caption_images` : une image par sous-titre, PNG transparents, `--format png-sequence`)
+  posé par `overlay` pendant sa durée (démultiplexeur concat) ; un effet ajouté au dérush doit en
+  sortir `plain`.
 - Rendu : `./am render apercu|final` lance `rust/src/render_hyperframes.rs`, qui écrit le
   montage (edit.json, face.json) en page HTML + GSAP dans `work/rendu_hyperframes/` et la rend
   avec `hyperframes render` (Chrome sans écran : `render_lib.headless_chrome` → `./am ensure_browser`, Chromium de
