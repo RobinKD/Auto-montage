@@ -1170,7 +1170,7 @@
     // d : transcription incertaine (confiance du modèle sous moments_lib::DOUBT), tant que le texte
     // du moment n'a été ni corrigé ni enregistré tel quel (« checked » du document du moment).
     const open = !t && !(edits[m.id] && edits[m.id].checked);
-    return m.words.map((w, k) => ({ text: texts[k], a: w.a, b: w.b, s: w.s, d: open && !!w.d }));
+    return m.words.map((w, k) => ({ text: texts[k], a: w.a, b: w.b, s: w.s, d: open && !!w.d, cut: !!w.cut }));
   }
   // Mots à vérifier d'un moment (sous-titres affichés : partout sauf en dérushage sans sous-titres).
   const doubtsOf = (m) => (m.gap || (DERUSH && !derushSubs()) ? [] : wordsOf(m).filter((w) => w.d && w.text));
@@ -1203,7 +1203,8 @@
     };
     for (const w of words.filter((x) => x.text)) {
       const t = w.text.trim();
-      if (g.length && w.a - g[g.length - 1].b > 0.35) flush();
+      // cut : premier mot d'un ancien moment (vidéo d'un dérush validé), comme build_edit::caption_groups
+      if (g.length && (w.cut || w.a - g[g.length - 1].b > 0.35)) flush();
       g.push(w);
       const chars = g.reduce((s2, x) => s2 + x.text.length, 0);
       if (/[.!?]$/.test(t) || g.length >= maxWords || chars > maxChars || (/,$/.test(t) && g.length >= 3)) flush();
@@ -1214,10 +1215,13 @@
   const sounds = {};
   const sound = (name) => (sounds[name] ||= Object.assign(new Audio(`sfx/${name}.mp3`), { preload: "auto" }));
   let fx = null; // habillage du moment en cours : { m, caps, events, intro, chip, zoomStart }
+  // Numéro de chaque habillage construit : le sous-titre affiché est redessiné dès qu'il change
+  // (autre moment, texte corrigé), même quand le sous-titre commence au même instant.
+  let overlaySerial = 0;
 
   function buildOverlay(m) {
     const words = wordsOf(m);
-    if (DERUSH) return { m, caps: derushSubs() ? captionGroups(words) : [], events: [], typed: [], chips: [], voice: [], zoomType: 0,
+    if (DERUSH) return { m, serial: ++overlaySerial, caps: derushSubs() ? captionGroups(words) : [], events: [], typed: [], chips: [], voice: [], zoomType: 0,
                          zooms: [], shakes: [], flashes: [], hl: [], looks: [] };
     const events = [], voice = [];
     for (const f of sfxOf(m)) {
@@ -1257,7 +1261,7 @@
       else if (f.kind === "highlight" && String(f.text || "").trim()) hl.push({ words: String(f.text).split(/\s+/).map(normWord).filter(Boolean), color: f.color || "#ffd84d" });
     }
     const key = vfxOf(m).find((f) => f.kind === "zoomlibre") || null;  // zoom libre : tout le moment
-    return { m, caps: captionGroups(words), events: events.map((e) => ({ ...e, done: false })), typed, chips, voice, zoomType: m.id % 2,
+    return { m, serial: ++overlaySerial, caps: captionGroups(words), events: events.map((e) => ({ ...e, done: false })), typed, chips, voice, zoomType: m.id % 2,
              zooms, shakes, flashes, hl, key, looks };
   }
 
@@ -1568,10 +1572,16 @@ ${HFAudio.voiceElements(spec)}
     const capEl = $("ov-cap");
     let cur = -1;  // mot prononcé (option « mot prononcé en couleur »)
     if (cap && HAB.karaoke && !DERUSH) cap.times.forEach((a, i) => { if (t >= a) cur = i; });
-    const key = cap ? `${cap.a}/${cur}` : "";
+    // Clé du sous-titre affiché : habillage (moment, texte), début du sous-titre et mot prononcé.
+    // Sans le numéro de l'habillage, deux moments dont le premier sous-titre commence au même
+    // instant de leur extrait (le plus souvent 0,05 s) gardaient à l'écran le sous-titre du moment
+    // précédent, et un texte corrigé ne s'affichait qu'au sous-titre suivant.
+    const key = cap ? `${fx.serial}/${cap.a}/${cur}` : "";
     if (capEl.dataset.key !== key) {
-      const isNew = !capEl.dataset.key || capEl.dataset.key.split("/")[0] !== (cap ? `${cap.a}` : "");
+      const who = cap ? `${fx.m.id}:${cap.a}` : "";  // rebond seulement pour un autre sous-titre
+      const isNew = capEl.dataset.who !== who;
       capEl.dataset.key = key;
+      capEl.dataset.who = who;
       capEl.replaceChildren();
       if (cap) {
         const colors = cap.words.map((w) => {
@@ -1676,7 +1686,7 @@ ${HFAudio.voiceElements(spec)}
     player.style.filter = "";
     $("ov-vign").hidden = true; $("ov-fx").hidden = true;
     $("ov").hidden = true;
-    $("ov-cap").replaceChildren(); $("ov-cap").dataset.key = "";
+    $("ov-cap").replaceChildren(); $("ov-cap").dataset.key = ""; $("ov-cap").dataset.who = "";
   }
 
   // --- Lecteur ---------------------------------------------------------------
@@ -3727,7 +3737,13 @@ ${HFAudio.voiceElements(spec)}
   }
   // Document « moments/<id> » écrit d'après edits[id] (aussi pour Annuler / Rétablir).
   async function writeMoment(id) {
-    if (fx && fx.m.id === id && player.paused) fx = buildOverlay(fx.m);  // aperçu à jour (zoom libre, texte…)
+    // Aperçu à jour (zoom libre, texte…), aussi pendant la lecture : les sons déjà passés ne sont
+    // pas rejoués.
+    if (fx && fx.m.id === id) {
+      const t = player.currentTime;
+      fx = buildOverlay(fx.m);
+      if (!player.paused) fx.events.forEach((e) => { if (e.t <= t) e.done = true; });
+    }
     render();  // frise, inspecteur et nombre de moments changés
     if (!db) { setStatus("Non enregistré : ouvrez la page connecté à claude.ai", "err"); return; }
     const m = byId.get(id), e = edits[id] || {};

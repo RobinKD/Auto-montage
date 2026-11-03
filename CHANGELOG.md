@@ -23,6 +23,17 @@ installateurs (voir `packaging/README.md`).
   du rush en 1080p, la source 4K et les exports par la carte graphique (NVIDIA, AMD ou Intel), et la
   copie du rush se fait en même temps que la transcription. Le journal l'indique : « Encodage :
   carte graphique (…, ffmpeg de la machine : …) ».
+- **Sous-titres bien calés dans la vidéo entière** : quand un moment finissait sans point, ses
+  derniers mots et les premiers du moment suivant formaient un seul sous-titre dans la vidéo
+  générée. Les mots du moment suivant s'affichaient donc avant d'être dits, et tous ses
+  sous-titres étaient découpés autrement que dans l'aperçu du moment, d'où des sous-titres qui
+  sautaient. Chaque sous-titre reste maintenant dans son moment, exactement comme dans l'aperçu,
+  et disparaît à la coupe au lieu de déborder sur le moment suivant. Même chose après « Valider le
+  dérush » : les anciens moments ne se mélangent plus dans un même sous-titre.
+- **L'aperçu montre tout de suite le texte corrigé** : après une correction ou « Texte juste »
+  (pastille « À vérifier »), le sous-titre affiché restait parfois l'ancien, et en passant d'un
+  moment à l'autre on pouvait voir un sous-titre du moment précédent. Le sous-titre est maintenant
+  redessiné dès que le moment ou son texte change, même pendant la lecture.
 
 ## 1.3
 

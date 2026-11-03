@@ -188,7 +188,9 @@ interne : les changements attendent la prochaine version.
   Il pose `--am-top` (hauteur du bandeau) : le lecteur et la synthèse de la page des moments, figés
   en haut pendant le défilement (`.viewer`, `.bar`, `--fix-top`), se placent dessous ; bouton
   « haut de la page » (`to-top`) en bas à droite.
-- Sous-titres : jusqu'à 6 mots sur 2 lignes par défaut, coupées là où les largeurs mesurées (multipliées
+- Sous-titres : jamais à cheval sur deux moments (`build_edit::caption_groups` comme `captionGroups` de la
+  page ; vidéo d'un dérush validé : `cut` du premier mot de chaque ancien moment, `derushWords`), fin à la
+  coupe ; jusqu'à 6 mots sur 2 lignes par défaut, coupées là où les largeurs mesurées (multipliées
   par la taille de chaque ligne) sont les plus proches (`render_lib.caption_layout` et `captionLayout` de la
   page des moments) ; nombre de lignes voulu (`lines`, champ libre de 1 à `fonts_lib::LINES_MAX` = 6 : au-delà,
   l'essai de toutes les coupures devient trop long ; mots par sous-titre : `fonts_lib::caption_limits_for`,

@@ -304,6 +304,9 @@ struct WordEvent {
     text: String,
     start: f64,
     end: f64,
+    /// Premier mot d'un moment du dérush (vidéo d'un dérush validé, « cut » du mot) : un sous-titre
+    /// commence ici, comme quand ce moment était à part.
+    cut: bool,
 }
 
 struct Caption {
@@ -330,6 +333,50 @@ struct Sfx {
 }
 
 static NOT_WORD: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"[^\w]").unwrap());
+
+/// Sous-titres du montage : mots regroupés comme sur la page des moments (captionGroups), jamais
+/// d'un moment à l'autre. Sans cette coupure, les derniers mots d'un moment et les premiers du
+/// suivant (moins de 0,35 s d'écart une fois les silences coupés) formaient un seul sous-titre :
+/// les mots du moment suivant s'affichaient avant d'être dits, et tous ses sous-titres étaient
+/// décalés par rapport à ceux de la page. Dans la vidéo d'un dérush validé (un seul moment), les
+/// premiers mots des anciens moments (« cut ») ouvrent de même un sous-titre.
+fn caption_groups(events: &[WordEvent], max_words: i64, max_chars: i64) -> Vec<Caption> {
+    let mut captions: Vec<Caption> = vec![];
+    let mut group: Vec<&WordEvent> = vec![];
+    let flush = |group: &mut Vec<&WordEvent>, captions: &mut Vec<Caption>| {
+        if group.is_empty() {
+            return;
+        }
+        let words: Vec<String> = group.iter().map(|g| g.text.clone()).collect();
+        let split = balanced_split(&words);
+        captions.push(Caption {
+            top: words[..split].join(" "),
+            bottom: words[split..].join(" "),
+            times: group.iter().map(|g| round_to(g.start, 3)).collect(), // début de chaque mot (mot prononcé en couleur)
+            words,
+            start: group[0].start,
+            end: group[group.len() - 1].end,
+        });
+        group.clear();
+    };
+    for w in events.iter().filter(|w| !w.text.is_empty()) {
+        let t = w.text.trim_end();
+        let ends_sentence = t.ends_with('.') || t.ends_with('!') || t.ends_with('?');
+        let ends_clause = t.ends_with(',');
+        let new_moment = w.cut || group.last().map(|g| g.seg != w.seg).unwrap_or(false);
+        let gap = group.last().map(|g| w.start - g.end > 0.35).unwrap_or(false);
+        if gap || new_moment {
+            flush(&mut group, &mut captions);
+        }
+        group.push(w);
+        let chars: i64 = group.iter().map(|g| g.text.chars().count() as i64).sum();
+        if ends_sentence || group.len() as i64 >= max_words || chars > max_chars || (ends_clause && group.len() >= 3) {
+            flush(&mut group, &mut captions);
+        }
+    }
+    flush(&mut group, &mut captions);
+    captions
+}
 
 /// Textes corrigés sur la page : les mots corrigés reprennent les horodatages des mots
 /// d'origine (alignement mot à mot).
@@ -929,6 +976,7 @@ fn run() -> Result<(), String> {
                 text,
                 start: out_frame as f64 / FPS + (a - f_in as f64 / FPS),
                 end: out_frame as f64 / FPS + (b - f_in as f64 / FPS),
+                cut: truthy(w.get("cut")),
             });
         }
         let joined: Vec<&str> = word_events[n_before..].iter().filter(|x| !x.text.is_empty()).map(|x| x.text.as_str()).collect();
@@ -975,43 +1023,10 @@ fn run() -> Result<(), String> {
     // nombre de lettres. Masqués à l'écran pendant un texte tapé (l'intro). Même règle dans la page
     // des moments (captionGroups).
     let (cap_max_words, cap_max_chars) = fonts_lib::caption_limits(&fonts_lib::read_style());
-    let mut captions: Vec<Caption> = vec![];
-    {
-        let mut group: Vec<&WordEvent> = vec![];
-        let flush = |group: &mut Vec<&WordEvent>, captions: &mut Vec<Caption>| {
-            if group.is_empty() {
-                return;
-            }
-            let words: Vec<String> = group.iter().map(|g| g.text.clone()).collect();
-            let split = balanced_split(&words);
-            captions.push(Caption {
-                top: words[..split].join(" "),
-                bottom: words[split..].join(" "),
-                times: group.iter().map(|g| round_to(g.start, 3)).collect(), // début de chaque mot (mot prononcé en couleur)
-                words,
-                start: group[0].start,
-                end: group[group.len() - 1].end,
-            });
-            group.clear();
-        };
-        for w in word_events.iter().filter(|w| !w.text.is_empty()) {
-            let t = w.text.trim_end();
-            let ends_sentence = t.ends_with('.') || t.ends_with('!') || t.ends_with('?');
-            let ends_clause = t.ends_with(',');
-            let gap = group.last().map(|g| w.start - g.end > 0.35).unwrap_or(false);
-            if gap {
-                flush(&mut group, &mut captions);
-            }
-            group.push(w);
-            let chars: i64 = group.iter().map(|g| g.text.chars().count() as i64).sum();
-            if ends_sentence || group.len() as i64 >= cap_max_words || chars > cap_max_chars || (ends_clause && group.len() >= 3) {
-                flush(&mut group, &mut captions);
-            }
-        }
-        flush(&mut group, &mut captions);
-    }
-    // Chaque sous-titre reste jusqu'au suivant (pas de trou à l'écran).
-    // Sans déborder sur un plan sans parole qui suit.
+    let mut captions = caption_groups(&word_events, cap_max_words, cap_max_chars);
+    // Chaque sous-titre reste jusqu'au suivant (pas de trou à l'écran), mais pas au-delà de son
+    // moment : à la coupe, la page des moments passe au moment suivant sans sous-titre jusqu'à
+    // son premier mot ; de même ici (et rien sur un plan sans parole qui suit).
     for k in 1..captions.len() {
         captions[k - 1].end = captions[k].start;
     }
@@ -1020,14 +1035,8 @@ fn run() -> Result<(), String> {
         last.end = total;
     }
     for cap in captions.iter_mut() {
-        for (ci, c) in clips.iter().enumerate() {
-            let (c_start, c_end) = (c.from as f64 / FPS, c.end());
-            if c_start <= cap.start && cap.start < c_end {
-                if ci + 1 < clips.len() && is_gap(clips[ci + 1].seg) {
-                    cap.end = cap.end.min(c_end);
-                }
-                break;
-            }
+        if let Some(c) = clips.iter().find(|c| c.from as f64 / FPS <= cap.start && cap.start < c.end()) {
+            cap.end = cap.end.min(c.end());
         }
     }
 
@@ -1699,17 +1708,19 @@ fn run() -> Result<(), String> {
     edit.insert("chips".into(), Value::Array(chips));
     if derush {
         // Mots gardés, corrigés, en temps du montage (même sous-titres masqués) : transcription
-        // de la vidéo du dérush quand il passe à l'auto-montage (derush_video).
-        edit.insert(
-            "derushWords".into(),
-            Value::Array(
-                word_events
-                    .iter()
-                    .filter(|w| !w.text.trim().is_empty())
-                    .map(|w| json!({"w": w.text.trim(), "a": r3(w.start), "b": r3(w.end)}))
-                    .collect(),
-            ),
-        );
+        // de la vidéo du dérush quand il passe à l'auto-montage (derush_video). « cut » : premier
+        // mot d'un moment, où un sous-titre commence (caption_groups, captionGroups de la page).
+        let mut prev_seg: Option<i64> = None;
+        let mut derush_words = vec![];
+        for w in word_events.iter().filter(|w| !w.text.trim().is_empty()) {
+            let mut o = json!({"w": w.text.trim(), "a": r3(w.start), "b": r3(w.end)});
+            if prev_seg.is_some_and(|s| s != w.seg) || w.cut {
+                o["cut"] = json!(1);
+            }
+            prev_seg = Some(w.seg);
+            derush_words.push(o);
+        }
+        edit.insert("derushWords".into(), Value::Array(derush_words));
     }
     edit.insert(
         "sfx".into(),
@@ -1760,6 +1771,22 @@ mod tests {
         let a: Vec<f32> = (0..480).map(|i| i as f32).collect();
         assert_eq!(pairwise_sum(&a), (0..480).sum::<i32>() as f32);
         assert_eq!(pairwise_sum(&[1.0, 2.0, 3.0]), 6.0);
+    }
+
+    #[test]
+    fn captions_never_span_two_moments() {
+        let ev = |seg: i64, text: &str, start: f64, cut: bool| WordEvent { seg, i: 0, text: text.into(), start, end: start + 0.25, cut };
+        // Fin du moment 1 sans point, moment 2 collé (0,1 s) : deux sous-titres, pas un seul.
+        let words = [ev(1, "on", 0.0, false), ev(1, "voit", 0.3, false), ev(2, "Alors", 0.65, false), ev(2, "voilà", 0.95, false)];
+        let caps = caption_groups(&words, 6, 26);
+        assert_eq!(caps.iter().map(|c| c.words.join(" ")).collect::<Vec<_>>(), ["on voit", "Alors voilà"]);
+        assert_eq!(caps[1].start, 0.65);
+        // Vidéo d'un dérush validé : un seul moment, anciens moments marqués « cut ».
+        let words = [ev(0, "on", 0.0, false), ev(0, "voit", 0.3, false), ev(0, "Alors", 0.65, true), ev(0, "voilà", 0.95, false)];
+        assert_eq!(caption_groups(&words, 6, 26).len(), 2);
+        // Dans un même moment : regroupés.
+        let words = [ev(1, "on", 0.0, false), ev(1, "voit", 0.3, false), ev(1, "Alors", 0.65, false)];
+        assert_eq!(caption_groups(&words, 6, 26).len(), 1);
     }
 
     #[test]
