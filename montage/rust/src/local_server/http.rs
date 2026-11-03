@@ -729,7 +729,7 @@ fn do_put(req: &Req, body: &mut dyn Read) -> Reply {
 // --- POST -------------------------------------------------------------------------------
 const POST_ROUTES: &[&str] = &[
     "/api/regen", "/api/prepare", "/api/final", "/api/export", "/api/chat", "/api/chat/stop", "/api/chat/new",
-    "/api/projects/open", "/api/projects/delete", "/api/projects/save", "/api/job/cancel", "/api/job/pause",
+    "/api/projects/open", "/api/projects/delete", "/api/projects/delete_current", "/api/projects/save", "/api/job/cancel", "/api/job/pause",
     "/api/job/resume", "/api/job/abandon", "/api/place/delete",
     "/api/claude/login", "/api/claude/code", "/api/claude/logout",
     "/api/update/check", "/api/update/apply", "/api/update/reset", "/api/restart", "/api/quit", "/api/style/analyse", "/api/son/analyse",
@@ -866,7 +866,8 @@ fn do_post(req: &Req, body_reader: &mut dyn Read) -> Reply {
     }
     if let Some(action) = route.strip_prefix("/api/projects/") {
         let pid = body_str(&body, "id");
-        if action != "save" && !safe_id(&pid) {
+        let no_id = action == "save" || action == "delete_current"; // montage en cours : sans id
+        if !no_id && !safe_id(&pid) {
             return err_json("montage invalide", 400);
         }
         // pas pendant une préparation, une génération ou une création 4K
@@ -874,7 +875,7 @@ fn do_post(req: &Req, body_reader: &mut dyn Read) -> Reply {
         if busy() {
             return err_json(&busy_error(), 409);
         }
-        let args: Vec<&str> = if action != "save" { vec![action, &pid] } else { vec![action] };
+        let args: Vec<&str> = if no_id { vec![action] } else { vec![action, &pid] };
         let (ok, msg) = run_project(&args);
         return if ok { send_json(&json!({"ok": true, "message": msg}), 200) } else { err_json(&msg, 400) };
     }
@@ -889,6 +890,12 @@ fn do_post(req: &Req, body_reader: &mut dyn Read) -> Reply {
             return err_json("Une tâche est en cours : attendez qu'elle finisse.", 409);
         }
         if let Some(rec) = paused_task() {
+            if ids.iter().any(|i| i == "en-cours") {
+                return err_json(
+                    &format!("La préparation de {} est en pause : reprenez-la ou abandonnez-la avant de supprimer le montage en cours.", py_str(rec.get("arg"))),
+                    409,
+                );
+            }
             // vidéos d'une préparation en pause : gardées pour la reprendre
             let args: Vec<String> = util::arr(&Value::Object(rec.clone()), "args").iter().filter_map(|s| s.as_str().map(String::from)).collect();
             if ids.iter().any(|i| args.iter().any(|a| *i == format!("rush:{a}"))) {

@@ -140,6 +140,7 @@
       media: [{ video: "demo-montage.mp4", caption: "Le début du montage : intro tapée, puis sous-titres" }, { img: "telecharger.jpg", caption: "Téléchargements" }] },
     { title: "Retrouver ses montages, et en cas de souci", where: "Rushes et montages > Montages ; menu > Journal, Mises à jour",
       html: `<ul><li>Préparer un autre rush met le montage en cours de côté : <b>Rouvrir</b> le reprend tel quel, sans rien recalculer.</li>
+        <li><b>Supprimer</b> efface un montage, y compris celui en cours (même s'il est le seul) : Auto-montage revient alors à son état de départ.</li>
         <li><b>Libérer de la place</b> (en bas de « Rushes et montages ») liste les montages, rushes et vidéos qui prennent de la place, à supprimer.</li>
         <li>Le <b>Journal</b> garde le détail de chaque tâche ; « Télécharger le rapport » le regroupe pour demander de l'aide.</li>
         <li><b>Mises à jour</b> installe les nouvelles versions en un clic (vos montages sont gardés).</li></ul>` },
@@ -301,7 +302,8 @@
         <li>Une longue tâche (préparation, génération, 4K) s'annule à tout moment ; les fichiers à moitié écrits sont effacés. Pendant qu'elle tourne, ce qui en lancerait une autre est grisé (générer, couper, créer la 4K, mettre à jour, changer de mode, rouvrir un montage), avec la raison au survol.</li>
         <li>Une préparation se met en <b>pause</b> et se reprend plus tard, même après un arrêt ou une erreur. <b>Abandonner…</b> liste ce qui est déjà fait : une partie décochée est gardée pour la prochaine préparation du même rush.</li>
         <li><b>Mémoire</b> : avant de préparer et au début de chaque étape, la page prévient si la mémoire libre est juste ou insuffisante (les estimations s'affinent avec les préparations faites sur l'ordinateur).</li>
-        <li><b>Libérer de la place</b> (en bas de « Rushes et montages ») : montages enregistrés, rushes envoyés, source 4K, restes de rendus, avec la place que chacun libère.</li>
+        <li><b>Supprimer</b> efface un montage enregistré, ou celui en cours, même s'il est le seul : ses moments, choix, versions de travail et rendus partent, la vidéo envoyée reste, et Auto-montage revient à son état de départ, prêt pour un nouveau rush.</li>
+        <li><b>Libérer de la place</b> (en bas de « Rushes et montages ») : montage en cours, montages enregistrés, rushes envoyés, source 4K, restes de rendus, avec la place que chacun libère.</li>
         <li>Le <b>Journal</b> garde le détail des 40 dernières tâches ; <b>Télécharger le rapport</b> les regroupe pour demander de l'aide.</li>
         <li><b>Mises à jour</b> installe une nouvelle version en un clic, en gardant vos montages, vos sons et vos polices.</li></ul>` },
   ];

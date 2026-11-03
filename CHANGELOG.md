@@ -4,6 +4,15 @@ Chaque version publiée reprend sa section dans ses notes (onglet Releases). Une
 section, le numéro dans `VERSION` et le tag `v<numéro>` poussé publient la version avec ses
 installateurs (voir `packaging/README.md`).
 
+## 1.4
+
+- **Le dernier montage peut enfin être supprimé** : le montage en cours, même s'il est le seul, a
+  maintenant un bouton « Supprimer » dans « Montages » (page « Rushes et montages »), et il apparaît
+  aussi dans « Libérer de la place ». Ses moments, ses choix, sa copie du rush et ses rendus sont
+  effacés, et Auto-montage revient à son état de départ, prêt pour un nouveau rush ; la vidéo
+  envoyée reste, à supprimer à part si besoin. Jusqu'ici, seul un montage mis de côté pouvait être
+  supprimé : le dernier restait sur le disque.
+
 ## 1.3
 
 - **« Valider le dérush » est beaucoup plus rapide** : le passage à l'auto-montage reprend ce que

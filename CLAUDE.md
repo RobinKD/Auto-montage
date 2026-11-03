@@ -98,7 +98,9 @@ interne : les changements attendent la prochaine version.
 - Quand le rush change, `prepare` met le montage de l'ancien rush de côté dans
   `work/projets/<rush>/` (`./am project save` : work/ hors fichiers communs, versions de
   travail, rendus, choix de la page) ; `./am project open <dossier>` le rouvre sans rien recalculer
-  (page « Rushes et montages » /rush/, section « Montages »). Les tâches de l'interface locale
+  (page « Rushes et montages » /rush/, section « Montages ») ; `./am project delete_current` (bouton
+  « Supprimer » du montage en cours, élément `en-cours` de « Libérer de la place ») supprime le montage
+  ouvert, même seul (rangé par `save`, puis effacé avec les parties de rendu) : retour à l'état vide. Les tâches de l'interface locale
   s'annulent (`/api/job/cancel`, groupe de processus) ; les vidéos longues s'écrivent en
   `*.part.*` puis sont renommées, et une annulation efface ces fichiers provisoires.
 - En local (installateurs des versions publiées, ou `./am start` depuis un clone avec Rust ;
