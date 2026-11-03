@@ -248,6 +248,7 @@ pub fn split(mid: i64, t: f64) -> Result<String, Refus> {
             d.insert("trim".into(), trim_value(t_in.filter(|x| *x < t_cut), None));
         }
         d.insert("text".into(), Value::Null);
+        d.insert("alts".into(), Value::Null); // versions de la relecture prises (indices des mots) : texte d'origine
         write_doc(mid, &d);
         let focus = truthy(d.get("focus"));
         let out2 = t_out.map(|x| x - dt).filter(|x| *x > 0.0);
@@ -305,6 +306,7 @@ pub fn unsplit(mid: i64) -> Result<String, Refus> {
             let r = or_value(dp.get("rush"), dm.get("rush"));
             dp.insert("rush".into(), r);
             dp.insert("text".into(), Value::Null);
+            dp.insert("alts".into(), Value::Null);
             // début gardé du moment d'avant, fin gardée de la partie recollée
             dp.insert("trim".into(), trim_value(trim_at(&dp, "in"), trim_at(&dm, "out").map(|x| x + dt)));
             write_doc(pid, &dp);

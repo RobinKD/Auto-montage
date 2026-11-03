@@ -316,6 +316,7 @@
   .doubt-w { text-decoration: underline wavy var(--warn); text-decoration-skip-ink: none; text-underline-offset: 3px; }
   .doubt-text { font-size: 13px; line-height: 1.7; color: var(--muted); margin: 4px 0 0; }
   .doubt-text button.doubt-w { all: unset; cursor: pointer; color: var(--fg); text-decoration: underline wavy var(--warn); text-decoration-skip-ink: none; text-underline-offset: 3px; }
+  .doubt-text button.alt-w { font: inherit; font-size: 12px; padding: 0 7px; border-radius: 6px; color: var(--fg); background: var(--warn-soft); border: 1px solid var(--warn); cursor: pointer; }
   .doubt-text button.doubt-w:focus-visible { outline: 2px solid var(--warn); outline-offset: 2px; }
   .clip .doubt-dot { position: absolute; right: 4px; bottom: 4px; width: 7px; height: 7px; border-radius: 50%; background: var(--warn); z-index: 2; pointer-events: none; }
   #doubt-next { color: var(--warn); border-color: var(--warn); }
@@ -1175,12 +1176,26 @@
   }
   function wordsOf(m) {
     if (noSub(m)) return m.words.map((w) => ({ text: "", a: w.a, b: w.b }));
-    const t = edits[m.id] && edits[m.id].text;
+    const e = edits[m.id] || {}, t = e.text;
     const texts = t ? realign(m.words.map((w) => w.w), t) : m.words.map((w) => w.w);
-    // d : transcription incertaine (confiance du modèle sous moments_lib::DOUBT), tant que le texte
-    // du moment n'a été ni corrigé ni enregistré tel quel (« checked » du document du moment).
-    const open = !t && !(edits[m.id] && edits[m.id].checked);
-    return m.words.map((w, k) => ({ text: texts[k], a: w.a, b: w.b, s: w.s, d: open && !!w.d, cut: !!w.cut }));
+    // d : transcription incertaine (confiance du modèle sous moments_lib::DOUBT, ou relecture de
+    // transcribe_segments), tant que le texte du moment n'a été ni corrigé ni enregistré tel quel
+    // (« checked » du document du moment). Texte changé seulement par des versions de la relecture
+    // prises (« alts » : indices des mots) : les autres mots restent à vérifier.
+    const taken = Array.isArray(e.alts) ? e.alts : null;
+    const open = !e.checked && (!t || !!taken);
+    return m.words.map((w, k) => ({ text: texts[k], a: w.a, b: w.b, s: w.s, d: open && !!w.d && !(taken && taken.includes(k)), cut: !!w.cut, k }));
+  }
+  // Prend la version proposée par la seconde écoute (« alt » du mot k, à la place de « altn » mots ;
+  // vide : mots retirés) : texte du moment corrigé, les autres mots à vérifier le restent.
+  function takeAlt(m, k) {
+    const w = m.words[k], n = Math.max(1, w.altn || 1);
+    const texts = wordsOf(m).map((x) => x.text);
+    for (let j = k; j < Math.min(k + n, texts.length); j++) texts[j] = j === k ? w.alt : "";
+    const taken = Array.isArray((edits[m.id] || {}).alts) ? [...edits[m.id].alts] : [];
+    for (let j = k; j < k + n; j++) if (!taken.includes(j)) taken.push(j);
+    editing = null;
+    saveMoment(m.id, { text: texts.filter(Boolean).join(" ") || null, nosub: null, alts: taken });
   }
   // Mots à vérifier d'un moment (sous-titres affichés : partout sauf en dérushage sans sous-titres).
   const doubtsOf = (m) => (m.gap || (DERUSH && !derushSubs()) ? [] : wordsOf(m).filter((w) => w.d && w.text));
@@ -2782,7 +2797,7 @@ ${HFAudio.voiceElements(spec)}
           actions.append(btn("Enregistrer", "Enregistrer le texte (Entrée)", () => saveText(m, area.value), "primary"));
           if (!noSub(m)) actions.append(btn("Supprimer les sous-titres", "Aucun sous-titre sur ce moment (la voix et l'image restent)", () => saveText(m, "")));
           if (edits[m.id] && (edits[m.id].text || edits[m.id].nosub))
-            actions.append(btn("Texte d'origine", "", () => { editing = null; saveMoment(m.id, { text: null, nosub: null }); }));
+            actions.append(btn("Texte d'origine", "", () => { editing = null; saveMoment(m.id, { text: null, nosub: null, alts: null }); }));
           editor.append(area, actions);
           out.push(editor);
           if (DERUSH && !derushSubs()) out.push(el("p", "sub", "La case « Sous-titres » (onglet « Paramètres sous-titres ») est décochée : la vidéo entière sera sans sous-titres, le texte corrigé est gardé."));
@@ -2794,6 +2809,15 @@ ${HFAudio.voiceElements(spec)}
               if (!w.d) return para.append(w.text);
               const b = btn(w.text, `Écouter « ${w.text} » (${w.a.toFixed(2)} s)`, () => seekMoment(m, w.a), "doubt-w");
               para.append(b);
+              // Autre version entendue à la seconde écoute (relecture) : prise d'un clic.
+              const alt = m.words[w.k].alt;
+              if (typeof alt === "string") {
+                const n = m.words[w.k].altn || 1, what = n > 1 ? `ces ${n} mots` : "ce mot";
+                const take = btn(alt ? `→ ${alt}` : "→ retirer",
+                  alt ? `Seconde écoute : « ${alt} ». Remplacer ${what} par cette version` : `La seconde écoute n'entend pas ${what} : les retirer du texte`,
+                  () => takeAlt(m, w.k), "alt-w");
+                para.append(" ", take);
+              }
             });
             const ok = el("div", "editor-actions");
             ok.append(btn("Texte juste", "Les mots soulignés sont justes : ce moment n'est plus à vérifier", () => saveMoment(m.id, { checked: true })));

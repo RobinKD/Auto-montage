@@ -6,6 +6,15 @@ installateurs (voir `packaging/README.md`).
 
 ## 1.4
 
+- **Relecture de la transcription** : après la transcription, les mots écrits en anglais au lieu du
+  français (« des smartwatchs, des monts intelligents »), ou absents du dictionnaire, sont repérés,
+  et leur passage est réécouté par Whisper dans la langue du rush. Quand les deux transcriptions
+  s'accordent, le mot n'est plus « à vérifier » ; sinon la meilleure version est gardée et l'autre
+  s'affiche à côté du mot souligné, sur la page des moments, à prendre d'un clic (« → … »). Les
+  passages entiers que la transcription avait traduits en anglais sont remis en français, et les
+  vrais passages en anglais restent tels quels. Les dictionnaires (1 Mo) s'installent à la
+  prochaine préparation. La transcription prend un peu plus longtemps (sur l'exposé Wikimania de
+  6 min : environ 1 min 20 de plus sur un ordinateur à 4 cœurs).
 - **« Télécharger derush » bien plus rapide** : la vidéo du dérush n'est plus redessinée image par
   image comme un montage avec effets. Les moments gardés sont coupés directement dans la copie du
   rush faite à la préparation (ou dans la source 4K), et seuls les sous-titres sont dessinés, une

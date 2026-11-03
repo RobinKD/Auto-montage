@@ -263,8 +263,45 @@ pub fn setup_whisper(_args: &[String]) -> i32 {
         eprintln!("{e}");
         return 1;
     }
+    // Dictionnaires de la relecture : sans eux, la transcription se fait quand même (relecture.rs).
+    if let Err(e) = fetch_dictionaries() {
+        eprintln!("Dictionnaires de la relecture : {e}");
+    }
     println!("whisper.cpp prêt dans {}, Parakeet dans {}", paths::display(&whisper), paths::display(&paths::parakeet_dir()));
     0
+}
+
+/// Archive du paquet Python pyspellchecker (licence MIT) dont les listes de fréquences des mots
+/// (tirées des sous-titres d'OpenSubtitles) servent de dictionnaires à la relecture, et son empreinte.
+const DICT_WHEEL: &str = "https://files.pythonhosted.org/packages/7f/3b/558bc6def007152f0128ff0c8a6825708ac22bafdb295dc85cbec1f6ec22/pyspellchecker-0.9.1-py3-none-any.whl";
+const DICT_SHA256: &str = "c79b144b4bad20024bf489ad3ffd96b76f3f53439e9fa59ac607896352852f3d";
+
+/// Dictionnaires de la relecture de la transcription (relecture.rs) : `<langue>.json.gz` de chaque
+/// langue de relecture::DICT_LANGS, pris dans l'archive de pyspellchecker sur PyPI.
+fn fetch_dictionaries() -> Result<(), String> {
+    use crate::relecture::{dict_dir, DICT_LANGS};
+    let dir = dict_dir();
+    if DICT_LANGS.iter().all(|l| dir.join(format!("{l}.json.gz")).is_file()) {
+        return Ok(());
+    }
+    util::mkdirs(&dir);
+    let wheel = dir.join(".pyspellchecker.whl");
+    download_file(DICT_WHEEL, &wheel, 4).map_err(|e| format!("téléchargement impossible ({e})"))?;
+    let result = (|| -> Result<(), String> {
+        check_sha256(&wheel, DICT_SHA256)?;
+        let mut zip = zip::ZipArchive::new(fs::File::open(&wheel).map_err(|e| e.to_string())?).map_err(|e| e.to_string())?;
+        for l in DICT_LANGS {
+            let mut entry = zip.by_name(&format!("spellchecker/resources/{l}.json.gz")).map_err(|e| format!("{l}.json.gz : {e}"))?;
+            let part = dir.join(format!("{l}.json.gz.part"));
+            let mut out = fs::File::create(&part).map_err(|e| e.to_string())?;
+            std::io::copy(&mut entry, &mut out).map_err(|e| e.to_string())?;
+            drop(out);
+            fs::rename(&part, dir.join(format!("{l}.json.gz"))).map_err(|e| e.to_string())?;
+        }
+        Ok(())
+    })();
+    let _ = fs::remove_file(&wheel);
+    result
 }
 
 /// Révision fixée des fichiers de `istupakov/parakeet-tdt-0.6b-v3-onnx` (fichiers vérifiés).
