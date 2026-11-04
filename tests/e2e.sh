@@ -141,9 +141,10 @@ PAGE2="$(curl -fsS "$URL/")"
 echo "$PAGE2" | has '"hiddenEffects": \["clavier"\]' || fail "effets écartés absents de la page des moments"
 echo "$PAGE2" | has '"size": 70' || fail "style des sous-titres absent de la page des moments"
 echo "  police des sous-titres : $FONT"
-# Vidéo d'exemple : durée prévue de son analyse (l'analyse elle-même demande Claude).
+# Vidéo d'exemple : durée prévue de son analyse (l'analyse elle-même demande Claude). Sans
+# 3 analyses mesurées sur la machine (jobs::MIN_SAMPLES), la durée prévue est null.
 curl -fsS -X PUT --data-binary "@$RUSH" "$URL/api/style/videos/exemple.mov" >/dev/null || fail "envoi d'une vidéo d'exemple"
-curl -fsS "$URL/api/style/analyse" | json 'd["videos"], d["estimate"] > 0' | has "exemple.mov" || fail "analyse du style (estimation)"
+curl -fsS "$URL/api/style/analyse" | json 'd["videos"], d["estimate"] is None or d["estimate"] > 0' | has "exemple.mov" || fail "analyse du style (estimation)"
 # Préparation sans consignes : pas de rendu, la vidéo entière se joue en direct sur la page.
 if [ "$WITH_CLAUDE" = false ]; then
   echo "$DATA" | json 'd["working"]' | has -x None || fail "vidéo entière rendue pendant une préparation sans consignes"
