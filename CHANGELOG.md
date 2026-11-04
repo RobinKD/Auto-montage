@@ -4,7 +4,7 @@ Chaque version publiée reprend sa section dans ses notes (onglet Releases). Une
 section, le numéro dans `VERSION` et le tag `v<numéro>` poussé publient la version avec ses
 installateurs (voir `packaging/README.md`).
 
-## 1.4
+## 1.5
 
 - **Relecture de la transcription** : après la transcription, les mots écrits en anglais au lieu du
   français (« des smartwatchs, des monts intelligents »), ou absents du dictionnaire, sont repérés,
@@ -15,6 +15,9 @@ installateurs (voir `packaging/README.md`).
   vrais passages en anglais restent tels quels. Les dictionnaires (1 Mo) s'installent à la
   prochaine préparation. La transcription prend un peu plus longtemps (sur l'exposé Wikimania de
   6 min : environ 1 min 20 de plus sur un ordinateur à 4 cœurs).
+
+## 1.4
+
 - **« Télécharger derush » bien plus rapide** : la vidéo du dérush n'est plus redessinée image par
   image comme un montage avec effets. Les moments gardés sont coupés directement dans la copie du
   rush faite à la préparation (ou dans la source 4K), et seuls les sous-titres sont dessinés, une
