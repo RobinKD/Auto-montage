@@ -224,6 +224,9 @@ interne : les changements attendent la prochaine version.
   après ; sélection ; réglage global : PUT de l'URL de `GLOBAL` avec l'ancienne valeur, `rememberGlobal`) ;
   coupe et recollage : instantané pris par le serveur avant l'action (`work/historique/`, 40 gardés,
   `POST /api/moments` `restore`). Un nouveau réglage de la page doit appeler `remember` / `rememberGlobal`.
+  Page rechargée après une coupe, un recollage, leur annulation ou une génération : tête de lecture
+  gardée (`savePlayhead` avant `location.reload`, `restorePlayhead` au chargement : instant du rush,
+  onglet du lecteur, défilement ; sessionStorage `am-tete:<rush>`).
 - Couleurs, effets d'image et transitions (repris de FilmCraft) : `selection/hf_look.js`, le même code pour
   le rendu (`render_hyperframes` : chaque plan dans `box<i>` / `zb<i>` dans `#look`) et l'aperçu de la page
   (lecteur ; transitions dans « Vidéo entière » avec deux canevas, image du moment précédent figée).

@@ -6,6 +6,10 @@ installateurs (voir `packaging/README.md`).
 
 ## 1.5
 
+- **Tête de lecture gardée** : couper ou recoller un moment, annuler ou rétablir une coupe, ou
+  générer une nouvelle version recharge la page des moments sans ramener la tête de lecture au
+  début de la vidéo : elle reste au même instant, sur le même onglet du lecteur (moment ouvert ou
+  vidéo entière), avec la frise du rush au même endroit.
 - **Relecture de la transcription** : après la transcription, les mots écrits en anglais au lieu du
   français (« des smartwatchs, des monts intelligents »), ou absents du dictionnaire, sont repérés,
   et leur passage est réécouté par Whisper dans la langue du rush. Quand les deux transcriptions

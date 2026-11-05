@@ -2063,6 +2063,55 @@ ${HFAudio.voiceElements(spec)}
     }
     await reloadAfterJob(data.message);
   }
+  // Tête de lecture gardée d'un rechargement de la page à l'autre (coupe, recollage, annulation,
+  // nouvelle version) : instant du rush et onglet du lecteur dans sessionStorage, par onglet, puis
+  // remis au chargement (restorePlayhead). Instant du rush, car les moments changent avec une coupe.
+  const PLAYHEAD = `am-tete:${DATA.rush}`;
+  function savePlayhead() {
+    let rushT = null, gap = false;
+    if (mode === "moment" && currentMoment !== null && byId.has(currentMoment)) {
+      const m = byId.get(currentMoment);
+      rushT = clipStart(m) + momentTime(m);
+      gap = !!m.gap;
+    } else if (mode === "live" && live.id !== null && byId.has(live.id)) {
+      rushT = clipStart(byId.get(live.id)) + (live.pending ?? player.currentTime);
+    }
+    const at = { mode, rushT, gap, liveT: mode === "live" ? liveTime() : live.T, scroll: $("tlm-scroll").scrollLeft, y: window.scrollY };
+    try { sessionStorage.setItem(PLAYHEAD, JSON.stringify(at)); } catch (e) { /* stockage indisponible */ }
+  }
+  function restorePlayhead() {
+    let at = null;
+    try { at = JSON.parse(sessionStorage.getItem(PLAYHEAD) || "null"); sessionStorage.removeItem(PLAYHEAD); } catch (e) { /* stockage indisponible */ }
+    if (!at || typeof at !== "object") { showLive(false); return; }
+    const rushT = Number.isFinite(at.rushT) ? at.rushT : null;
+    if (at.mode === "moment" && rushT !== null && moments.length) {
+      showLive(false);
+      player.pause();
+      // Moment qui contient l'instant (de même sorte : parole ou plan sans parole, les extraits
+      // de parole commençant un peu avant leur moment), sinon le plus proche.
+      const inside = moments.filter((x) => rushT >= clipStart(x) - 0.01 && rushT <= clipStart(x) + momentLen(x));
+      const m = inside.find((x) => !!x.gap === !!at.gap) || inside[0];
+      if (!m) scrubRush(rushT);
+      else {
+        frise.open = m.id; frise.sel = new Set([m.id]); frise.anchor = m.id;
+        $("tab-moment").dataset.last = m.id;
+        seekMoment(m, rushT - clipStart(m));
+        renderOpen();
+      }
+    } else {
+      // Vidéo entière : même instant du rush s'il est encore gardé, sinon la partie gardée qui suit.
+      const plan = livePlan();
+      let T = Number.isFinite(at.liveT) ? at.liveT : 0;
+      if (rushT !== null && plan.list.length) {
+        const e = plan.list.find((x) => rushT >= x.r - 0.05 && rushT < x.r + (x.b - x.a)) || plan.list.find((x) => x.r >= rushT);
+        T = e ? e.T + Math.max(0, rushT - e.r) : plan.total;
+      }
+      live.T = Math.max(0, Math.min(plan.total, T));
+      showLive(false);
+    }
+    if (Number.isFinite(at.scroll)) $("tlm-scroll").scrollLeft = at.scroll;
+    if (Number.isFinite(at.y)) requestAnimationFrame(() => window.scrollTo(0, at.y));
+  }
   // Attend la fin de la mise à jour de la page des moments (make_moments), puis la recharge.
   async function reloadAfterJob(message) {
     setStatus(`${message} Mise à jour de la page…`);
@@ -2071,6 +2120,7 @@ ${HFAudio.voiceElements(spec)}
       const j = await fetch("/api/job", { cache: "no-store" }).then((x) => x.json()).catch(() => null);
       if (j && j.state === "running") continue;
       if (j && j.state === "error") { setStatus(`La page n'a pas pu être refaite : ${j.error} (page « Journal »).`, "err"); return; }
+      savePlayhead();
       location.reload();
       return;
     }
@@ -3905,6 +3955,7 @@ ${HFAudio.voiceElements(spec)}
       if (job.state === "running") { setStatus(`${what} en cours : ${job.step}…`); continue; }
       if (job.state === "done") {
         setStatus(job.kind === "derush" ? "Vidéo du dérush prête : ouverture de l'auto-montage…" : "Nouvelle version prête, rechargement…", "ok");
+        if (job.kind !== "derush") savePlayhead();  // dérush validé : un autre montage s'ouvre
         location.reload();
         return;
       }
@@ -4048,7 +4099,7 @@ ${HFAudio.voiceElements(spec)}
   }
 
   render();
-  showLive(false);
+  restorePlayhead();
 
   (async () => {
     db = await window.claude?.use?.("db") ?? null;
@@ -4087,7 +4138,11 @@ ${HFAudio.voiceElements(spec)}
         : "Pas de sous-titres au prochain « Télécharger derush » (le texte corrigé reste gardé).";
       editing = null;
       renderSummary();  // bouton « À vérifier » : mots à vérifier seulement avec les sous-titres
-      if (mode === "moment" && currentMoment !== null) showMoment(currentMoment, { autoplay: false }); else renderList();
+      if (mode === "moment" && currentMoment !== null) {
+        const m = byId.get(currentMoment), t = momentTime(m);  // tête de lecture gardée
+        showMoment(currentMoment, { autoplay: false });
+        player.addEventListener("loadedmetadata", () => { if (currentMoment === m.id) player.currentTime = t; }, { once: true });
+      } else renderList();
     });
   }
   if (DATA.downloadsPage) { $("downloads-page").href = DATA.downloadsPage; $("downloads-page").hidden = false; }
