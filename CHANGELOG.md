@@ -23,12 +23,8 @@ installateurs (voir `packaging/README.md`).
   que le Mac avait de la mémoire disponible. Dès que macOS compresse de la mémoire (ce qu'il fait
   souvent), Auto-montage la croyait épuisée, et le rendu aurait pu arrêter ses navigateurs en route.
   La mémoire disponible est maintenant comptée comme dans le Moniteur d'activité.
-- **Place libre juste sur Mac** : la place sur le disque pouvait paraître plus petite que dans le
-  Finder (22,8 Go au lieu de 29 Go par exemple). macOS garde de la place « purgeable »
-  (instantanés de Time Machine, fichiers iCloud, caches) qu'il libère dès qu'on en a besoin, mais
-  qu'Auto-montage ne comptait pas. Elle est maintenant comptée, comme dans le Finder, pour le rendu,
-  l'envoi d'un rush et « Libérer de la place ». Si la place libre ne peut pas être lue, le rendu
-  n'est plus refusé.
+- **Rendu jamais refusé faute de lire la place libre** : si la place libre sur le disque ne peut
+  pas être lue, le rendu n'est plus refusé avec « 0,0 Go libres ».
 
 ## 1.4
 
