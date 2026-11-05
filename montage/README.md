@@ -160,7 +160,7 @@ Le choix est gardé pour les préparations suivantes (`work/langue.txt`), la lan
 est dans `work/langue_rush.txt` (`moments_lib.LANGUAGES`). La langue est fixée plutôt que détectée
 pour ne pas ralentir la transcription.
 
-Mémoire : au début, `rust/src/memoire.rs` estime d'après la vidéo (taille de l'image, durée) la
+Mémoire vive (RAM) : au début, `rust/src/memoire.rs` estime d'après la vidéo (taille de l'image, durée) la
 mémoire de chaque étape (la transcription, environ 2,3 Go, et le rendu, plus de 1 Go par
 navigateur, sont les plus gourmandes) et la compare à la mémoire libre de la machine : avertissement
 si elle est juste ou insuffisante. Le rendu ouvre autant de navigateurs (un par cœur au plus) que 80 % de la mémoire libre le permet. Un montage de plus de 3 minutes est rendu par parties d'environ 2 minutes, mises bout à bout ensuite : la mémoire du rendu ne grandit plus avec la longueur du montage, et un rendu interrompu reprend après la dernière partie finie (`work/rendu_parties/`).

@@ -224,6 +224,9 @@ interne : les changements attendent la prochaine version.
   après ; sélection ; réglage global : PUT de l'URL de `GLOBAL` avec l'ancienne valeur, `rememberGlobal`) ;
   coupe et recollage : instantané pris par le serveur avant l'action (`work/historique/`, 40 gardés,
   `POST /api/moments` `restore`). Un nouveau réglage de la page doit appeler `remember` / `rememberGlobal`.
+  Page rechargée après une coupe, un recollage, leur annulation ou une génération : tête de lecture
+  gardée (`savePlayhead` avant `location.reload`, `restorePlayhead` au chargement : instant du rush,
+  onglet du lecteur, défilement ; sessionStorage `am-tete:<rush>`).
 - Couleurs, effets d'image et transitions (repris de FilmCraft) : `selection/hf_look.js`, le même code pour
   le rendu (`render_hyperframes` : chaque plan dans `box<i>` / `zb<i>` dans `#look`) et l'aperçu de la page
   (lecteur ; transitions dans « Vidéo entière » avec deux canevas, image du moment précédent figée).
@@ -365,7 +368,14 @@ interne : les changements attendent la prochaine version.
   Parakeet TDT 0.6B v3 par morceaux de 28 s, puis Whisper large-v3-turbo q8_0 forcé dans la langue du
   rush pour les segments restés vides ou sortis dans une autre langue (`foreign` : mots outils d'une
   autre langue, autre alphabet ; Parakeet ne se force pas dans une langue et traduit parfois en
-  anglais : segment refait précédé de deux segments sûrs). Confiance de chaque mot `p` dans
+  anglais : segment refait précédé de deux segments sûrs). Relecture (`rust/src/relecture.rs`, `second_listen`, après) :
+  dictionnaires `dictionnaires/<langue>.json.gz` (fréquences de pyspellchecker, setup_whisper) ; segments
+  surtout dans une autre langue en îlot (`FOREIGN_RUN` segments au plus, entre deux segments dans la langue
+  du rush) réécoutés par Whisper en `-l auto` (langue du rush reconnue : texte de Whisper) ; segments à mots
+  suspects (confiance basse, autre langue, inconnus) réécoutés un par un par Whisper forcé, comparés mot à
+  mot (`merge`) → `v` (1 à vérifier, 0 confirmé), `alt` / `altn` (autre version proposée sur la page :
+  « → … », `takeAlt`, `alts` du document du moment) ; mot d'une autre langue remplacé par la version de
+  Whisper si elle n'a que des mots connus. Confiance de chaque mot `p` dans
   segments.json ; sous `moments_lib::DOUBT` (0,5), mot « à vérifier » (`d` des mots de la page des
   moments, `doubtsOf`) : souligné sur la frise du moment et dans l'inspecteur, point orange sur la
   frise du rush, pastille « À vérifier », bouton du compte en haut et touche V (Maj + V : précédent,

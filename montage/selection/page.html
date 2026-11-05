@@ -316,6 +316,7 @@
   .doubt-w { text-decoration: underline wavy var(--warn); text-decoration-skip-ink: none; text-underline-offset: 3px; }
   .doubt-text { font-size: 13px; line-height: 1.7; color: var(--muted); margin: 4px 0 0; }
   .doubt-text button.doubt-w { all: unset; cursor: pointer; color: var(--fg); text-decoration: underline wavy var(--warn); text-decoration-skip-ink: none; text-underline-offset: 3px; }
+  .doubt-text button.alt-w { font: inherit; font-size: 12px; padding: 0 7px; border-radius: 6px; color: var(--fg); background: var(--warn-soft); border: 1px solid var(--warn); cursor: pointer; }
   .doubt-text button.doubt-w:focus-visible { outline: 2px solid var(--warn); outline-offset: 2px; }
   .clip .doubt-dot { position: absolute; right: 4px; bottom: 4px; width: 7px; height: 7px; border-radius: 50%; background: var(--warn); z-index: 2; pointer-events: none; }
   #doubt-next { color: var(--warn); border-color: var(--warn); }
@@ -1175,12 +1176,26 @@
   }
   function wordsOf(m) {
     if (noSub(m)) return m.words.map((w) => ({ text: "", a: w.a, b: w.b }));
-    const t = edits[m.id] && edits[m.id].text;
+    const e = edits[m.id] || {}, t = e.text;
     const texts = t ? realign(m.words.map((w) => w.w), t) : m.words.map((w) => w.w);
-    // d : transcription incertaine (confiance du modèle sous moments_lib::DOUBT), tant que le texte
-    // du moment n'a été ni corrigé ni enregistré tel quel (« checked » du document du moment).
-    const open = !t && !(edits[m.id] && edits[m.id].checked);
-    return m.words.map((w, k) => ({ text: texts[k], a: w.a, b: w.b, s: w.s, d: open && !!w.d, cut: !!w.cut }));
+    // d : transcription incertaine (confiance du modèle sous moments_lib::DOUBT, ou relecture de
+    // transcribe_segments), tant que le texte du moment n'a été ni corrigé ni enregistré tel quel
+    // (« checked » du document du moment). Texte changé seulement par des versions de la relecture
+    // prises (« alts » : indices des mots) : les autres mots restent à vérifier.
+    const taken = Array.isArray(e.alts) ? e.alts : null;
+    const open = !e.checked && (!t || !!taken);
+    return m.words.map((w, k) => ({ text: texts[k], a: w.a, b: w.b, s: w.s, d: open && !!w.d && !(taken && taken.includes(k)), cut: !!w.cut, k }));
+  }
+  // Prend la version proposée par la seconde écoute (« alt » du mot k, à la place de « altn » mots ;
+  // vide : mots retirés) : texte du moment corrigé, les autres mots à vérifier le restent.
+  function takeAlt(m, k) {
+    const w = m.words[k], n = Math.max(1, w.altn || 1);
+    const texts = wordsOf(m).map((x) => x.text);
+    for (let j = k; j < Math.min(k + n, texts.length); j++) texts[j] = j === k ? w.alt : "";
+    const taken = Array.isArray((edits[m.id] || {}).alts) ? [...edits[m.id].alts] : [];
+    for (let j = k; j < k + n; j++) if (!taken.includes(j)) taken.push(j);
+    editing = null;
+    saveMoment(m.id, { text: texts.filter(Boolean).join(" ") || null, nosub: null, alts: taken });
   }
   // Mots à vérifier d'un moment (sous-titres affichés : partout sauf en dérushage sans sous-titres).
   const doubtsOf = (m) => (m.gap || (DERUSH && !derushSubs()) ? [] : wordsOf(m).filter((w) => w.d && w.text));
@@ -1521,6 +1536,7 @@ ${HFAudio.voiceElements(spec)}
   function drawOverlay() {
     if ((mode !== "moment" && mode !== "live") || !fx) return;
     if (mode === "live" && liveFollow()) { cancelAnimationFrame(ovFrame); ovFrame = requestAnimationFrame(drawOverlay); return; }
+    if (mode === "live") liveRelease();
     const t = player.currentTime;
     // Moment raccourci (poignées) : la lecture s'arrête à la fin gardée.
     if (mode === "moment" && !player.paused && isTrimmed(fx.m) && t >= trimOf(fx.m).out) player.pause();
@@ -1626,7 +1642,7 @@ ${HFAudio.voiceElements(spec)}
   // (comme draw et look du rendu, render_hyperframes) ; pendant une transition de la vidéo
   // entière en direct, les deux plans sont dessinés dans les canevas tr-out (dernière image du
   // moment précédent) et tr-in (le lecteur), avec les styles de HFLook.transitionStyles.
-  let zoomNow = { s: 1, ox: 0.5, oy: 0.5, tx: 0, ty: 0 }, liveTr = null;
+  let zoomNow = { s: 1, ox: 0.5, oy: 0.5, tx: 0, ty: 0 }, liveTr = null, lookFlip = null;
   const zoomCss = (z, flip) => (flip ? `translate(${(flip[0] < 0 ? 1 - 2 * z.ox : 0) * 100}%, ${(flip[1] < 0 ? 1 - 2 * z.oy : 0) * 100}%) scale(${flip[0]}, ${flip[1]}) ` : "")
     + `translate(${z.tx}%, ${z.ty}%) scale(${z.s})`;
   function drawZoomed(cv, z) {  // image du lecteur avec le zoom z, comme la transformation CSS
@@ -1648,6 +1664,7 @@ ${HFAudio.voiceElements(spec)}
     if (svg !== defsKey) { defsKey = svg; $("amdefs").innerHTML = svg; }
     const filter = DERUSH ? "" : [colorF.css, L ? L.css : ""].filter(Boolean).join(" ");
     const flip = L && L.flip;
+    lookFlip = flip || null;
     const vg = $("ov-vign"), fo = $("ov-fx");
     vg.hidden = DERUSH || !colorF.vignette; vg.style.background = colorF.vignette || "";
     fo.hidden = !(L && L.over); fo.style.cssText = L && L.over ? L.over : "";
@@ -1685,12 +1702,39 @@ ${HFAudio.voiceElements(spec)}
   }
   function endLiveTr() {
     liveTr = null;
-    for (const id of ["tr-out", "tr-in"]) { const cv = $(id); cv.hidden = true; if (LOOK) LOOK.applyStyle(cv, null); }
+    for (const id of ["tr-out", "tr-in"]) { const cv = $(id); if (!(live.hold && id === "tr-out")) cv.hidden = true; if (LOOK) LOOK.applyStyle(cv, null); }
+    if (live.hold) holdStyle($("tr-out"));
     $("ov-tr").hidden = true;
+    player.style.opacity = live.hold ? "0" : "";
+  }
+  // Passage d'un extrait à l'autre (vidéo entière) : changer la source du lecteur l'efface (image
+  // noire) jusqu'à ce que la nouvelle image soit décodée. La dernière image du moment précédent
+  // reste donc affichée dans tr-out (comme pour une transition) jusqu'à ce que le lecteur montre
+  // la première image du moment suivant (live.hold, levée par liveRelease).
+  function holdStyle(cv) {
+    cv.style.filter = player.style.filter;
+    cv.style.transform = lookFlip ? `scale(${lookFlip[0]}, ${lookFlip[1]})` : "";
+  }
+  function liveHoldFrame() {
+    if (player.readyState < 2 || !player.videoWidth) return;
+    const cv = $("tr-out");
+    drawZoomed(cv, DERUSH ? { s: 1, ox: 0.5, oy: 0.5, tx: 0, ty: 0 } : zoomNow);
+    if (LOOK) LOOK.applyStyle(cv, null);
+    holdStyle(cv);
+    cv.hidden = false;
+    player.style.opacity = "0";
+    live.hold = { ready: false };
+  }
+  function liveRelease() {
+    if (!live.hold || !live.hold.ready || live.pending !== null) return;
+    live.hold = null;
+    if (liveTr) return;  // la transition en cours garde tr-out et le lecteur à sa main (drawLook)
+    $("tr-out").hidden = true;
     player.style.opacity = "";
   }
   function resetOverlay() {
     setVoice(null);
+    live.hold = null;
     endLiveTr();
     player.style.transform = "";
     player.style.filter = "";
@@ -1707,7 +1751,9 @@ ${HFAudio.voiceElements(spec)}
   // parole réduits à leur partie gardée). Recalculée à chaque image : un moment coché, retiré,
   // découpé ou réglé se voit tout de suite. live.id : moment en cours (le temps est celui du
   // lecteur, dans son extrait).
-  const live = { id: null, ended: false, pending: null, T: 0 };  // T : position gardée en quittant l'onglet
+  // T : position gardée en quittant l'onglet ; hold : dernière image du moment précédent affichée
+  // pendant le chargement du suivant (liveHoldFrame).
+  const live = { id: null, ended: false, pending: null, T: 0, hold: null };
   function liveSpans(m) {
     const [a, b] = speechSpan(m);
     return isKept(m) && b - a >= 0.1 ? [[a, b]] : [];
@@ -1747,17 +1793,30 @@ ${HFAudio.voiceElements(spec)}
     }
     if (same) {
       live.pending = null;
+      if (live.hold) live.hold.ready = true;
       player.currentTime = t;
       if (!play) player.pause(); else if (player.paused) player.play().catch(() => {});
       return;
     }
+    if (!live.hold && player.getAttribute("src")) liveHoldFrame();
     live.pending = t;
     player.src = m.clip;
-    player.addEventListener("loadedmetadata", () => {
-      if (mode !== "live" || live.id !== m.id) return;
-      player.currentTime = live.pending ?? t;
+    // Lecture relancée seulement quand l'image de départ est décodée (seeked), et image figée levée
+    // quand le lecteur l'a vraiment affichée (requestVideoFrameCallback, sinon peu après).
+    const src = player.src, here = () => mode === "live" && live.id === m.id && player.src === src;
+    const shown = () => { const h = live.hold; if (h && here()) h.ready = true; };
+    const ready = () => {
+      if (!here() || live.pending === null) return;
       live.pending = null;
       if (play) player.play().catch(() => {});
+      if (player.requestVideoFrameCallback) player.requestVideoFrameCallback(shown);
+      setTimeout(shown, player.requestVideoFrameCallback ? 400 : 60);
+    };
+    player.addEventListener("loadedmetadata", () => {
+      if (!here() || live.pending === null) return;
+      player.addEventListener("seeked", ready, { once: true });
+      player.currentTime = live.pending;
+      setTimeout(ready, 3000);  // seeked jamais reçu : ne pas rester bloqué
     }, { once: true });
     // Extrait suivant chargé d'avance : le passage d'un moment à l'autre attend moins.
     const plan = livePlan(), k = plan.list.indexOf(plan.list.find((x) => x.m === m && x.a === e.a));
@@ -2004,6 +2063,55 @@ ${HFAudio.voiceElements(spec)}
     }
     await reloadAfterJob(data.message);
   }
+  // Tête de lecture gardée d'un rechargement de la page à l'autre (coupe, recollage, annulation,
+  // nouvelle version) : instant du rush et onglet du lecteur dans sessionStorage, par onglet, puis
+  // remis au chargement (restorePlayhead). Instant du rush, car les moments changent avec une coupe.
+  const PLAYHEAD = `am-tete:${DATA.rush}`;
+  function savePlayhead() {
+    let rushT = null, gap = false;
+    if (mode === "moment" && currentMoment !== null && byId.has(currentMoment)) {
+      const m = byId.get(currentMoment);
+      rushT = clipStart(m) + momentTime(m);
+      gap = !!m.gap;
+    } else if (mode === "live" && live.id !== null && byId.has(live.id)) {
+      rushT = clipStart(byId.get(live.id)) + (live.pending ?? player.currentTime);
+    }
+    const at = { mode, rushT, gap, liveT: mode === "live" ? liveTime() : live.T, scroll: $("tlm-scroll").scrollLeft, y: window.scrollY };
+    try { sessionStorage.setItem(PLAYHEAD, JSON.stringify(at)); } catch (e) { /* stockage indisponible */ }
+  }
+  function restorePlayhead() {
+    let at = null;
+    try { at = JSON.parse(sessionStorage.getItem(PLAYHEAD) || "null"); sessionStorage.removeItem(PLAYHEAD); } catch (e) { /* stockage indisponible */ }
+    if (!at || typeof at !== "object") { showLive(false); return; }
+    const rushT = Number.isFinite(at.rushT) ? at.rushT : null;
+    if (at.mode === "moment" && rushT !== null && moments.length) {
+      showLive(false);
+      player.pause();
+      // Moment qui contient l'instant (de même sorte : parole ou plan sans parole, les extraits
+      // de parole commençant un peu avant leur moment), sinon le plus proche.
+      const inside = moments.filter((x) => rushT >= clipStart(x) - 0.01 && rushT <= clipStart(x) + momentLen(x));
+      const m = inside.find((x) => !!x.gap === !!at.gap) || inside[0];
+      if (!m) scrubRush(rushT);
+      else {
+        frise.open = m.id; frise.sel = new Set([m.id]); frise.anchor = m.id;
+        $("tab-moment").dataset.last = m.id;
+        seekMoment(m, rushT - clipStart(m));
+        renderOpen();
+      }
+    } else {
+      // Vidéo entière : même instant du rush s'il est encore gardé, sinon la partie gardée qui suit.
+      const plan = livePlan();
+      let T = Number.isFinite(at.liveT) ? at.liveT : 0;
+      if (rushT !== null && plan.list.length) {
+        const e = plan.list.find((x) => rushT >= x.r - 0.05 && rushT < x.r + (x.b - x.a)) || plan.list.find((x) => x.r >= rushT);
+        T = e ? e.T + Math.max(0, rushT - e.r) : plan.total;
+      }
+      live.T = Math.max(0, Math.min(plan.total, T));
+      showLive(false);
+    }
+    if (Number.isFinite(at.scroll)) $("tlm-scroll").scrollLeft = at.scroll;
+    if (Number.isFinite(at.y)) requestAnimationFrame(() => window.scrollTo(0, at.y));
+  }
   // Attend la fin de la mise à jour de la page des moments (make_moments), puis la recharge.
   async function reloadAfterJob(message) {
     setStatus(`${message} Mise à jour de la page…`);
@@ -2012,6 +2120,7 @@ ${HFAudio.voiceElements(spec)}
       const j = await fetch("/api/job", { cache: "no-store" }).then((x) => x.json()).catch(() => null);
       if (j && j.state === "running") continue;
       if (j && j.state === "error") { setStatus(`La page n'a pas pu être refaite : ${j.error} (page « Journal »).`, "err"); return; }
+      savePlayhead();
       location.reload();
       return;
     }
@@ -2738,7 +2847,7 @@ ${HFAudio.voiceElements(spec)}
           actions.append(btn("Enregistrer", "Enregistrer le texte (Entrée)", () => saveText(m, area.value), "primary"));
           if (!noSub(m)) actions.append(btn("Supprimer les sous-titres", "Aucun sous-titre sur ce moment (la voix et l'image restent)", () => saveText(m, "")));
           if (edits[m.id] && (edits[m.id].text || edits[m.id].nosub))
-            actions.append(btn("Texte d'origine", "", () => { editing = null; saveMoment(m.id, { text: null, nosub: null }); }));
+            actions.append(btn("Texte d'origine", "", () => { editing = null; saveMoment(m.id, { text: null, nosub: null, alts: null }); }));
           editor.append(area, actions);
           out.push(editor);
           if (DERUSH && !derushSubs()) out.push(el("p", "sub", "La case « Sous-titres » (onglet « Paramètres sous-titres ») est décochée : la vidéo entière sera sans sous-titres, le texte corrigé est gardé."));
@@ -2750,6 +2859,15 @@ ${HFAudio.voiceElements(spec)}
               if (!w.d) return para.append(w.text);
               const b = btn(w.text, `Écouter « ${w.text} » (${w.a.toFixed(2)} s)`, () => seekMoment(m, w.a), "doubt-w");
               para.append(b);
+              // Autre version entendue à la seconde écoute (relecture) : prise d'un clic.
+              const alt = m.words[w.k].alt;
+              if (typeof alt === "string") {
+                const n = m.words[w.k].altn || 1, what = n > 1 ? `ces ${n} mots` : "ce mot";
+                const take = btn(alt ? `→ ${alt}` : "→ retirer",
+                  alt ? `Seconde écoute : « ${alt} ». Remplacer ${what} par cette version` : `La seconde écoute n'entend pas ${what} : les retirer du texte`,
+                  () => takeAlt(m, w.k), "alt-w");
+                para.append(" ", take);
+              }
             });
             const ok = el("div", "editor-actions");
             ok.append(btn("Texte juste", "Les mots soulignés sont justes : ce moment n'est plus à vérifier", () => saveMoment(m.id, { checked: true })));
@@ -3837,6 +3955,7 @@ ${HFAudio.voiceElements(spec)}
       if (job.state === "running") { setStatus(`${what} en cours : ${job.step}…`); continue; }
       if (job.state === "done") {
         setStatus(job.kind === "derush" ? "Vidéo du dérush prête : ouverture de l'auto-montage…" : "Nouvelle version prête, rechargement…", "ok");
+        if (job.kind !== "derush") savePlayhead();  // dérush validé : un autre montage s'ouvre
         location.reload();
         return;
       }
@@ -3980,7 +4099,7 @@ ${HFAudio.voiceElements(spec)}
   }
 
   render();
-  showLive(false);
+  restorePlayhead();
 
   (async () => {
     db = await window.claude?.use?.("db") ?? null;
@@ -4019,7 +4138,11 @@ ${HFAudio.voiceElements(spec)}
         : "Pas de sous-titres au prochain « Télécharger derush » (le texte corrigé reste gardé).";
       editing = null;
       renderSummary();  // bouton « À vérifier » : mots à vérifier seulement avec les sous-titres
-      if (mode === "moment" && currentMoment !== null) showMoment(currentMoment, { autoplay: false }); else renderList();
+      if (mode === "moment" && currentMoment !== null) {
+        const m = byId.get(currentMoment), t = momentTime(m);  // tête de lecture gardée
+        showMoment(currentMoment, { autoplay: false });
+        player.addEventListener("loadedmetadata", () => { if (currentMoment === m.id) player.currentTime = t; }, { once: true });
+      } else renderList();
     });
   }
   if (DATA.downloadsPage) { $("downloads-page").href = DATA.downloadsPage; $("downloads-page").hidden = false; }

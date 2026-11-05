@@ -442,7 +442,38 @@ pub fn meminfo() -> (Option<i64>, Option<i64>) {
         if total == 0 {
             return (None, None);
         }
+        #[cfg(target_os = "macos")]
+        if let Some(avail) = macos_available(total) {
+            return (Some(avail), Some(total));
+        }
         (Some(sys.available_memory() as i64), Some(total))
+    }
+}
+
+/// Mémoire disponible sur macOS, comme le Moniteur d'activité : totale moins la mémoire
+/// utilisée (mémoire des apps hors purgeable, mémoire résidente, mémoire compressée). sysinfo
+/// retire la mémoire compressée de « libre + inactive + purgeable », ce qui tombe à 0 dès que
+/// le Mac compresse beaucoup (cas courant) : la 4K affichait « 0,0 Go de libres », et le rendu
+/// aurait arrêté ses navigateurs en croyant la mémoire épuisée.
+#[cfg(target_os = "macos")]
+#[allow(deprecated)] // mach_host_self : déplacé dans la crate mach2, toujours dans libc
+fn macos_available(total: i64) -> Option<i64> {
+    unsafe {
+        let mut stat: libc::vm_statistics64 = std::mem::zeroed();
+        let mut count = libc::HOST_VM_INFO64_COUNT;
+        let rc = libc::host_statistics64(
+            libc::mach_host_self(),
+            libc::HOST_VM_INFO64,
+            &mut stat as *mut libc::vm_statistics64 as libc::host_info64_t,
+            &mut count,
+        );
+        if rc != libc::KERN_SUCCESS {
+            return None;
+        }
+        let page = libc::vm_page_size as i64;
+        let app = stat.internal_page_count as i64 - stat.purgeable_count as i64;
+        let used = (app.max(0) + stat.wire_count as i64 + stat.compressor_page_count as i64) * page;
+        Some((total - used).max(0))
     }
 }
 
@@ -533,7 +564,8 @@ pub fn swap_used() -> Option<i64> {
     }
 }
 
-/// Place libre sur le disque qui contient `path`, en octets.
+/// Place libre sur le disque qui contient `path`, en octets : la place réellement libre (sur
+/// macOS, sans l'espace « purgeable » que le Finder compte en plus).
 pub fn disk_free(path: &Path) -> Option<u64> {
     fs4::available_space(path).ok()
 }
@@ -560,9 +592,9 @@ pub fn advice(level: &str, need: i64, avail: Option<i64>, what: &str) -> String 
     }
     let avail = avail.unwrap_or(0);
     let head = if level == "insuffisant" {
-        format!("Mémoire insuffisante pour {what} : il faut environ {}, il n'y a que {} de libres.", go(need), go(avail))
+        format!("RAM insuffisante pour {what} : il faut environ {}, il n'y a que {} de libres.", go(need), go(avail))
     } else {
-        format!("Mémoire juste pour {what} : il faut environ {}, il y a {} de libres.", go(need), go(avail))
+        format!("RAM juste pour {what} : il faut environ {}, il y a {} de libres.", go(need), go(avail))
     };
     head + " L'étape risque d'être arrêtée en route. Fermez d'autres programmes (navigateur, \
             logiciels de montage…), puis relancez ou reprenez la tâche."
@@ -598,12 +630,12 @@ pub fn main(args: &[String]) -> i32 {
     let s = summary(&["préparation du rush".to_string()], &video_info(&paths, None));
     let avail = s["available"].as_i64();
     println!(
-        "Mémoire : environ {} au plus fort de la préparation ({}), {}",
+        "RAM : environ {} au plus fort de la préparation ({}), {}",
         go(s["peak"].as_i64().unwrap_or(0)),
         s["peakOp"].as_str().unwrap_or(""),
         match avail {
             Some(a) => format!("{} libres sur {}.", go(a), go(s["total"].as_i64().unwrap_or(0))),
-            None => "mémoire libre inconnue.".into(),
+            None => "RAM libre inconnue.".into(),
         }
     );
     for o in s["operations"].as_array().unwrap() {

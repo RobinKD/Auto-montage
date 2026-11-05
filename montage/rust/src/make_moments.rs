@@ -377,8 +377,20 @@ fn run() -> Result<(), String> {
                     "a": sub_round(w.get("a").unwrap_or(&json!(0)), a, 3),
                     "b": sub_round(w.get("b").unwrap_or(&json!(0)), a, 3),
                 });
-                if w.get("p").and_then(Value::as_f64).unwrap_or(1.0) < DOUBT && fixes.get(i.to_string()).is_none() {
+                // « v » de la relecture (transcribe_segments) : 1 à vérifier, 0 vérifié par la seconde écoute.
+                let doubt = match w.get("v").and_then(Value::as_i64) {
+                    Some(v) => v == 1,
+                    None => w.get("p").and_then(Value::as_f64).unwrap_or(1.0) < DOUBT,
+                };
+                if doubt && fixes.get(i.to_string()).is_none() {
                     o["d"] = json!(1);
+                    // Autre version entendue (relecture) : proposée sur la page, « altn » mots remplacés.
+                    if let Some(alt) = w.get("alt").filter(|a| a.is_string()) {
+                        o["alt"] = alt.clone();
+                        if let Some(n) = w.get("altn").filter(|n| n.is_i64()) {
+                            o["altn"] = n.clone();
+                        }
+                    }
                 }
                 if truthy(w.get("cut")) {
                     o["cut"] = json!(1); // début d'un moment du dérush validé : un sous-titre commence ici

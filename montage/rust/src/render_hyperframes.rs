@@ -763,7 +763,8 @@ pub fn main(args: &[String]) -> i32 {
     let info = VideoInfo { duration: 0.0, source: (m.width, m.height), work: (m.width, m.height), montage: total, parts: 1, workers: None, clips: None };
     let (mut workers, most_clips) = memoire::render_plan(hd, &info, None, wanted);
     let info = VideoInfo { clips: Some(most_clips as f64), ..info };
-    let free = memoire::disk_free(paths::root()).unwrap_or(0) as f64;
+    // Place libre inconnue : pas de limite (plutôt que « 0 Go libres » et un refus).
+    let free = memoire::disk_free(paths::root()).map(|f| f as f64).unwrap_or(f64::INFINITY);
     let mut longest = disk_part(fps, pixels, free, workers, total);
     while longest.map(|l| l < MIN_PART).unwrap_or(false) && workers > 1 {
         workers -= 1;
@@ -786,12 +787,12 @@ pub fn main(args: &[String]) -> i32 {
     if let Some(by_memory) = memory_part(fps, pixels, hd, &info, workers) {
         if longest.map(|l| by_memory < l).unwrap_or(true) {
             longest = Some(by_memory);
-            why = " (mémoire des navigateurs en 4K)".into();
+            why = " (RAM des navigateurs en 4K)".into();
         }
     }
     let mut parts = split_by_clips(parts_of(m.frames, fps, longest), &spans, most_clips);
     if parts.len() > parts_of(m.frames, fps, longest).len() && why.is_empty() {
-        why = format!(" (mémoire : {most_clips} plans au plus par partie)");
+        why = format!(" (RAM : {most_clips} plans au plus par partie)");
     }
     if parts.len() > 1 && 2.0 * total * OUT_BYTES * pixels > DISK_SHARE * free {
         say(&format!(
@@ -804,7 +805,7 @@ pub fn main(args: &[String]) -> i32 {
     say(&format!(
         "Navigateurs du rendu : {workers}{}",
         match avail {
-            Some(a) if a != 0 => format!(" ({} de mémoire libre)", memoire::go(a)),
+            Some(a) if a != 0 => format!(" ({} de RAM libre)", memoire::go(a)),
             _ => String::new(),
         }
     ));
@@ -899,14 +900,14 @@ pub fn main(args: &[String]) -> i32 {
             if code == LOW_MEMORY {
                 let _ = fs::remove_file(&tmp);
                 if let Some(a) = memoire::available().0 {
-                    say(&format!("Navigateurs arrêtés, mémoire libre : {}", memoire::go(a)));
+                    say(&format!("Navigateurs arrêtés, RAM libre : {}", memoire::go(a)));
                 }
                 if workers > 1 {
                     workers = (workers / 2).max(1);
-                    say(&format!("Mémoire presque épuisée : partie {} refaite avec {workers} navigateur{}", i + 1, if workers > 1 { "s" } else { "" }));
+                    say(&format!("RAM presque épuisée : partie {} refaite avec {workers} navigateur{}", i + 1, if workers > 1 { "s" } else { "" }));
                 } else if let Some(two) = halve(&spans, (f0, f1)) {
                     parts.splice(i..=i, two);
-                    say(&format!("Mémoire presque épuisée : partie {} refaite en deux, rendu en {} parties", i + 1, parts.len()));
+                    say(&format!("RAM presque épuisée : partie {} refaite en deux, rendu en {} parties", i + 1, parts.len()));
                 }
                 continue;
             }

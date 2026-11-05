@@ -859,7 +859,7 @@ fn run_steps(steps: &[Step], arg: &str, args: &[String], first: usize) -> Result
         j.m.insert("memory".into(), Value::Object(mem));
         let message = plan["message"].as_str().unwrap_or("");
         let text = format!(
-            "# Mémoire : environ {} au plus fort ({}), {} libres sur {}{}",
+            "# RAM : environ {} au plus fort ({}), {} libres sur {}{}",
             memoire::go(plan["peak"].as_i64().unwrap_or(0)),
             plan["peakOp"].as_str().unwrap_or("None"),
             memoire::go(plan["available"].as_i64().unwrap_or(0)),
@@ -1293,7 +1293,7 @@ fn check_memory(j: &mut Job, step: &str) {
     let message = memoire::advice(level, need, avail, &format!("l'étape « {op} »"));
     j.m.insert("stepMemory".into(), json!({"step": step, "op": op, "need": need, "available": avail, "level": level, "message": message}));
     let text = format!(
-        "   Mémoire de l'étape : environ {} ({op}), {} libres{}",
+        "   RAM de l'étape : environ {} ({op}), {} libres{}",
         memoire::go(need),
         memoire::go(avail.unwrap_or(0)),
         if level == "ok" { String::new() } else { format!(" : {}", level.to_uppercase()) }
@@ -1359,7 +1359,7 @@ fn record_memory(j: &mut Job, partial: bool) {
         return;
     }
     let text: Vec<String> = peaks.iter().map(|(op, n)| format!("{op} {}", memoire::go(n.as_i64().unwrap_or(0)))).collect();
-    write(j, &format!("   Mémoire mesurée : {}", text.join(", ")));
+    write(j, &format!("   RAM mesurée : {}", text.join(", ")));
     if partial {
         return;
     }
@@ -1388,12 +1388,12 @@ fn watch_memory(j: &mut Job) {
         sm.insert(
             "message".into(),
             json!(format!(
-                "La mémoire est presque épuisée ({} libres) : l'étape risque d'être arrêtée. Fermez d'autres programmes (navigateur, logiciels de montage…), ou mettez la préparation en pause le temps d'en fermer.",
+                "La RAM est presque épuisée ({} libres) : l'étape risque d'être arrêtée. Fermez d'autres programmes (navigateur, logiciels de montage…), ou mettez la préparation en pause le temps d'en fermer.",
                 memoire::go(avail)
             )),
         );
         j.m.insert("stepMemory".into(), Value::Object(sm));
-        write(j, &format!("   ATTENTION : mémoire presque épuisée ({} libres)", memoire::go(avail)));
+        write(j, &format!("   ATTENTION : RAM presque épuisée ({} libres)", memoire::go(avail)));
     }
 }
 
@@ -1470,7 +1470,7 @@ pub fn close_interrupted_logs() {
             let _ = write!(
                 f,
                 "\n# Dernière écriture le {last}, puis plus rien : le serveur s'est arrêté pendant la tâche \
-                 (Auto-montage fermé, ordinateur éteint ou redémarré, mémoire épuisée…).\n\
+                 (Auto-montage fermé, ordinateur éteint ou redémarré, RAM épuisée…).\n\
                  # Serveur redémarré le {} ({}).\n# RÉSULTAT : interrompu\n",
                 now_fmt("%d/%m/%Y à %H:%M:%S"),
                 progress::resources(root())
@@ -1758,7 +1758,7 @@ mod tests {
     fn errors_like_python() {
         let log = vec![json!("Error: boom"), json!("    at x")];
         assert_eq!(job_error(&log, 1), "Error: boom");
-        assert_eq!(job_error(&[], 137), "code 137, signal SIGKILL : tué de force, le plus souvent par manque de mémoire (fermez d'autres programmes)");
+        assert_eq!(job_error(&[], 137), "code 137, signal SIGKILL : tué de force, le plus souvent par manque de RAM (fermez d'autres programmes)");
     }
 
     #[test]

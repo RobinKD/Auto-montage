@@ -54,6 +54,7 @@ fn threads() -> usize {
 }
 
 struct Ctx {
+    sr: u32,
     audio: Vec<u8>, // PCM 16 bits mono, comme readframes()
     segs: Vec<(f64, f64)>,
     seg_dir: PathBuf,
@@ -122,14 +123,16 @@ impl Ctx {
     /// Avancement : weights[fichier] atteint quand son JSON est écrit (temps du rush pour les
     /// morceaux, dans l'ordre ; nombre de segments pour les segments seuls).
     /// ctx : fenêtre de son réduite (-ac, 512 = 10 s : 3 fois plus rapide sur un segment court).
-    fn whisper(&self, files: &[PathBuf], label: &str, weights: &HashMap<String, f64>, total_weight: f64, mut done: f64, ctx: u32) -> Result<f64, String> {
+    /// lang : langue forcée (celle du rush), ou « auto » (Whisper la reconnaît : « language » de la sortie).
+    #[allow(clippy::too_many_arguments)]
+    fn whisper(&self, files: &[PathBuf], label: &str, weights: &HashMap<String, f64>, total_weight: f64, mut done: f64, ctx: u32, lang: &str) -> Result<f64, String> {
         let files: Vec<&PathBuf> = files.iter().filter(|f| !(self.resume && transcribed(f, "transcription"))).collect();
         if files.is_empty() {
             return Ok(done);
         }
         let model = paths::whisper_dir().join("ggml-large-v3-turbo-q8_0.bin");
         let mut cmd = Command::new(paths::whisper_bin("whisper-cli"));
-        cmd.arg("-m").arg(&model).args(["-l", &self.lang, "-t", &threads().to_string(), "-mc", "0", "-ml", "1", "-sow", "-ojf", "-dtw", "large.v3.turbo"]);
+        cmd.arg("-m").arg(&model).args(["-l", lang, "-t", &threads().to_string(), "-mc", "0", "-ml", "1", "-sow", "-ojf", "-dtw", "large.v3.turbo"]);
         if ctx > 0 {
             cmd.args(["-ac", &ctx.to_string()]);
         }
@@ -170,6 +173,43 @@ impl Ctx {
             return Err(format!("Échec de la transcription (whisper-cli, code {code})"));
         }
         Ok(done)
+    }
+
+    /// Segments transcrits chacun seul par Whisper (fichiers <prefix>NNN.wav), dans la langue
+    /// « lang » (« auto » : reconnue par Whisper, « language » de sa sortie) ; fenêtre de son réduite
+    /// (-ac 512, 10 s) pour les segments courts, 3 fois plus rapide (plus petite, Whisper invente :
+    /// « latin, latin, latin… »). Mots de chaque segment, et langue reconnue.
+    fn whisper_alone(&self, ids: &[usize], prefix: &str, label: &str, lang: &str) -> Result<(BTreeMap<usize, Vec<Value>>, HashMap<usize, String>), String> {
+        let (sr, srf) = (self.sr, self.sr as f64);
+        let total = self.audio.len() as f64 / 2.0 / srf;
+        let at = |t: f64| (t * srf) as usize * 2;
+        let mut alone: Vec<(PathBuf, Vec<Place>, f64, u32)> = vec![];
+        for (k, &i) in ids.iter().enumerate() {
+            let (s, e) = self.segs[i];
+            let (cs, ce) = ((s - PAD).max(0.0), total.min(e + PAD));
+            let path = self.seg_dir.join(format!("{prefix}{i:03}.wav"));
+            if !(self.resume && transcribed(&path, "transcription")) {
+                write_wav(&path, sr, slice(&self.audio, at(cs), at(ce)));
+            }
+            let ac = if ce - cs <= 9.0 { 512 } else { 0 };
+            alone.push((path, vec![(0.0, ce - cs, cs, i)], (k + 1) as f64, ac));
+        }
+        report_every(label, 0.0, alone.len() as f64, 0.0);
+        let weights: HashMap<String, f64> = alone.iter().map(|j| (paths::display(&j.0), j.2)).collect();
+        let mut done = 0.0;
+        for ac in [512, 0] {
+            let files: Vec<PathBuf> = alone.iter().filter(|j| j.3 == ac).map(|j| j.0.clone()).collect();
+            done = self.whisper(&files, label, &weights, alone.len() as f64, done, ac, lang)?;
+        }
+        let (mut words, mut langs) = (BTreeMap::new(), HashMap::new());
+        for (path, places, _, _) in &alone {
+            words.extend(self.place_words(&words_of(path)?, places).into_iter().filter(|(_, ws)| !ws.is_empty()));
+            let detected = crate::util::read_json(json_path(path)).and_then(|d| d.pointer("/result/language").and_then(Value::as_str).map(String::from));
+            if let Some(l) = detected {
+                langs.insert(places[0].3, l);
+            }
+        }
+        Ok((words, langs))
     }
 
     /// Parakeet sur du PCM 16 bits (modèle chargé une fois).
@@ -339,6 +379,115 @@ fn texts(ws: &[Value]) -> impl Iterator<Item = &str> {
     ws.iter().map(|w| w["w"].as_str().unwrap_or(""))
 }
 
+/// Suite de segments voisins dans une autre langue dont la langue est vérifiée : au plus tant de
+/// segments, entre deux segments dans la langue du rush (îlot dans un passage dans la langue du rush).
+const FOREIGN_RUN: usize = 3;
+
+/// Relecture (relecture.rs). Segments surtout dans une autre langue (relecture::mostly_foreign), en
+/// courtes suites entre deux segments dans la langue du rush (ailleurs, la présentation en anglais
+/// d'un exposé en français : la réécouter prendrait autant que toute la transcription) : réécoutés
+/// par Whisper sans langue imposée ; entendus dans une autre
+/// langue, ils y sont vraiment (présentateur anglais) et restent tels quels (forcé dans la langue du
+/// rush, Whisper les traduirait) ; entendus dans la langue du rush, Parakeet les avait traduits : texte
+/// de Whisper, à vérifier. Autres segments à mots suspects (confiance basse, autre langue ou inconnus
+/// du dictionnaire) : réécoutés par Whisper forcé dans la langue du rush, puis comparés mot à mot.
+fn second_listen(ctx: &Ctx, words: &mut BTreeMap<usize, Vec<Value>>) -> Result<(), String> {
+    use crate::relecture::{merge, mostly_foreign, suspects, Dicts, Stats};
+    let lang = ctx.lang.clone();
+    let dicts = Dicts::load(&lang);
+    if dicts.is_none() {
+        progress::say("Relecture : dictionnaires absents (setup_whisper), seuls les mots de confiance basse sont réécoutés");
+    }
+    let dicts = dicts.as_ref();
+    let (mut runs, mut doubtful): (Vec<Vec<usize>>, Vec<usize>) = (vec![], vec![]);
+    let mut list = String::new();
+    // Segments dans une autre langue, en suites de segments voisins (segments sans mot sautés).
+    let spoken: Vec<(usize, bool)> = words.iter().filter(|(_, ws)| !ws.is_empty()).map(|(i, ws)| (*i, foreign(texts(ws), &lang) || mostly_foreign(ws, dicts))).collect();
+    for (k, &(i, other)) in spoken.iter().enumerate() {
+        if other {
+            match runs.last_mut() {
+                Some(r) if k > 0 && spoken[k - 1].1 => r.push(i),
+                _ => runs.push(vec![i]),
+            }
+            continue;
+        }
+        let ws = &words[&i];
+        let why = suspects(ws, dicts);
+        if !why.is_empty() {
+            doubtful.push(i);
+            list.push_str(&format!("\n  #{i} : {}", why.join(", ")));
+        }
+    }
+
+    // Seules les courtes suites prises entre deux segments dans la langue du rush sont réécoutées.
+    let pos = |i: usize| spoken.iter().position(|x| x.0 == i).unwrap_or(0);
+    let island = |r: &Vec<usize>| {
+        let (a, b) = (pos(r[0]), pos(r[r.len() - 1]));
+        r.len() <= FOREIGN_RUN && a > 0 && b + 1 < spoken.len() && !spoken[a - 1].1 && !spoken[b + 1].1
+    };
+    let n_foreign: usize = runs.iter().map(Vec::len).sum();
+    runs.retain(|r| island(r));
+    let long = n_foreign - runs.iter().map(Vec::len).sum::<usize>();
+    if long > 0 {
+        progress::say(&format!("Relecture : {long} segment(s) dans une autre langue au sein de passages dans cette langue, laissés tels quels"));
+    }
+    if !runs.is_empty() {
+        let (heard, langs) = ctx.whisper_alone(&runs.concat(), "l", "Langue des passages", "auto")?;
+        let (mut back, mut count) = (String::new(), 0);
+        for i in runs.iter().flatten() {
+            if langs.get(i).map(String::as_str) != Some(lang.as_str()) {
+                continue;
+            }
+            if let Some(wh) = heard.get(i).filter(|wh| !wh.is_empty() && !foreign(texts(wh), &lang)) {
+                back.push_str(&format!("\n  #{i} « {} » → « {} »", short(texts(&words[i])), short(texts(wh))));
+                let checked: Vec<Value> = wh
+                    .iter()
+                    .map(|w| {
+                        let mut w = w.clone();
+                        w["v"] = json!(1);
+                        w
+                    })
+                    .collect();
+                words.insert(*i, checked);
+                count += 1;
+            }
+        }
+        progress::say(&format!(
+            "Relecture : {} segment(s) dans une autre langue réécoutés, {count} traduit(s) par Parakeet et remis dans la langue du rush{back}",
+            n_foreign - long
+        ));
+    }
+
+    if doubtful.is_empty() {
+        return Ok(());
+    }
+    progress::say(&format!("Relecture : {} segment(s) à mots douteux réécoutés{list}", doubtful.len()));
+    let (heard, _) = ctx.whisper_alone(&doubtful, "r", "Seconde écoute", &lang)?;
+    let mut total = Stats::default();
+    for &i in &doubtful {
+        let Some(wh) = heard.get(&i) else { continue };
+        let ws = words.get_mut(&i).unwrap();
+        let before = short(texts(ws));
+        let st = merge(ws, wh, dicts);
+        if st.replaced > 0 {
+            progress::say(&format!("  #{i} « {before} » → « {} »", short(texts(ws))));
+        }
+        total.confirmed += st.confirmed;
+        total.replaced += st.replaced;
+        total.proposed += st.proposed;
+    }
+    progress::say(&format!(
+        "Relecture : {} mot(s) douteux confirmés par la seconde écoute, {} mot(s) remplacés, {} autre(s) version(s) proposée(s)",
+        total.confirmed, total.replaced, total.proposed
+    ));
+    Ok(())
+}
+
+/// Début d'un texte pour le journal.
+fn short<'a>(ws: impl Iterator<Item = &'a str>) -> String {
+    ws.collect::<Vec<_>>().join(" ").chars().take(70).collect()
+}
+
 fn run() -> Result<(), String> {
     let work = paths::work();
     let lang = language_from(&work, "langue_rush.txt"); // écrite par prepare (moments_lib::LANGUAGES)
@@ -363,7 +512,7 @@ fn run() -> Result<(), String> {
         }
         let _ = fs::write(&key_file, &key);
     }
-    let mut ctx = Ctx { audio, segs, seg_dir, resume, lang, model: None };
+    let mut ctx = Ctx { sr, audio, segs, seg_dir, resume, lang, model: None };
     let srf = sr as f64;
     let at = |t: f64| (t * srf) as usize * 2; // int(t * sr) * 2
 
@@ -487,25 +636,11 @@ fn run() -> Result<(), String> {
     empty.sort();
     if !empty.is_empty() {
         progress::say(&format!("{} segment(s) transcrits seuls par Whisper", empty.len()));
-        let mut alone: Vec<(PathBuf, Vec<Place>, f64, bool)> = vec![];
-        for (k, &i) in empty.iter().enumerate() {
-            let (s, e) = ctx.segs[i];
-            let (cs, ce) = ((s - PAD).max(0.0), total.min(e + PAD));
-            let path = ctx.seg_dir.join(format!("s{i:03}.wav"));
-            if !(ctx.resume && transcribed(&path, "transcription")) {
-                write_wav(&path, sr, slice(&ctx.audio, at(cs), at(ce)));
-            }
-            alone.push((path, vec![(0.0, ce - cs, cs, i)], (k + 1) as f64, ce - cs <= 9.0));
-        }
-        report_every("Segments transcrits seuls", 0.0, alone.len() as f64, 0.0);
-        let weights: HashMap<String, f64> = alone.iter().map(|j| (paths::display(&j.0), j.2)).collect();
-        let pick = |short: bool| -> Vec<PathBuf> { alone.iter().filter(|j| j.3 == short).map(|j| j.0.clone()).collect() };
-        let done = ctx.whisper(&pick(true), "Segments transcrits seuls", &weights, alone.len() as f64, 0.0, 512)?;
-        ctx.whisper(&pick(false), "Segments transcrits seuls", &weights, alone.len() as f64, done, 0)?;
-        for (path, places, _, _) in &alone {
-            words.extend(ctx.place_words(&words_of(path)?, places).into_iter().filter(|(_, ws)| !ws.is_empty()));
-        }
+        let lang = ctx.lang.clone();
+        words.extend(ctx.whisper_alone(&empty, "s", "Segments transcrits seuls", &lang)?.0);
     }
+
+    second_listen(&ctx, &mut words)?;
 
     let mut result = vec![];
     for (i, (s, e)) in ctx.segs.iter().enumerate() {

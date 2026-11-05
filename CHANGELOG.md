@@ -4,6 +4,31 @@ Chaque version publiée reprend sa section dans ses notes (onglet Releases). Une
 section, le numéro dans `VERSION` et le tag `v<numéro>` poussé publient la version avec ses
 installateurs (voir `packaging/README.md`).
 
+## 1.5
+
+- **Tête de lecture gardée** : couper ou recoller un moment, annuler ou rétablir une coupe, ou
+  générer une nouvelle version recharge la page des moments sans ramener la tête de lecture au
+  début de la vidéo : elle reste au même instant, sur le même onglet du lecteur (moment ouvert ou
+  vidéo entière), avec la frise du rush au même endroit.
+- **Relecture de la transcription** : après la transcription, les mots écrits en anglais au lieu du
+  français (« des smartwatchs, des monts intelligents »), ou absents du dictionnaire, sont repérés,
+  et leur passage est réécouté par Whisper dans la langue du rush. Quand les deux transcriptions
+  s'accordent, le mot n'est plus « à vérifier » ; sinon la meilleure version est gardée et l'autre
+  s'affiche à côté du mot souligné, sur la page des moments, à prendre d'un clic (« → … »). Les
+  passages entiers que la transcription avait traduits en anglais sont remis en français, et les
+  vrais passages en anglais restent tels quels. Les dictionnaires (1 Mo) s'installent à la
+  prochaine préparation. La transcription prend un peu plus longtemps (sur l'exposé Wikimania de
+  6 min : environ 1 min 20 de plus sur un ordinateur à 4 cœurs).
+- **RAM libre juste sur Mac** : la création de la 4K pouvait annoncer « 0,0 Go de libres » alors
+  que le Mac avait de la mémoire vive (RAM) disponible. Dès que macOS compresse de la RAM (ce qu'il
+  fait souvent), Auto-montage la croyait épuisée, et le rendu aurait pu arrêter ses navigateurs en
+  route. La RAM disponible est maintenant comptée comme dans le Moniteur d'activité.
+- **« RAM » au lieu de « mémoire »** : les pages, les messages et les journaux disent « RAM » (ou
+  « mémoire vive (RAM) ») là où ils disaient « mémoire », pour ne pas la confondre avec la place sur
+  le disque.
+- **Rendu jamais refusé faute de lire la place libre** : si la place libre sur le disque ne peut
+  pas être lue, le rendu n'est plus refusé avec « 0,0 Go libres ».
+
 ## 1.4
 
 - **« Télécharger derush » bien plus rapide** : la vidéo du dérush n'est plus redessinée image par
@@ -52,6 +77,11 @@ installateurs (voir `packaging/README.md`).
   de swap). Tous leurs processus sont maintenant arrêtés. Le rendu se règle aussi sur la mémoire
   vraiment prise (celle de la carte graphique intégrée comprise) et sur le swap qui se remplit, pour
   ouvrir moins de navigateurs la fois suivante.
+- **Plus d'écran noir entre deux moments dans « Vidéo entière »** : sur la page des moments, la
+  lecture des moments bout à bout clignotait souvent en noir au passage d'un moment au suivant (le
+  temps que le lecteur charge l'extrait suivant). La dernière image du moment qui finit reste
+  maintenant affichée jusqu'à ce que la première image du suivant soit prête, et la lecture ne
+  repart qu'à ce moment-là. La vidéo générée n'avait pas ce défaut.
 
 ## 1.3
 
