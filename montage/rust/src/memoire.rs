@@ -442,7 +442,38 @@ pub fn meminfo() -> (Option<i64>, Option<i64>) {
         if total == 0 {
             return (None, None);
         }
+        #[cfg(target_os = "macos")]
+        if let Some(avail) = macos_available(total) {
+            return (Some(avail), Some(total));
+        }
         (Some(sys.available_memory() as i64), Some(total))
+    }
+}
+
+/// Mémoire disponible sur macOS, comme le Moniteur d'activité : totale moins la mémoire
+/// utilisée (mémoire des apps hors purgeable, mémoire résidente, mémoire compressée). sysinfo
+/// retire la mémoire compressée de « libre + inactive + purgeable », ce qui tombe à 0 dès que
+/// le Mac compresse beaucoup (cas courant) : la 4K affichait « 0,0 Go de libres », et le rendu
+/// aurait arrêté ses navigateurs en croyant la mémoire épuisée.
+#[cfg(target_os = "macos")]
+#[allow(deprecated)] // mach_host_self : déplacé dans la crate mach2, toujours dans libc
+fn macos_available(total: i64) -> Option<i64> {
+    unsafe {
+        let mut stat: libc::vm_statistics64 = std::mem::zeroed();
+        let mut count = libc::HOST_VM_INFO64_COUNT;
+        let rc = libc::host_statistics64(
+            libc::mach_host_self(),
+            libc::HOST_VM_INFO64,
+            &mut stat as *mut libc::vm_statistics64 as libc::host_info64_t,
+            &mut count,
+        );
+        if rc != libc::KERN_SUCCESS {
+            return None;
+        }
+        let page = libc::vm_page_size as i64;
+        let app = stat.internal_page_count as i64 - stat.purgeable_count as i64;
+        let used = (app.max(0) + stat.wire_count as i64 + stat.compressor_page_count as i64) * page;
+        Some((total - used).max(0))
     }
 }
 
