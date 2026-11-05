@@ -534,8 +534,60 @@ pub fn swap_used() -> Option<i64> {
 }
 
 /// Place libre sur le disque qui contient `path`, en octets.
+///
+/// Sur macOS, statvfs ne compte pas l'espace « purgeable » (instantanés locaux de Time Machine,
+/// fichiers iCloud téléchargés, caches) que le système libère dès qu'une écriture en a besoin, et
+/// que le Finder et « Informations système » montrent comme disponible : il peut ne rester que
+/// quelques Mo d'après statvfs avec des dizaines de Go disponibles. On prend la place disponible
+/// « pour un usage important » (celle qu'Apple conseille pour une action demandée par
+/// l'utilisateur, purgeable compris), si elle est plus grande.
 pub fn disk_free(path: &Path) -> Option<u64> {
-    fs4::available_space(path).ok()
+    let statvfs = fs4::available_space(path).ok();
+    #[cfg(target_os = "macos")]
+    {
+        if let Some(important) = macos_important_capacity(path) {
+            return Some(statvfs.unwrap_or(0).max(important));
+        }
+    }
+    statvfs
+}
+
+/// NSURLVolumeAvailableCapacityForImportantUsageKey du volume de `path` (macOS 10.13 et plus).
+#[cfg(target_os = "macos")]
+fn macos_important_capacity(path: &Path) -> Option<u64> {
+    use std::ffi::c_void;
+    use std::os::unix::ffi::OsStrExt;
+    type Ref = *const c_void;
+    #[link(name = "CoreFoundation", kind = "framework")]
+    unsafe extern "C" {
+        static kCFURLVolumeAvailableCapacityForImportantUsageKey: Ref;
+        fn CFURLCreateFromFileSystemRepresentation(alloc: Ref, buffer: *const u8, len: isize, is_dir: u8) -> Ref;
+        fn CFURLCopyResourcePropertyForKey(url: Ref, key: Ref, value: *mut Ref, error: *mut Ref) -> u8;
+        fn CFNumberGetValue(number: Ref, kind: isize, value: *mut c_void) -> u8;
+        fn CFRelease(cf: Ref);
+    }
+    const SINT64: isize = 4; // kCFNumberSInt64Type
+    let bytes = path.as_os_str().as_bytes();
+    unsafe {
+        let url = CFURLCreateFromFileSystemRepresentation(std::ptr::null(), bytes.as_ptr(), bytes.len() as isize, 1);
+        if url.is_null() {
+            return None;
+        }
+        let mut value: Ref = std::ptr::null();
+        let mut error: Ref = std::ptr::null();
+        let ok = CFURLCopyResourcePropertyForKey(url, kCFURLVolumeAvailableCapacityForImportantUsageKey, &mut value, &mut error);
+        CFRelease(url);
+        if !error.is_null() {
+            CFRelease(error);
+        }
+        if ok == 0 || value.is_null() {
+            return None;
+        }
+        let mut n: i64 = 0;
+        let got = CFNumberGetValue(value, SINT64, &mut n as *mut i64 as *mut c_void);
+        CFRelease(value);
+        (got != 0 && n > 0).then_some(n as u64)
+    }
 }
 
 /// « 1,5 Go »

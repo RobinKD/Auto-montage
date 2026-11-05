@@ -763,7 +763,8 @@ pub fn main(args: &[String]) -> i32 {
     let info = VideoInfo { duration: 0.0, source: (m.width, m.height), work: (m.width, m.height), montage: total, parts: 1, workers: None, clips: None };
     let (mut workers, most_clips) = memoire::render_plan(hd, &info, None, wanted);
     let info = VideoInfo { clips: Some(most_clips as f64), ..info };
-    let free = memoire::disk_free(paths::root()).unwrap_or(0) as f64;
+    // Place libre inconnue : pas de limite (plutôt que « 0 Go libres » et un refus).
+    let free = memoire::disk_free(paths::root()).map(|f| f as f64).unwrap_or(f64::INFINITY);
     let mut longest = disk_part(fps, pixels, free, workers, total);
     while longest.map(|l| l < MIN_PART).unwrap_or(false) && workers > 1 {
         workers -= 1;

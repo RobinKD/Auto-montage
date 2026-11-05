@@ -19,6 +19,12 @@ installateurs (voir `packaging/README.md`).
   vrais passages en anglais restent tels quels. Les dictionnaires (1 Mo) s'installent à la
   prochaine préparation. La transcription prend un peu plus longtemps (sur l'exposé Wikimania de
   6 min : environ 1 min 20 de plus sur un ordinateur à 4 cœurs).
+- **Place libre juste sur Mac** : la création de la 4K pouvait être refusée avec « 0,0 Go libres »
+  alors que le Mac affichait des dizaines de Go disponibles. macOS garde de la place « purgeable »
+  (instantanés de Time Machine, fichiers iCloud, caches) qu'il libère dès qu'on en a besoin, mais
+  qu'Auto-montage ne comptait pas. Elle est maintenant comptée, comme dans le Finder, pour le rendu,
+  l'envoi d'un rush et « Libérer de la place ». Si la place libre ne peut pas être lue, le rendu
+  n'est plus refusé.
 
 ## 1.4
 
