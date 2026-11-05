@@ -105,7 +105,7 @@
   // « vertical » pour une vidéo au format portrait (colonne plus étroite).
   const BASE = [
     { title: "Préparer un rush", where: "Menu > Rushes et montages",
-      html: `<p>Choisissez la vidéo filmée (ou plusieurs, si la caméra s'est coupée : elles sont assemblées dans l'ordre) et la <b>langue parlée</b> (français ou anglais), puis <b>Préparer ce rush</b>. Avant de commencer, la page dit combien de mémoire la préparation demandera.</p>
+      html: `<p>Choisissez la vidéo filmée (ou plusieurs, si la caméra s'est coupée : elles sont assemblées dans l'ordre) et la <b>langue parlée</b> (français ou anglais), puis <b>Préparer ce rush</b>. Avant de commencer, la page dit combien de mémoire vive (RAM) la préparation demandera.</p>
         <p>Auto-montage prépare une copie du rush en 1080p, écrit ce qui est dit (transcription), repère les visages et qui parle, et découpe la vidéo en <b>moments</b> (une phrase chacun). Comptez moins que la durée du rush ; la barre montre l'avancement, et le temps restant une fois que l'ordinateur a fait chaque étape au moins trois fois (avant, il ne connaît pas encore sa vitesse). <b>Mettre en pause</b> arrête en gardant ce qui est fait (<b>Reprendre la préparation</b> repart de là, même après avoir éteint l'ordinateur), <b>Annuler</b> arrête tout.</p>`,
       media: [{ img: "rush-video.jpg", caption: "Choisir une ou plusieurs vidéos" }, { img: "rush-preparation.jpg", caption: "La préparation en cours" }] },
     { title: "Choisir les moments", where: "Menu > Page des moments",
@@ -301,7 +301,7 @@
       html: `<ul><li>Préparer un nouveau rush range le montage en cours, avec ses variantes, ses réglages et ses vidéos. <b>Rouvrir ce montage</b> le reprend tel quel, sans rien recalculer.</li>
         <li>Une longue tâche (préparation, génération, 4K) s'annule à tout moment ; les fichiers à moitié écrits sont effacés. Pendant qu'elle tourne, ce qui en lancerait une autre est grisé (générer, couper, créer la 4K, mettre à jour, changer de mode, rouvrir un montage), avec la raison au survol.</li>
         <li>Une préparation se met en <b>pause</b> et se reprend plus tard, même après un arrêt ou une erreur. <b>Abandonner…</b> liste ce qui est déjà fait : une partie décochée est gardée pour la prochaine préparation du même rush.</li>
-        <li><b>Mémoire</b> : avant de préparer et au début de chaque étape, la page prévient si la mémoire libre est juste ou insuffisante (les estimations s'affinent avec les préparations faites sur l'ordinateur).</li>
+        <li><b>Mémoire vive (RAM)</b> : avant de préparer et au début de chaque étape, la page prévient si la RAM libre est juste ou insuffisante (les estimations s'affinent avec les préparations faites sur l'ordinateur).</li>
         <li><b>Supprimer</b> efface un montage enregistré, ou celui en cours, même s'il est le seul : ses moments, choix, versions de travail et rendus partent, la vidéo envoyée reste, et Auto-montage revient à son état de départ, prêt pour un nouveau rush.</li>
         <li><b>Libérer de la place</b> (en bas de « Rushes et montages ») : montage en cours, montages enregistrés, rushes envoyés, source 4K, restes de rendus, avec la place que chacun libère.</li>
         <li>Le <b>Journal</b> garde le détail des 40 dernières tâches ; <b>Télécharger le rapport</b> les regroupe pour demander de l'aide.</li>

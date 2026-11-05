@@ -19,10 +19,13 @@ installateurs (voir `packaging/README.md`).
   vrais passages en anglais restent tels quels. Les dictionnaires (1 Mo) s'installent à la
   prochaine préparation. La transcription prend un peu plus longtemps (sur l'exposé Wikimania de
   6 min : environ 1 min 20 de plus sur un ordinateur à 4 cœurs).
-- **Mémoire libre juste sur Mac** : la création de la 4K pouvait annoncer « 0,0 Go de libres » alors
-  que le Mac avait de la mémoire disponible. Dès que macOS compresse de la mémoire (ce qu'il fait
-  souvent), Auto-montage la croyait épuisée, et le rendu aurait pu arrêter ses navigateurs en route.
-  La mémoire disponible est maintenant comptée comme dans le Moniteur d'activité.
+- **RAM libre juste sur Mac** : la création de la 4K pouvait annoncer « 0,0 Go de libres » alors
+  que le Mac avait de la mémoire vive (RAM) disponible. Dès que macOS compresse de la RAM (ce qu'il
+  fait souvent), Auto-montage la croyait épuisée, et le rendu aurait pu arrêter ses navigateurs en
+  route. La RAM disponible est maintenant comptée comme dans le Moniteur d'activité.
+- **« RAM » au lieu de « mémoire »** : les pages, les messages et les journaux disent « RAM » (ou
+  « mémoire vive (RAM) ») là où ils disaient « mémoire », pour ne pas la confondre avec la place sur
+  le disque.
 - **Rendu jamais refusé faute de lire la place libre** : si la place libre sur le disque ne peut
   pas être lue, le rendu n'est plus refusé avec « 0,0 Go libres ».
 

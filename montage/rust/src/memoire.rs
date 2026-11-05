@@ -592,9 +592,9 @@ pub fn advice(level: &str, need: i64, avail: Option<i64>, what: &str) -> String 
     }
     let avail = avail.unwrap_or(0);
     let head = if level == "insuffisant" {
-        format!("Mémoire insuffisante pour {what} : il faut environ {}, il n'y a que {} de libres.", go(need), go(avail))
+        format!("RAM insuffisante pour {what} : il faut environ {}, il n'y a que {} de libres.", go(need), go(avail))
     } else {
-        format!("Mémoire juste pour {what} : il faut environ {}, il y a {} de libres.", go(need), go(avail))
+        format!("RAM juste pour {what} : il faut environ {}, il y a {} de libres.", go(need), go(avail))
     };
     head + " L'étape risque d'être arrêtée en route. Fermez d'autres programmes (navigateur, \
             logiciels de montage…), puis relancez ou reprenez la tâche."
@@ -630,12 +630,12 @@ pub fn main(args: &[String]) -> i32 {
     let s = summary(&["préparation du rush".to_string()], &video_info(&paths, None));
     let avail = s["available"].as_i64();
     println!(
-        "Mémoire : environ {} au plus fort de la préparation ({}), {}",
+        "RAM : environ {} au plus fort de la préparation ({}), {}",
         go(s["peak"].as_i64().unwrap_or(0)),
         s["peakOp"].as_str().unwrap_or(""),
         match avail {
             Some(a) => format!("{} libres sur {}.", go(a), go(s["total"].as_i64().unwrap_or(0))),
-            None => "mémoire libre inconnue.".into(),
+            None => "RAM libre inconnue.".into(),
         }
     );
     for o in s["operations"].as_array().unwrap() {

@@ -1124,9 +1124,9 @@
     box.hidden = !m;
     if (!m) return;
     const go = (n) => `${(n / 1073741824).toFixed(1).replace(".", ",")} Go`;
-    const free = m.available == null ? "mémoire libre inconnue" : `${go(m.available)} libres sur ${go(m.total)}`;
+    const free = m.available == null ? "RAM libre inconnue" : `${go(m.available)} libres sur ${go(m.total)}`;
     box.className = m.level === "ok" ? "note mem" : "warn mem";
-    box.replaceChildren(`Mémoire : il faudra environ ${go(m.peak)} au plus fort de la préparation (${(OP_NAMES[m.peakOp] || m.peakOp).toLowerCase()}) ; ${free}. Les étapes se suivent : il faut la mémoire de la plus gourmande, pas leur somme.`
+    box.replaceChildren(`RAM : il faudra environ ${go(m.peak)} au plus fort de la préparation (${(OP_NAMES[m.peakOp] || m.peakOp).toLowerCase()}) ; ${free}. Les étapes se suivent : il faut la RAM de la plus gourmande, pas leur somme.`
       + (m.message ? ` ${m.message}` : ""));
     // Chaque étape : les étapes se suivent, la mémoire de l'une est rendue avant la suivante.
     const ul = document.createElement("ul");
@@ -1207,7 +1207,7 @@
     $("paused-text").textContent = t.state === "paused"
       ? `La préparation de ${t.arg} est en pause ${where}. Elle reprendra là où elle en était, même après avoir fermé Auto-montage ou redémarré l'ordinateur.`
       : t.state === "error"
-        ? `La préparation de ${t.arg} s'est arrêtée sur une erreur ${where}${t.error ? ` : ${t.error}` : ""}. Une fois le problème réglé (mémoire, place sur le disque…), elle peut reprendre là où elle en était.`
+        ? `La préparation de ${t.arg} s'est arrêtée sur une erreur ${where}${t.error ? ` : ${t.error}` : ""}. Une fois le problème réglé (RAM, place sur le disque…), elle peut reprendre là où elle en était.`
         : `La préparation de ${t.arg} a été coupée ${where} (Auto-montage ou l'ordinateur arrêté). Elle peut reprendre là où elle en était.`;
     showSteps(t, false);
   }

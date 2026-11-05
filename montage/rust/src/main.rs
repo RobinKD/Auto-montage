@@ -77,7 +77,7 @@ const COMMANDS: &[(&str, Cmd, &str)] = &[
     ("gpu", gpu::main, "carte graphique pour encoder (essai, résultat dans work/gpu.json)"),
     ("project", project::main, "montages enregistrés (save, open, delete)"),
     ("place", place::main, "libérer de la place"),
-    ("memoire", memoire::main, "mémoire nécessaire à la préparation"),
+    ("memoire", memoire::main, "RAM nécessaire à la préparation"),
     ("progress", progress::main, "ffmpeg suivi en barre de progression"),
     ("fonts_lib", fonts_lib::main, "polices des sous-titres"),
     ("voix", moments_lib::voix_main, "voix modifiées (exemples de tests/make_voice_demo.py)"),

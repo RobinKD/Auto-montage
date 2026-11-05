@@ -164,7 +164,7 @@ pub fn exit_reason(code: i32, shell: bool) -> String {
     }
     let name = procs::signal_name(sig);
     let why = match name.as_str() {
-        "SIGKILL" => "tué de force, le plus souvent par manque de mémoire (fermez d'autres programmes)",
+        "SIGKILL" => "tué de force, le plus souvent par manque de RAM (fermez d'autres programmes)",
         "SIGTERM" => "arrêté (annulation, arrêt d'Auto-montage ou de l'ordinateur)",
         "SIGSEGV" => "plantage du programme",
         "SIGBUS" => "plantage (disque plein ou fichier modifié pendant la lecture ?)",
@@ -190,7 +190,7 @@ pub fn resources(path: &Path) -> String {
     }
     if let (Some(avail), Some(total)) = crate::memoire::meminfo() {
         out.push(format!(
-            "mémoire disponible {:.1} Go sur {:.1} Go",
+            "RAM disponible {:.1} Go sur {:.1} Go",
             avail as f64 / (1u64 << 30) as f64,
             total as f64 / (1u64 << 30) as f64
         ));
