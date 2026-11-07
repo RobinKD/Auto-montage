@@ -215,7 +215,9 @@ interne : les changements attendent la prochaine version.
   crête vraie ×4, limiteur à anticipation) : `loudness` de `work/son.json` (−14 LUFS par défaut, `false` :
   désactivé, rien en dérushage). `build_edit` amène la voix à la cible −3 dB, puis `render` mesure la vidéo
   rendue et la corrige si elle s'écarte de plus de 0,5 LU ou dépasse −1 dBTP (`after_render`, mesures dans
-  `work/volume.json`, montrées dans « Son de la voix ») ; `./am loudness <fichier> [--cible]`.
+  `work/volume.json`, montrées dans « Son de la voix » ; fichier encodé remesuré, relimité plus bas si l'AAC
+  dépasse, `normalize_file`) ; contrôle final de `render` : échec seulement au-delà de `clip_tolerance`
+  échantillons saturés (1 sur 100 000, 10 au moins) ; `./am loudness <fichier> [--cible]`.
 - Sous-titres en fichiers (`rust/src/subtitles.rs`) : `out/montage.srt` et `.vtt` écrits après chaque rendu
   d'après les sous-titres d'edit.json (fin au plus 1,2 s après le dernier mot, sans chevauchement),
   copiés par `make_downloads` et proposés dans le menu « Télécharger » ; `./am subtitles`.
