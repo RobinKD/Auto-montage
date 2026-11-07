@@ -596,7 +596,31 @@ pub fn downloads_data() -> Value {
     }
     // copies pour les plateformes (export.rs), servies depuis out/export/
     let exports = crate::export::done_exports();
-    json!({"rush": rush, "versions": versions, "subtitles": subtitles, "exports": exports, "momentsPage": "/", "final": final_info()})
+    json!({"rush": rush, "versions": versions, "subtitles": subtitles, "exports": exports, "momentsPage": "/", "final": final_info(),
+           "settingsChanged": settings_changed()})
+}
+
+/// Réglages de tout le montage changés depuis la dernière vidéo entière (fichier de work/ plus
+/// récent qu'elle) : la page propose de la régénérer avant de télécharger, lire ou créer la 4K.
+/// Les moments eux-mêmes sont comparés par la page (`workChange`).
+pub const SETTINGS_FILES: [(&str, &str); 8] = [
+    ("habillage.json", "zooms et animations"),
+    ("son.json", "son de la voix"),
+    ("caption_style.json", "style des sous-titres"),
+    ("effets_page.json", "effets proposés"),
+    ("couleur.json", "couleurs"),
+    ("transitions.json", "transitions"),
+    ("derush.json", "sous-titres du dérush"),
+    ("edit_choices.json", "choix de montage de Claude"),
+];
+
+pub fn settings_changed() -> Vec<&'static str> {
+    let Some(rendered) = util::mtime(out().join("montage_apercu.mp4")) else { return vec![] };
+    SETTINGS_FILES
+        .iter()
+        .filter(|(f, _)| util::mtime(work().join(f)).is_some_and(|t| t > rendered + 2.0))
+        .map(|(_, label)| *label)
+        .collect()
 }
 
 /// Création de la version 4K depuis les pages : possible, et durée estimée sur cette machine.

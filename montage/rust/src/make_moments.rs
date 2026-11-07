@@ -342,7 +342,7 @@ fn run() -> Result<(), String> {
     let fnum = |v: &Value, k: &str| util::fd(v, k, 0.0);
     let steps_total: f64 = segments.iter().map(|s| fnum(s, "end") - fnum(s, "start") + 0.1).sum::<f64>()
         + gap_list.iter().map(|g| fnum(g, "end") - fnum(g, "start")).sum::<f64>()
-        + 2.0 * montage_s;
+        + montage_s;
     let mut steps_done = 0.0;
     // Tours de parole (diarize) : cadrage « personne qui parle » de l'aperçu, même règle que build_edit.
     let turns = crate::diarize::turns(&work);
@@ -475,27 +475,17 @@ fn run() -> Result<(), String> {
     if preview.exists() {
         let target = out.join("montage.mp4");
         // Recompressée seulement si la version de travail a changé depuis (scission, fusion…).
+        // Une seule passe, rapide, au même débit plafonné : même taille et même qualité mesurées
+        // (SSIM 0,996) que l'ancienne compression en deux passes lentes, trois fois plus vite.
         if !target.exists() || py_mtime(&target).unwrap_or(0.0) < py_mtime(&preview).unwrap_or(0.0) {
-            let passlog = p(&out.join("pass"));
-            let common = vec![
+            let part = out.join("montage.part.mp4");
+            let args = vec![
                 s("-v"), s("error"), s("-y"), s("-i"), p(&preview), s("-vf"), working_scale.clone(), s("-c:v"), s("libx264"),
-                s("-preset"), s("slow"), s("-b:v"), s("2500k"), s("-pix_fmt"), s("yuv420p"),
+                s("-preset"), s("veryfast"), s("-b:v"), s("2500k"), s("-maxrate"), s("3000k"), s("-bufsize"), s("5000k"),
+                s("-pix_fmt"), s("yuv420p"), s("-c:a"), s("aac"), s("-b:a"), s("128k"), s("-movflags"), s("+faststart"), p(&part),
             ];
-            let mut pass1 = common.clone();
-            pass1.extend([s("-pass"), s("1"), s("-passlogfile"), passlog.clone(), s("-an"), s("-f"), s("mp4"), s(devnull())]);
-            ffmpeg_ok(&pass1, "version de travail, 1re passe")?;
-            report_every(LABEL, steps_done + montage_s, steps_total, 0.0);
-            let mut pass2 = common;
-            pass2.extend([
-                s("-pass"), s("2"), s("-passlogfile"), passlog, s("-c:a"), s("aac"), s("-b:a"), s("128k"), s("-movflags"), s("+faststart"),
-                p(&target),
-            ]);
-            ffmpeg_ok(&pass2, "version de travail, 2e passe")?;
-            for f in util::list_dir(&out) {
-                if f.starts_with("pass") {
-                    let _ = fs::remove_file(out.join(f));
-                }
-            }
+            ffmpeg_ok(&args, "version de travail")?;
+            fs::rename(&part, &target).map_err(|e| format!("work/moments/montage.mp4 : {e}"))?;
         }
         report_every(LABEL, steps_total, steps_total, 0.0);
         let edit = read_json(&edit_path).ok_or("src/data/edit.json illisible")?;

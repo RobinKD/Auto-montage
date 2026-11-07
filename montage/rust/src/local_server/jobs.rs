@@ -977,6 +977,10 @@ fn run_steps(steps: &[Step], arg: &str, args: &[String], first: usize) -> Result
                     j.m.insert("renderClips".into(), json!(n));
                 }
             }
+            if line.starts_with(crate::render_hyperframes::KEPT_LINE) {
+                // rendu en partie fait d'images gardées : sa durée ne dit rien de la vitesse
+                j.m.insert("renderKept".into(), json!(true));
+            }
             let mut found = if line.is_empty() { None } else { progress_of(line) };
             if let Some(f) = found.as_mut() {
                 if gs(&j.m, "kind") == "final" && f.0 == "Rendu de la vidéo" {
@@ -1038,8 +1042,10 @@ fn run_steps(steps: &[Step], arg: &str, args: &[String], first: usize) -> Result
     let spent = obj(&mut j.m, "spent").get(&key).and_then(Value::as_f64).unwrap_or(0.0);
     let add = now - gf(&j.m, "stepStart") - gf(&j.m, "stepPhases");
     obj(&mut j.m, "spent").insert(key, fnum(spent + add));
-    if !reprise {
-        learn_timings(&j.m); // durées d'une tâche reprise : pas représentatives
+    // durées d'une tâche reprise, ou d'un rendu qui a gardé des parties déjà faites : pas
+    // représentatives de la vitesse de la machine
+    if !reprise && !truthy(&j.m, "renderKept") {
+        learn_timings(&j.m);
         count_samples(&j.m);
     }
     if resumable(&kind) {

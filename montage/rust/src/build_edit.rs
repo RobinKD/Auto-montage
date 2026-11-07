@@ -1042,28 +1042,40 @@ fn run() -> Result<(), String> {
 
     // --- Zooms ----------------------------------------------------------------------
     // Alternance zoom sec (punch) / zoom in (progressif), plan changé toutes les ~1,8 s
-    // sur une frontière de mot, pour que l'image ne soit jamais statique.
+    // sur une frontière de mot, pour que l'image ne soit jamais statique. Reprise au début de
+    // chaque plan, le premier zoom d'après le numéro du moment (comme l'aperçu de la page des
+    // moments, zoomType) : les zooms d'un plan ne dépendent pas des plans d'avant, et ses images
+    // déjà rendues restent valables quand un autre moment change (render_hyperframes).
     let mut zooms: Vec<(f64, f64, &str)> = vec![];
     {
-        let mut boundaries: Vec<f64> = word_events.iter().map(|w| round_to(w.start, 3)).chain(clips.iter().map(|c| c.from as f64 / FPS)).collect();
+        let mut boundaries: Vec<f64> = word_events.iter().map(|w| round_to(w.start, 3)).collect();
         boundaries.sort_by(|a, b| a.partial_cmp(b).unwrap());
         boundaries.dedup();
-        let (mut t, mut kind) = (0.0f64, 0);
-        while t < total - 0.3 {
-            let target = t + 1.8;
-            let mut nxt: Option<f64> = None;
-            for &b in boundaries.iter().filter(|&&b| b >= t + 1.3) {
-                if nxt.map(|n| (b - target).abs() < (n - target).abs()).unwrap_or(true) {
-                    nxt = Some(b);
+        for c in &clips {
+            let (start, end) = (c.from as f64 / FPS, c.end());
+            let (mut t, mut kind) = (start, c.seg.rem_euclid(2));
+            // au moins un zoom par plan, même très court : chaque image en a un
+            let mut first = true;
+            while first || t < end - 0.3 {
+                first = false;
+                let target = t + 1.8;
+                let mut nxt: Option<f64> = None;
+                for &b in boundaries.iter().filter(|&&b| b >= t + 1.3 && b < end - 0.3) {
+                    if nxt.map(|n| (b - target).abs() < (n - target).abs()).unwrap_or(true) {
+                        nxt = Some(b);
+                    }
                 }
+                let nxt = nxt.unwrap_or(end).min(end);
+                zooms.push((round_to(t, 3), round_to(nxt, 3), if kind % 2 == 0 { "in" } else { "punch" }));
+                kind += 1;
+                t = nxt;
             }
-            let nxt = nxt.unwrap_or(total).min(total);
-            zooms.push((round_to(t, 3), round_to(nxt, 3), if kind % 2 == 0 { "in" } else { "punch" }));
-            kind += 1;
-            t = nxt;
+            if let Some(z) = zooms.last_mut().filter(|z| z.1 < end) {
+                z.1 = round_to(end, 3);
+            }
         }
-        if let Some(z) = zooms.last_mut() {
-            z.1 = total;
+        if zooms.is_empty() {
+            zooms.push((0.0, total, "in"));
         }
     }
 

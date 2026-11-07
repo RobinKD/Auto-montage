@@ -46,7 +46,7 @@ pub const MO: f64 = 1_048_576.0;
 pub const MARGIN: f64 = 1.25; // « juste » : moins de 25 % au-dessus du besoin
 pub const KEEP_MEASURES: usize = 10; // mesures gardées par opération
 pub const RENDER_SHARE: f64 = 0.8; // part de la mémoire libre que le rendu peut prendre
-pub const RENDER_PART: f64 = 120.0; // long montage rendu par parties de 2 min environ (render_hyperframes)
+pub const RENDER_PART: f64 = 120.0; // durée de montage d'une page du rendu, au plus (les parties de render_hyperframes font 30 s au plus)
 pub const CLIP_MB: f64 = 20.0; // mémoire de chaque navigateur par plan de sa page, par million de pixels
 pub const MIN_CLIPS: usize = 10; // plans par partie au moins avant de prendre moins de navigateurs
 
