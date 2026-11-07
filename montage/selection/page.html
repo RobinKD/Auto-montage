@@ -273,6 +273,11 @@
   .dlg-choice.regen span { color: inherit; opacity: 0.85; }
   .dlg-foot { display: flex; justify-content: flex-end; gap: 8px; margin-top: 14px; flex-wrap: wrap; align-items: center; }
   .dlg-foot .sub { margin-right: auto; }
+  /* « Lire » du menu « Télécharger » : le fichier rendu lui-même (720p, 1080p, 4K, plateformes), lu
+     par morceaux (requêtes partielles) sans être chargé en entier. */
+  dialog.play-dlg { max-width: min(1200px, calc(100vw - 32px)); }
+  .play-dlg video { display: block; width: 100%; max-height: calc(100vh - 190px); background: #000; border-radius: 8px; }
+  .play-dlg .play-err { color: var(--warn); }
   .dlg-quality { border: 1px solid var(--line); border-radius: 10px; padding: 8px 12px 10px; margin: 0; font-size: 13px; }
   .dlg-quality legend { padding: 0 4px; color: var(--muted); }
   .dlg-quality label { display: flex; align-items: baseline; gap: 6px; padding: 3px 0; flex-wrap: wrap; }
@@ -734,6 +739,24 @@
   <div class="dlg-foot"><button type="button" id="keys-reset">Rétablir les raccourcis par défaut</button><button type="button" id="keys-close" class="regen">Fermer</button></div>
 </dialog>
 
+<!-- Vidéo entière en retard sur la page (menu « Télécharger ») : la mettre à jour avant de
+     télécharger, lire, créer la 4K ou exporter, ou prendre celle qui existe. -->
+<dialog class="am-dlg" id="stale-dlg" aria-labelledby="stale-title">
+  <h2 id="stale-title">Mettre à jour la vidéo ?</h2>
+  <p id="stale-sum"></p>
+  <div class="dlg-choices">
+    <button type="button" class="dlg-choice regen" id="stale-update"><b></b><span></span></button>
+    <button type="button" class="dlg-choice" id="stale-asis"><b></b><span></span></button>
+  </div>
+  <div class="dlg-foot"><span class="sub" id="stale-msg" role="status"></span><button type="button" id="stale-close">Annuler</button></div>
+</dialog>
+<!-- « Lire » (menu « Télécharger ») : la vidéo rendue elle-même, dans sa qualité. -->
+<dialog class="am-dlg play-dlg" id="play-dlg" aria-labelledby="play-title">
+  <h2 id="play-title">Lecture</h2>
+  <p id="play-info"></p>
+  <video id="play-video" controls playsinline preload="metadata"></video>
+  <div class="dlg-foot"><span class="sub" id="play-msg" role="status"></span><a id="play-save" download>Télécharger</a><button type="button" id="play-close" class="regen">Fermer</button></div>
+</dialog>
 <script src="hf/hf_audio.js"></script>
 <script src="hf/hf_look.js"></script>
 <script src="hf/hyperframes-player.global.js"></script>
@@ -3009,7 +3032,7 @@ ${HFAudio.voiceElements(spec)}
     scrubFrom = t && t.closest("#tlm-scroll") ? "rush" : t && t.closest("#tlk .tlk-scroll") ? "moment" : null;
   }, true);
   document.addEventListener("keydown", (e) => {
-    if (e.defaultPrevented || keysCapture) return;
+    if (e.defaultPrevented || keysCapture || $("play-dlg").open) return;  // « Lire » : touches du lecteur de la vidéo
     const act = actionOf(e), t = e.target;
     if (!act) return;
     if (act === "annuler" || act === "retablir") {
@@ -4740,6 +4763,7 @@ ${HFAudio.voiceElements(spec)}
   async function openDownloadMenu() {
     const menu = $("dl-menu");
     const data = await fetch("/api/downloads", { cache: "no-store" }).then((r) => r.json()).catch(() => null);
+    dlData = data;
     menu.replaceChildren();
     if (!data) { menu.textContent = "Le serveur Auto-montage ne répond pas."; menu.hidden = false; return; }
     // Rien de généré : une seule ligne qui dit quoi faire (pas de liste de « pas encore »).
@@ -4752,6 +4776,19 @@ ${HFAudio.voiceElements(spec)}
     }
     const mb = (n) => `${(n / 1048576).toFixed(n < 10485760 ? 1 : 0)} Mo`;
     const byId = Object.fromEntries(data.versions.map((v) => [v.id, v]));
+    // Vidéo entière plus ancienne que les derniers changements : dit en tête, avec « Mettre à jour ».
+    const late = staleWhat();
+    if (late) {
+      const row = Object.assign(document.createElement("div"), { className: "row hint" });
+      row.append(Object.assign(document.createElement("span"), { className: "hint", textContent: `La vidéo entière ne contient pas les derniers changements (${late}).` }));
+      const up = Object.assign(document.createElement("button"), { type: "button", textContent: "Mettre à jour la vidéo" });
+      const block = regenBlock();
+      up.disabled = !!block;
+      if (block) up.title = block;
+      up.addEventListener("click", () => { $("dl-menu").hidden = true; afterRegen("telecharger"); startRegen(); });
+      row.append(up);
+      menu.append(row);
+    }
     for (const [id, label, what] of [["720p", "720p", "légère, pour le téléphone"], ["1080p", "1080p", "vidéo entière"], ["4k", "4K", "pour la publication"]]) {
       const v = byId[id];
       const row = document.createElement("div");
@@ -4765,7 +4802,14 @@ ${HFAudio.voiceElements(spec)}
         info.textContent = `${what} · ${mb(v.size)}`;
         const a = document.createElement("a");
         a.href = v.parts[0]; a.download = v.filename; a.textContent = "Télécharger";
-        row.append(a);
+        // Un clic de la personne (pas celui de saveVersion après la génération) sur une vidéo en
+        // retard propose d'abord de la mettre à jour.
+        a.addEventListener("click", (ev) => {
+          if (!ev.isTrusted || !staleWhat()) return;
+          ev.preventDefault();
+          askStale("download", label, `telecharger:${id}`, () => a.click());
+        });
+        row.append(playButton(v.parts[0], `${label} (${v.res})`, `${what} · ${mb(v.size)}`, v.filename, `lire:${id}`, id), a);
       } else if (id === "4k") {
         const f = data.final || {};
         info.textContent = v ? "4K d'un montage précédent : à recréer" : "pas encore créée";
@@ -4775,6 +4819,7 @@ ${HFAudio.voiceElements(spec)}
         mk.disabled = !f.available || !!f.running || !!f.busy;
         if (f.busy) mk.title = f.busy;
         mk.addEventListener("click", () => createFinal(mk, f.estimate));
+        mk.dataset.final = "1";
         row.append(mk);
         const hint = document.createElement("div");
         hint.className = "hint";
@@ -4834,8 +4879,14 @@ ${HFAudio.voiceElements(spec)}
       const e = done[p.id];
       if (e) {
         const a = Object.assign(document.createElement("a"), { href: e.url, download: e.filename, textContent: `Télécharger (${mb(e.size)})` });
+        const redo = `exporter:${JSON.stringify({ presets: [p.id], cut: false })}`;
+        a.addEventListener("click", (ev) => {
+          if (!ev.isTrusted || !staleWhat()) return;
+          ev.preventDefault();
+          askStale("download-export", p.label, redo, () => a.click());
+        });
         a.title = `${e.width}x${e.height}, ${Math.round(e.videoKbps)} kb/s, ${String(e.lufs).replace(".", ",")} LUFS, crête ${String(e.peak).replace(".", ",")} dBTP`;
-        cell.append(" ", a);
+        cell.append(" ", playButton(e.url, `${p.label} (${e.width}x${e.height})`, `${mb(e.size)} · ${Math.round(e.videoKbps)} kb/s`, e.filename, redo), " ", a);
         for (const w of e.stale ? ["faite depuis une vidéo entière précédente"] : e.warnings || [])
           cell.append(Object.assign(document.createElement("div"), { className: "hint", textContent: w }));
       }
@@ -4856,16 +4907,24 @@ ${HFAudio.voiceElements(spec)}
     };
     boxes.forEach((b) => b.addEventListener("change", sync));
     go.addEventListener("click", async () => {
-      go.disabled = true;
       const presets = boxes.filter((b) => b.checked).map((b) => b.value);
-      const r = await fetch("/api/export", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ presets, cut: cut.checked }) });
-      if (!r.ok) { setStatus((await r.json().catch(() => ({}))).error || `erreur ${r.status}`, "err"); sync(); return; }
-      $("dl-menu").hidden = true;
-      followExport();
+      const run = async () => {
+        go.disabled = true;
+        if (!(await startExport(presets, cut.checked))) { sync(); return; }
+        $("dl-menu").hidden = true;
+      };
+      if (staleWhat()) askStale("export", "", `exporter:${JSON.stringify({ presets, cut: cut.checked })}`, run);
+      else run();
     });
     row.append(go);
     if (ex.presets.some((p) => p.tooLong)) row.append(cutLabel);
     menu.append(row);
+  }
+  async function startExport(presets, cut) {
+    const r = await fetch("/api/export", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ presets, cut }) }).catch(() => null);
+    if (!r || !r.ok) { setStatus((r && (await r.json().catch(() => ({}))).error) || "serveur local injoignable", "err"); return false; }
+    followExport();
+    return true;
   }
   async function followExport() {
     for (;;) {
@@ -4880,16 +4939,105 @@ ${HFAudio.voiceElements(spec)}
       return;
     }
   }
+  // « Lire » : la vidéo rendue elle-même (pas une copie réduite), servie par morceaux (Range) par
+  // le serveur local : même une longue 4K démarre tout de suite sans être chargée en mémoire.
+  // Le navigateur l'adapte à la taille de l'écran ; en plein écran, elle garde toute sa netteté.
+  // `redo` : demande gardée pour après la génération si la vidéo est d'abord mise à jour.
+  function playButton(url, title, info, filename, redo, id) {
+    const b = Object.assign(document.createElement("button"), { type: "button", textContent: "Lire" });
+    b.title = "Regarder cette vidéo ici, dans sa qualité (plein écran avec le bouton du lecteur)";
+    if (id) b.dataset.play = id;
+    const play = () => playFile(url, title, info, filename);
+    b.addEventListener("click", (ev) => {
+      if (ev.isTrusted && staleWhat()) askStale("play", title, redo, play);
+      else play();
+    });
+    return b;
+  }
+  // Après la génération demandée par « Lire » : la qualité voulue s'ouvre dans le lecteur.
+  function playVersion(id) {
+    const b = $("dl-menu").querySelector(`button[data-play="${id}"]`);
+    if (b) b.click();
+    else setStatus(`La vidéo en ${id === "4k" ? "4K" : id} n'est pas disponible : choisissez une autre qualité dans « Télécharger ».`, "err");
+  }
+
+  // Vidéo entière en retard sur la page : moments changés (comparés à la version de travail,
+  // workChange) et réglages de tout le montage enregistrés après elle (settingsChanged du serveur).
+  let dlData = null;
+  function staleWhat() {
+    if (!dlData || !(dlData.final && dlData.final.available)) return "";  // rien de généré : rien à mettre à jour
+    const n = changedSinceWork;
+    const parts = n ? [`${n} moment${n > 1 ? "s" : ""} changé${n > 1 ? "s" : ""}`] : [];
+    return parts.concat(dlData.settingsChanged || []).join(", ");
+  }
+  // Raison pour laquelle la génération est impossible maintenant (tâche en cours, rien de gardé).
+  const regenBlock = () => jobBusy || (($("regen")._locks || {}).kept) || "";
+  // Fenêtre « Mettre à jour la vidéo ? » : `after` (afterRegen) est fait après la génération,
+  // `asIs` tout de suite avec la vidéo telle qu'elle est.
+  function askStale(kind, label, after, asIs) {
+    const late = staleWhat();
+    const est = dlData && dlData.final ? dlData.final.estimate : null;
+    const T = {
+      download: [`Mettre à jour, puis télécharger en ${label}`, `Télécharger la vidéo telle qu'elle est`],
+      "download-export": [`Mettre à jour, puis refaire la copie ${label}`, "Télécharger la copie telle qu'elle est"],
+      play: ["Mettre à jour, puis lire", "Lire la vidéo telle qu'elle est"],
+      final: ["Mettre à jour, puis créer la 4K", "Créer la 4K de la vidéo telle qu'elle est"],
+      export: ["Mettre à jour, puis exporter", "Exporter la vidéo telle qu'elle est"],
+    }[kind];
+    const is4k = kind === "final" || after === "telecharger:4k" || after === "lire:4k";
+    $("stale-sum").textContent = `Depuis la dernière vidéo entière : ${late}. Elle ne contient pas encore ces changements.`;
+    const up = $("stale-update"), keep = $("stale-asis");
+    up.querySelector("b").textContent = T[0];
+    up.querySelector("span").textContent = `La vidéo entière est d'abord générée de nouveau avec vos derniers choix${is4k ? `, puis la 4K est recréée${took(est)}` : ""} ; la suite se fait d'elle-même.`;
+    keep.querySelector("b").textContent = T[1];
+    keep.querySelector("span").textContent = "Sans les derniers changements.";
+    const block = regenBlock();
+    up.disabled = !!block;
+    $("stale-msg").textContent = block;
+    const dlg = $("stale-dlg");
+    up.onclick = () => { dlg.close(); $("dl-menu").hidden = true; afterRegen(after); startRegen(); };
+    keep.onclick = () => { dlg.close(); asIs(); };
+    dlg.showModal();
+  }
+  $("stale-close").addEventListener("click", () => $("stale-dlg").close());
+  function playFile(url, title, info, filename) {
+    const v = $("play-video");
+    player.pause();
+    $("play-title").textContent = `Lecture : ${title}`;
+    $("play-info").textContent = info;
+    $("play-msg").textContent = "";
+    $("play-msg").className = "sub";
+    Object.assign($("play-save"), { href: url, download: filename });
+    v.src = url;
+    $("dl-menu").hidden = true;
+    $("play-dlg").showModal();
+    v.play().catch(() => {});
+  }
+  $("play-video").addEventListener("loadedmetadata", (e) => {
+    const v = e.target;
+    $("play-msg").textContent = v.videoWidth ? `Image de ${v.videoWidth}x${v.videoHeight}` : "";
+  });
+  $("play-video").addEventListener("error", (e) => {
+    if (!e.target.getAttribute("src")) return;
+    $("play-msg").className = "sub play-err";
+    $("play-msg").textContent = "Ce navigateur ne sait pas lire cette vidéo : téléchargez-la pour la regarder dans un autre lecteur.";
+  });
+  // Fermée : lecture arrêtée et fichier lâché (décodeur et mémoire tampon libérés).
+  $("play-dlg").addEventListener("close", () => {
+    const v = $("play-video");
+    v.pause(); v.removeAttribute("src"); v.load();
+  });
+  $("play-close").addEventListener("click", () => $("play-dlg").close());
   // Téléchargement direct d'une qualité (« Valider le dérush ») : le lien du menu « Télécharger ».
   function saveVersion(id) {
     const a = [...$("dl-menu").querySelectorAll("a[download]")].find((x) => x.closest(".row")?.querySelector("b")?.textContent.toLowerCase() === id.toLowerCase());
     if (a) a.click();
     else setStatus(`La vidéo en ${id === "4k" ? "4K" : id} n'est pas disponible : choisissez une autre qualité dans « Télécharger ».`, "err");
   }
-  async function createFinal(btn, estimate) {
-    const n = changedSinceWork;
-    const stale = n ? `${n} moment${n > 1 ? "s ont" : " a"} changé depuis la dernière vidéo entière : la 4K sera faite sans ${n > 1 ? "ces changements" : "ce changement"}. Pour ${n > 1 ? "les" : "l'"}inclure, générez d'abord la vidéo entière.\n\n` : "";
-    if (!confirm(`${stale}Créer la version 4K${n ? " quand même" : ""} ? Cela prend du temps${took(estimate)}. Vous pourrez continuer à utiliser la page pendant ce temps.`)) return;
+  async function createFinal(btn, estimate, asked) {
+    // Vidéo entière en retard : la mettre à jour d'abord (puis la 4K se crée d'elle-même), ou pas.
+    if (!asked && staleWhat()) { askStale("final", "4K", "creer-4k", () => createFinal(btn, estimate, true)); return; }
+    if (!asked && !confirm(`Créer la version 4K ? Cela prend du temps${took(estimate)}. Vous pourrez continuer à utiliser la page pendant ce temps.`)) return;
     btn.disabled = true;
     const r = await fetch("/api/final", { method: "POST" });
     if (!r.ok) { setStatus((await r.json().catch(() => ({}))).error || `erreur ${r.status}`, "err"); btn.disabled = false; return; }
@@ -4906,12 +5054,15 @@ ${HFAudio.voiceElements(spec)}
       if (job.state === "running") { setStatus(`Création de la version 4K : ${job.step}…`); continue; }
       $("regen").disabled = false;
       if (job.state === "cancelled") { setStatus("Création de la 4K annulée"); return; }
-      let wanted = null;  // 4K demandée par « Valider le dérush » : téléchargée dès qu'elle est prête
-      try { wanted = sessionStorage.getItem(AFTER_REGEN) === "telecharger-4k"; } catch (e) { /* stockage indisponible */ }
+      let next = null;  // 4K demandée par « Valider le dérush » ou « Télécharger » : téléchargée (ou lue) dès qu'elle est prête
+      try { next = sessionStorage.getItem(AFTER_REGEN); } catch (e) { /* stockage indisponible */ }
       afterRegen(null);
-      if (job.state === "done" && wanted) {
+      if (job.state === "done" && next === "telecharger-4k") {
         setStatus("Version 4K prête : téléchargement lancé", "ok");
         openDownloadMenu().then(() => saveVersion("4k"));
+      } else if (job.state === "done" && next === "lire-4k") {
+        setStatus("Version 4K prête", "ok");
+        openDownloadMenu().then(() => playVersion("4k"));
       } else if (job.state === "done") { setStatus("Version 4K prête : « Télécharger » pour l'enregistrer", "ok"); openDownloadMenu(); }
       else setStatus(`La création de la 4K a échoué à l'étape « ${job.step} » : ${job.error || "erreur inconnue"} (détail : lien « Journal »)`, "err");
       return;
@@ -4925,8 +5076,11 @@ ${HFAudio.voiceElements(spec)}
     try { after = sessionStorage.getItem(AFTER_REGEN); } catch (e) { /* stockage indisponible */ }
     // « telecharger:<qualité> » (« Valider le dérush ») : 720p ou 1080p téléchargée tout de suite ;
     // 4K : création lancée (/api/final), puis téléchargée à la fin (followFinal).
+    // « lire:<qualité> » : même chose, la vidéo s'ouvre dans le lecteur ; « creer-4k » : 4K créée
+    // après la mise à jour ; « exporter:{presets, cut} » : copies pour les plateformes refaites.
     const quality = after && after.startsWith("telecharger:") ? after.slice(12) : null;
-    if (quality === "4k" && working) {
+    const toPlay = after && after.startsWith("lire:") ? after.slice(5) : null;
+    if ((quality === "4k" || toPlay === "4k" || after === "creer-4k") && working) {
       afterRegen(null);
       (async () => {
         const r = await fetch("/api/final", { method: "POST" }).catch(() => null);
@@ -4934,9 +5088,21 @@ ${HFAudio.voiceElements(spec)}
           setStatus(`Vidéo générée, mais la création de la 4K n'a pas pu démarrer : ${(r && (await r.json().catch(() => ({}))).error) || "serveur local injoignable"}. « Télécharger » pour réessayer.`, "err");
           return;
         }
-        afterRegen("telecharger-4k");
+        afterRegen(quality ? "telecharger-4k" : toPlay ? "lire-4k" : null);
         followFinal();
       })();
+    } else if (toPlay && working) {
+      afterRegen(null);
+      openDownloadMenu().then(() => playVersion(toPlay));
+      // (redit après le chargement de la sélection, qui écrit son propre message)
+      const said = () => setStatus("Vidéo mise à jour avec vos derniers changements.", "ok");
+      said();
+      setTimeout(said, 2000);
+    } else if (after && after.startsWith("exporter:") && working) {
+      afterRegen(null);
+      let req = null;
+      try { req = JSON.parse(after.slice(9)); } catch (e) { /* demande illisible */ }
+      if (req && Array.isArray(req.presets)) startExport(req.presets, !!req.cut);
     } else if (after && after.startsWith("telecharger") && after !== "telecharger-4k" && working) {
       afterRegen(null);
       openDownloadMenu().then(() => {

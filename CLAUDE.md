@@ -477,7 +477,14 @@ interne : les changements attendent la prochaine version.
   suffit), les choix sont dans `work/local_db/` (même forme que l'export ArtifactData :
   `./am use_selection work/local_db <variante>`) et son bouton « Générer »
   monte la version de travail lui-même (`rust/src/local_server.rs`). « Télécharger » y propose
-  720p, 1080p et la création de la 4K (`/api/final` : `make_hd` puis `render final`).
+  720p, 1080p et la création de la 4K (`/api/final` : `make_hd` puis `render final`). « Lire » à côté de
+  chaque vidéo (menu « Télécharger », page « Téléchargements ») : le fichier rendu lui-même dans un
+  `<dialog>` (`playButton`, `playFile`), lu par morceaux (requêtes Range de `send_file`), lâché à la fermeture. Vidéo entière en retard
+  (moments changés de `changedSinceWork`, réglages de `info::SETTINGS_FILES` plus récents qu'elle :
+  `settingsChanged` de /api/downloads) : « Télécharger », « Lire », « Créer la version 4K », « Exporter »
+  proposent de la regénérer d'abord (`askStale`, `stale-dlg`), la suite par `afterRegen`
+  (`telecharger:<q>`, `lire:<q>`, `creer-4k`, `exporter:{presets, cut}`). Un nouveau réglage de tout le
+  montage enregistré dans work/ va dans `SETTINGS_FILES`.
 - Source 4K (`rust/src/make_hd.rs`) : lue dans le rush d'origine (`work/rush.txt`, ou l'assemblage de
   join_rushes), images gardées choisies avant la mise à l'échelle (`fps=30,select,scale`) : un rush 4K
   garde ses images (réduites s'il est plus grand), un rush plus petit est agrandi ; H.264 crf 16

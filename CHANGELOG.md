@@ -4,6 +4,19 @@ Chaque version publiée reprend sa section dans ses notes (onglet Releases). Une
 section, le numéro dans `VERSION` et le tag `v<numéro>` poussé publient la version avec ses
 installateurs (voir `packaging/README.md`).
 
+## 1.7
+
+- **Lire les vidéos dans le navigateur** : « Lire », à côté de chaque vidéo du menu
+  « Télécharger » (720p, 1080p, 4K, copies pour une plateforme) et de la page « Téléchargements »,
+  ouvre le fichier lui-même dans un lecteur, dans sa vraie qualité, avec le plein écran. Il n'est
+  pas chargé en entier : même une longue 4K démarre aussitôt.
+- **Vidéo mise à jour avant de la télécharger** : si des moments ou des réglages (couleurs, son,
+  sous-titres, transitions…) ont changé depuis la dernière vidéo entière, « Télécharger », « Lire »,
+  « Créer la version 4K » et « Exporter » proposent d'abord de la générer de nouveau ; la suite
+  (téléchargement, lecture, création de la 4K, copies pour les plateformes) se fait d'elle-même
+  ensuite. On peut aussi prendre la vidéo telle qu'elle est. Le menu « Télécharger » et la page
+  « Téléchargements » disent aussi quand la vidéo n'a pas les derniers changements.
+
 ## 1.6
 
 - **4K jamais refusée pour une crête isolée** : à la fin d'une 4K terminée, quelques échantillons
