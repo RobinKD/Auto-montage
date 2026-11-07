@@ -551,13 +551,24 @@ pub fn normalize_file(src: &Path, dst: &Path, target: f64) -> Result<(Summary, S
         }
         return Ok((before, before)); // déjà dans la tolérance : fichier gardé tel quel
     }
-    let (_, after) = normalize(&mut audio, SR, 2, target, MAX_TRUE_PEAK - 0.3);
+    let mut ceiling = MAX_TRUE_PEAK - 0.3;
+    let (_, after) = normalize(&mut audio, SR, 2, target, ceiling);
     let tmp = dst.with_extension("volume.mp4");
-    remux(src, &audio, &tmp)?;
+    // L'encodage AAC bouge la crête (parfois de 2 dB sur un choc bref) : fichier encodé mesuré, et
+    // s'il dépasse la crête permise, son relimité sous un plafond abaissé de l'excès, puis réencodé.
+    let mut encoded = after;
+    for attempt in 0..3 {
+        remux(src, &audio, &tmp)?;
+        encoded = measure_file(&tmp).unwrap_or(after);
+        if encoded.true_peak <= MAX_TRUE_PEAK + 0.05 || attempt == 2 {
+            break;
+        }
+        ceiling -= encoded.true_peak - MAX_TRUE_PEAK + 0.2;
+        say(&format!("Volume : crête {:.1} dBTP après l'encodage, son relimité à {ceiling:.1} dBTP", encoded.true_peak));
+        limit(&mut audio, SR, 2, ceiling);
+    }
     let _ = std::fs::remove_file(dst);
     std::fs::rename(&tmp, dst).map_err(|e| e.to_string())?;
-    // Mesure du fichier encodé (l'AAC bouge un peu la crête).
-    let encoded = measure_file(dst).unwrap_or(after);
     Ok((before, encoded))
 }
 

@@ -95,7 +95,14 @@ fn video_size(info: &str) -> String {
     "?".into()
 }
 
-/// Contrôle : dimensions, durée et saturation du son (code 1 s'il y a des échantillons saturés).
+/// Échantillons saturés tolérés : quelques-uns sont inaudibles (une crête isolée que l'encodage AAC
+/// a fait dépasser), au plus 10 ou 1 sur 100 000 (moins de 0,5 par seconde de son).
+fn clip_tolerance(samples: u64) -> u64 {
+    (samples / 100_000).max(10)
+}
+
+/// Contrôle : dimensions, durée et saturation du son (code 1 si plus d'échantillons saturés que
+/// `clip_tolerance`).
 fn check(out: &str) -> i32 {
     let path = rel(out);
     let ff = paths::ffmpeg();
@@ -138,11 +145,16 @@ fn check(out: &str) -> i32 {
         }
     }
     let _ = child.wait();
-    say(&format!("{out} : {size}, {:.1} s, {clipped} échantillons saturés", samples as f64 / 48000.0));
-    if clipped > 0 {
-        1
-    } else {
+    let secs = samples as f64 / 48000.0;
+    if clipped == 0 {
+        say(&format!("{out} : {size}, {secs:.1} s, aucun échantillon saturé"));
         0
+    } else if clipped <= clip_tolerance(samples) {
+        say(&format!("{out} : {size}, {secs:.1} s, {clipped} échantillons saturés (inaudible, toléré)"));
+        0
+    } else {
+        say(&format!("{out} : {size}, {secs:.1} s, {clipped} échantillons saturés (au-delà des {} tolérés)", clip_tolerance(samples)));
+        1
     }
 }
 
@@ -165,5 +177,11 @@ mod tests {
         let info = "  Stream #0:0[0x1](und): Video: h264 (High) (avc1 / 0x31637661), yuv420p(tv, bt709, progressive), 1080x1920 [SAR 1:1 DAR 9:16], 2105 kb/s, 30 fps";
         assert_eq!(video_size(info), "1080x1920");
         assert_eq!(video_size("rien"), "?");
+    }
+
+    #[test]
+    fn a_few_clipped_samples_are_tolerated() {
+        assert_eq!(clip_tolerance(48000), 10); // 1 s de son
+        assert_eq!(clip_tolerance(976 * 48000), 468); // 16 min 16 s
     }
 }

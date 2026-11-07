@@ -4,6 +4,14 @@ Chaque version publiée reprend sa section dans ses notes (onglet Releases). Une
 section, le numéro dans `VERSION` et le tag `v<numéro>` poussé publient la version avec ses
 installateurs (voir `packaging/README.md`).
 
+## 1.6
+
+- **4K jamais refusée pour une crête isolée** : à la fin d'une 4K terminée, quelques échantillons
+  saturés (un choc bref que l'encodage du son fait dépasser) faisaient échouer l'étape, avec
+  « 1 échantillons saturés », alors que la vidéo était faite et que rien ne s'entendait. Ils sont
+  maintenant tolérés (jusqu'à 1 sur 100 000), et le son est vérifié après l'encodage : s'il dépasse
+  la crête permise, il est relimité un peu plus bas puis réencodé.
+
 ## 1.5
 
 - **Tête de lecture gardée** : couper ou recoller un moment, annuler ou rétablir une coupe, ou
