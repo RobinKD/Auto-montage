@@ -159,7 +159,7 @@ fi
 for f in /montage.mp4 /out/montage_apercu.mp4; do
   [ "$(curl -s -o /dev/null -w '%{http_code}' -H 'Range: bytes=0-99' "$URL$f")" = 206 ] || fail "vidéo $f"
 done
-curl -fsS "$URL/api/logs/rapport" | has "Mémoire mesurée : .*Rendu de la vidéo" || fail "mémoire du rendu non mesurée"
+curl -fsS "$URL/api/logs/rapport" | has "RAM mesurée : .*Rendu de la vidéo" || fail "mémoire du rendu non mesurée"
 curl -fsS "$URL/downloads/" | has "1080p" || fail "page des téléchargements"
 D1="$(echo "$DATA" | json 'd["working"]["duration"]')"
 echo "  vidéo entière : $D1 s"
