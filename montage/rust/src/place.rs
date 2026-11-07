@@ -9,7 +9,7 @@
 //!                        prochaine création 4K
 //!   rendu                copies des vidéos laissées par le dernier rendu (work/rendu_hyperframes/assets),
 //!                        refaites au prochain rendu
-//!   parties              parties d'un long rendu interrompu (work/rendu_parties), refaites si effacées
+//!   parties              parties de l'image du dernier rendu (work/rendu_parties), refaites si effacées
 //!   sauvegarde:<dossier> fichiers remplacés par une réinitialisation (work/sauvegardes)
 //!   restes               envois coupés (.envoi-*), fichiers d'une tâche arrêtée en route (*.part.*) et
 //!                        images extraites par HyperFrames restées dans le dossier temporaire
@@ -34,7 +34,7 @@ fn assets() -> PathBuf {
     paths::work().join("rendu_hyperframes").join("assets")
 }
 pub fn parts_dir() -> PathBuf {
-    paths::work().join("rendu_parties") // parties d'un long rendu interrompu
+    paths::work().join("rendu_parties") // parties de l'image du dernier rendu (render_hyperframes)
 }
 fn backups() -> PathBuf {
     paths::work().join("sauvegardes")
@@ -198,9 +198,9 @@ pub fn inventory() -> Value {
     }
     let parts = render_parts();
     if !parts.is_empty() {
-        items.push(json!({"id": "parties", "group": "videos", "label": "Parties d'un rendu interrompu",
+        items.push(json!({"id": "parties", "group": "videos", "label": "Parties du dernier rendu",
                           "size": parts.iter().map(|p| freed(p)).sum::<u64>(), "detail": format!("{} partie(s)", parts.len()),
-                          "note": "Gardées pour reprendre le rendu sans les refaire ; refaites si elles sont effacées."}));
+                          "note": "Gardées pour ne refaire que ce qui a changé à la prochaine génération (ou reprendre un rendu interrompu) ; refaites si elles sont effacées."}));
     }
     for name in util::list_dir(backups()) {
         items.push(json!({"id": format!("sauvegarde:{name}"), "group": "autres", "label": format!("Sauvegarde {name}"),

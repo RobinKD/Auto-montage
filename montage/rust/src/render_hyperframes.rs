@@ -223,13 +223,15 @@ fn voice_audio(src: &str, duration: f64, e: &Value, t0: f64) -> Result<String, S
 
 /// Page du montage ; k : agrandissement fait dans la page (2 pour une 4K sans préréglage
 /// « --resolution » de HyperFrames : 4:3 et autres formats que 9:16, 16:9 et carré).
-/// part : (première image, image de fin) d'une partie du montage, rendue seule (main).
-fn build(m: &mut Montage, k: i64, part: Option<(i64, i64)>) -> Result<(), String> {
+/// part : (première image, image de fin) d'une partie du montage, rendue seule (main), dans une
+/// page qui ne dépend que de son contenu (localize) : même page, mêmes images, donc une partie
+/// gardée d'un rendu précédent sert telle quelle. Le son est rendu à part (build_audio).
+fn build(m: &mut Montage, k: i64, part: (i64, i64)) -> Result<String, String> {
     let fps_v = m.edit.get("fps").cloned().unwrap_or(json!(30));
     let fps = m.fps;
     let n = m.frames;
-    let (f0, f1) = part.unwrap_or((0, n));
-    let (t0, length) = (f0 as f64 / fps, (f1 - f0) as f64 / fps);
+    let (f0, f1) = part;
+    let length = (f1 - f0) as f64 / fps;
     let (rush, key) = m.rush();
     let rush_name = rush.file_name().map(|s| s.to_string_lossy().into_owned()).unwrap_or_default();
     let src = link(&rush, &rush_name);
@@ -239,55 +241,29 @@ fn build(m: &mut Montage, k: i64, part: Option<(i64, i64)>) -> Result<(), String
     // Partie : les plans qui y passent, coupés à ses bords (clip_spans : prolongés pendant leur
     // transition). Chaque plan dans son cadre (box : styles de la transition) et son zoom (zb :
     // cadrage), sur deux pistes en alternance (deux plans à la fois pendant une transition).
+    // Numéros des plans comptés depuis le premier plan de la partie (localize).
     let spans = clip_spans(&m.edit);
+    let first = local_clips(&spans, f0, f1).start;
     let mut videos = vec![];
     for (i, c) in util::arr(&m.edit, "clips").iter().enumerate() {
         let (from, end) = spans[i];
         let (a, b) = (from.max(f0 as f64), end.min(f1 as f64));
         if b > a {
+            let j = i - first;
             let start = ((a - f0 as f64) / fps * 1e6).trunc() / 1e6;
             videos.push(format!(
-                "<div class=\"fill box\" id=\"box{i}\"><div class=\"fill zoom\" id=\"zb{i}\">\
-                 <video id=\"clip{i}\" class=\"clip\" muted playsinline src=\"{src}\" data-start=\"{}\" \
+                "<div class=\"fill box\" id=\"box{j}\"><div class=\"fill zoom\" id=\"zb{j}\">\
+                 <video id=\"clip{j}\" class=\"clip\" muted playsinline src=\"{src}\" data-start=\"{}\" \
                  data-duration=\"{}\" data-media-start=\"{}\" data-track-index=\"{}\"></video></div></div>",
                 pyjson::float_repr(start),
                 r6((b - a) / fps),
                 r6((num(c.get(key)) + a - from + 0.25) / fps),
-                i % 2
+                j % 2
             ));
         }
     }
     let videos = videos.join("\n");
-    let voice = paths::public().join("audio").join("voice.wav");
-    let voice_src = link(&voice, "voice.wav");
-    let mut audios = vec![voice_audio(&voice_src, length.min(wav_len(&voice) - t0), &m.edit, t0)?];
-    let public = paths::public();
-    for (i, s) in util::arr(&m.edit, "sfx").iter().enumerate() {
-        // Même calcul que Montage.sfx (volume gardé tel qu'écrit : entier ou flottant).
-        let start = round_int(num(s.get("start")) * fps) as f64 / fps;
-        let dur = round_int(fps * s.get("dur").and_then(Value::as_f64).unwrap_or(1.5)).max(1) as f64 / fps;
-        let vol = s.get("volume").filter(|v| v.is_number()).cloned().unwrap_or(json!(1)); // nombre seulement (attribut)
-        let rel = s.get("src").and_then(Value::as_str).unwrap_or("");
-        let path = rel.split('/').fold(public.clone(), |p, x| p.join(x));
-        // Bruitage commencé avant la partie : sa suite (data-media-start).
-        let start = start - t0;
-        let skip = (-start).max(0.0);
-        let dur = (dur - skip).min(wav_len(&path) - skip).min(length - start.max(0.0));
-        if dur > 0.0 {
-            let rel_norm: Vec<&str> = rel.split('/').filter(|x| !x.is_empty() && *x != ".").collect();
-            let name = format!("sfx/{}", rel_norm.join("_"));
-            audios.push(format!(
-                "<audio id=\"sfx{i}\" src=\"{}\" data-start=\"{}\" data-duration=\"{}\" \
-                 data-media-start=\"{}\" data-track-index=\"{}\" data-volume=\"{}\"></audio>",
-                link(&path, &name),
-                r6(start.max(0.0)),
-                r6(dur),
-                r6(skip),
-                20 + i % 8,
-                py_str(&vol)
-            ));
-        }
-    }
+
     // Sous-titres : mots, couleurs des mots mis en valeur, lignes (et leur taille) et réduction.
     let mut caps = vec![];
     let captions: Vec<Value> = util::arr(&m.edit, "captions").to_vec();
@@ -349,13 +325,14 @@ fn build(m: &mut Montage, k: i64, part: Option<(i64, i64)>) -> Result<(), String
     for k in ["weight", "size", "uppercase", "color", "shadow", "blur", "ox", "oy", "posX", "posY"] {
         cap.insert(k.into(), m.cap.get(k).cloned().unwrap_or(Value::Null));
     }
-    let data = json!({
+    let mut data = json!({
         "fps": fps_v, "frames": n, "clips": clips, "face": face,
         "focus": or_empty("focus"), "zooms": or_empty("zooms"), "zoomFx": or_empty("zoomFx"), "shakes": or_empty("shakes"),
         "flashes": or_empty("flashes"), "typed": Value::Array(m.typed.clone()), "chips": or_empty("chips"), "captions": caps,
         "couleur": e.get("couleur").cloned().unwrap_or(Value::Null), "looks": or_empty("looks"), "transitions": or_empty("transitions"),
         "hab": Value::Object(m.hab.clone()), "cap": Value::Object(cap),
     });
+    localize(&mut data, f0, f1, fps, &spans);
     // Format du rush : sur une image basse (paysage, 4:3), sous-titres plus bas et texte tapé au centre.
     let pos = frame_layout(m.width, m.height);
     let poppins_src = link(&poppins(), "fonts/poppins.ttf");
@@ -370,9 +347,7 @@ fn build(m: &mut Montage, k: i64, part: Option<(i64, i64)>) -> Result<(), String
         ("TYPEDTOP", py_str(&pos["typedTop"])),
         ("FPS", py_str(&fps_v)),
         ("DUR", r6(length)),
-        ("OFF", f0.to_string()),
         ("VIDEOS", videos),
-        ("AUDIOS", audios.join("\n")),
         ("POPPINS", poppins_src),
         ("CAPFONT", capfont),
         ("CAPWEIGHT", m.font_weight.to_string()),
@@ -382,11 +357,136 @@ fn build(m: &mut Montage, k: i64, part: Option<(i64, i64)>) -> Result<(), String
     for (k, v) in reps {
         page = page.replace(&format!("%{k}%"), &v);
     }
-    fs::write(dir().join("index.html"), page).map_err(|e| format!("work/rendu_hyperframes/index.html : {e}"))?;
+    fs::write(dir().join("index.html"), &page).map_err(|e| format!("work/rendu_hyperframes/index.html : {e}"))?;
     fs::copy(node_modules().join("gsap").join("dist").join("gsap.min.js"), dir().join("assets").join("gsap.min.js"))
         .map_err(|e| format!("gsap.min.js (paquet npm gsap) : {e}"))?;
     // Couleurs, effets d'image et transitions : le même code que l'aperçu de la page des moments.
     fs::copy(hf_look(), dir().join("assets").join("hf_look.js")).map_err(|e| format!("selection/hf_look.js : {e}"))?;
+    Ok(page)
+}
+
+/// Plans de la page d'une partie : ceux qui passent dans ses images (numéros du montage, suite).
+fn local_clips(spans: &[(f64, f64)], f0: i64, f1: i64) -> std::ops::Range<usize> {
+    let inside: Vec<usize> = (0..spans.len()).filter(|&i| spans[i].0.max(f0 as f64) < spans[i].1.min(f1 as f64)).collect();
+    match (inside.first(), inside.last()) {
+        (Some(&a), Some(&b)) => a..b + 1,
+        _ => 0..0,
+    }
+}
+
+/// Temps arrondi à la microseconde : une même partie décalée dans le montage donne la même page.
+fn us(x: f64) -> Value {
+    util::num((x * 1e6).round() / 1e6)
+}
+
+/// Données de la page d'une partie [f0, f1) : seulement ce qui s'y passe, avec les temps comptés
+/// depuis son début (secondes et images du montage ; les temps du rush, visages, zoom libre a et b,
+/// ne changent pas) et les plans numérotés depuis le premier de la partie. La page ne dépend alors
+/// que du contenu de la partie, pas de sa place dans le montage.
+fn localize(data: &mut Value, f0: i64, f1: i64, fps: f64, spans: &[(f64, f64)]) {
+    let (t0, t1) = (f0 as f64 / fps, f1 as f64 / fps);
+    let within = |it: &Value| num(it.get("end")) > t0 && num(it.get("start")) < t1;
+    let shift = |mut it: Value| {
+        for k in ["start", "end"] {
+            if let Some(x) = it.get(k).and_then(Value::as_f64) {
+                it[k] = us(x - t0);
+            }
+        }
+        if let Some(Value::Array(times)) = it.get_mut("times") {
+            for x in times.iter_mut() {
+                if let Some(v) = x.as_f64() {
+                    *x = us(v - t0);
+                }
+            }
+        }
+        it
+    };
+    for key in ["focus", "zoomFx", "shakes", "flashes", "typed", "chips", "captions", "looks"] {
+        let items: Vec<Value> = util::arr(data, key).iter().filter(|it| within(it)).cloned().map(shift).collect();
+        data[key] = Value::Array(items);
+    }
+    // Zooms automatiques : le dernier sert aux images qu'aucun ne couvre (draw) ; gardé seulement
+    // si la partie a de telles images.
+    let zooms = util::arr(data, "zooms").to_vec();
+    let mut local: Vec<Value> = zooms.iter().filter(|z| within(z)).cloned().collect();
+    if let Some(last) = zooms.last() {
+        let covered = |f: i64| {
+            let t = f as f64 / fps;
+            local.iter().any(|z| t >= num(z.get("start")) && t < num(z.get("end")))
+        };
+        if !local.contains(last) && !(f0..f1).all(covered) {
+            local.push(last.clone());
+        }
+    }
+    data["zooms"] = Value::Array(local.into_iter().map(shift).collect());
+    let range = local_clips(spans, f0, f1);
+    let clips: Vec<Value> = util::arr(data, "clips")[range.clone()]
+        .iter()
+        .map(|c| {
+            let mut c = c.clone();
+            c["from"] = json!(round_int(num(c.get("from"))) - f0);
+            c
+        })
+        .collect();
+    data["clips"] = Value::Array(clips);
+    let transitions: Vec<Value> = util::arr(data, "transitions")
+        .iter()
+        .filter(|t| {
+            let at = num(t.get("at"));
+            at < f1 as f64 && at + num(t.get("frames")) > f0 as f64
+        })
+        .map(|t| {
+            let mut t = t.clone();
+            t["at"] = json!(round_int(num(t.get("at"))) - f0);
+            t["clip"] = json!(t.get("clip").and_then(Value::as_i64).unwrap_or(0) - range.start as i64);
+            t
+        })
+        .collect();
+    data["transitions"] = Value::Array(transitions);
+    data["frames"] = json!(f1 - f0);
+}
+
+/// Page du son du montage entier (voix, voix modifiées, bruitages, limiteur), rendue à part en
+/// une fois : petite image et une image par seconde, presque rien à capturer (le son ne dépend pas
+/// du nombre d'images). Ainsi les parties de l'image gardées servent même quand le volume de la
+/// voix, réglé sur tout le montage, change.
+fn build_audio(m: &mut Montage) -> Result<(), String> {
+    let total = m.frames as f64 / m.fps;
+    let voice = paths::public().join("audio").join("voice.wav");
+    let voice_src = link(&voice, "voice.wav");
+    let mut audios = vec![voice_audio(&voice_src, total.min(wav_len(&voice)), &m.edit, 0.0)?];
+    let (fps, t0, length) = (m.fps, 0.0, total);
+    let public = paths::public();
+    for (i, s) in util::arr(&m.edit, "sfx").iter().enumerate() {
+        // Même calcul que Montage.sfx (volume gardé tel qu'écrit : entier ou flottant).
+        let start = round_int(num(s.get("start")) * fps) as f64 / fps;
+        let dur = round_int(fps * s.get("dur").and_then(Value::as_f64).unwrap_or(1.5)).max(1) as f64 / fps;
+        let vol = s.get("volume").filter(|v| v.is_number()).cloned().unwrap_or(json!(1)); // nombre seulement (attribut)
+        let rel = s.get("src").and_then(Value::as_str).unwrap_or("");
+        let path = rel.split('/').fold(public.clone(), |p, x| p.join(x));
+        // Bruitage commencé avant la partie : sa suite (data-media-start).
+        let start = start - t0;
+        let skip = (-start).max(0.0);
+        let dur = (dur - skip).min(wav_len(&path) - skip).min(length - start.max(0.0));
+        if dur > 0.0 {
+            let rel_norm: Vec<&str> = rel.split('/').filter(|x| !x.is_empty() && *x != ".").collect();
+            let name = format!("sfx/{}", rel_norm.join("_"));
+            audios.push(format!(
+                "<audio id=\"sfx{i}\" src=\"{}\" data-start=\"{}\" data-duration=\"{}\" \
+                 data-media-start=\"{}\" data-track-index=\"{}\" data-volume=\"{}\"></audio>",
+                link(&path, &name),
+                r6(start.max(0.0)),
+                r6(dur),
+                r6(skip),
+                20 + i % 8,
+                py_str(&vol)
+            ));
+        }
+    }
+    let page = AUDIO_PAGE.replace("%DUR%", &r6(total)).replace("%AUDIOS%", &audios.join("\n"));
+    fs::write(dir().join("index.html"), page).map_err(|e| format!("work/rendu_hyperframes/index.html : {e}"))?;
+    fs::copy(node_modules().join("gsap").join("dist").join("gsap.min.js"), dir().join("assets").join("gsap.min.js"))
+        .map_err(|e| format!("gsap.min.js (paquet npm gsap) : {e}"))?;
     Ok(())
 }
 
@@ -591,19 +691,6 @@ fn memory_part(fps: f64, pixels: f64, hd: bool, info: &VideoInfo, workers: usize
     }
 }
 
-/// Parties du rendu : [(première image, image de fin)] d'environ PART_SECONDS chacune ; une
-/// seule pour un montage de moins de 1,5 fois cette durée. longest : durée la plus longue
-/// permise par le disque (disk_part).
-fn parts_of(frames: i64, fps: f64, longest: Option<f64>) -> Vec<(i64, i64)> {
-    let f = frames as f64;
-    let mut count = if f > 1.5 * fps * PART_SECONDS { round_int(f / (fps * PART_SECONDS)).max(1) } else { 1 };
-    if let Some(l) = longest.filter(|l| *l != 0.0) {
-        count = count.max((f / (fps * l)).ceil() as i64);
-    }
-    let bounds: Vec<i64> = (0..=count).map(|i| round_int(i as f64 * f / count as f64)).collect();
-    bounds.windows(2).map(|w| (w[0], w[1])).collect()
-}
-
 /// Parties recoupées au début d'un plan pour que la page de chacune en ait au plus `most`
 /// (mémoire des navigateurs : memoire::render_plan) ; une partie sans début de plan où couper
 /// reste entière.
@@ -637,81 +724,118 @@ fn halve(spans: &[(f64, f64)], (a, b): (i64, i64)) -> Option<[(i64, i64); 2]> {
         .map(|c| [(a, c), (c, b)])
 }
 
-/// Empreinte du montage et du code du rendu : une partie déjà rendue ne resert qu'au même.
-fn parts_key(m: &Montage, mode: &str, k: i64, preset: Option<&str>) -> String {
+/// Empreinte commune à toutes les parties : code du rendu, polices, rush, qualité. Celle d'une
+/// partie y ajoute sa page (part_key), qui contient tout ce qu'elle dessine.
+fn common_key(m: &Montage, mode: &str, k: i64, preset: Option<&str>) -> Vec<u8> {
     let mut h = Sha1::new();
-    let sources: [Option<PathBuf>; 6] = [
-        Some(paths::data().join("edit.json")),
-        Some(paths::data().join("face.json")),
-        None, // code du rendu : ce fichier-ci
-        Some(hf_audio()),
-        Some(paths::work().join("son.json")),
-        Some(hf_look()),
-    ];
-    for p in sources {
-        match p {
-            None => h.update(include_bytes!("render_hyperframes.rs")),
-            Some(p) => match fs::read(&p) {
-                Ok(b) => h.update(&b),
-                Err(_) => h.update(b"-"),
-            },
+    h.update(include_bytes!("render_hyperframes.rs"));
+    let hf_version = node_modules().join("hyperframes").join("package.json");
+    for p in [hf_look(), node_modules().join("gsap").join("dist").join("gsap.min.js"), hf_version, poppins(), m.font_file.clone()] {
+        match fs::read(&p) {
+            Ok(b) => h.update(&b),
+            Err(_) => h.update(b"-"),
         }
     }
-    let (rush, key) = m.rush();
+    let (rush, _) = m.rush();
     let size = fs::metadata(&rush).map(|m| m.len()).unwrap_or(0);
-    h.update(format!("{mode} {k} {} ('{}', '{key}') {size}", preset.unwrap_or("None"), rush.display()).as_bytes());
-    hex::encode(h.finalize())[..12].to_string()
+    let mtime = util::mtime_ns(&rush).unwrap_or(0);
+    h.update(format!("{mode} {k} {} {} {size} {mtime}", preset.unwrap_or("-"), rush.display()).as_bytes());
+    h.finalize().to_vec()
 }
 
-/// Parties mises bout à bout : image copiée telle quelle ; son de chaque partie décodé et
-/// ramené à la durée exacte de la partie (sans le blanc d'encodage de son début, qui décalerait
-/// la suite), mis bout à bout puis encodé d'un seul tenant.
-fn join_parts(paths_: &[PathBuf], lengths: &[f64], out: &Path) -> i32 {
-    let ff = paths::ffmpeg();
-    let tmp = PathBuf::from(format!("{}.assemblage", out.display()));
-    util::mkdirs(&tmp);
-    let code = (|| {
-        let mut wavs = vec![];
-        for (i, (path, length)) in paths_.iter().zip(lengths).enumerate() {
-            let wav = tmp.join(format!("{i:03}.wav"));
-            let af = format!("apad,atrim=duration={length:.6}");
-            let code = procs::call(
-                ff,
-                [
-                    "-v".as_ref(), "error".as_ref(), "-y".as_ref(), "-i".as_ref(), path.as_os_str(), "-vn".as_ref(),
-                    "-ac".as_ref(), "2".as_ref(), "-ar".as_ref(), "48000".as_ref(), "-af".as_ref(), af.as_ref(),
-                    "-c:a".as_ref(), "pcm_s16le".as_ref(), wav.as_os_str(),
-                ] as [&std::ffi::OsStr; 15],
-            );
-            if code != 0 {
-                return 1;
-            }
-            wavs.push(wav);
+fn part_key(common: &[u8], page: &str) -> String {
+    let mut h = Sha1::new();
+    h.update(common);
+    h.update(page.as_bytes());
+    hex::encode(h.finalize())[..16].to_string()
+}
+
+// Parties gardées d'un rendu à l'autre : coupées à des endroits qui ne dépendent que du contenu
+// (début d'un plan, ou image du rush multiple de GRID_SECONDS au milieu d'un long plan), retenus
+// une fois sur deux d'après leur empreinte, entre CHUNK_MIN et CHUNK_MAX secondes de montage. Un
+// moment changé ne déplace que les coupes voisines : les parties d'avant et d'après restent les
+// mêmes et ne sont pas refaites.
+const GRID_SECONDS: f64 = 5.0;
+/// Début de la ligne qui dit combien de parties ont été gardées (lue par local_server : un rendu
+/// en partie gardé n'apprend pas la vitesse de la machine).
+pub const KEPT_LINE: &str = "Parties gardées d'un rendu précédent";
+const CHUNK_MIN: f64 = 10.0;
+const CHUNK_MAX: f64 = 30.0;
+
+/// Coupes possibles : (image du montage, empreinte de l'endroit dans le rush).
+fn cut_points(edit: &Value, key: &str, fps: f64) -> Vec<(i64, String)> {
+    let grid = round_int(GRID_SECONDS * fps).max(1);
+    let mut out = vec![];
+    for c in util::arr(edit, "clips") {
+        let from = round_int(num(c.get("from")));
+        let len = round_int(num(c.get("durationInFrames")));
+        let src = round_int(num(c.get(key)));
+        out.push((from, format!("plan {src}")));
+        let mut g = (src / grid + 1) * grid;
+        while g < src + len {
+            out.push((from + g - src, format!("rush {g}")));
+            g += grid;
         }
-        for (name, items) in [("images.txt", paths_), ("son.txt", &wavs[..])] {
-            let text: String = items
-                .iter()
-                // apostrophe du chemin échappée comme dans join_rushes (liste de concat de ffmpeg)
-                .map(|p| format!("file '{}'\n", std::path::absolute(p).unwrap_or_else(|_| p.clone()).display().to_string().replace('\'', "'\\''")))
-                .collect();
-            if fs::write(tmp.join(name), text).is_err() {
-                return 1;
-            }
+    }
+    out.sort_by_key(|p| p.0);
+    out
+}
+
+/// Parties [début, fin) du montage, d'après le contenu (voir GRID_SECONDS) ; longest : durée
+/// maximale permise par le disque ou la mémoire.
+fn content_parts(edit: &Value, key: &str, frames: i64, fps: f64, longest: Option<f64>) -> Vec<(i64, i64)> {
+    let max = round_int(longest.unwrap_or(f64::INFINITY).min(CHUNK_MAX) * fps).max(1);
+    let min = round_int(CHUNK_MIN * fps).min(max / 2).max(1);
+    let mut parts = vec![];
+    let mut cur = 0;
+    for (f, id) in cut_points(edit, key, fps) {
+        if f <= cur || f >= frames {
+            continue;
         }
-        let images = tmp.join("images.txt");
-        let son = tmp.join("son.txt");
-        procs::call(
-            ff,
-            [
-                "-v".as_ref(), "error".as_ref(), "-y".as_ref(), "-f".as_ref(), "concat".as_ref(), "-safe".as_ref(), "0".as_ref(),
-                "-i".as_ref(), images.as_os_str(), "-f".as_ref(), "concat".as_ref(), "-safe".as_ref(), "0".as_ref(), "-i".as_ref(),
-                son.as_os_str(), "-map".as_ref(), "0:v".as_ref(), "-map".as_ref(), "1:a".as_ref(), "-c:v".as_ref(), "copy".as_ref(),
-                "-c:a".as_ref(), "aac".as_ref(), "-b:a".as_ref(), "192k".as_ref(), "-movflags".as_ref(), "+faststart".as_ref(),
-                out.as_os_str(),
-            ] as [&std::ffi::OsStr; 28],
-        )
-    })();
-    let _ = fs::remove_dir_all(&tmp);
+        while f - cur > max {
+            parts.push((cur, cur + max));
+            cur += max;
+        }
+        let chosen = Sha1::digest(id.as_bytes())[0] % 2 == 0;
+        if f - cur >= min && chosen {
+            parts.push((cur, f));
+            cur = f;
+        }
+    }
+    while frames - cur > max {
+        parts.push((cur, cur + max));
+        cur += max;
+    }
+    if frames > cur {
+        parts.push((cur, frames));
+    }
+    parts
+}
+
+/// Parties de l'image mises bout à bout (copiées telles quelles) avec le son rendu à part,
+/// ramené à la durée exacte du montage.
+fn assemble(paths_: &[PathBuf], audio: &Path, total: f64, out: &Path) -> i32 {
+    let list = PathBuf::from(format!("{}.parties.txt", out.display()));
+    let text: String = paths_
+        .iter()
+        // apostrophe du chemin échappée comme dans join_rushes (liste de concat de ffmpeg)
+        .map(|p| format!("file '{}'\n", std::path::absolute(p).unwrap_or_else(|_| p.clone()).display().to_string().replace('\'', "'\\''")))
+        .collect();
+    if fs::write(&list, text).is_err() {
+        return 1;
+    }
+    let af = format!("apad,atrim=duration={total:.6}");
+    let code = procs::call(
+        paths::ffmpeg(),
+        [
+            "-v".as_ref(), "error".as_ref(), "-y".as_ref(), "-f".as_ref(), "concat".as_ref(), "-safe".as_ref(), "0".as_ref(),
+            "-i".as_ref(), list.as_os_str(), "-i".as_ref(), audio.as_os_str(), "-map".as_ref(), "0:v:0".as_ref(), "-map".as_ref(),
+            "1:a:0".as_ref(), "-c:v".as_ref(), "copy".as_ref(), "-af".as_ref(), af.as_ref(), "-ac".as_ref(), "2".as_ref(),
+            "-ar".as_ref(), "48000".as_ref(), "-c:a".as_ref(), "aac".as_ref(), "-b:a".as_ref(), "192k".as_ref(),
+            "-movflags".as_ref(), "+faststart".as_ref(), out.as_os_str(),
+        ] as [&std::ffi::OsStr; 30],
+    );
+    let _ = fs::remove_file(&list);
     code
 }
 
@@ -759,7 +883,8 @@ pub fn main(args: &[String]) -> i32 {
     // d'après les mesures des rendus précédents sur cette machine) ; moins si le disque est trop
     // plein pour leur mémoire partagée.
     let spans = clip_spans(&m.edit);
-    let wanted = parts_of(m.frames, fps, None).iter().map(|&(a, b)| clips_in(&spans, a, b)).max().unwrap_or(1);
+    let src_key = m.rush().1;
+    let wanted = content_parts(&m.edit, src_key, m.frames, fps, None).iter().map(|&(a, b)| clips_in(&spans, a, b)).max().unwrap_or(1);
     let info = VideoInfo { duration: 0.0, source: (m.width, m.height), work: (m.width, m.height), montage: total, parts: 1, workers: None, clips: None };
     let (mut workers, most_clips) = memoire::render_plan(hd, &info, None, wanted);
     let info = VideoInfo { clips: Some(most_clips as f64), ..info };
@@ -790,11 +915,18 @@ pub fn main(args: &[String]) -> i32 {
             why = " (RAM des navigateurs en 4K)".into();
         }
     }
-    let mut parts = split_by_clips(parts_of(m.frames, fps, longest), &spans, most_clips);
-    if parts.len() > parts_of(m.frames, fps, longest).len() && why.is_empty() {
+    // Parties d'une trentaine de secondes au plus, coupées d'après le contenu (content_parts) ;
+    // chacune dans sa propre page avec ses seuls plans (mémoire de la plus grande page, pas du
+    // montage entier), raccourcies si le disque ou la RAM le demandent.
+    let content = content_parts(&m.edit, src_key, m.frames, fps, longest);
+    let mut parts = split_by_clips(content.clone(), &spans, most_clips);
+    if parts.len() > content.len() && why.is_empty() {
         why = format!(" (RAM : {most_clips} plans au plus par partie)");
     }
-    if parts.len() > 1 && 2.0 * total * OUT_BYTES * pixels > DISK_SHARE * free {
+    if longest.map(|l| l >= CHUNK_MAX).unwrap_or(true) && !why.starts_with(" (RAM :") {
+        why.clear(); // le disque et la RAM ne raccourcissent pas les parties
+    }
+    if 2.0 * total * OUT_BYTES * pixels > DISK_SHARE * free {
         say(&format!(
             "Attention : disque presque plein ({} libres), l'assemblage des parties à la fin pourrait manquer de place (environ {}).",
             memoire::go(free as i64),
@@ -811,49 +943,48 @@ pub fn main(args: &[String]) -> i32 {
     ));
     // Plans de la plus grande page : comptent dans la mesure de la mémoire du rendu (local_server).
     say(&format!("Plans par partie du rendu : {}", parts.iter().map(|&(a, b)| clips_in(&spans, a, b)).max().unwrap_or(0)));
-    // Long montage : rendu par parties d'environ PART_SECONDS, chacune dans sa propre page avec ses
-    // seuls plans (mémoire de la plus longue partie, pas du montage entier), puis mises bout à bout.
-    // Une partie finie est gardée (work/rendu_parties/) : un rendu interrompu reprend aux suivantes.
-    let key = parts_key(&m, mode, k, preset);
+    // Parties gardées dans work/rendu_parties/ sous l'empreinte de leur page (part_key) : une partie
+    // dont rien n'a changé depuis un rendu précédent (ou un rendu interrompu) n'est pas refaite.
+    let common = common_key(&m, mode, k, preset);
     let pdir = parts_dir();
     util::mkdirs(&pdir);
+    let prefix = format!("{mode}_");
     for name in util::list_dir(&pdir) {
-        // parties d'un autre montage, dossiers d'un rendu interrompu
-        if !name.starts_with(&key) {
+        // restes d'un rendu interrompu, parties d'une version précédente d'Auto-montage
+        if name.ends_with(".part.mp4") || !(name.starts_with("apercu_") || name.starts_with("final_")) {
             util::remove_all(pdir.join(name));
         }
     }
-    if parts.len() > 1 {
-        say(&format!(
-            "Rendu en {} parties d'environ {} s{}",
-            parts.len(),
-            round_int(total / parts.len() as f64),
-            why
-        ));
-    }
+    say(&format!("Rendu en {} parties d'environ {} s{}", parts.len(), round_int(total / parts.len() as f64), why));
     let mut env = match tools(hd) {
         Ok(e) => e,
         Err(e) => return fail(e),
     };
     report("Rendu de la vidéo", 0.0, total);
     let mut done_paths = vec![];
+    let (mut kept, mut kept_s) = (0, 0.0);
     // Partie arrêtée par la surveillance de la mémoire : refaite avec moitié moins de navigateurs,
     // puis coupée en deux ; une partie d'un seul plan avec un navigateur est rendue sans surveillance.
     let mut i = 0;
     while i < parts.len() {
         let (f0, f1) = parts[i];
-        // Nom de la partie : ses bornes (le découpage dépend aussi du disque libre).
-        let path = if parts.len() == 1 { PathBuf::from(out) } else { pdir.join(format!("{key}_{f0:07}-{f1:07}.mp4")) };
         let part_len = (f1 - f0) as f64 / fps;
-        if parts.len() > 1 && path.exists() {
-            say(&format!("Partie {} déjà rendue : gardée", i + 1));
+        let _ = fs::remove_dir_all(dir());
+        util::mkdirs(dir().join("assets"));
+        let _ = fs::write(dir().join("hyperframes.json"), pyjson::dumps(&json!({"paths": {"assets": "assets"}})));
+        let page = match build(&mut m, k, (f0, f1)) {
+            Ok(p) => p,
+            Err(e) => return fail(e),
+        };
+        let path = pdir.join(format!("{prefix}{}.mp4", part_key(&common, &page)));
+        if std::env::var("AM_RENDU_PAGES").is_ok() {
+            // dépannage : page de chaque partie gardée à côté, pour comparer deux rendus
+            let _ = fs::write(path.with_extension("html"), &page);
+        }
+        if path.exists() {
+            kept += 1;
+            kept_s += part_len;
         } else {
-            let _ = fs::remove_dir_all(dir());
-            util::mkdirs(dir().join("assets"));
-            let _ = fs::write(dir().join("hyperframes.json"), pyjson::dumps(&json!({"paths": {"assets": "assets"}})));
-            if let Err(e) = build(&mut m, k, Some((f0, f1))) {
-                return fail(e);
-            }
             match limiter_exe() {
                 Ok(p) => {
                     env.retain(|(k, _)| k != "HYPERFRAMES_FFMPEG_PATH");
@@ -861,12 +992,8 @@ pub fn main(args: &[String]) -> i32 {
                 }
                 Err(e) => say(&format!("Attention : {e} ; extractions d'images sans limite")),
             }
-            let tmp = if parts.len() == 1 {
-                path.clone()
-            } else {
-                let s = path.to_string_lossy();
-                PathBuf::from(format!("{}.part.mp4", &s[..s.len() - 4]))
-            };
+            let s = path.to_string_lossy();
+            let tmp = PathBuf::from(format!("{}.part.mp4", &s[..s.len() - 4]));
             let abs = std::path::absolute(&tmp).unwrap_or_else(|_| tmp.clone());
             let mut cmd = vec![
                 paths::display(&paths::node()),
@@ -883,9 +1010,7 @@ pub fn main(args: &[String]) -> i32 {
             if let Some(p) = preset {
                 cmd.extend(["--resolution".into(), p.to_string()]);
             }
-            if parts.len() > 1 {
-                say(&format!("Partie {} sur {}", i + 1, parts.len()));
-            }
+            say(&format!("Partie {} sur {}", i + 1, parts.len()));
             // Vidéo encodée par la carte graphique si elle marche (gpu.rs ; HyperFrames choisit
             // son encodeur matériel) ; échec : partie refaite par le processeur. Encodeur du seul
             // ffmpeg de la machine (Linux) : HyperFrames garde le ffmpeg fourni, donc le processeur.
@@ -918,26 +1043,61 @@ pub fn main(args: &[String]) -> i32 {
                     if left < 2 * (1u64 << 30) { format!(" : disque presque plein ({} libres)", memoire::go(left as i64)) } else { String::new() }
                 ));
             }
-            if tmp != path {
-                if let Err(e) = fs::rename(&tmp, &path) {
-                    return fail(format!("Échec du rendu HyperFrames : {e}"));
-                }
+            if let Err(e) = fs::rename(&tmp, &path) {
+                return fail(format!("Échec du rendu HyperFrames : {e}"));
             }
         }
         done_paths.push(path);
         report_every("Rendu de la vidéo", round_to(f1 as f64 / fps, 2), total, 0.0);
         i += 1;
     }
-    if parts.len() > 1 {
-        say("Assemblage des parties");
-        let lengths: Vec<f64> = parts.iter().map(|&(f0, f1)| (f1 - f0) as f64 / fps).collect();
-        if join_parts(&done_paths, &lengths, Path::new(out)) != 0 || !Path::new(out).exists() {
-            return fail("Échec de l'assemblage des parties du rendu");
-        }
-        for name in util::list_dir(&pdir) {
-            if name.starts_with(&key) {
-                util::remove_all(pdir.join(name));
-            }
+    if kept > 0 {
+        say(&format!(
+            "{KEPT_LINE} (rien n'y a changé) : {kept} sur {}, {} s de montage sur {} s",
+            parts.len(),
+            round_int(kept_s),
+            round_int(total)
+        ));
+    }
+    // Son du montage entier, rendu à part (build_audio), puis assemblage.
+    say("Son du montage");
+    let _ = fs::remove_dir_all(dir());
+    util::mkdirs(dir().join("assets"));
+    let _ = fs::write(dir().join("hyperframes.json"), pyjson::dumps(&json!({"paths": {"assets": "assets"}})));
+    if let Err(e) = build_audio(&mut m) {
+        return fail(e);
+    }
+    if let Ok(p) = limiter_exe() {
+        env.retain(|(k, _)| k != "HYPERFRAMES_FFMPEG_PATH");
+        env.push(("HYPERFRAMES_FFMPEG_PATH".into(), paths::display(&p)));
+    }
+    let audio = pdir.join("son.part.mp4");
+    let cmd: Vec<String> = vec![
+        paths::display(&paths::node()),
+        paths::display(&node_modules().join("hyperframes").join("dist").join("cli.js")),
+        "render".into(),
+        paths::display(&dir()),
+        "-o".into(),
+        paths::display(&std::path::absolute(&audio).unwrap_or_else(|_| audio.clone())),
+        "--workers".into(),
+        "1".into(),
+        "--fps".into(),
+        "1".into(),
+    ];
+    let code = run_hyperframes(&cmd, &env, total, 0.0, total, false);
+    if code != 0 || !audio.exists() {
+        return fail(format!("Échec du rendu du son du montage (code {code})"));
+    }
+    say("Assemblage des parties");
+    let code = assemble(&done_paths, &audio, total, Path::new(out));
+    let _ = fs::remove_file(&audio);
+    if code != 0 || !Path::new(out).exists() {
+        return fail("Échec de l'assemblage des parties du rendu");
+    }
+    // Parties gardées : seulement celles de ce rendu (un rendu 4K garde aussi celles de l'aperçu).
+    for name in util::list_dir(&pdir) {
+        if name.starts_with(&prefix) && !done_paths.iter().any(|p| p.file_name().is_some_and(|f| f.to_string_lossy() == name)) {
+            util::remove_all(pdir.join(name));
         }
     }
     // Liens vers le rush (et copie du programme pour ffmpeg_limite) : inutiles ensuite.
@@ -1000,7 +1160,7 @@ fn caption_images(m: &mut Montage, k: i64, preset: Option<&str>, n: usize) -> Re
     let _ = fs::remove_dir_all(dir());
     util::mkdirs(dir().join("assets"));
     let _ = fs::write(dir().join("hyperframes.json"), pyjson::dumps(&json!({"paths": {"assets": "assets"}})));
-    let built = build(m, k, Some((0, n as i64)));
+    let built = build(m, k, (0, n as i64));
     (m.edit, m.frames) = (edit, frames);
     built?;
     let index = dir().join("index.html");
@@ -1202,7 +1362,6 @@ html, body { margin: 0; background: black; }
 <div id="trov" class="fill" style="opacity:0"></div>
 <div id="vign" class="fill"></div>
 <div id="fxov" class="fill"></div>
-%AUDIOS%
 <div id="typed" class="fill"></div>
 <div id="chips" class="fill"></div>
 <div id="caps" class="fill"></div>
@@ -1302,9 +1461,10 @@ function draw(frame) {
   const sh = D.shakes.find((x) => inRange(t, x));
   let dx = 0, dy = 0;
   if (sh) {
-    const damp = 1 - (t - sh.start) / Math.max(0.01, sh.end - sh.start);
-    dx = 40 * sh.force * damp * (Math.sin(t * 71) + 0.5 * Math.sin(t * 37));
-    dy = 40 * sh.force * damp * (Math.cos(t * 59) + 0.5 * Math.sin(t * 43));
+    // temps depuis le début de la secousse : la même secousse, où qu'elle soit dans le montage
+    const u = t - sh.start, damp = 1 - u / Math.max(0.01, sh.end - sh.start);
+    dx = 40 * sh.force * damp * (Math.sin(u * 71) + 0.5 * Math.sin(u * 37));
+    dy = 40 * sh.force * damp * (Math.cos(u * 59) + 0.5 * Math.sin(u * 43));
   }
   let zt, zo;
   if (kz) {  // même calcul que keyZoomAt de la page des moments
@@ -1339,7 +1499,7 @@ function draw(frame) {
     const shown = Math.floor(clamp((t - ty.start) / Math.max(1e-6, ty.typeDuration), 0, 1) * chars);
     let count = 0, visible = "";
     for (const ch of ty.text) { if (ch === "\n") { visible += ch; continue; } if (count >= shown) break; visible += ch; count++; }
-    const cursor = Math.floor(t * 3) % 2 === 0 || shown < chars;
+    const cursor = Math.floor((t - ty.start) * 3) % 2 === 0 || shown < chars;
     el("typed").style.opacity = clamp((ty.end - t) / 0.15, 0, 1);
     put("typed", JSON.stringify([visible, cursor]), () => {
       const d = node("div", "", visible);
@@ -1410,7 +1570,7 @@ function look(frame, t, tr) {
     if (S.over) { ov.style.background = S.over.background; ov.style.opacity = S.over.opacity; }
   }
   const lk = D.looks.find((x) => inRange(t, x));
-  const L = lk ? HFLook.effectLayers(lk.effect, lk.force, t - lk.start, lk.end - lk.start, %W%, frame) : { css: "", svg: "", over: "", flip: null };
+  const L = lk ? HFLook.effectLayers(lk.effect, lk.force, t - lk.start, lk.end - lk.start, %W%, frame - Math.round(lk.start * FPS)) : { css: "", svg: "", over: "", flip: null };
   put("amdefs", COLOR.svg + L.svg);
   const lookEl = el("look");
   lookEl.style.filter = [COLOR.css, L.css].filter(Boolean).join(" ");
@@ -1418,17 +1578,39 @@ function look(frame, t, tr) {
   el("fxov").style.cssText = L.over || "";
 }
 
-// Le numéro d'image suit le temps de la timeline (propriété d'un objet animée par GSAP).
-// Partie du montage rendue seule : son temps commence à l'image OFF du montage.
-const OFF = %OFF%;
+// Le numéro d'image suit le temps de la timeline (propriété d'un objet animée par GSAP). Page
+// d'une partie : temps et images comptés depuis son début (localize).
 let shownFrame = -1;
 const clock = {
-  get t() { return (shownFrame - OFF) / FPS; },
-  set t(v) { const f = Math.min(D.frames - 1, Math.max(0, OFF + Math.round(v * FPS))); if (f !== shownFrame) { shownFrame = f; draw(f); } },
+  get t() { return shownFrame / FPS; },
+  set t(v) { const f = Math.min(D.frames - 1, Math.max(0, Math.round(v * FPS))); if (f !== shownFrame) { shownFrame = f; draw(f); } },
 };
 const tl = gsap.timeline({ paused: true });
 tl.fromTo(clock, { t: 0 }, { t: %DUR%, duration: %DUR%, ease: "none", immediateRender: true }, 0);
 clock.t = 0;
+window.__timelines = window.__timelines || {};
+window.__timelines["main"] = tl;
+</script>
+</body>
+</html>
+"##;
+
+/// Son du montage seul (build_audio) : pas d'image à dessiner, une image par seconde.
+const AUDIO_PAGE: &str = r##"<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8" />
+<title>Son du montage</title>
+<script src="assets/gsap.min.js"></script>
+</head>
+<body style="margin: 0; background: black">
+<div id="root" data-composition-id="main" data-start="0" data-duration="%DUR%" data-fps="1" data-width="16" data-height="16"
+  style="position: relative; width: 16px; height: 16px; background: black">
+%AUDIOS%
+</div>
+<script>
+const tl = gsap.timeline({ paused: true });
+tl.to({}, { duration: %DUR% }, 0);
 window.__timelines = window.__timelines || {};
 window.__timelines["main"] = tl;
 </script>
@@ -1450,16 +1632,65 @@ mod tests {
     }
 
     #[test]
-    fn parts_like_python() {
-        assert_eq!(parts_of(441, 30.0, None), vec![(0, 441)]);
-        // 10 min à 30 i/s : 5 parties de 2 min.
-        assert_eq!(parts_of(18000, 30.0, None).len(), 5);
-        // 3 min : 1,5 fois la durée d'une partie au plus, une seule.
-        assert_eq!(parts_of(5400, 30.0, None), vec![(0, 5400)]);
-        // Disque : parties de 50 s au plus.
-        let p = parts_of(5400, 30.0, Some(50.0));
-        assert_eq!(p, vec![(0, 1350), (1350, 2700), (2700, 4050), (4050, 5400)]);
-        assert_eq!(disk_part(30.0, 1080.0 * 1920.0, 1e15, 4, 60.0), None);
+    fn content_parts_stable() {
+        // 20 plans de 4 s (120 images), rush pris de 10 s en 10 s.
+        let clips = |n: i64, skip: Option<i64>| {
+            let mut from = 0;
+            let mut v = vec![];
+            for i in 0..n {
+                if Some(i) == skip {
+                    continue;
+                }
+                v.push(json!({"from": from, "durationInFrames": 120, "trimBefore": i * 300}));
+                from += 120;
+            }
+            (json!({"clips": v}), from)
+        };
+        let (edit, frames) = clips(20, None);
+        let parts = content_parts(&edit, "trimBefore", frames, 30.0, None);
+        assert_eq!(parts.first().unwrap().0, 0);
+        assert_eq!(parts.last().unwrap().1, frames);
+        assert!(parts.windows(2).all(|w| w[0].1 == w[1].0));
+        assert!(parts.iter().all(|&(a, b)| b - a <= 900), "{parts:?}");
+        // Le 3e plan retiré : passé une ou deux coupes, les parties sont les mêmes (décalées de 120 images).
+        let (edit2, frames2) = clips(20, Some(2));
+        let parts2 = content_parts(&edit2, "trimBefore", frames2, 30.0, None);
+        let later: Vec<(i64, i64)> = parts.iter().skip(2).map(|&(a, b)| (a - 120, b - 120)).collect();
+        assert!(!later.is_empty() && later.iter().all(|p| parts2.contains(p)), "{parts:?} {parts2:?}");
+        // Un seul long plan (dérush validé) : coupé au milieu, aux images du rush.
+        let one = json!({"clips": [{"from": 0, "durationInFrames": 9000, "trimBefore": 0}]});
+        let p = content_parts(&one, "trimBefore", 9000, 30.0, None);
+        assert!(p.len() >= 10 && p.iter().all(|&(a, b)| (300..=900).contains(&(b - a)) || b == 9000), "{p:?}");
+        // Disque ou RAM : parties plus courtes.
+        assert!(content_parts(&one, "trimBefore", 9000, 30.0, Some(12.0)).iter().all(|&(a, b)| b - a <= 360));
+    }
+
+    #[test]
+    fn localized_page_data() {
+        let data = json!({
+            "frames": 600, "fps": 30,
+            "clips": [{"from": 0, "durationInFrames": 300, "trimBefore": 0}, {"from": 300, "durationInFrames": 300, "trimBefore": 900}],
+            "zooms": [{"type": "in", "start": 0.0, "end": 10.0}, {"type": "out", "start": 10.0, "end": 20.0}],
+            "captions": [{"start": 4.0, "end": 6.0, "times": [4.0, 5.0]}, {"start": 12.0, "end": 13.5, "times": [12.0]}],
+            "transitions": [{"clip": 1, "at": 300, "frames": 10}],
+            "focus": [], "zoomFx": [], "shakes": [], "flashes": [], "typed": [], "chips": [], "looks": [],
+        });
+        let edit = json!({"clips": data["clips"].clone(), "transitions": data["transitions"].clone()});
+        let spans = clip_spans(&edit);
+        let mut d = data.clone();
+        localize(&mut d, 310, 600, 30.0, &spans);
+        assert_eq!(d["frames"], json!(290));
+        assert_eq!(d["clips"].as_array().unwrap().len(), 1);
+        assert_eq!(d["clips"][0]["from"], json!(-10));
+        assert_eq!(d["transitions"], json!([]));
+        assert_eq!(d["captions"], json!([{"start": us(12.0 - 310.0 / 30.0), "end": us(13.5 - 310.0 / 30.0), "times": [us(12.0 - 310.0 / 30.0)]}]));
+        assert_eq!(d["zooms"], json!([{"type": "out", "start": us(10.0 - 310.0 / 30.0), "end": us(20.0 - 310.0 / 30.0)}]));
+        // Partie à cheval sur la transition : les deux plans, renumérotés.
+        let mut d = data.clone();
+        localize(&mut d, 150, 450, 30.0, &spans);
+        assert_eq!(d["clips"][1]["from"], json!(150));
+        assert_eq!(d["transitions"][0]["clip"], json!(1));
+        assert_eq!(d["captions"][0]["times"], json!([-1.0, 0.0]));
     }
 
     #[test]
@@ -1486,8 +1717,11 @@ mod tests {
 
     #[test]
     fn page_keys_present() {
-        for k in ["%OUTW%", "%OUTH%", "%W%", "%H%", "%K%", "%CAPTOP%", "%TYPEDTOP%", "%FPS%", "%DUR%", "%OFF%", "%VIDEOS%", "%AUDIOS%", "%POPPINS%", "%CAPFONT%", "%CAPWEIGHT%", "%DATA%"] {
+        for k in ["%OUTW%", "%OUTH%", "%W%", "%H%", "%K%", "%CAPTOP%", "%TYPEDTOP%", "%FPS%", "%DUR%", "%VIDEOS%", "%POPPINS%", "%CAPFONT%", "%CAPWEIGHT%", "%DATA%"] {
             assert!(PAGE.contains(k), "{k}");
+        }
+        for k in ["%DUR%", "%AUDIOS%"] {
+            assert!(AUDIO_PAGE.contains(k), "{k}");
         }
     }
 
@@ -1504,18 +1738,19 @@ mod tests {
         let _ = fs::remove_dir_all(dir());
         util::mkdirs(dir().join("assets"));
         let f = m.frames;
-        build(&mut m, 1, Some(part.unwrap_or((0, f)))).unwrap();
+        build(&mut m, 1, part.unwrap_or((0, f))).unwrap();
     }
 
-    /// Assemblage de deux parties (la vidéo rendue deux fois) : AM_ROOT=… cargo test assemblage -- --ignored
+    /// Assemblage de deux parties (la vidéo rendue deux fois) avec son son : AM_ROOT=… cargo test assemblage -- --ignored
     #[test]
     #[ignore]
     fn assemblage() {
         let v = paths::out().join("montage_apercu.mp4");
         let out = paths::out().join("essai_assemblage.mp4");
-        assert_eq!(join_parts(&[v.clone(), v], &[14.7, 14.7], &out), 0);
+        let d0 = crate::progress::duration_of(&procs::ffmpeg_info(&v));
+        assert_eq!(assemble(&[v.clone(), v.clone()], &v, 2.0 * d0, &out), 0);
         let d = crate::progress::duration_of(&procs::ffmpeg_info(&out));
-        assert!((d - 29.4).abs() < 0.05, "{d}");
+        assert!((d - 2.0 * d0).abs() < 0.05, "{d}");
         let _ = fs::remove_file(out);
     }
 }
