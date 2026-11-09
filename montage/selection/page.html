@@ -4812,7 +4812,7 @@ ${HFAudio.voiceElements(spec)}
         row.append(playButton(v.parts[0], `${label} (${v.res})`, `${what} · ${mb(v.size)}`, v.filename, `lire:${id}`, id), a);
       } else if (id === "4k") {
         const f = data.final || {};
-        info.textContent = v ? "4K d'un montage précédent : à recréer" : "pas encore créée";
+        info.textContent = v ? "la 4K actuelle correspond à un montage plus ancien : vous pouvez la recréer" : "pas encore créée";
         const mk = document.createElement("button");
         mk.type = "button";
         mk.textContent = f.running ? "Création en cours…" : "Créer la version 4K";

@@ -46,7 +46,7 @@
   .facts { font-family: var(--mono); font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
   .note { font-size: 14px; }
   .flag { justify-self: start; font-size: 12px; font-weight: 600; border-radius: 999px; padding: 1px 9px; }
-  .flag.old { color: var(--warn); background: var(--warn-soft); }
+  .flag.old { color: var(--warn); background: var(--warn-soft); border-radius: 8px; padding: 3px 9px; }
   .flag.info2 { color: var(--accent); background: var(--accent-soft); }
   .flags { display: flex; flex-wrap: wrap; gap: 6px; }
   button {
@@ -194,7 +194,8 @@
     if (v.stale) {
       const f = document.createElement("span");
       f.className = "flag old";
-      f.textContent = "Montage précédent : plus ancien que la vidéo entière actuelle";
+      f.textContent = "Cette 4K correspond à un montage plus ancien que la vidéo entière actuelle : "
+        + (window.AUTO_MONTAGE_LOCAL ? "vous pouvez la recréer avec le bouton « Recréer la 4K »." : "vous pouvez la recréer.");
       flags.append(f);
     }
     if (v.reencoded) {
