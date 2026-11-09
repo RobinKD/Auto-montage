@@ -194,8 +194,7 @@
     if (v.stale) {
       const f = document.createElement("span");
       f.className = "flag old";
-      f.textContent = "Cette 4K correspond à un montage plus ancien que la vidéo entière actuelle : "
-        + (window.AUTO_MONTAGE_LOCAL ? "vous pouvez la recréer avec le bouton « Recréer la 4K »." : "vous pouvez la recréer.");
+      f.textContent = "Cette 4K n'inclut pas les derniers changements : il faut la recréer.";
       flags.append(f);
     }
     if (v.reencoded) {
