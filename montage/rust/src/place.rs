@@ -141,12 +141,13 @@ pub fn inventory() -> Value {
     if let Some(rush) = crate::project::current() {
         // montage ouvert : supprimable aussi (même seul), comme « Supprimer » de « Montages »
         let size: u64 = crate::project::current_paths().iter().chain(render_copies().iter()).chain(render_parts().iter()).map(|p| freed(p)).sum();
-        items.push(json!({"id": "en-cours", "group": "montages", "label": format!("{rush} (montage en cours)"), "size": size,
+        items.push(json!({"id": "en-cours", "group": "montages", "label": format!("{} (montage en cours)", crate::rush_names::display(&rush)), "size": size,
                           "note": "Montage ouvert : moments, choix, versions de travail et rendus effacés ; la page des moments restera vide jusqu'au prochain rush préparé. La vidéo envoyée reste (ci-dessous).",
                           "keep": true}));
     }
     for (name, info) in &projects {
-        let rush = util::s(info, "rush").filter(|s| !s.is_empty()).unwrap_or(name);
+        let file = util::s(info, "rush").filter(|s| !s.is_empty()).unwrap_or(name);
+        let rush = if paths::rushes().join(file).is_file() { crate::rush_names::display(file) } else { util::s(info, "label").map(String::from).unwrap_or_else(|| crate::rush_names::display(file)) };
         let saved = util::s(info, "savedAt")
             .and_then(|s| chrono::NaiveDateTime::parse_from_str(s, "%Y-%m-%dT%H:%M:%S").ok().or_else(|| chrono::NaiveDateTime::parse_from_str(s, "%Y-%m-%dT%H:%M:%S%.f").ok()))
             .map(|d| format!("mis de côté le {}", d.format("%d/%m/%Y")))
@@ -177,7 +178,7 @@ pub fn inventory() -> Value {
         } else {
             "Aucun montage ne l'utilise.".into()
         };
-        items.push(json!({"id": format!("rush:{name}"), "group": "videos", "label": name, "size": freed(&path),
+        items.push(json!({"id": format!("rush:{name}"), "group": "videos", "label": crate::rush_names::display(&name), "size": freed(&path),
                           "detail": format!("fichier du {}", day(util::mtime(&path).unwrap_or(0.0))), "note": note,
                           "keep": name == current || used}));
     }
@@ -250,6 +251,9 @@ pub fn delete(ids: &[String]) -> Vec<String> {
         };
         for p in paths {
             remove(&p);
+        }
+        if kind == "rush" {
+            crate::rush_names::forget(name);
         }
         done.push(item.clone());
     }

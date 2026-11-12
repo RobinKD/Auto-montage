@@ -287,7 +287,7 @@ fn do_get(req: &Req) -> Reply {
         "/api/effects" => return send_json(&effects_info(), 200),
         "/api/status" => {
             return send_json(
-                &json!({"version": *VERSION, "claude": claude::claude_connected(false),
+                &json!({"version": *VERSION, "claude": claude::claude_known(),
                         "claudeInstalled": paths::claude().is_some(),
                         "styleAnalysis": read_text(work().join("analyse_style.md")),
                         "update": claude::update_summary(),
@@ -330,6 +330,10 @@ fn do_get(req: &Req) -> Reply {
             let names: Vec<String> = steps.into_iter().map(|(n, _)| n).collect();
             let vpaths: Vec<PathBuf> = parts.iter().map(|n| rushes().join(n)).collect();
             let mut plan = memoire::summary(&names, &memoire::video_info(&vpaths, None));
+            let seconds: f64 = vpaths.iter().map(|p| media_seconds(p)).sum();
+            plan["estimate"] = jobs::prepare_estimate(&names, seconds).map(|e| json!(util::round_int(e))).unwrap_or(Value::Null);
+            // cadence du rush (première vidéo) : 50 ou 60 i/s → la page propose 25 ou 30 i/s
+            plan["fps"] = vpaths.first().and_then(|p| crate::moments_lib::native_fps(p)).map(|f| json!(f)).unwrap_or(Value::Null);
             let kept = jobs::kept_parts(&parts);
             plan["kept"] = json!(jobs::abandon_parts_def().iter().filter(|(pid, _, _)| kept.iter().any(|k| k == pid)).map(|(_, l, _)| *l).collect::<Vec<_>>());
             return send_json(&plan, 200);
@@ -443,6 +447,11 @@ fn read_obj(req: &Req, body: &mut dyn Read) -> Map<String, Value> {
 
 /// Écrit `size` octets du corps dans `tmp` ; renvoie ce qui manque (0 : complet).
 fn stream_to(body: &mut dyn Read, tmp: &Path, size: u64) -> u64 {
+    stream_hashed(body, tmp, size, None)
+}
+
+/// stream_to, en calculant l'empreinte de ce qui est écrit (vidéos envoyées : rush_names).
+fn stream_hashed(body: &mut dyn Read, tmp: &Path, size: u64, mut hash: Option<&mut crate::rush_names::Hasher>) -> u64 {
     let mut left = size;
     let res = (|| -> std::io::Result<()> {
         let mut f = fs::File::create(tmp)?;
@@ -454,6 +463,9 @@ fn stream_to(body: &mut dyn Read, tmp: &Path, size: u64) -> u64 {
                 break;
             }
             f.write_all(&buf[..n])?;
+            if let Some(h) = hash.as_deref_mut() {
+                h.update(&buf[..n]);
+            }
             left -= n as u64;
         }
         Ok(())
@@ -466,25 +478,43 @@ fn stream_to(body: &mut dyn Read, tmp: &Path, size: u64) -> u64 {
     left
 }
 
-/// Envoi d'un rush depuis la page (sélecteur de fichiers du navigateur), par morceaux.
+/// Envoi d'un rush depuis la page (sélecteur de fichiers du navigateur), enregistré sous son
+/// empreinte (rush_names) : une autre vidéo du même nom ne remplace jamais la première, la même
+/// vidéo envoyée deux fois n'est gardée qu'une fois. Son nom va dans le registre des noms.
 fn upload_rush(req: &Req, body: &mut dyn Read, raw_name: &str) -> Reply {
-    let Some(name) = safe_rush_name(raw_name) else {
+    // Le nom ne sert qu'à l'affichage (registre) : seule l'extension compte ici.
+    let name = basename(raw_name).trim().to_string();
+    if !is_video(&name) {
         return err_json("Nom de fichier refusé : choisissez une vidéo (.mov, .mp4…).", 400);
-    };
+    }
     let Ok(size) = content_length(req) else { return err_json("Taille du fichier inconnue.", 411) };
     util::mkdirs(rushes());
     if disk_free(&rushes()) < size + (2 << 30) {
         return err_json(&no_space(size + (2 << 30), &rushes()), 507);
     }
-    let tmp = rushes().join(format!(".envoi-{name}"));
-    if stream_to(body, &tmp, size) > 0 {
+    let tmp = rushes().join(format!(".envoi-{}", crate::rush_names::id_of(&format!("{name}{}", now_iso()), "tmp")));
+    let mut hash = crate::rush_names::Hasher::new();
+    if stream_hashed(body, &tmp, size, Some(&mut hash)) > 0 {
         let _ = fs::remove_file(&tmp);
         return err_json("Envoi interrompu.", 400);
     }
-    if let Err(e) = fs::rename(&tmp, rushes().join(&name)) {
+    let file = hash.file_name(&crate::rush_names::ext_of(&name));
+    let dest = rushes().join(&file);
+    if dest.is_file() {
+        // Même vidéo déjà envoyée : gardée une fois, sous le nom qu'elle a déjà.
+        let _ = fs::remove_file(&tmp);
+        let label = crate::rush_names::display(&file);
+        return send_json(&json!({"ok": true, "name": file, "label": label, "already": true}), 200);
+    }
+    if let Err(e) = fs::rename(&tmp, &dest) {
+        let _ = fs::remove_file(&tmp);
         return err_json(&e.to_string(), 500);
     }
-    send_json(&json!({"ok": true, "name": name}), 200)
+    let label = match crate::rush_names::register(&file, &crate::rush_names::stem(&name)) {
+        Ok(l) => l,
+        Err(e) => return err_json(&e, 500),
+    };
+    send_json(&json!({"ok": true, "name": file, "label": label, "already": false}), 200)
 }
 
 /// Corps de la requête écrit dans dest (par morceaux, via un fichier provisoire).
@@ -728,12 +758,12 @@ fn do_put(req: &Req, body: &mut dyn Read) -> Reply {
 
 // --- POST -------------------------------------------------------------------------------
 const POST_ROUTES: &[&str] = &[
-    "/api/regen", "/api/prepare", "/api/final", "/api/export", "/api/chat", "/api/chat/stop", "/api/chat/new",
+    "/api/regen", "/api/prepare", "/api/final", "/api/legere", "/api/export", "/api/chat", "/api/chat/stop", "/api/chat/new",
     "/api/projects/open", "/api/projects/delete", "/api/projects/delete_current", "/api/projects/save", "/api/job/cancel", "/api/job/pause",
     "/api/job/resume", "/api/job/abandon", "/api/place/delete",
     "/api/claude/login", "/api/claude/code", "/api/claude/logout",
     "/api/update/check", "/api/update/apply", "/api/update/reset", "/api/restart", "/api/quit", "/api/style/analyse", "/api/son/analyse",
-    "/api/tutorial/seen",
+    "/api/tutorial/seen", "/api/rushes/renommer", "/api/rushes/assemblage",
     "/api/moments/split", "/api/moments/unsplit", "/api/moments/restore", "/api/derush/valider",
 ];
 
@@ -922,6 +952,38 @@ fn do_post(req: &Req, body_reader: &mut dyn Read) -> Reply {
         }
         return ok_json(202);
     }
+    if route == "/api/rushes/renommer" {
+        // {"file": vidéo de public/rushes, "name": nouveau nom montré} (registre rush_names)
+        let Some(file) = safe_rush_name(&body_str(&body, "file")).filter(|f| rushes().join(f).is_file()) else {
+            return err_json("Vidéo introuvable dans les rushes.", 400);
+        };
+        return match crate::rush_names::rename(&file, &body_str(&body, "name")) {
+            Ok(label) => send_json(&json!({"ok": true, "name": file, "label": label}), 200),
+            Err(e) => err_json(&e, 400),
+        };
+    }
+    if route == "/api/rushes/assemblage" {
+        // {"parts": [vidéos]} : nom du fichier du rush assemblé et nom montré (avant de préparer)
+        let parts: Vec<String> = match body.get("parts") {
+            Some(Value::Array(a)) if (2..=20).contains(&a.len()) => a.iter().filter_map(|v| v.as_str().and_then(safe_rush_name)).collect(),
+            _ => vec![],
+        };
+        if parts.len() < 2 {
+            return err_json("Choisissez au moins deux vidéos.", 400);
+        }
+        let name = crate::join_rushes::joined_name(&parts);
+        return send_json(&json!({"name": name, "label": crate::join_rushes::joined_label(&parts, &name)}), 200);
+    }
+    if route == "/api/legere" {
+        // version légère (720p) de la vidéo entière, faite à la demande
+        if !out().join("montage_apercu.mp4").exists() {
+            return err_json("Pas encore de vidéo entière générée : générez-la d'abord.", 400);
+        }
+        if !start_job("light", jobs::light_steps(), "720p", None, None, false) {
+            return err_json(&busy_error(), 409);
+        }
+        return ok_json(202);
+    }
     if route == "/api/export" {
         // {"presets": [identifiants], "cut": bool} : copies pour les plateformes (export.rs),
         // possibles aussi en mode Dérushage
@@ -986,20 +1048,15 @@ fn do_post(req: &Req, body_reader: &mut dyn Read) -> Reply {
             return ok_json(200);
         }
         "/api/son/analyse" => {
-            // quelques secondes : faite tout de suite
-            if !edit_json().exists() || read_text(work().join("rush.txt")).map(|r| r.is_empty()).unwrap_or(true) {
+            // tâche comme les autres : barre, « Annuler », refusée pendant une autre tâche ;
+            // résultat relu ensuite par GET /api/son
+            if !out().join("montage_apercu.mp4").exists() || !edit_json().exists() || read_text(work().join("rush.txt")).map(|r| r.is_empty()).unwrap_or(true) {
                 return err_json("Pas encore de vidéo entière générée.", 400);
             }
-            let mut c = std::process::Command::new(paths::self_exe());
-            c.arg("analyze_sound").current_dir(root());
-            return match claude::run_timeout(c, std::time::Duration::from_secs(600)) {
-                Ok((0, _, _)) => send_json(
-                    &json!({"settings": sound_settings(), "analyse": util::read_json(work().join("son_analyse.json")).unwrap_or(Value::Null)}),
-                    200,
-                ),
-                Ok((_, _, err)) => err_json(err.trim().lines().last().unwrap_or("échec"), 500),
-                Err(e) => err_json(&e, 500),
-            };
+            if !start_job("son", jobs::sound_steps(), "", None, None, false) {
+                return err_json(&busy_error(), 409);
+            }
+            return ok_json(202);
         }
         "/api/style/analyse" => {
             let videos = style_videos();
@@ -1227,6 +1284,10 @@ fn post_prepare(body: &Map<String, Value>) -> Reply {
     }
     let parts: Vec<String> = parts.into_iter().map(Option::unwrap).collect();
     let name = if parts.len() > 1 { crate::join_rushes::joined_name(&parts) } else { parts[0].clone() };
+    if parts.len() > 1 && !rushes().join(&name).is_file() {
+        // nom montré du rush assemblé dès le début (pages, tâche en pause)
+        let _ = crate::rush_names::register(&name, &crate::join_rushes::joined_label(&parts, &name));
+    }
     if parts.len() > 1 {
         let need: u64 = parts.iter().map(|n| fs::metadata(rushes().join(n)).map(|m| m.len()).unwrap_or(0)).sum::<u64>() + (2 << 30);
         if disk_free(&rushes()) < need {
@@ -1280,6 +1341,19 @@ fn post_prepare(body: &Map<String, Value>) -> Reply {
         // langue de la transcription, lue par prepare
         util::mkdirs(work());
         let _ = fs::write(work().join("langue.txt"), format!("{langue}\n"));
+        // rush à 50 ou 60 i/s : garder sa cadence (« origine ») ou passer à 25 ou 30 i/s (« reduite »)
+        let cadence = body_str(body, "cadence");
+        if cadence == "origine" || cadence == "reduite" {
+            let _ = fs::write(work().join(crate::moments_lib::CADENCE_CHOICE), format!("{cadence}\n"));
+        }
+    }
+    let redo = body_str(body, "redo");
+    if (redo == "garder" || redo == "tout") && !jobs::is_running() && crate::project::current().as_deref() == Some(name.as_str()) {
+        // « Tout refaire depuis le début » du montage en cours : moments, coupes, corrections et
+        // choix effacés ; réglages de tout le montage gardés ou non (choix de la page).
+        if let Err(e) = crate::project::reset_current(redo == "garder") {
+            return err_json(&e, 500);
+        }
     }
     let reuse = !jobs::kept_parts(&parts).is_empty();
     if !start_job("prepare", steps, &name, Some(parts), None, reuse) {

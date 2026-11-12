@@ -1265,7 +1265,7 @@ fn plain_render(m: &mut Montage, k: i64, preset: Option<&str>, out: &str) -> i32
             return fail(format!("work/rendu_hyperframes/sous-titres.txt : {e}"));
         }
     }
-    // Plans : coupés à l'image dans la copie du rush (30 images/s), mis bout à bout.
+    // Plans : coupés à l'image dans la copie du rush (à la cadence du montage), mis bout à bout.
     let clips: Vec<(i64, i64)> = util::arr(&m.edit, "clips")
         .iter()
         .map(|c| (round_int(num(c.get(key))), round_int(num(c.get("durationInFrames")))))

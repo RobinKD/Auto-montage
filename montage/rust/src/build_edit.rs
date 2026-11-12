@@ -22,7 +22,7 @@
 //!            ding, boum, montee, glitch, photo, faux, juste… ou personnels : "perso-<nom>")
 //!    "vfx": {"segment": [effet visuel, …]}}  (comme sur la page, temps depuis le début de
 //!            l'extrait du moment : {"kind": "zoomin"|"zoomsec"|"dezoom"|"shake", "at", "dur",
-//!            "force" (%)}, {"kind": "flash", "at", "dur"}, {"kind": "highlight", "text": "mot",
+//!            "force" (%)} (zoomin : jusqu'à la fin de la partie du moment, ou à la fin de « dur » avec "stop": true), {"kind": "flash", "at", "dur"}, {"kind": "highlight", "text": "mot",
 //!            "color": "#rrggbb"}, {"kind": "zoomlibre", "at", "dur", "from": {"s", "x", "y"},
 //!            "to": {"s", "x", "y"}} (zoom progressif d'un cadre à l'autre : grossissement s de 1 à 4,
 //!            centre x, y de l'image visible de 0 à 1), {"kind": "filtre", "effect": id de look::EFFECTS
@@ -47,8 +47,13 @@ use std::path::Path;
 use std::process::{Command, Stdio};
 use std::sync::LazyLock;
 
-const FPS: f64 = 30.0;
+/// Cadence du montage (moments_lib::montage_fps : celle du rush, 30 pour un montage plus ancien).
+static FPS: LazyLock<f64> = LazyLock::new(|| crate::moments_lib::montage_fps(&paths::work()) as f64);
 const SR: usize = 48000;
+
+/// Effets gardés en dérushage : les zooms de l'étape « Zooms » (« Valider le dérush » de la page
+/// des moments), centrés sur le visage comme en auto-montage.
+pub const DERUSH_ZOOMS: [&str; 3] = ["zoomin", "zoomsec", "dezoom"];
 
 // --- Petits outils : valeurs JSON lues comme Python les lirait ----------------------------
 
@@ -282,7 +287,7 @@ struct Clip {
 
 impl Clip {
     fn end(&self) -> f64 {
-        (self.from + self.dur) as f64 / FPS
+        (self.from + self.dur) as f64 / (*FPS)
     }
     fn to_json(&self) -> Value {
         let mut m = Map::new();
@@ -445,7 +450,10 @@ pub fn main(_args: &[String]) -> i32 {
 fn run() -> Result<(), String> {
     let root = paths::root();
     let work = paths::work();
-    let fps_i = FPS as i64;
+    let fps_i = (*FPS) as i64;
+    // Empreinte des réglages tels qu'ils sont lus ici (moments_lib::settings_print), gardée dans
+    // edit.json : la vidéo rendue d'après ce montage est comparée à elle, pas à sa date.
+    let settings_print = crate::moments_lib::settings_print(&work);
 
     // Moments de parole : la transcription, avec les coupes faites sur la page
     // (work/decoupage.json). SEG : id -> moment ; les choix ci-dessous (KEEP, FIXES…) désignent
@@ -849,9 +857,10 @@ fn run() -> Result<(), String> {
 
     // --- Mode « Dérushage » (bandeau de l'interface locale, work/mode.txt) ----------------------
     // Seulement les moments gardés, coupés comme sur la page : ni effets, ni voix modifiée, ni
-    // cadrage, ni réglages du son ; plus bas, ni zooms, et les sous-titres (corrigés sur la page)
-    // seulement si la case « Sous-titres » est cochée (work/derush.json). Les choix d'effets restent
-    // enregistrés et reviennent en mode Auto-montage.
+    // cadrage, ni réglages du son ; plus bas, ni zooms automatiques, et les sous-titres (corrigés sur
+    // la page) seulement si la case « Sous-titres » est cochée (work/derush.json). Seuls restent les
+    // zooms placés à l'étape « Zooms » de « Valider le dérush » (DERUSH_ZOOMS, centrés sur le visage).
+    // Les autres choix d'effets restent enregistrés et reviennent en mode Auto-montage.
     let derush = app_mode(&work) == "derush";
     let mut derush_subs = true;
     if derush {
@@ -867,13 +876,28 @@ fn run() -> Result<(), String> {
         page_transitions.clear();
         page_auto.clear();
         page_sfx = OMap::new();
-        page_vfx = OMap::new();
+        let mut zooms_n = 0;
+        let mut only_zooms = OMap::new();
         for k in &keep {
             page_sfx.insert(k.seg, vec![]);
-            page_vfx.insert(k.seg, vec![]);
+            let list: Vec<Value> = page_vfx
+                .get(&k.seg)
+                .map(|l| l.iter().filter(|f| DERUSH_ZOOMS.contains(&f.get("kind").and_then(Value::as_str).unwrap_or(""))).cloned().collect())
+                .unwrap_or_default();
+            zooms_n += list.len();
+            only_zooms.insert(k.seg, list);
         }
+        page_vfx = only_zooms;
         derush_subs = derush_subtitles(&work);
-        println!("Mode Dérushage : moments coupés, sans effets{}", if derush_subs { "" } else { " ni sous-titres" });
+        let zooms_txt = match zooms_n {
+            0 => String::new(),
+            1 => ", 1 zoom".into(),
+            n => format!(", {n} zooms"),
+        };
+        println!(
+            "Mode Dérushage : moments coupés, sans effets{}{zooms_txt}",
+            if derush_subs { "" } else { " ni sous-titres" }
+        );
     }
 
     // --- Audio d'origine ----------------------------------------------------------
@@ -926,8 +950,8 @@ fn run() -> Result<(), String> {
             // plan sans parole : pas de mots, pas de sous-titre
             let Some(&(gs, _)) = ctx.gaps.get(&seg_id) else { continue };
             let last = k.last.unwrap_or(0.0);
-            let f_in = round_int((gs + k.first) * FPS);
-            let dur = (round_int((gs + last) * FPS) - f_in).max(1);
+            let f_in = round_int((gs + k.first) * (*FPS));
+            let dur = (round_int((gs + last) * (*FPS)) - f_in).max(1);
             clips.push(Clip { seg: seg_id, trim_before: f_in, dur, from: out_frame, text: "Sans parole".into(), trim_before_hd: None });
             out_frame += dur;
             continue;
@@ -945,7 +969,7 @@ fn run() -> Result<(), String> {
         let (mut start, mut end) = (start, end);
         let trimmed = speech_trims.get(&seg_id).copied();
         if let Some((t_in, t_out)) = trimmed {
-            let at = |t: f64| round_int((ctx.page_start(seg_id) + t) * FPS) as f64 / FPS;
+            let at = |t: f64| round_int((ctx.page_start(seg_id) + t) * (*FPS)) as f64 / (*FPS);
             if let Some(t) = t_in {
                 start = start.max(at(t));
             }
@@ -956,8 +980,8 @@ fn run() -> Result<(), String> {
                 continue;
             }
         }
-        let f_in = round_int(start * FPS);
-        let f_out = round_int(end * FPS);
+        let f_in = round_int(start * (*FPS));
+        let f_out = round_int(end * (*FPS));
         let dur = f_out - f_in;
         clips.push(Clip { seg: seg_id, trim_before: f_in, dur, from: out_frame, text: String::new(), trim_before_hd: None });
         let n_before = word_events.len();
@@ -968,14 +992,14 @@ fn run() -> Result<(), String> {
                 continue; // mot hors de la partie gardée (par son milieu)
             }
             let text = fixes_get(&fixes, (seg_id, i)).unwrap_or_else(|| w.get("w").and_then(Value::as_str).unwrap_or("").to_string());
-            let a = fnum(w, "a").max(f_in as f64 / FPS).min(f_out as f64 / FPS);
-            let b = fnum(w, "b").max(a + 0.05).min(f_out as f64 / FPS);
+            let a = fnum(w, "a").max(f_in as f64 / (*FPS)).min(f_out as f64 / (*FPS));
+            let b = fnum(w, "b").max(a + 0.05).min(f_out as f64 / (*FPS));
             word_events.push(WordEvent {
                 seg: seg_id,
                 i,
                 text,
-                start: out_frame as f64 / FPS + (a - f_in as f64 / FPS),
-                end: out_frame as f64 / FPS + (b - f_in as f64 / FPS),
+                start: out_frame as f64 / (*FPS) + (a - f_in as f64 / (*FPS)),
+                end: out_frame as f64 / (*FPS) + (b - f_in as f64 / (*FPS)),
                 cut: truthy(w.get("cut")),
             });
         }
@@ -984,7 +1008,7 @@ fn run() -> Result<(), String> {
         out_frame += dur;
     }
     let total_frames = out_frame;
-    let total = total_frames as f64 / FPS;
+    let total = total_frames as f64 / (*FPS);
 
     // --- Source 4K du rendu final --------------------------------------------------------
     // Seules les images gardées (plus une marge) sont encodées en 4K par make_hd, bout à
@@ -1035,7 +1059,7 @@ fn run() -> Result<(), String> {
         last.end = total;
     }
     for cap in captions.iter_mut() {
-        if let Some(c) = clips.iter().find(|c| c.from as f64 / FPS <= cap.start && cap.start < c.end()) {
+        if let Some(c) = clips.iter().find(|c| c.from as f64 / (*FPS) <= cap.start && cap.start < c.end()) {
             cap.end = cap.end.min(c.end());
         }
     }
@@ -1052,7 +1076,7 @@ fn run() -> Result<(), String> {
         boundaries.sort_by(|a, b| a.partial_cmp(b).unwrap());
         boundaries.dedup();
         for c in &clips {
-            let (start, end) = (c.from as f64 / FPS, c.end());
+            let (start, end) = (c.from as f64 / (*FPS), c.end());
             let (mut t, mut kind) = (start, c.seg.rem_euclid(2));
             // au moins un zoom par plan, même très court : chaque image en a un
             let mut first = true;
@@ -1095,7 +1119,7 @@ fn run() -> Result<(), String> {
         let mut best: Option<(f64, usize)> = None;
         for &i in clips_of.get(&seg_id).unwrap() {
             let c = &clips[i];
-            let d = (c.trim_before as f64 / FPS - t).max(t - (c.trim_before + c.dur) as f64 / FPS).max(0.0);
+            let d = (c.trim_before as f64 / (*FPS) - t).max(t - (c.trim_before + c.dur) as f64 / (*FPS)).max(0.0);
             if best.map(|b| d < b.0).unwrap_or(true) {
                 best = Some((d, i));
             }
@@ -1105,8 +1129,8 @@ fn run() -> Result<(), String> {
     // Temps dans le montage d'un instant « at » de l'extrait du moment (borné au clip).
     let page_time = |seg_id: i64, at: f64| -> f64 {
         let c = clip_at(seg_id, at);
-        let t = c.from as f64 / FPS + ctx.page_start(seg_id) + at - c.trim_before as f64 / FPS;
-        t.max(c.from as f64 / FPS).min((c.from + c.dur - 1) as f64 / FPS)
+        let t = c.from as f64 / (*FPS) + ctx.page_start(seg_id) + at - c.trim_before as f64 / (*FPS);
+        t.max(c.from as f64 / (*FPS)).min((c.from + c.dur - 1) as f64 / (*FPS))
     };
     let first_clip = |seg_id: i64| &clips[clips_of.get(&seg_id).unwrap()[0]];
     let last_clip = |seg_id: i64| &clips[*clips_of.get(&seg_id).unwrap().last().unwrap()];
@@ -1145,7 +1169,7 @@ fn run() -> Result<(), String> {
                     Some(d) => d.clone(),
                     None => {
                         let d: i64 = clips_of.get(&seg_id).unwrap().iter().map(|&i| clips[i].dur).sum();
-                        json!({"at": 0.0, "dur": d as f64 / FPS})
+                        json!({"at": 0.0, "dur": d as f64 / (*FPS)})
                     }
                 };
                 add_voice(&mut funny, seg_id, fnum(&v, "at"), fnum(&v, "dur"), 1.0, &voice_of(&v));
@@ -1196,7 +1220,7 @@ fn run() -> Result<(), String> {
             continue;
         }
         // Sans réglage : au premier mot gardé (début du clip pour un plan sans parole).
-        let t0 = word_events.iter().find(|w| w.seg == seg_id).map(|w| w.start).unwrap_or(first_clip(seg_id).from as f64 / FPS);
+        let t0 = word_events.iter().find(|w| w.seg == seg_id).map(|w| w.start).unwrap_or(first_clip(seg_id).from as f64 / (*FPS));
         for fx in effects {
             if fx.as_str() == Some("voix") || (fx.is_object() && fx.get("kind").and_then(Value::as_str) == Some("voix")) {
                 continue; // voix modifiée : traitée sur la piste voix
@@ -1287,8 +1311,10 @@ fn run() -> Result<(), String> {
                 let force = pyfloat(fx.get("force"), 25.0).min(150.0).max(0.0) / 100.0;
                 match kind {
                     "zoomin" => {
-                        // zoom progressif, gardé jusqu'à la fin de la partie du moment
-                        let end = clip_at(seg_id, at).end();
+                        // zoom progressif, gardé jusqu'à la fin de la partie du moment, ou arrêté à
+                        // la fin de sa durée avec « stop » (étape « Zooms » du dérush)
+                        let part_end = clip_at(seg_id, at).end();
+                        let end = if truthy(fx.get("stop")) { page_time(seg_id, at + dur).min(part_end).max(start + 0.05) } else { part_end };
                         zoom_fx.push((
                             round_to(start, 3),
                             json!({"type": "in", "start": r3(start), "anim": r3(dur), "end": r3(end), "force": num(force)}),
@@ -1319,7 +1345,7 @@ fn run() -> Result<(), String> {
                 };
                 let at = pyfloat(fx.get("at"), 0.0);
                 let a = ctx.page_start(seg_id) + at;
-                let start = first_clip(seg_id).from as f64 / FPS;
+                let start = first_clip(seg_id).from as f64 / (*FPS);
                 zoom_fx.push((
                     round_to(start, 3),
                     json!({"type": "key", "start": r3(start), "end": r3(last_clip(seg_id).end()), "a": r3(a),
@@ -1347,7 +1373,7 @@ fn run() -> Result<(), String> {
                 if !word.is_empty() {
                     let color = fx.get("color").and_then(Value::as_str).filter(|c| fonts_lib::is_color(c)).unwrap_or("#ffd84d");
                     highlights.push(json!({"words": word, "color": color,
-                                           "start": r3(first_clip(seg_id).from as f64 / FPS),
+                                           "start": r3(first_clip(seg_id).from as f64 / (*FPS)),
                                            "end": r3(last_clip(seg_id).end())}));
                 }
                 continue;
@@ -1431,8 +1457,8 @@ fn run() -> Result<(), String> {
     util::mkdirs(root.join("public").join("audio"));
     let mut voice: Vec<f32> = vec![];
     for c in &clips {
-        let s = (c.trim_before as f64 / FPS * SR as f64) as usize;
-        let e = s + (c.dur as f64 / FPS * SR as f64) as usize;
+        let s = (c.trim_before as f64 / (*FPS) * SR as f64) as usize;
+        let e = s + (c.dur as f64 / (*FPS) * SR as f64) as usize;
         let (s0, e0) = (s.min(audio.len()), e.min(audio.len()));
         let g1 = voice_gain as f32;
         let g2 = page_gains.get(&c.seg).copied().unwrap_or(1.0) as f32;
@@ -1580,15 +1606,15 @@ fn run() -> Result<(), String> {
     let mut last: Option<(f64, i64)> = None; // fin et personne de la dernière fenêtre (fenêtres jointes)
     for c in &clips {
         if let Some(p) = page_focus.get(&c.seg) {
-            focus.push(json!({"start": r3(c.from as f64 / FPS), "end": r3(c.end()), "person": p}));
+            focus.push(json!({"start": r3(c.from as f64 / (*FPS)), "end": r3(c.end()), "person": p}));
             last = None;
             continue;
         }
         if page_all.contains(&c.seg) || !(page_auto.contains(&c.seg) || speaker_focus) {
             continue;
         }
-        let (src, at) = (c.trim_before as f64 / FPS, c.from as f64 / FPS);
-        for (a, b, person, _) in crate::diarize::turns_in(&turns, src, src + c.dur as f64 / FPS) {
+        let (src, at) = (c.trim_before as f64 / (*FPS), c.from as f64 / (*FPS));
+        for (a, b, person, _) in crate::diarize::turns_in(&turns, src, src + c.dur as f64 / (*FPS)) {
             if person <= 0 {
                 continue;
             }
@@ -1611,7 +1637,7 @@ fn run() -> Result<(), String> {
     // général. Elle commence à la coupe : le plan entrant reste à sa place, le plan sortant est
     // prolongé de « frames » images au rendu (dans le rush, tant qu'il en reste).
     let general_transition = crate::look::transitions();
-    let rush_frames = (rush_duration(&work) * FPS).floor() as i64;
+    let rush_frames = (rush_duration(&work) * (*FPS)).floor() as i64;
     let mut transitions: Vec<Value> = vec![];
     if !derush {
         for i in 1..clips.len() {
@@ -1622,7 +1648,7 @@ fn run() -> Result<(), String> {
             let t = page_transitions.get(&b.seg).unwrap_or(&general_transition);
             let kind = t.get("kind").and_then(Value::as_str).unwrap_or("");
             let left = if rush_frames > 0 { rush_frames - (a.trim_before + a.dur) } else { i64::MAX };
-            let frames = ((pyfloat(t.get("dur"), crate::look::DUR_DEFAULT) * FPS).round() as i64).min(b.dur).min(left);
+            let frames = ((pyfloat(t.get("dur"), crate::look::DUR_DEFAULT) * (*FPS)).round() as i64).min(b.dur).min(left);
             if !kind.is_empty() && frames >= 2 {
                 transitions.push(json!({"clip": i, "at": b.from, "frames": frames, "kind": kind}));
             }
@@ -1665,6 +1691,7 @@ fn run() -> Result<(), String> {
     }
     let mut edit = Map::new();
     edit.insert("fps".into(), json!(fps_i));
+    edit.insert("settingsPrint".into(), Value::Object(settings_print));
     // Format de la composition, celui du rush (portrait 1080x1920 ou paysage 1920x1080).
     edit.insert("width".into(), json!(width));
     edit.insert("height".into(), json!(height));

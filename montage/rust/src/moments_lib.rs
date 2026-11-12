@@ -782,6 +782,108 @@ pub fn voix_main(args: &[String]) -> i32 {
     0
 }
 
+// --- Empreinte des réglages d'une vidéo entière ---------------------------------------------
+// build_edit note l'empreinte des réglages qu'il lit (edit.json « settingsPrint ») ; render la
+// garde pour la vidéo rendue (work/video_reglages.json). L'interface compare ensuite les réglages
+// actuels à celle-ci : un réglage changé pendant une génération (après sa lecture) reste signalé, et
+// un changement sans effet sur le rendu (effets proposés, réglages ignorés en dérushage) ne l'est pas.
+
+/// Réglages de tout le montage (work/) qui entrent dans le rendu ; en dérushage, seuls ceux que
+/// build_edit lit encore (sous-titres).
+/// Cadence du montage (images par seconde, entier) : work/cadence.txt, écrite par prepare d'après le
+/// rush (cadence du rush arrondie : 23,976 → 24, 29,97 → 30), divisée par deux pour un rush à 50 ou
+/// 60 i/s si la page de préparation le propose (work/cadence_choix.txt : « reduite » par défaut,
+/// « origine »). Sans ce fichier (montage préparé avant) : 30.
+pub const CADENCE_FILE: &str = "cadence.txt";
+pub const CADENCE_CHOICE: &str = "cadence_choix.txt";
+
+pub fn montage_fps(work: &Path) -> u32 {
+    if cfg!(test) {
+        return 30;
+    }
+    util::read_text(work.join(CADENCE_FILE)).and_then(|t| t.parse::<u32>().ok()).filter(|f| (10..=120).contains(f)).unwrap_or(30)
+}
+
+/// Cadence entière d'une vidéo (arrondie), None si inconnue.
+pub fn native_fps(video: &Path) -> Option<u32> {
+    let (_, f) = crate::version_travail::probe(video);
+    let r = f.f().round();
+    (1.0..=120.0).contains(&r).then_some(r as u32)
+}
+
+/// Cadence du montage pour un rush de cadence `native` : moitié (une image sur deux) pour 48 i/s et
+/// plus si `reduce`, sinon celle du rush.
+pub fn cadence_for(native: u32, reduce: bool) -> u32 {
+    if reduce && native >= 48 {
+        native / 2
+    } else {
+        native
+    }
+}
+
+pub const SETTINGS_FILES: [&str; 8] = [
+    "habillage.json", "son.json", "caption_style.json", "effets_page.json", "couleur.json", "transitions.json", "derush.json",
+    "edit_choices.json",
+];
+const DERUSH_SETTINGS: [&str; 3] = ["caption_style.json", "derush.json", "edit_choices.json"];
+/// Clé de l'empreinte des choix de la page (work/local_db : moments et variantes).
+pub const PAGE_PRINT: &str = "local_db";
+pub const VIDEO_PRINTS: &str = "video_reglages.json";
+
+fn digest(bytes: &[u8]) -> String {
+    use sha1::{Digest, Sha1};
+    hex::encode(&Sha1::digest(bytes)[..8])
+}
+
+/// Empreinte de chaque réglage (fichier absent : "") et des choix de la page.
+pub fn settings_print(work_dir: &Path) -> Map<String, Value> {
+    let derush = app_mode(work_dir) == "derush";
+    let mut out = Map::new();
+    for name in SETTINGS_FILES {
+        let relevant = if derush { DERUSH_SETTINGS.contains(&name) } else { name != "derush.json" };
+        let print = match fs::read(work_dir.join(name)) {
+            _ if !relevant => String::new(),
+            Err(_) => String::new(),
+            // effets proposés : seul le volume de tous les effets sonores compte au rendu
+            Ok(b) if name == "effets_page.json" => match serde_json::from_slice::<Value>(&b) {
+                Ok(v) => v.get("volume").map(|x| digest(x.to_string().as_bytes())).unwrap_or_default(),
+                Err(_) => digest(&b),
+            },
+            Ok(b) => digest(&b),
+        };
+        out.insert(name.to_string(), json!(print));
+    }
+    // Documents de la page, sans leur date d'enregistrement (réécrits sans changement : même empreinte).
+    let mut docs: Vec<(String, String)> = vec![];
+    for coll in ["moments", "variantes"] {
+        let dir = work_dir.join("local_db").join(coll);
+        for name in util::list_dir(&dir).into_iter().filter(|n| n.ends_with(".json") && !n.starts_with('.')) {
+            let mut v = read_json(dir.join(&name)).unwrap_or(Value::Null);
+            if let Some(m) = v.as_object_mut() {
+                m.remove("updatedAt");
+                if let Some(Value::Object(d)) = m.get_mut("data") {
+                    d.remove("updatedAt");
+                }
+            }
+            docs.push((format!("{coll}/{name}"), v.to_string()));
+        }
+    }
+    docs.sort();
+    let joined: String = docs.iter().map(|(k, v)| format!("{k}\n{v}\n")).collect();
+    out.insert(PAGE_PRINT.into(), json!(digest(joined.as_bytes())));
+    out
+}
+
+/// Empreinte gardée pour une vidéo rendue (nom du fichier dans out/), si elle a été notée.
+pub fn video_print(work_dir: &Path, video: &str) -> Option<Map<String, Value>> {
+    read_json(work_dir.join(VIDEO_PRINTS))?.get(video)?.as_object().cloned()
+}
+
+/// Réglages (noms de fichiers, et PAGE_PRINT) dont l'empreinte a changé depuis `before`.
+pub fn settings_diff(before: &Map<String, Value>, now: &Map<String, Value>) -> Vec<String> {
+    now.iter().filter(|(k, v)| before.get(*k).map(|b| b != *v).unwrap_or(true)).map(|(k, _)| k.clone()).collect()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

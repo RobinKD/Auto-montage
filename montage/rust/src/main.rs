@@ -38,6 +38,7 @@ mod procs;
 mod progress;
 mod project;
 mod redites;
+mod rush_names;
 mod relecture;
 mod pyjson;
 mod lanceur;
@@ -63,6 +64,7 @@ const COMMANDS: &[(&str, Cmd, &str)] = &[
     ("render", render::main, "rendu apercu|final"),
     ("local_server", local_server::main, "interface web locale (port 8080)"),
     ("make_moments", make_moments::main, "page des moments"),
+    ("legere", make_moments::light_main, "version légère (720p) de la vidéo entière"),
     ("build_edit", build_edit::main, "montage : src/data/edit.json"),
     ("use_selection", use_selection::main, "choix de la page -> work/selection.json"),
     ("decoupage", decoupage::main, "couper un moment en deux, recoller"),

@@ -61,6 +61,9 @@
   .parts li::before { content: counter(part); font-family: var(--mono); font-size: 12px; color: var(--muted); width: 1.4em; flex: none; }
   .parts .file { flex: 1; min-width: 0; }
   .parts button { padding: 4px 10px; font-size: 14px; }
+  .rename { display: inline-flex; flex-wrap: wrap; gap: 6px; align-items: center; font-weight: 400; }
+  .rename input { font: inherit; font-size: 15px; color: var(--fg); background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 4px 8px; min-width: 14em; }
+  .rename button, .rename-btn { padding: 4px 10px; font-size: 14px; font-weight: 400; }
   .sub3 { font-family: var(--display); font-weight: 700; font-size: 15px; margin: 8px 0 0; }
   textarea { font: inherit; font-size: 15px; color: var(--fg); background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; width: 100%; resize: vertical; }
   .cap-lines { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px 16px; align-items: center; }
@@ -164,7 +167,7 @@
   <header>
     <div>
       <h1>Rushes et montages</h1>
-      <p class="sub">Reprenez un montage commencé, ou choisissez une nouvelle vidéo et lancez sa préparation : transcription, découpe en moments et première vidéo entière.</p>
+      <p class="sub">Reprenez un montage commencé, ou choisissez une nouvelle vidéo et lancez sa préparation : transcription et découpe en moments (avec des consignes, Claude choisit aussi les moments ou prépare un premier montage).</p>
     </div>
   </header>
 
@@ -202,7 +205,7 @@
     <p class="note" data-mode-montage>Décrivez le montage voulu (moments à garder, intro, effets, sous-titres…) dans la zone de texte, ou choisissez un fichier texte. Claude l'applique pendant la préparation ; sans consignes, le premier montage garde tous les moments sauf les premières prises.</p>
     <div class="claude-zone" data-needs-claude>
     <h3 class="sub3" style="margin: 0;" id="instructions-h3">Consignes et vidéos d'exemple</h3>
-    <label for="instructions-text" class="note">Consignes de montage</label>
+    <label for="instructions-text" class="note" id="instructions-label">Consignes de montage</label>
     <textarea id="instructions-text" rows="6" placeholder="Par exemple : garde seulement les 3 conseils, coupe les hésitations, intro « Mes 3 astuces pour épargner », bruit de caisse quand je parle d'argent…"></textarea>
     <div class="row">
       <button type="button" id="save-instructions" disabled>Enregistrer les consignes</button>
@@ -227,42 +230,6 @@
     <div data-mode-montage>
     <p class="status" id="an-status" role="status"></p>
     <div class="analyse" id="analyse" hidden></div>
-    <h3 class="sub3">Vos sons et vidéos d'exemple</h3>
-    <p class="note"><b>Effets sonores</b> : ils rejoignent votre bibliothèque de sons (pour tous les montages) et apparaissent dans les effets de chaque moment, à placer vous-même ; Claude peut aussi les placer.</p>
-    <div class="row">
-      <button type="button" id="pick-sounds">Ajouter des effets sonores…</button>
-      <input type="file" id="sounds-file" accept="audio/*,.wav,.mp3,.m4a,.aac,.ogg,.opus,.flac,.aif,.aiff" multiple hidden>
-    </div>
-    <ul class="style-list" id="style-list"></ul>
-    <p class="status" id="style-status" role="status"></p>
-    <h3 class="sub3">Lignes des sous-titres</h3>
-    <p class="note">Nombre de lignes de chaque sous-titre et taille des lignes entre elles (par exemple une deuxième ligne plus grosse pour faire ressortir la fin de la phrase). Réglage commun à tous les montages, aussi dans « Style des sous-titres » de la page des moments ; appliqué à la prochaine « Générer la vidéo entière ».</p>
-    <div class="cap-lines">
-      <div class="cap-lines-form">
-        <label>Nombre de lignes <span id="cl-lines-val"></span><input type="number" id="cl-lines" min="1" max="6" step="1" value="2"></label>
-        <div class="cap-lines-form" id="cl-line-sizes"></div>
-      </div>
-      <div class="cap-lines-sample" id="cl-sample" aria-label="Exemple de sous-titre"></div>
-    </div>
-    <p class="status" id="cl-status" role="status"></p>
-    <h3 class="sub3">Effets proposés sur la page des moments</h3>
-    <p class="note">Cochez ceux à proposer pour chaque moment ; les autres n'encombrent plus la page (un effet déjà placé sur un moment reste visible). Réglage commun à tous les montages, modifiable à tout moment.</p>
-    <p class="note">Les sons et effets visuels listés ici sont ceux fournis par défaut avec Auto-montage. Pour un montage plus personnel, ajoutez vos propres sons (« Ajouter des effets sonores… ») et faites analyser des vidéos d'exemple par Claude (« Analyser les vidéos d'exemple ») pour retrouver leurs effets.</p>
-    <div class="fx-layout">
-      <div class="fx-groups" id="fx-groups"></div>
-      <div class="fx-demo-wrap" aria-live="polite">
-        <div class="fx-demo" id="fx-demo" aria-hidden="true" hidden>
-          <video class="fx-img" id="fx-img" poster="/tutoriel/effets/exemple.jpg" muted playsinline preload="auto"><source src="/tutoriel/effets/exemple.webm" type="video/webm"><source src="/tutoriel/effets/exemple.mp4" type="video/mp4"></video>
-          <div class="fx-chip" id="fx-chip" hidden>Votre titre</div>
-          <div class="fx-typed" id="fx-typed" hidden></div>
-          <div class="fx-cap" id="fx-cap"></div>
-          <div class="fx-flash" id="fx-flash"></div>
-        </div>
-        <p class="note" id="fx-desc">Cliquez sur ▶ à côté d'un effet pour l'écouter ou le voir.</p>
-        <div class="fx-voices" id="fx-voices" hidden></div>
-      </div>
-    </div>
-    <p class="status" id="fx-status" role="status"></p>
     </div>
     <p class="warn" id="claude-missing" hidden>Claude Code n'est pas encore connecté : les consignes et les vidéos d'exemple ne seront pas appliquées (les effets sonores restent utilisables à la main sur la page des moments). <a href="/claude/">Se connecter à Claude</a> (une fois), puis revenez ici ; tout reste enregistré en attendant.</p>
     <p class="status" id="instructions-status" role="status"></p>
@@ -270,10 +237,12 @@
 
   <section id="step-prepare" class="off" aria-labelledby="h-prepare">
     <h2 id="h-prepare"><span id="prepare-num">3</span>Préparer</h2>
-    <p class="note">Compter environ la durée du rush pour la transcription, puis 3 à 5 minutes pour la première vidéo entière. La page peut rester ouverte ou être fermée : la préparation continue.</p>
+    <p class="note"><span id="prepare-estimate">La durée prévue s'affiche ici une fois la vidéo choisie, quand cet ordinateur a déjà fait quelques préparations.</span> La page peut rester ouverte ou être fermée : la préparation continue.</p>
     <p class="warn" id="replace" hidden></p>
     <p class="row note"><label for="langue">Langue parlée dans la vidéo :</label> <select id="langue"><option value="fr">Français</option></select>
       <span>(la transcription suit cette langue ; une vidéo dans une autre langue serait mal transcrite)</span></p>
+    <p class="row note" id="cadence-row" hidden><label><input type="checkbox" id="cadence-reduite" checked>
+      <span id="cadence-label"></span></label></p>
     <div class="note mem" id="mem-plan" hidden></div>
     <div class="paused" id="paused" hidden>
       <p id="paused-text"></p>
@@ -315,6 +284,50 @@
     <pre id="log" hidden></pre>
   </section>
 
+  <!-- Réglages qui servent à tous les montages (et sans Claude) : repliés, sous les étapes. -->
+  <section id="common-settings" aria-labelledby="h-common" data-mode-montage>
+    <details id="common-details">
+    <summary><h2 id="h-common" style="display: inline;">Réglages communs à tous les montages</h2></summary>
+    <p class="note">Vos sons et vidéos d'exemple, les lignes des sous-titres et les effets proposés sur la page des moments. Ils servent aussi sans Claude.</p>
+    <h3 class="sub3">Vos sons et vidéos d'exemple</h3>
+    <p class="note"><b>Effets sonores</b> : ils rejoignent votre bibliothèque de sons (pour tous les montages) et apparaissent dans les effets de chaque moment, à placer vous-même ; Claude peut aussi les placer.</p>
+    <div class="row">
+      <button type="button" id="pick-sounds">Ajouter des effets sonores…</button>
+      <input type="file" id="sounds-file" accept="audio/*,.wav,.mp3,.m4a,.aac,.ogg,.opus,.flac,.aif,.aiff" multiple hidden>
+    </div>
+    <ul class="style-list" id="style-list"></ul>
+    <p class="status" id="style-status" role="status"></p>
+    <h3 class="sub3">Lignes des sous-titres</h3>
+    <p class="note">Nombre de lignes de chaque sous-titre et taille des lignes entre elles (par exemple une deuxième ligne plus grosse pour faire ressortir la fin de la phrase). Réglage du montage en cours et des suivants (les montages enregistrés gardent le leur), aussi dans « Style des sous-titres » de la page des moments ; appliqué à la prochaine « Générer la vidéo entière ».</p>
+    <div class="cap-lines">
+      <div class="cap-lines-form">
+        <label>Nombre de lignes <span id="cl-lines-val"></span><input type="number" id="cl-lines" min="1" max="6" step="1" value="2"></label>
+        <div class="cap-lines-form" id="cl-line-sizes"></div>
+      </div>
+      <div class="cap-lines-sample" id="cl-sample" aria-label="Exemple de sous-titre"></div>
+    </div>
+    <p class="status" id="cl-status" role="status"></p>
+    <h3 class="sub3">Effets proposés sur la page des moments</h3>
+    <p class="note">Cochez ceux à proposer pour chaque moment ; les autres n'encombrent plus la page (un effet déjà placé sur un moment reste visible). Modifiable à tout moment.</p>
+    <p class="note">Les sons et effets visuels listés ici sont ceux fournis par défaut avec Auto-montage. Pour un montage plus personnel, ajoutez vos propres sons (« Ajouter des effets sonores… ») et faites analyser des vidéos d'exemple par Claude (« Analyser les vidéos d'exemple ») pour retrouver leurs effets.</p>
+    <div class="fx-layout">
+      <div class="fx-groups" id="fx-groups"></div>
+      <div class="fx-demo-wrap" aria-live="polite">
+        <div class="fx-demo" id="fx-demo" aria-hidden="true" hidden>
+          <video class="fx-img" id="fx-img" poster="/tutoriel/effets/exemple.jpg" muted playsinline preload="auto"><source src="/tutoriel/effets/exemple.webm" type="video/webm"><source src="/tutoriel/effets/exemple.mp4" type="video/mp4"></video>
+          <div class="fx-chip" id="fx-chip" hidden>Votre titre</div>
+          <div class="fx-typed" id="fx-typed" hidden></div>
+          <div class="fx-cap" id="fx-cap"></div>
+          <div class="fx-flash" id="fx-flash"></div>
+        </div>
+        <p class="note" id="fx-desc">Cliquez sur ▶ à côté d'un effet pour l'écouter ou le voir.</p>
+        <div class="fx-voices" id="fx-voices" hidden></div>
+      </div>
+    </div>
+    <p class="status" id="fx-status" role="status"></p>
+    </details>
+  </section>
+
   <section id="space-section" aria-labelledby="h-space">
     <h2 id="h-space">Libérer de la place</h2>
     <p class="note" id="space-free"></p>
@@ -329,12 +342,15 @@
 
 <script>
   const $ = (id) => document.getElementById(id);
+  // Confirmation dans une fenêtre de la page (local/menu.js : amConfirm), confirm() sinon.
+  const ask = (text, o) => (window.amConfirm ? window.amConfirm(text, o) : Promise.resolve(confirm(text)));
   // Montage en cours en dérushage (work/mode.txt) : ni consignes, ni style, ni Claude ; la section 2 est masquée.
   const DERUSH = document.documentElement.dataset.mode === "derush";
   // Dérushage : seulement des consignes écrites, pour choisir les moments (ni style ni effets).
   if (DERUSH) {
     $("h-instructions").childNodes[1].textContent = "Consignes ";
     $("instructions-h3").textContent = "Consignes pour choisir les moments";
+    $("instructions-label").textContent = "Consignes";
     $("derush-instructions-note").hidden = false;
     $("instructions-text").placeholder = "Par exemple : garde seulement les 3 conseils, retire le passage sur le budget, préfère les prises les plus courtes…";
     $("apply-instructions").nextSibling.textContent = " Choisir les moments avec Claude d'après ces consignes pendant la préparation";
@@ -428,7 +444,7 @@
     const job = info && info.job;
     if (!job) return "";
     if (job.state === "running") return `${JOB_NAMES[job.kind] || "Une tâche"} est en cours : attendez sa fin.`;
-    if (pausedToo && job.paused) return `La préparation de ${job.paused.arg} est en pause : reprenez-la ou abandonnez-la d'abord (plus bas).`;
+    if (pausedToo && job.paused) return `La préparation de ${job.paused.argLabel || labelOf(job.paused.arg)} est en pause : reprenez-la ou abandonnez-la d'abord (plus bas).`;
     return "";
   }
   const lock = (el, reason, off = false) => {
@@ -439,9 +455,58 @@
 
   function setStatus(id, text, kind = "") { const el = $(id); el.textContent = text; el.className = `status ${kind}`; }
 
+  // Nom montré d'une vidéo (registre des noms : les vidéos sont enregistrées sous leur empreinte,
+  // rust/src/rush_names.rs) ; rush assemblé pas encore fait : nom donné par le serveur.
+  let joined = null;  // {key, name, label} du rush assemblé des vidéos choisies
+  function labelOf(file) {
+    if (!file) return "";
+    if (joined && joined.name === file) return joined.label;
+    const r = info && info.rushes.find((x) => x.name === file);
+    if (r) return r.label || r.name;
+    if (info && info.current === file && info.currentLabel) return info.currentLabel;
+    const p = projects && projects.saved.find((x) => x.rush === file);
+    return p ? p.label || p.rush : file.replace(/\.[^.]*$/, "");
+  }
+  // « Renommer » : champ à la place du nom ; seul le nom montré change, la vidéo reste.
+  function renameInline(file, nameEl, done) {
+    const old = labelOf(file);
+    const box = Object.assign(document.createElement("span"), { className: "rename" });
+    const input = Object.assign(document.createElement("input"), { type: "text", value: old, maxLength: 150 });
+    input.setAttribute("aria-label", "Nouveau nom de la vidéo");
+    const ok = Object.assign(document.createElement("button"), { type: "button", className: "primary", textContent: "Renommer" });
+    const no = Object.assign(document.createElement("button"), { type: "button", textContent: "Annuler" });
+    const msg = Object.assign(document.createElement("span"), { className: "status" });
+    const saved = [...nameEl.childNodes];
+    const close = () => nameEl.replaceChildren(...saved);
+    const save = async () => {
+      const name = input.value.trim();
+      if (!name || name === old) { close(); return; }
+      ok.disabled = true;
+      const r = await fetch("/api/rushes/renommer", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ file, name }) }).catch(() => null);
+      const data = r ? await r.json().catch(() => ({})) : {};
+      if (!r || !r.ok) { ok.disabled = false; msg.textContent = data.error || "Le nom n'a pas pu être changé."; msg.className = "status err"; input.focus(); return; }
+      await refresh();
+      if (done) done(data.label);
+    };
+    ok.onclick = save;
+    no.onclick = close;
+    input.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); save(); } else if (e.key === "Escape") { e.preventDefault(); close(); } });
+    box.append(input, ok, no, msg);
+    nameEl.replaceChildren(box);
+    input.focus();
+    input.select();
+  }
+  const renameButton = (file, nameEl, after) => {
+    const b = Object.assign(document.createElement("button"), { type: "button", className: "rename-btn", textContent: "Renommer" });
+    b.title = "Changer le nom montré de la vidéo (la vidéo elle-même ne change pas)";
+    b.addEventListener("click", () => renameInline(file, nameEl, after));
+    return b;
+  };
+
   function choose(name) {
     chosen = name;
-    $("chosen").textContent = name || "";
+    $("chosen").replaceChildren(labelOf(name));
+    if (name && parts.length === 1 && info && info.rushes.some((x) => x.name === name)) $("chosen").append(" ", renameButton(name, $("chosen"), () => choose(chosen)));
     // Préparation en cours ou en pause : suivie même sans rush choisi.
     $("step-prepare").classList.toggle("off", !name && !(info && info.job && (info.job.paused || info.job.state === "running")));
     const busy = info && info.job.state === "running";
@@ -450,7 +515,7 @@
     const replace = name && info && info.current && info.current !== name && info.prepared;
     $("replace").hidden = !replace;
     if (replace) {
-      $("replace").textContent = `Le montage en cours (${info.current}) sera mis de côté : vous pourrez le rouvrir tel quel depuis « Montages enregistrés ».`;
+      $("replace").textContent = `Le montage en cours (${labelOf(info.current)}) sera mis de côté : vous pourrez le rouvrir tel quel depuis « Montages enregistrés ».`;
     }
     // Rush déjà préparé : le rouvrir (ou ouvrir celui en cours) plutôt que tout refaire.
     const saved = name && projects && projects.saved.find((p) => p.rush === name);
@@ -467,10 +532,10 @@
     if (resumes) $("reopen").hidden = true;
     if (resumes) {
       $("replace").hidden = false;
-      $("replace").textContent = `La préparation de ${name} est en pause : elle reprendra là où elle en était.`;
+      $("replace").textContent = `La préparation de ${labelOf(name)} est en pause : elle reprendra là où elle en était.`;
     } else if (saved || isCurrent) {
       $("replace").hidden = false;
-      $("replace").textContent = `${name} a déjà un montage : « ${isCurrent ? "Ouvrir" : "Rouvrir"} ce montage » le reprend tel quel, sans rien recalculer. « Tout refaire depuis le début » relance la transcription et le découpage${saved && info.current && info.prepared ? `, et met le montage en cours (${info.current}) de côté` : ""}.`;
+      $("replace").textContent = `${labelOf(name)} a déjà un montage : « ${isCurrent ? "Ouvrir" : "Rouvrir"} ce montage » le reprend tel quel, sans rien recalculer. « Tout refaire depuis le début » relance la transcription et le découpage${saved && info.current && info.prepared ? `, et met le montage en cours (${labelOf(info.current)}) de côté` : ""}.`;
     }
   }
 
@@ -487,12 +552,13 @@
       const li = document.createElement("li");
       const img = projects.currentThumb ? Object.assign(document.createElement("img"), { src: projects.currentThumb, alt: "" })
         : Object.assign(document.createElement("span"), { className: "noimg" });
-      const name = Object.assign(document.createElement("span"), { className: "name", textContent: projects.current });
+      const name = Object.assign(document.createElement("span"), { className: "name", textContent: projects.currentLabel || projects.current });
       const acts = Object.assign(document.createElement("span"), { className: "acts" });
       if (projects.currentPrepared) acts.append(Object.assign(document.createElement("a"), { href: "/", textContent: "Ouvrir", className: "btnlink" }));
       const del = Object.assign(document.createElement("button"), { type: "button", textContent: "Supprimer" });
       lock(del, busy);
-      del.addEventListener("click", () => act("delete_current", { rush: projects.current }, del));
+      del.addEventListener("click", () => act("delete_current", { rush: projects.current, label: projects.currentLabel }, del));
+      if (info && info.rushes.some((x) => x.name === projects.current)) acts.append(renameButton(projects.current, name));
       acts.append(del);
       const facts = Object.assign(document.createElement("span"), { className: "facts",
         textContent: projects.currentPrepared ? "en cours · page des moments" : "en cours · préparation inachevée" });
@@ -513,7 +579,7 @@
       const img = p.thumb ? Object.assign(document.createElement("img"), { src: p.thumb, alt: "" }) : Object.assign(document.createElement("span"), { className: "noimg" });
       const name = document.createElement("span");
       name.className = "name";
-      name.textContent = p.rush;
+      name.textContent = p.label || p.rush;
       const acts = document.createElement("span");
       acts.className = "acts";
       const open = document.createElement("button");
@@ -524,7 +590,9 @@
       del.type = "button"; del.textContent = "Supprimer";
       lock(del, busy);
       del.addEventListener("click", () => act("delete", p, del));
-      acts.append(open, del);
+      acts.append(open);
+      if (p.rushPresent) acts.append(renameButton(p.rush, name));
+      acts.append(del);
       const facts = document.createElement("span");
       facts.className = "facts";
       facts.textContent = [p.duration ? `montage ${Math.floor(p.duration / 60)}:${String(Math.round(p.duration % 60)).padStart(2, "0")}` : (p.hasPage ? "" : "préparation inachevée"),
@@ -541,12 +609,13 @@
     }
   }
   async function act(action, p, btn) {
+    p = { ...p, rush: p.label || labelOf(p.rush) };  // nom montré dans les messages
     const msg = action === "open"
-      ? (projects.current && projects.currentPrepared ? `Rouvrir le montage de ${p.rush} ? Le montage en cours (${projects.current}) sera mis de côté et pourra être rouvert à son tour.` : null)
+      ? (projects.current && projects.currentPrepared ? `Rouvrir le montage de ${p.rush} ? Le montage en cours (${projects.currentLabel || projects.current}) sera mis de côté et pourra être rouvert à son tour.` : null)
       : action === "delete_current"
       ? `Supprimer le montage en cours de ${p.rush} ? Ses moments, ses choix, sa copie du rush et ses rendus seront effacés ; la vidéo d'origine reste dans les rushes (à supprimer à part dans « Libérer de la place » si besoin).`
       : `Supprimer le montage enregistré de ${p.rush} (${mb(p.size || 0)}) ? Ses choix, sa copie du rush et ses rendus seront effacés ; la vidéo d'origine reste dans les rushes.`;
-    if (msg && !confirm(msg)) return;
+    if (msg && !await ask(msg, action === "open" ? { title: "Rouvrir ce montage ?", ok: "Rouvrir" } : { title: "Supprimer ce montage ?", ok: "Supprimer", danger: true })) return;
     btn.disabled = true;
     setStatus("projects-status", action === "open" ? `Ouverture de ${p.rush}…` : "Suppression…");
     const r = await fetch(`/api/projects/${action}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: p.id }) });
@@ -615,7 +684,7 @@
     const picked = spacePicked();
     if (!picked.length) return;
     const warn = picked.filter((i) => i.keep).map((i) => `\n• ${i.label} : ${i.note}`).join("");
-    if (!confirm(`Supprimer définitivement ${picked.length} élément(s) (${mb(picked.reduce((n, i) => n + i.size, 0))}) ?${warn}`)) return;
+    if (!await ask(`${picked.length} élément(s), ${mb(picked.reduce((n, i) => n + i.size, 0))}.${warn}`, { title: "Supprimer définitivement ?", ok: "Supprimer", danger: true })) return;
     $("space-delete").disabled = true;
     setStatus("space-status", "Suppression…");
     const r = await fetch("/api/place/delete", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ids: picked.map((i) => i.id) }) });
@@ -634,7 +703,7 @@
     await showSpace();
     const sel = $("existing");
     const keep = sel.value;
-    sel.replaceChildren(new Option("—", ""), ...info.rushes.map((r) => new Option(`${r.name} (${mb(r.size)})${r.name === info.current ? " · en cours" : ""}`, r.name)));
+    sel.replaceChildren(new Option("—", ""), ...info.rushes.map((r) => new Option(`${r.label || r.name} (${mb(r.size)})${r.name === info.current ? " · en cours" : ""}`, r.name)));
     sel.value = info.rushes.some((r) => r.name === keep) ? keep : "";
     sel.hidden = $("or-list").hidden = !info.rushes.length;
     showLanguage();
@@ -786,7 +855,7 @@
           const preparing = !!(info && info.job && ((info.job.kind === "prepare" && info.job.state === "running") || info.job.paused));
           const fresh = !cb.checked && !preparing ? await fetch("/api/effects").then((r) => r.json()).catch(() => null) : null;
           const used = (fresh && fresh.used && fresh.used[e.id]) || 0;
-          if (used && confirm(`« ${e.label} » est placé sur ${used} moment${used > 1 ? "s" : ""} du montage en cours. Le décocher aussi sur ${used > 1 ? "ces moments" : "ce moment"} ? (Fait à la prochaine ouverture de la page des moments.)`)) purge = [...purge, e.id];
+          if (used && await ask(`« ${e.label} » est placé sur ${used} moment${used > 1 ? "s" : ""} du montage en cours. Le décocher aussi sur ${used > 1 ? "ces moments" : "ce moment"} ? (Fait à la prochaine ouverture de la page des moments.)`, { title: "Effet placé sur des moments", ok: "Le décocher aussi", cancel: "Le laisser sur les moments" })) purge = [...purge, e.id];
           data.purge = purge;
           const r = await fetch("/api/effects", { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify({ hidden, purge }) }).catch(() => null);
           setStatus("fx-status", r && r.ok ? `${fxList.length - hidden.length} effet${fxList.length - hidden.length > 1 ? "s" : ""} proposé${fxList.length - hidden.length > 1 ? "s" : ""} sur la page des moments.` : "Le choix n'a pas pu être enregistré.", r && r.ok ? "ok" : "err");
@@ -1023,18 +1092,30 @@
   $("pick").addEventListener("click", () => $("file").click());
   $("existing").addEventListener("change", (e) => { if (e.target.value) addPart(e.target.value); e.target.value = ""; });
 
-  // Plusieurs vidéos : assemblées dans l'ordre par la préparation (rust/src/join_rushes.rs),
-  // sous le nom « <première> (assemblage de N).mov » (même règle que joined_name).
-  const joinedName = (names) => `${names[0].replace(/\.[^.]*$/, "").slice(0, 150)} (assemblage de ${names.length}).mov`;
-  function addPart(name) { parts.push(name); showParts(); }
-  function showParts() {
+  // Plusieurs vidéos : assemblées dans l'ordre par la préparation (rust/src/join_rushes.rs) en un
+  // fichier tiré de leurs noms, montré « <première> (assemblage de N) » : demandé au serveur.
+  async function joinedOf(names) {
+    const key = JSON.stringify(names);
+    if (joined && joined.key === key) return joined;
+    const r = await fetch("/api/rushes/assemblage", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ parts: names }) }).catch(() => null);
+    const data = r && r.ok ? await r.json().catch(() => null) : null;
+    joined = data ? { key, name: data.name, label: data.label } : null;
+    return joined;
+  }
+  function addPart(name) {
+    // même vidéo déjà dans la liste (renvoyée, ou choisie deux fois) : pas ajoutée une 2e fois
+    if (parts.includes(name)) { showParts(); return; }
+    parts.push(name);
+    showParts();
+  }
+  async function showParts() {
     const list = $("parts");
     list.replaceChildren();
     list.hidden = !parts.length;
     const sizes = Object.fromEntries((info ? info.rushes : []).map((r) => [r.name, r.size]));
     parts.forEach((name, i) => {
       const li = document.createElement("li");
-      const label = Object.assign(document.createElement("span"), { className: "file", textContent: name });
+      const label = Object.assign(document.createElement("span"), { className: "file", textContent: labelOf(name) });
       const facts = Object.assign(document.createElement("span"), { className: "facts", textContent: sizes[name] ? mb(sizes[name]) : "" });
       const move = (d, text, aria) => {
         const b = Object.assign(document.createElement("button"), { type: "button", textContent: text, disabled: i + d < 0 || i + d >= parts.length });
@@ -1043,20 +1124,21 @@
         return b;
       };
       const del = Object.assign(document.createElement("button"), { type: "button", textContent: "✕" });
-      del.setAttribute("aria-label", `Retirer ${name}`);
+      del.setAttribute("aria-label", `Retirer ${labelOf(name)}`);
       del.onclick = () => { parts.splice(i, 1); showParts(); };
       li.append(label, facts, ...(parts.length > 1 ? [move(-1, "↑", "Monter"), move(1, "↓", "Descendre")] : []), del);
       list.append(li);
     });
     $("parts-note").hidden = parts.length < 2;
     $("multi-hint").hidden = parts.length > 1;
+    const j = parts.length > 1 ? await joinedOf(parts) : null;
     $("parts-note").textContent = parts.length > 1
-      ? `Ces ${parts.length} vidéos seront assemblées dans cet ordre en un seul rush, ${joinedName(parts)} : sans réencodage si elles ont les mêmes réglages (quelques secondes), sinon réencodées aux réglages de la première (plus long). Il faut de la place pour une copie de plus.`
+      ? `Ces ${parts.length} vidéos seront assemblées dans cet ordre en un seul rush, ${j ? `« ${j.label} »` : ""} : sans réencodage si elles ont les mêmes réglages (quelques secondes), sinon réencodées aux réglages de la première (plus long). Il faut de la place pour une copie de plus.`
       : "";
     $("pick").textContent = parts.length ? "Ajouter une autre vidéo…" : "Choisir un fichier…";
     $("pick").classList.toggle("primary", !parts.length);
     $("or-list").textContent = parts.length ? "ou ajouter un rush déjà envoyé :" : "ou un rush déjà envoyé :";
-    choose(parts.length > 1 ? joinedName(parts) : parts[0] || null);
+    choose(parts.length > 1 ? (j ? j.name : null) : parts[0] || null);
   }
 
   $("file").addEventListener("change", async () => {
@@ -1090,7 +1172,7 @@
         let res = {};
         try { res = JSON.parse(xhr.responseText); } catch (e) { /* réponse vide */ }
         if (xhr.status >= 200 && xhr.status < 300) {
-          setStatus("file-status", `${res.name} est dans le dossier des rushes.`, "ok");
+          setStatus("file-status", res.already ? `Cette vidéo était déjà dans les rushes, sous le nom « ${res.label} » : elle n'est gardée qu'une fois.` : `« ${res.label} » est dans le dossier des rushes.`, "ok");
           await refresh();
           resolve(res.name);
         } else {
@@ -1122,6 +1204,18 @@
     const m = await fetch(`/api/memoire?${q}`).then((r) => (r.ok ? r.json() : null)).catch(() => null);
     if (key !== memKey) return;
     box.hidden = !m;
+    // Rush à 50 ou 60 i/s : proposer 25 ou 30 i/s (une image sur deux, rendu deux fois plus rapide) ;
+    // sinon la vidéo garde la cadence du rush. Dernier choix retenu.
+    const fps = m && m.fps;
+    $("cadence-row").hidden = !(fps >= 48);
+    if (fps >= 48) {
+      $("cadence-label").textContent = `Passer à ${Math.floor(fps / 2)} images/s (une image sur deux) : le rendu va deux fois plus vite. Décoché, la vidéo garde les ${fps} images/s du rush.`;
+      try { $("cadence-reduite").checked = localStorage.getItem("am-cadence") !== "origine"; } catch (e) { /* stockage indisponible */ }
+    }
+    // Durée prévue de la préparation (mesurée sur cet ordinateur ; absente avant 3 préparations).
+    $("prepare-estimate").textContent = m && typeof m.estimate === "number"
+      ? `Durée prévue sur cet ordinateur : ${m.estimate < 90 ? "1 à 2 min" : `environ ${Math.round(m.estimate / 60)} min`}.`
+      : "Durée prévue : pas encore connue sur cet ordinateur (elle s'affiche après quelques préparations).";
     if (!m) return;
     const go = (n) => `${(n / 1073741824).toFixed(1).replace(".", ",")} Go`;
     const free = m.available == null ? "RAM libre inconnue" : `${go(m.available)} libres sur ${go(m.total)}`;
@@ -1141,11 +1235,27 @@
       textContent: `Repris d'une préparation abandonnée, sans être refait : ${m.kept.join(", ").toLowerCase()}.` }));
   }
   $("apply-instructions").addEventListener("change", () => showMemoryPlan());
+  $("cadence-reduite").addEventListener("change", () => { try { localStorage.setItem("am-cadence", $("cadence-reduite").checked ? "reduite" : "origine"); } catch (e) { /* stockage indisponible */ } });
 
   $("prepare").addEventListener("click", async () => {
     const paused = info && info.job && info.job.paused;
     const resumes = !!(paused && JSON.stringify(paused.args) === JSON.stringify(parts));
-    if (paused && !resumes && !confirm(`La préparation de ${paused.arg} attend d'être reprise. La préparer à nouveau l'abandonne : tout ce qui en était fait sera effacé (« Abandonner… » permet d'en garder une partie). Continuer ?`)) return;
+    if (paused && !resumes && !await ask(`La préparation de ${paused.argLabel || paused.arg} attend d'être reprise. La préparer à nouveau l'abandonne : tout ce qui en était fait sera effacé (« Abandonner… » permet d'en garder une partie).`, { title: "Abandonner la préparation en pause ?", ok: "Préparer à nouveau", danger: true })) return;
+    // « Tout refaire depuis le début » (rush qui a déjà un montage) : moments, coupes, corrections et
+    // choix repartent à zéro ; réglages de tout le montage gardés ou non (dernier choix retenu).
+    let redo = null;
+    const sameRush = chosen && !resumes && info && info.current === chosen && info.prepared;
+    if (sameRush) {
+      let keepGlobal = true;
+      try { keepGlobal = localStorage.getItem("am-refaire-reglages") !== "0"; } catch (e) { /* stockage indisponible */ }
+      const a = await (window.amConfirm ? window.amConfirm(`Tout est refait pour ${labelOf(chosen)} : transcription, découpage en moments, et choix de Claude s'il y a des consignes. Les coupes, textes corrigés, moments gardés, réglages de chaque moment et l'historique de la page repartent à zéro.`,
+        { title: "Tout refaire depuis le début ?", ok: "Tout refaire", danger: true,
+          check: { label: "Garder les réglages de tout le montage (couleurs, son de la voix, transitions, style des sous-titres, zooms et animations)", checked: keepGlobal } })
+        : Promise.resolve(confirm("Tout refaire depuis le début ?") && { checked: true }));
+      if (!a) return;
+      try { localStorage.setItem("am-refaire-reglages", a.checked ? "1" : "0"); } catch (e) { /* stockage indisponible */ }
+      redo = a.checked ? "garder" : "tout";
+    }
     $("prepare").disabled = true;
     // Consignes tapées mais pas encore enregistrées : enregistrées avant de préparer.
     if (!$("save-instructions").disabled && $("instructions-text").value.trim()) await saveTyped();
@@ -1153,7 +1263,8 @@
     const withClaude = !!(info && info.claude && $("apply-instructions").checked
       && (info.instructions || (!DERUSH && st && (st.sons.length || st.videos.length))));
     const res = await fetch("/api/prepare", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ rushes: parts,
-      instructions: withClaude, langue: $("langue").value, abandon: !!paused && !resumes }) });
+      instructions: withClaude, langue: $("langue").value, abandon: !!paused && !resumes, redo,
+      cadence: $("cadence-row").hidden ? undefined : ($("cadence-reduite").checked ? "reduite" : "origine") }) });
     if (!res.ok) {
       const e = await res.json().catch(() => ({}));
       setStatus("job-status", e.error || `La préparation n'a pas pu démarrer (erreur ${res.status}).`, "err");
@@ -1165,7 +1276,8 @@
 
   const JOB_NAMES = { prepare: "La préparation", regen: "La génération de la vidéo entière", final: "La création de la 4K", update: "La mise à jour d'Auto-montage",
     reset: "La réinitialisation d'Auto-montage", style: "L'analyse des vidéos d'exemple", export: "L'export pour les plateformes",
-    derush: "Le passage à l'auto-montage", decoupage: "Le découpage des moments" };
+    derush: "Le passage à l'auto-montage", decoupage: "Le découpage des moments",
+    light: "La création de la version légère", son: "La recherche des bruits parasites" };
   function showJob(job) {
     if (job && job.kind === "style") { showAnalyseJob(job); if (job.state !== "running") return; }
     $("an-progress").hidden = !(job && job.kind === "style" && job.state === "running");
@@ -1185,13 +1297,13 @@
     showProgress(job);
     if (job.state === "running") {
       const since = Math.max(0, Math.round((Date.now() - new Date(job.startedAt)) / 60000));
-      setStatus("job-status", `Préparation de ${job.arg} en cours (${since} min)…`);
+      setStatus("job-status", `Préparation de ${job.argLabel || job.arg} en cours (${since} min)…`);
     } else if (job.state === "done") {
-      setStatus("job-status", `${job.arg} est prêt.`, "ok");
+      setStatus("job-status", `${job.argLabel || job.arg} est prêt.`, "ok");
     } else if (job.state === "error" && !job.paused) {
       setStatus("job-status", `La préparation a échoué à l'étape « ${job.step} » : ${job.error}. Le détail est sur la page « Journal » (lien en haut).`, "err");
     } else if (job.state === "cancelled") {
-      setStatus("job-status", `Préparation de ${job.arg} annulée à l'étape « ${job.step} ». Vous pouvez la relancer quand vous voulez ; les montages enregistrés ne sont pas touchés.`, "err");
+      setStatus("job-status", `Préparation de ${job.argLabel || job.arg} annulée à l'étape « ${job.step} ». Vous pouvez la relancer quand vous voulez ; les montages enregistrés ne sont pas touchés.`, "err");
     } else if (job.state === "paused") {
       setStatus("job-status", "");
     }
@@ -1205,10 +1317,10 @@
     const o = t.current && t.ops && t.ops[t.current];
     const where = `à l'étape « ${t.step} »${o ? ` (${(OP_NAMES[t.current] || t.current).toLowerCase()} : ${opFacts(o)})` : ""}`;
     $("paused-text").textContent = t.state === "paused"
-      ? `La préparation de ${t.arg} est en pause ${where}. Elle reprendra là où elle en était, même après avoir fermé Auto-montage ou redémarré l'ordinateur.`
+      ? `La préparation de ${t.argLabel || t.arg} est en pause ${where}. Elle reprendra là où elle en était, même après avoir fermé Auto-montage ou redémarré l'ordinateur.`
       : t.state === "error"
-        ? `La préparation de ${t.arg} s'est arrêtée sur une erreur ${where}${t.error ? ` : ${t.error}` : ""}. Une fois le problème réglé (RAM, place sur le disque…), elle peut reprendre là où elle en était.`
-        : `La préparation de ${t.arg} a été coupée ${where} (Auto-montage ou l'ordinateur arrêté). Elle peut reprendre là où elle en était.`;
+        ? `La préparation de ${t.argLabel || t.arg} s'est arrêtée sur une erreur ${where}${t.error ? ` : ${t.error}` : ""}. Une fois le problème réglé (RAM, place sur le disque…), elle peut reprendre là où elle en était.`
+        : `La préparation de ${t.argLabel || t.arg} a été coupée ${where} (Auto-montage ou l'ordinateur arrêté). Elle peut reprendre là où elle en était.`;
     showSteps(t, false);
   }
   $("pause").addEventListener("click", async () => {
@@ -1262,7 +1374,7 @@
   });
   $("cancel").addEventListener("click", async () => {
     const prep = info && info.job && info.job.kind === "prepare";
-    if (!confirm(`Annuler la tâche en cours ? Elle s'arrête tout de suite ; il faudra la relancer depuis le début.${prep ? " Pour la continuer plus tard, choisissez plutôt « Mettre en pause »." : ""}`)) return;
+    if (!await ask(`Elle s'arrête tout de suite ; il faudra la relancer depuis le début.${prep ? " Pour la continuer plus tard, choisissez plutôt « Mettre en pause »." : ""}`, { title: "Arrêter la tâche en cours ?", ok: "Arrêter", cancel: "Laisser continuer", danger: true })) return;
     $("cancel").disabled = true;
     await fetch("/api/job/cancel", { method: "POST" }).catch(() => {});
     setTimeout(() => { $("cancel").disabled = false; }, 2000);

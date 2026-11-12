@@ -111,6 +111,8 @@
 
 <script>
   const $ = (id) => document.getElementById(id);
+  // Confirmation dans une fenêtre de la page (local/menu.js : amConfirm), confirm() sinon.
+  const ask = (text, o) => (window.amConfirm ? window.amConfirm(text, o) : Promise.resolve(confirm(text)));
   let console_ = false;
   function msg(text, kind = "") { $("msg").textContent = text; $("msg").className = kind; }
 
@@ -163,7 +165,7 @@
   $("code").addEventListener("keydown", (e) => { if (e.key === "Enter") $("send").click(); });
 
   $("logout").addEventListener("click", async () => {
-    if (!confirm("Déconnecter Claude Code de ce compte ?")) return;
+    if (!await ask("Les parties qui ont besoin de Claude Code ne fonctionneront plus jusqu'à la prochaine connexion.", { title: "Déconnecter Claude Code de ce compte ?", ok: "Déconnecter", danger: true })) return;
     await post("/api/claude/logout");
     refresh();
   });

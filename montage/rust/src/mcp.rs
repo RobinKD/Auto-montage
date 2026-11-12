@@ -153,7 +153,7 @@ fn tools() -> Value {
         {"name": "garder_moments", "description": "Garde ou retire des moments de la vidéo entière (sélection de la variante).",
          "inputSchema": {"type": "object", "properties": {"garder": {"type": "array", "items": {"type": "integer"}}, "retirer": {"type": "array", "items": {"type": "integer"}},
                                                           "variante": {"type": "string"}}}},
-        {"name": "regler_moment", "description": "Change les réglages d'un moment (fusionnés avec les existants ; null retire un réglage) : text (sous-titre corrigé), nosub, sfx, vfx (effets visuels, dont {\"kind\": \"filtre\", \"effect\", \"at\", \"dur\", \"force\"}), gain (volume de la voix, 1 = 100 %), focus (personne, \"auto\" ou \"tous\"), transition ({\"kind\", \"dur\"} avant ce moment), trim ({\"in\", \"out\"} : début et fin gardés). Temps en s depuis le début de l'extrait du moment.",
+        {"name": "regler_moment", "description": "Change les réglages d'un moment (fusionnés avec les existants ; null retire un réglage) : text (sous-titre corrigé), nosub, sfx, vfx (effets visuels, dont {\"kind\": \"filtre\", \"effect\", \"at\", \"dur\", \"force\"} ; en dérushage, seuls les zooms comptent : {\"kind\": \"zoomin\" | \"zoomsec\" | \"dezoom\", \"at\", \"dur\", \"force\" (%), \"stop\": true (zoomin : arrêté à la fin de dur, sinon gardé jusqu'à la fin du moment)}, centrés sur le visage), gain (volume de la voix, 1 = 100 %), focus (personne, \"auto\" ou \"tous\"), transition ({\"kind\", \"dur\"} avant ce moment), trim ({\"in\", \"out\"} : début et fin gardés). Temps en s depuis le début de l'extrait du moment.",
          "inputSchema": {"type": "object", "required": ["id", "reglages"], "properties": {"id": id.clone(), "reglages": {"type": "object"}}}},
         {"name": "couper_moment", "description": "Coupe un moment en deux moments séparés avant le mot d'indice avant_mot (liste_moments avec_mots), comme « Couper » de la page ; chacun se garde ou se retire.",
          "inputSchema": {"type": "object", "required": ["id", "avant_mot"], "properties": {"id": id, "avant_mot": {"type": "integer"}}}},
@@ -178,7 +178,7 @@ fn tools() -> Value {
             crate::export::PRESETS.iter().map(|p| format!("{} ({})", p.id, p.label)).collect::<Vec<_>>().join(", ")),
          "inputSchema": {"type": "object", "properties": {"plateformes": {"type": "array", "items": {"type": "string", "enum": crate::export::PRESETS.iter().map(|p| p.id).collect::<Vec<_>>()}},
                          "couper": {"type": "boolean"}, "attendre": {"type": "boolean"}, "delai_max": {"type": "integer", "description": "secondes (1800 par défaut)"}}}},
-        {"name": "preparer_rush", "description": "Prépare un rush déjà dans montage/public/rushes/ (transcription, visages, locuteurs, page des moments). langue : fr ou en.",
+        {"name": "preparer_rush", "description": "Prépare un rush déjà dans montage/public/rushes/ (nom du fichier ou nom montré sur la page ; transcription, visages, locuteurs, page des moments). langue : fr ou en.",
          "inputSchema": {"type": "object", "required": ["rush"], "properties": {"rush": {"type": "string"}, "langue": {"type": "string", "enum": ["fr", "en"]}}}},
     ])
 }
@@ -405,7 +405,7 @@ fn tool(name: &str, a: &Map<String, Value>) -> Result<Value, String> {
         "etat" => {
             let st = call("GET", "/api/job", None)?;
             let out = paths::out().join("montage_apercu.mp4");
-            Ok(json!({"rush": rush(), "mode": std::fs::read_to_string(paths::work().join("mode.txt")).unwrap_or_default().trim(),
+            Ok(json!({"rush": rush(), "nom": crate::rush_names::display(&rush()), "mode": std::fs::read_to_string(paths::work().join("mode.txt")).unwrap_or_default().trim(),
                       "tache": job_summary(&st),
                       "video": if out.exists() { json!({"fichier": out, "date": util::mtime(&out)}) } else { Value::Null },
                       "interface": base_url()}))
@@ -480,7 +480,10 @@ fn tool(name: &str, a: &Map<String, Value>) -> Result<Value, String> {
             Ok(json!({"lance": true, "suivi": "outil etat"}))
         }
         "preparer_rush" => {
-            let r = call("POST", "/api/prepare", Some(&json!({"rush": arg_str(a, "rush", ""), "langue": arg_str(a, "langue", "fr")})))?;
+            // nom de fichier de public/rushes, ou nom montré (registre rush_names)
+            let wanted = arg_str(a, "rush", "");
+            let file = crate::rush_names::resolve(wanted).unwrap_or_else(|| wanted.to_string());
+            let r = call("POST", "/api/prepare", Some(&json!({"rush": file, "langue": arg_str(a, "langue", "fr")})))?;
             Ok(json!({"lance": true, "reponse": r, "suivi": "outil etat"}))
         }
         _ => Err(format!("outil inconnu : {name}")),

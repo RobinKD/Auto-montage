@@ -4,6 +4,58 @@ Chaque version publiée reprend sa section dans ses notes (onglet Releases). Une
 section, le numéro dans `VERSION` et le tag `v<numéro>` poussé publient la version avec ses
 installateurs (voir `packaging/README.md`).
 
+## 1.8
+
+- **Zooms sur le visage avant de télécharger le dérush** : « Valider le dérush » propose maintenant
+  « Ajouter des zooms ». La vidéo du dérush s'affiche sur une frise : début et fin du zoom à la tête de
+  lecture (« Début ici » / « Fin ici », touches I et O, repères à glisser), zoom avant, zoom sec ou
+  dézoom, force réglée au curseur. Le zoom est toujours centré sur le visage ; il est dans la vidéo
+  téléchargée et repris en passant à l'auto-montage.
+- **Images par seconde du rush gardées** : la vidéo montée a le même nombre d'images par seconde que
+  le rush (25 restent 25 au lieu de passer à 30). Pour un rush filmé à 50 ou 60 images/s, « Rushes et
+  montages » propose de passer à 25 ou 30 images/s (case cochée au départ, choix retenu) : le rendu
+  va deux fois plus vite. La vidéo d'un dérush validé n'est plus réduite à 25 images/s.
+- **Vidéo « à jour » fiable** : un réglage changé pendant une génération n'est plus considéré comme
+  inclus dans la vidéo, et cocher ou décocher un effet proposé ne demande plus de la régénérer. Une
+  coupe dont les deux parties sont gardées ne compte plus comme deux moments changés.
+- **« Tout refaire depuis le début » repart vraiment à zéro** : coupes, textes corrigés, moments
+  gardés, réglages de chaque moment, choix de Claude et historique de la page sont effacés (ils
+  visaient l'ancienne transcription). Une case garde ou non les réglages de tout le montage
+  (couleurs, son, transitions, style des sous-titres, zooms) ; la page retient le dernier choix.
+  Les anciens sous-titres (SRT, VTT), l'ancienne 4K et les anciennes copies pour les plateformes ne
+  sont plus proposés avec le nouveau montage.
+- **Vidéos du même nom** : une vidéo envoyée ne remplace plus jamais une autre du même nom (la
+  seconde s'appelle « nom (2) »), et la même vidéo envoyée deux fois n'est gardée qu'une fois. Une
+  deuxième validation du même dérush ne remplace plus la vidéo du premier. **Renommer** change le
+  nom montré d'une vidéo partout, y compris dans les noms des fichiers téléchargés.
+- **Frise toujours à l'écran** : sur un écran large, le haut de la page des moments tient sur une
+  ligne, et le lecteur laisse la place à la frise du moment ouvert.
+- **Variantes** : une seule liste, dont le dernier choix crée une nouvelle variante.
+- **Version légère (720p) à la demande** : elle n'est plus faite à chaque génération (plus rapide),
+  mais en quelques secondes quand on la lit ou la télécharge.
+- **« Rechercher les bruits parasites »** a sa barre d'avancement et son bouton « Annuler ».
+- **Frise plus fluide sur les longs rushes** : seuls les moments à l'écran (et autour) sont dessinés,
+  et le zoom au pavé tactile ou à la molette ne redessine la frise qu'une fois par image.
+- **Frise plus lisible** : les silences de moins d'une seconde n'y sont plus montrés à part.
+- **Réglages communs à tous les montages** (sons et vidéos d'exemple, lignes des sous-titres,
+  effets proposés) : regroupés dans une section à part de « Rushes et montages ».
+- **Page des moments pendant une préparation** : elle n'est plus modifiable (ce qui y était changé
+  était perdu), et elle a son bouton « Mettre en pause ».
+- **Raccourcis** : G garde ou retire le moment ouvert, I et O placent le début et la fin de la
+  partie gardée à la tête de lecture (modifiables dans « Raccourcis »).
+- **« Télécharger le dérush » plus rapide** : si la vidéo est déjà à jour, elle se télécharge
+  tout de suite (ou seule la 4K est créée), sans tout régénérer.
+- **Préparation plus rapide** : les extraits des moments sont faits plusieurs à la fois, et leurs
+  vignettes sont prises dans les images de la frise.
+- **Pages plus réactives** : l'état de la connexion à Claude n'est plus attendu à chaque
+  chargement de page.
+- **Installation** : chaque gros téléchargement (modèle Parakeet…) montre où il en est, et un
+  téléchargement coupé reprend où il s'était arrêté.
+- **Plus clair** : un seul format de temps (1:36.40) et de durée (1 min 36) ; la durée prévue de la
+  préparation s'affiche avant de la lancer ; « Télécharger » est grisé tant qu'il n'y a pas de
+  vidéo ; les confirmations s'ouvrent dans la page au lieu des fenêtres du navigateur ; textes
+  périmés corrigés.
+
 ## 1.7
 
 - **Lire les vidéos dans le navigateur** : « Lire », à côté de chaque vidéo du menu

@@ -3,7 +3,8 @@
 //! l'auto-montage prépare ensuite comme un seul moment.
 //!
 //! Usage : auto-montage derush_video [<nom de la vidéo>]
-//! Sortie : public/rushes/<nom> (par défaut « <rush> (dérush).mp4 ») depuis le rush d'origine
+//! Sortie : public/rushes/<nom> (par défaut un nouvel identifiant, nom montré « <rush> (dérush) »,
+//! rush_names) depuis le rush d'origine
 //! (work/rush.txt, qualité d'origine, H.264 CRF 16, toutes les pistes son mélangées), et
 //! work/derush_segments.json : un seul segment de toute la vidéo avec les mots gardés (textes
 //! corrigés sur la page, temps de la vidéo), repris par `prepare --transcription` sans Whisper.
@@ -17,6 +18,8 @@
 //!                   (instant le plus proche du rush, toutes les 0,5 s), vignettes dans visages/ ;
 //!   locuteurs.json  personne de chaque locuteur ; le locuteur de chaque mot (« spk ») va dans
 //!                   work/derush_segments.json (mot du rush le plus recouvrant) ;
+//!   zooms.json      zooms placés à l'étape « Zooms » du dérush (zoomFx d'edit.json), en effets
+//!                   visuels du seul moment de la vidéo du dérush (prepare les met dans son document) ;
 //!   cle.txt         nom de la vidéo du dérush (suite d'un autre dérush : ignorée).
 
 use crate::moments_lib::{audio_map_of, audio_streams, display_size, work_size};
@@ -33,13 +36,23 @@ pub fn suite_dir() -> PathBuf {
 /// Pas des positions du visage (detect_face).
 const FACE_STEP: f64 = 0.5;
 
-/// Nom de la vidéo du dérush d'un rush (« essai.mov » → « essai (dérush).mp4 », sans doubler
-/// le suffixe pour le dérush d'un dérush).
+/// Fichier de la vidéo du dérush d'un rush : nouvel identifiant à chaque validation (rush_names),
+/// pour qu'une deuxième validation ne remplace pas la vidéo dont se sert le montage enregistré.
 pub fn output_name(rush: &str) -> String {
-    let stem = std::path::Path::new(rush.trim()).file_stem().map(|s| s.to_string_lossy().into_owned()).unwrap_or_default();
-    let stem = stem.trim_end_matches(" (dérush)");
-    let stem: String = stem.chars().take(150).collect();
-    format!("{stem} (dérush).mp4")
+    let nanos = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_nanos()).unwrap_or(0);
+    crate::rush_names::id_of(&format!("{}\n{nanos}\n{}", rush.trim(), std::process::id()), "mp4")
+}
+
+/// Nom montré de la vidéo du dérush (« essai » → « essai (dérush) », sans doubler le suffixe pour
+/// le dérush d'un dérush ; le registre ajoute « (2) »… si ce nom est déjà pris).
+pub fn output_label(rush: &str) -> String {
+    let label = crate::rush_names::display(rush.trim());
+    let base = match label.rfind(" (dérush)") {
+        Some(i) => &label[..i],
+        None => label.as_str(),
+    };
+    let base: String = base.chars().take(140).collect();
+    format!("{base} (dérush)")
 }
 
 /// Plages gardées du rush (secondes) d'après les plans d'edit.json.
@@ -55,26 +68,26 @@ fn ranges(edit: &Value) -> Vec<(f64, f64)> {
         .collect()
 }
 
-/// Graphe ffmpeg : chaque plage coupée dans l'image (30 images/s, comme le montage) et dans le
+/// Graphe ffmpeg : chaque plage coupée dans l'image (`fps` : cadence du montage) et dans le
 /// son mélangé, puis mises bout à bout. `mix` : filtre du son mélangé, sortie [son]. `work` :
 /// aussi la version de travail à cette taille ([wv], [wa]) ; sinon [vout] a l'image carrée de la
 /// version de travail (setsar=1 : la vidéo du dérush en tient lieu).
-fn filter(ranges: &[(f64, f64)], mix: &str, work: Option<(i64, i64)>) -> String {
+fn filter(ranges: &[(f64, f64)], mix: &str, work: Option<(i64, i64)>, fps: f64) -> String {
     let n = ranges.len();
     let mut g = format!("{mix};[son]asplit={n}");
     for i in 0..n {
         g.push_str(&format!("[a{i}]"));
     }
-    g.push_str(&format!(";[0:v]fps=30,format=yuv420p,split={n}"));
+    g.push_str(&format!(";[0:v]fps={},format=yuv420p,split={n}", util::fmt_g(fps, 12)));
     for i in 0..n {
         g.push_str(&format!("[v{i}]"));
     }
     for (i, (a, b)) in ranges.iter().enumerate() {
-        let (fa, fb) = ((a * 30.0).round() as i64, (b * 30.0).round() as i64);
+        let (fa, fb) = ((a * fps).round() as i64, (b * fps).round() as i64);
         g.push_str(&format!(
             ";[v{i}]trim=start_frame={fa}:end_frame={fb},setpts=PTS-STARTPTS[cv{i}];[a{i}]atrim=start={}:end={},asetpts=PTS-STARTPTS[ca{i}]",
-            util::fmt_g(fa as f64 / 30.0, 12),
-            util::fmt_g(fb as f64 / 30.0, 12)
+            util::fmt_g(fa as f64 / fps, 12),
+            util::fmt_g(fb as f64 / fps, 12)
         ));
     }
     g.push(';');
@@ -195,7 +208,34 @@ fn carry_over(edit: &Value, total: f64, name: &str, segments: &mut Value) {
     if work.join("locuteurs.json").is_file() && add_speakers(&mut segments[0], &rush_segments, &clips) {
         let _ = fs::copy(work.join("locuteurs.json"), dir.join("locuteurs.json"));
     }
+    let zooms = zoom_effects(edit);
+    let _ = fs::remove_file(dir.join("zooms.json"));
+    if !zooms.is_empty() {
+        let _ = util::write_json(dir.join("zooms.json"), &Value::Array(zooms), None);
+    }
     let _ = fs::write(dir.join("cle.txt"), format!("{name}\n"));
+}
+
+/// Zooms du dérush (zoomFx d'edit.json, temps du montage = temps de la vidéo du dérush), en effets
+/// visuels de la page des moments (« at », « dur » depuis le début de l'extrait du seul moment, qui
+/// commence à 0) : ils reviennent sur ce moment en auto-montage.
+fn zoom_effects(edit: &Value) -> Vec<Value> {
+    let r3 = |x: f64| (x * 1000.0).round() / 1000.0;
+    util::arr(edit, "zoomFx")
+        .iter()
+        .filter_map(|z| {
+            let f = |k: &str| z.get(k).and_then(Value::as_f64);
+            let (start, end) = (f("start")?, f("end")?);
+            let anim = f("anim").unwrap_or(end - start);
+            let force = (f("force").unwrap_or(0.25) * 100.0).round();
+            Some(match z.get("type").and_then(Value::as_str)? {
+                "in" => json!({"kind": "zoomin", "at": r3(start), "dur": r3(anim), "stop": true, "force": force}),
+                "punch" => json!({"kind": "zoomsec", "at": r3(start), "dur": r3(end - start), "force": force}),
+                "out" => json!({"kind": "dezoom", "at": r3(start), "dur": r3(anim), "force": force}),
+                _ => return None,
+            })
+        })
+        .collect()
 }
 
 /// Copie (lien physique si possible) d'un fichier.
@@ -239,7 +279,8 @@ pub fn main(args: &[String]) -> i32 {
         eprintln!("Le rush n'a pas de son lisible.");
         return 1;
     };
-    let total: f64 = ranges.iter().map(|(a, b)| ((b * 30.0).round() - (a * 30.0).round()) / 30.0).sum();
+    let fps = edit.get("fps").and_then(Value::as_f64).filter(|f| *f > 0.0).unwrap_or(30.0); // cadence du montage
+    let total: f64 = ranges.iter().map(|(a, b)| ((b * fps).round() - (a * fps).round()) / fps).sum();
     // Version de travail de la vidéo du dérush, faite dans le même passage (work/derush_suite/) :
     // à part si le rush n'est pas déjà à la taille de travail, sinon la vidéo du dérush elle-même.
     let suite = suite_dir();
@@ -247,7 +288,7 @@ pub fn main(args: &[String]) -> i32 {
     util::mkdirs(&suite);
     let size = display_size(&rush_path);
     let work_out = size.map(|(w, h)| work_size(w, h, 1080)).filter(|ws| Some(*ws) != size);
-    let graph = filter(&ranges, &map[1], work_out);
+    let graph = filter(&ranges, &map[1], work_out, fps);
     util::mkdirs(paths::rushes());
     let dest = paths::rushes().join(&name);
     let part = paths::rushes().join(format!("{name}.part.mp4"));
@@ -267,14 +308,17 @@ pub fn main(args: &[String]) -> i32 {
     // Images clés toutes les 15 comme la version de travail (version_travail) : la vidéo du
     // dérush en tient lieu quand le rush est déjà à cette taille.
     let gop: &[&str] = if work_out.is_none() { &["-g", "15"] } else { &[] };
-    cmd.extend(["-map", "[vout]", "-map", "[aout]", "-c:v", "libx264", "-crf", "16", "-preset", "veryfast"].iter().map(|s| s.to_string()));
+    // Cadence donnée à chaque sortie : après concat, ffmpeg ne la connaît plus et prendrait 25 i/s
+    // (images sautées ou doublées).
+    let rate = util::fmt_g(fps, 12);
+    cmd.extend(["-map", "[vout]", "-map", "[aout]", "-r", rate.as_str(), "-c:v", "libx264", "-crf", "16", "-preset", "veryfast"].iter().map(|s| s.to_string()));
     cmd.extend(gop.iter().map(|s| s.to_string()));
     cmd.extend(["-c:a", "aac", "-b:a", "192k", "-movflags", "+faststart"].iter().map(|s| s.to_string()));
     cmd.push(paths::display(&part));
     let work_part = suite.join("rush_1080.part.mp4");
     if work_out.is_some() {
         cmd.extend(
-            ["-map", "[wv]", "-map", "[wa]", "-c:v", "libx264", "-crf", "18", "-preset", "veryfast", "-g", "15", "-c:a", "aac", "-b:a", "192k"]
+            ["-map", "[wv]", "-map", "[wa]", "-r", rate.as_str(), "-c:v", "libx264", "-crf", "18", "-preset", "veryfast", "-g", "15", "-c:a", "aac", "-b:a", "192k"]
                 .iter()
                 .map(|s| s.to_string()),
         );
@@ -292,6 +336,7 @@ pub fn main(args: &[String]) -> i32 {
         eprintln!("public/rushes/{name} : {e}");
         return 1;
     }
+    let label = crate::rush_names::register(&name, &output_label(&rush)).unwrap_or_else(|_| output_label(&rush));
     let work_video = suite.join("rush_1080.mp4");
     let ready = if work_out.is_some() { fs::rename(&work_part, &work_video) } else { link_or_copy(&dest, &work_video) };
     if let Err(e) = ready {
@@ -303,7 +348,7 @@ pub fn main(args: &[String]) -> i32 {
         eprintln!("work/derush_segments.json : {e}");
         return 1;
     }
-    println!("public/rushes/{name} ({} mots transcrits)", util::arr(&edit, "derushWords").len());
+    println!("Vidéo du dérush : {label} (public/rushes/{name}, {} mots transcrits)", util::arr(&edit, "derushWords").len());
     0
 }
 
@@ -312,9 +357,28 @@ mod tests {
     use super::*;
 
     #[test]
+    fn zooms_carried() {
+        let edit = json!({"zoomFx": [
+            {"type": "in", "start": 1.0, "anim": 2.0, "end": 3.0, "force": 0.3},
+            {"type": "punch", "start": 4.0, "anim": 0.5, "end": 4.5, "force": 0.25},
+            {"type": "out", "start": 5.0, "anim": 1.0, "end": 6.0, "force": 0.5},
+            {"type": "key", "start": 0.0, "end": 9.0}]});
+        assert_eq!(
+            zoom_effects(&edit),
+            vec![
+                json!({"kind": "zoomin", "at": 1.0, "dur": 2.0, "stop": true, "force": 30.0}),
+                json!({"kind": "zoomsec", "at": 4.0, "dur": 0.5, "force": 25.0}),
+                json!({"kind": "dezoom", "at": 5.0, "dur": 1.0, "force": 50.0}),
+            ]
+        );
+        assert!(zoom_effects(&json!({})).is_empty());
+    }
+
+    #[test]
     fn names() {
-        assert_eq!(output_name("public/rushes/essai.mov"), "essai (dérush).mp4");
-        assert_eq!(output_name("public/rushes/essai (dérush).mp4"), "essai (dérush).mp4");
+        assert!(output_name("public/rushes/essai.mov").ends_with(".mp4"));
+        assert_eq!(output_label("public/rushes/essai.mov"), "essai (dérush)");
+        assert_eq!(output_label("public/rushes/essai (dérush).mp4"), "essai (dérush)");
     }
 
     #[test]
@@ -323,11 +387,11 @@ mod tests {
                           "derushWords": [{"w": "Bonjour", "a": 0.1, "b": 0.5}, {"w": "tous", "a": 2.1, "b": 2.4}]});
         let r = ranges(&edit);
         assert_eq!(r, vec![(1.0, 3.0), (5.0, 5.5)]);
-        let g = filter(&r, "[0:a:0]anull[son]", None);
+        let g = filter(&r, "[0:a:0]anull[son]", None, 30.0);
         assert!(g.contains("trim=start_frame=30:end_frame=90"));
         assert!(g.contains("atrim=start=5:end=5.5"));
         assert!(g.ends_with("[cv0][ca0][cv1][ca1]concat=n=2:v=1:a=1[cv][aout];[cv]setsar=1[vout]"));
-        let g = filter(&r, "[0:a:0]anull[son]", Some((1920, 1080)));
+        let g = filter(&r, "[0:a:0]anull[son]", Some((1920, 1080)), 30.0);
         assert!(g.ends_with("[cv]split=2[vout][cw];[cw]scale=1920:1080,setsar=1[wv];[ca]asplit=2[aout][wa]"));
         let t = transcription(&edit, 2.5);
         assert_eq!(t[0]["text"], "Bonjour tous");

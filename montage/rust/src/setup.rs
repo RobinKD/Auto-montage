@@ -57,13 +57,32 @@ fn sub(name: &str) -> i32 {
 /// provisoire `.part` renommé à la fin, avec `retries` nouvelles tentatives (comme curl --retry).
 fn download_file(url: &str, out: &Path, retries: u32) -> Result<u64, String> {
     let part = out.with_file_name(format!("{}.part", out.file_name().unwrap().to_string_lossy()));
+    // Adresse du morceau déjà reçu : un téléchargement coupé reprend où il s'était arrêté (requête
+    // Range), seulement pour la même adresse.
+    let part_url = out.with_file_name(format!("{}.part.url", out.file_name().unwrap().to_string_lossy()));
+    if fs::read_to_string(&part_url).map(|u| u != url).unwrap_or(true) {
+        let _ = fs::remove_file(&part);
+        let _ = fs::write(&part_url, url);
+    }
+    let name = out.file_name().unwrap().to_string_lossy().trim_end_matches(".dl").to_string();
     let mut last = String::new();
     for attempt in 0..=retries {
         if attempt > 0 {
             std::thread::sleep(Duration::from_secs(1 << attempt.min(4)));
         }
-        let resp = match net::agent(Duration::from_secs(3600)).get(url).call() {
+        let have = fs::metadata(&part).map(|m| m.len()).unwrap_or(0);
+        let mut req = net::agent(Duration::from_secs(3600)).get(url);
+        if have > 0 {
+            req = req.set("Range", &format!("bytes={have}-"));
+        }
+        let resp = match req.call() {
             Ok(r) => r,
+            Err(ureq::Error::Status(416, _)) if have > 0 => {
+                // morceau plus long que le fichier (fichier changé) : recommencé
+                let _ = fs::remove_file(&part);
+                last = format!("HTTP 416 pour {url}");
+                continue;
+            }
             Err(ureq::Error::Status(code, _)) => {
                 last = format!("HTTP {code} pour {url}");
                 if code < 500 && code != 429 {
@@ -76,11 +95,18 @@ fn download_file(url: &str, out: &Path, retries: u32) -> Result<u64, String> {
                 continue;
             }
         };
+        let resumed = have > 0 && resp.status() == 206;
+        let start = if resumed { have } else { 0 };
+        let size = resp.header("Content-Length").and_then(|l| l.parse::<u64>().ok()).map(|l| l + start);
+        if resumed {
+            say(&format!("Téléchargement de {name} : reprise à {}", human(start)));
+        }
         let result = (|| -> std::io::Result<u64> {
-            let mut f = fs::File::create(&part)?;
+            let mut f = if resumed { fs::OpenOptions::new().append(true).open(&part)? } else { fs::File::create(&part)? };
             let mut reader = resp.into_reader();
             let mut buf = vec![0u8; 1 << 16];
-            let mut total = 0u64;
+            let mut total = start;
+            let mut shown = std::time::Instant::now();
             loop {
                 let n = reader.read(&mut buf)?;
                 if n == 0 {
@@ -88,6 +114,14 @@ fn download_file(url: &str, out: &Path, retries: u32) -> Result<u64, String> {
                 }
                 f.write_all(&buf[..n])?;
                 total += n as u64;
+                // Une ligne toutes les 3 s pour les gros fichiers (modèles) : « 1,2 Go sur 2,4 Go ».
+                if shown.elapsed() >= Duration::from_secs(3) {
+                    shown = std::time::Instant::now();
+                    say(&match size {
+                        Some(sz) if sz > 0 => format!("Téléchargement de {name} : {} sur {} ({} %)", human(total), human(sz), total * 100 / sz),
+                        _ => format!("Téléchargement de {name} : {}", human(total)),
+                    });
+                }
             }
             f.flush()?;
             Ok(total)
@@ -95,16 +129,28 @@ fn download_file(url: &str, out: &Path, retries: u32) -> Result<u64, String> {
         match result {
             Ok(total) => {
                 fs::rename(&part, out).map_err(|e| e.to_string())?;
+                let _ = fs::remove_file(&part_url);
                 return Ok(total);
             }
-            Err(e) => {
-                last = e.to_string();
-                let _ = fs::remove_file(&part);
-            }
+            // morceau reçu gardé : la tentative suivante (ou la prochaine installation) reprend
+            Err(e) => last = e.to_string(),
         }
     }
-    let _ = fs::remove_file(&part);
     Err(last)
+}
+
+/// Taille lisible : « 850 Mo », « 1,2 Go ».
+fn human(n: u64) -> String {
+    let mb = n as f64 / 1_048_576.0;
+    if mb >= 1024.0 {
+        format!("{:.1} Go", mb / 1024.0).replace('.', ",")
+    } else {
+        format!("{} Mo", mb.round() as u64)
+    }
+}
+
+fn say(line: &str) {
+    crate::progress::say(line);
 }
 
 /// `auto-montage setup` : installe les dépendances du projet. Idempotent : chaque étape saute ce
@@ -313,6 +359,9 @@ fn fetch_parakeet() -> Result<(), String> {
     use crate::parakeet::{ort_archive, ort_lib, ort_lib_name, FILES, ORT_VERSION};
     let dir = paths::parakeet_dir();
     util::mkdirs(&dir);
+    if FILES.iter().any(|n| !dir.join(n).is_file()) {
+        say("Téléchargement du modèle de transcription Parakeet (environ 2,5 Go, une seule fois)…");
+    }
     for name in FILES {
         let out = dir.join(name);
         if out.is_file() {

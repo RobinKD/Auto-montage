@@ -239,6 +239,17 @@ pub fn main(args: &[String]) -> i32 {
         eprintln!("Impossible d'écrire dans work/");
         return 1;
     }
+    // Cadence du montage : celle du rush ; un rush à 50 ou 60 i/s passe à 25 ou 30 i/s (rendu deux fois
+    // plus rapide) sauf si la page a demandé de la garder (work/cadence_choix.txt : « origine »).
+    let native = crate::moments_lib::native_fps(&rush_path).unwrap_or(30);
+    let reduce = util::read_text(work.join(crate::moments_lib::CADENCE_CHOICE)).as_deref() != Some("origine");
+    let cadence = crate::moments_lib::cadence_for(native, reduce);
+    let _ = fs::write(work.join(crate::moments_lib::CADENCE_FILE), format!("{cadence}\n"));
+    progress::say(&if cadence == native {
+        format!("Cadence du montage : {cadence} images/s, comme le rush")
+    } else {
+        format!("Cadence du montage : {cadence} images/s (rush à {native} images/s, une image sur deux)")
+    });
     // Préparation reprise : ce qui est déjà fait est gardé ; sinon, restes d'une préparation
     // interrompue effacés (tout est refait).
     let reprise = std::env::var("AM_REPRISE").as_deref() == Ok("1");
@@ -246,7 +257,13 @@ pub fn main(args: &[String]) -> i32 {
         util::remove_all(work.join("reprise"));
         // Vidéo entière rendue pour une préparation précédente de ce rush : elle ne correspond
         // plus à la nouvelle transcription (une préparation sans consignes ne rend rien).
-        let _ = fs::remove_file(paths::out().join("montage_apercu.mp4"));
+        // Avec elle, ce qui en vient : 4K, sous-titres en fichiers, copies pour les plateformes.
+        for f in ["montage_apercu.mp4", "montage_4k.mp4", "montage.srt", "montage.vtt"] {
+            let _ = fs::remove_file(paths::out().join(f));
+        }
+        util::remove_all(paths::out().join("export"));
+        let _ = fs::remove_file(work.join("exports.json"));
+        let _ = fs::remove_file(work.join(crate::moments_lib::VIDEO_PRINTS));
         let _ = fs::remove_file(work.join("moments").join("montage.mp4"));
     }
     // Vidéo d'un dérush validé : ce que la préparation du rush d'origine a trouvé, recalé par
@@ -274,6 +291,21 @@ pub fn main(args: &[String]) -> i32 {
         ok
     };
     let speakers_carried = faces_carried && suite.join("locuteurs.json").is_file() && fs::copy(suite.join("locuteurs.json"), work.join("locuteurs.json")).is_ok();
+    // Zooms placés à l'étape « Zooms » du dérush : effets visuels du seul moment de la vidéo du
+    // dérush (segment 0), dans son document de la page des moments (work/local_db/moments/0.json).
+    if carried {
+        if let Some(serde_json::Value::Array(zooms)) = util::read_json(suite.join("zooms.json")) {
+            let doc = work.join("local_db").join("moments").join("0.json");
+            let other = util::read_json(&doc).is_some_and(|d| d.get("rush").and_then(serde_json::Value::as_str) != Some(base.as_str()));
+            if !other {
+                util::mkdirs(doc.parent().unwrap());
+                let n = zooms.len();
+                if util::write_json(&doc, &serde_json::json!({"rush": base, "vfx": zooms}), Some(1)).is_ok() {
+                    progress::say(&format!("Zooms du dérush repris : {n}"));
+                }
+            }
+        }
+    }
     // Mémoire nécessaire à chaque étape d'après la vidéo, comparée à la mémoire libre (avertissement).
     let _ = step(&["memoire", &rush]);
     // Langue du rush (transcription, consignes appliquées par Claude) : celle choisie pour cette préparation.
@@ -302,6 +334,10 @@ pub fn main(args: &[String]) -> i32 {
     let work_video = paths::rushes().join("rush_1080.mp4");
     // Version de travail d'une autre taille que celle attendue pour ce rush : refaite.
     if work_video.is_file() && frame_size(root) != size {
+        let _ = fs::remove_file(&work_video);
+    }
+    // … ou d'une autre cadence que celle du montage (rush à 60 i/s gardé ou réduit à 30 i/s).
+    if work_video.is_file() && crate::moments_lib::native_fps(&work_video) != Some(cadence) {
         let _ = fs::remove_file(&work_video);
     }
     //    Encodée par morceaux d'une minute (version_travail) : une reprise repart du premier

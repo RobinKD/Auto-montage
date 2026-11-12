@@ -95,6 +95,20 @@ interne : les changements attendent la prochaine version.
 - L'effet visuel « visage gêné » est fait à la main par l'utilisateur ; seule la voix
   tremble automatiquement.
 - Domaines réseau nécessaires : `montage/env/allowed-domains.txt`.
+- Vidéos envoyées (`rust/src/rush_names.rs`) : écrites dans `public/rushes/` sous l'empreinte SHA-256 de leur
+  contenu (16 caractères + extension, calculée pendant l'envoi : même vidéo gardée une fois, jamais de
+  remplacement) ; nom montré partout (pages, montages, place, fichiers téléchargés et exports) d'après le
+  registre `public/rushes/noms.json` (fichier → nom, unique : « nom (2) »), sinon le nom du fichier
+  (`display`) ; « Renommer » (/rush/, `POST /api/rushes/renommer`). Rush assemblé : fichier tiré des noms
+  des vidéos (`join_rushes::joined_name`, `POST /api/rushes/assemblage`), nom « <vidéo 1> (assemblage de
+  N) » ; vidéo d'un dérush validé : nouvel identifiant à chaque validation, nom « <rush> (dérush) ».
+  Les fichiers restent la clé interne (rush.txt, projets, `DATA.rush`) ; noms montrés : `label`,
+  `currentLabel`, `argLabel` de l'API, `DATA.rushLabel`.
+- « Tout refaire depuis le début » (même rush que le montage en cours, `redo` de `POST /api/prepare`) :
+  `project::reset_current` efface avant la préparation `REDO_RESET` (découpe, choix de Claude, sélection,
+  historique, analyses) et les documents de la page, et `REDO_GLOBAL` (réglages de tout le montage) si la
+  case « Garder les réglages » est décochée (choix gardé dans localStorage `am-refaire-reglages`) ;
+  historique de la page propre à chaque préparation (`DATA.prepId`).
 - Quand le rush change, `prepare` met le montage de l'ancien rush de côté dans
   `work/projets/<rush>/` (`./am project save` : work/ hors fichiers communs, versions de
   travail, rendus, choix de la page) ; `./am project open <dossier>` le rouvre sans rien recalculer
@@ -149,7 +163,7 @@ interne : les changements attendent la prochaine version.
   appliquées par Claude quand le montage en cours est en auto-montage ; en dérushage, des consignes
   écrites font choisir les moments par Claude, `jobs::prepare_plan`, étape « choix des moments
   (Claude) », `claude_tasks::derush_instructions` : seulement work/suggestions.json) ; « Valider le dérush » (page des moments, dérushage seulement) propose
-  « Télécharger derush » (« Générer », puis menu « Télécharger » ; « Générer la vidéo entière »,
+  « Télécharger le dérush » (« Générer », puis menu « Télécharger » ; « Générer la vidéo entière »,
   `#regen`, est caché en dérushage), ou passe à l'auto-montage
   (`POST /api/derush/valider`, tâche `derush` : use_selection, build_edit, `rust/src/derush_video.rs`
   (moments gardés d'edit.json mis bout à bout depuis le rush d'origine → `public/rushes/<rush>
@@ -170,9 +184,20 @@ interne : les changements attendent la prochaine version.
   case « Sous-titres » (cochée par défaut, `work/derush.json`, `moments_lib.derush_subtitles`, PUT
   `/api/derush`, `<html data-subtitles>` ; « Style des sous-titres », marqué `data-subtitles-only`,
   seulement cochée). La préparation se fait sans Claude, sauf consignes écrites pour choisir les moments (discussion et analyse du style refusées), et `build_edit`
-  (`DERUSH`) ignore effets, voix, cadrage, son.json, zooms, rebond et karaoké, et les sous-titres
+  (`DERUSH`) ignore effets (sauf les zooms du dérush), voix, cadrage, son.json, zooms automatiques, rebond et karaoké, et les sous-titres
   si la case est décochée (choix gardés pour le mode Auto-montage). Une nouvelle partie liée aux effets ou à Claude
   doit recevoir `data-mode-montage`.
+- Zooms du dérush (« Valider le dérush » > « Ajouter des zooms », page des moments, `enterZoomStep`,
+  classe `zoom-step` du `body`) : frise de la vidéo du dérush (`#tlz`, `renderZoomTl` : parties de
+  `livePlan` bout à bout) à la place des autres, repères de début et de fin (« Début ici » / « Fin ici »,
+  touches I et O : `debutIci` / `finIci` de `SHORTCUTS`, les mêmes que pour la partie gardée, glissés), type (`ZOOM_TYPES` : zoomin, zoomsec, dezoom) et force
+  (curseur de `ZOOM_FORCE_MIN` à `ZOOM_FORCE_MAX` %) dans l'inspecteur (`renderZoomPanel`). Chaque zoom est un effet `vfx` du moment où il
+  commence (temps de l'extrait, `zoomin` avec `stop` : arrêté à la fin de `dur`), arrêté à la fin de ce moment ; `build_edit`
+  ne garde en dérushage que ces effets (`DERUSH_ZOOMS`) → `zoomFx` (rendu HyperFrames, plus `plain`),
+  centrés sur le visage comme en auto-montage (`faceAt`, `faceInClip` ; aperçu de la page : `zoomsOf`,
+  branche `DERUSH` de `drawOverlay`) ; `settingsOf` compte les zooms en dérushage (vidéo en retard).
+  En passant à l'auto-montage, `derush_video` les écrit dans `work/derush_suite/zooms.json` et `prepare`
+  les met dans `work/local_db/moments/0.json` (seul moment de la vidéo du dérush).
 - Bandeau et menu des pages de l'interface locale : `local/menu.js`, ajouté par
   `local_server` à toutes ses pages (liste `PAGES`) ; pas de liens de navigation dans les pages.
   Pendant une tâche (`job` de `/api/status`, `jobs::job_brief`), le choix du mode est grisé (PUT `/api/mode`
@@ -210,7 +235,8 @@ interne : les changements attendent la prochaine version.
   `voice`, `denoise` 0-3, `declick`, `highpass`, `clarity`, `mute` = fenêtres en temps du rush
   atténuées de 15 dB) et `gain` par moment, appliqués par `build_edit` (filtres ffmpeg sur la
   piste voix), sauf `highpass` et `clarity`, faits au rendu par HyperFrames (`selection/hf_audio.js`,
-  avec le limiteur à -1,5 dB) ; `rust/src/analyze_sound.rs` (bruit de fond, clics et chocs) → `work/son_analyse.json`.
+  avec le limiteur à -1,5 dB) ; `rust/src/analyze_sound.rs` (bruit de fond, clics et chocs) → `work/son_analyse.json`
+  (tâche `son` de l'interface locale, `POST /api/son/analyse`, barre et « Annuler »).
 - Volume normalisé (repris de FilmCraft, `rust/src/loudness.rs` : compteur EBU R128 / BS.1770-4, plage,
   crête vraie ×4, limiteur à anticipation) : `loudness` de `work/son.json` (−14 LUFS par défaut, `false` :
   désactivé, rien en dérushage). `build_edit` amène la voix à la cible −3 dB, puis `render` mesure la vidéo
@@ -274,7 +300,9 @@ interne : les changements attendent la prochaine version.
 - Page des moments façon CapCut (`selection/page.html`, sombre) : barre du haut (`.bar`), lecteur
   et inspecteur (`renderInspector` : moment ouvert, sélection, onglet des panneaux globaux,
   « Paramètres sous-titres » en dérushage, « Paramètres effets et son » ensuite), barre d'outils
-  (`renderToolbar` : Couper, Recoller, Garder, Retirer, Corriger), frise du rush sur une ligne (`renderMain` :
+  (`renderToolbar` : Couper, Recoller, Garder, Retirer, Corriger), frise du rush sur une ligne (`renderMain` ; seuls les moments de la partie visible, plus une largeur
+  d'écran de chaque côté, sont dessinés : `fillClips`, refait au défilement par `ensureClips`, `frise.win` ;
+  zoom dessiné au plus une fois par image, `setRushPps` → `setRushPpsNow` ;
   `clipBlock` avec les images du rush de `filmstrip`, poignées `addHandles` → `trimEdge` (`trim` du
   document du moment : début et fin gardés, plans sans parole comme moments de parole), forme
   d'onde `drawWave`, zoom `frise.pps` gardé dans localStorage, `scrubRush`) et frise du moment
@@ -401,6 +429,13 @@ interne : les changements attendent la prochaine version.
   `--resolution` pour 9:16, 16:9 et carré, sinon agrandie ×2 dans la page, `HD_PRESETS`),
   `make_hd`, la page des moments (`--ar`, `--u` = 10,8 px de la composition, classe `paysage`
   pour le lecteur large) et les téléchargements (`res_label`).
+- Images par seconde : celles du rush (`moments_lib.native_fps`), écrites par `prepare` dans
+  `work/cadence.txt` (propre au montage, `montage_fps`, 30 sans ce fichier) ; rush de 48 i/s ou plus :
+  moitié (`cadence_for`) si `work/cadence_choix.txt` (commun) n'est pas « origine » (case de /rush/,
+  `fps` de /api/memoire, `cadence` de POST /api/prepare, localStorage `am-cadence`). Reprise par
+  `version_travail` (refaite si sa cadence diffère), `build_edit` (`fps` d'edit.json, rendu et
+  `plain_render`), `derush_video` et `make_hd` (`-r`), la page des moments (`DATA.fps`, pas image par
+  image).
 - Mémoire : `rust/src/memoire.rs` (besoin de chaque opération d'après la taille de l'image et la durée,
   `OPERATIONS` / `STEPS` ; mémoire libre bornée par la limite du cgroup s'il y en a une) ; avertissement « juste » ou
   « insuffisant » dans prepare, sur /rush/ avant de préparer (`/api/memoire`), au début de chaque
@@ -477,7 +512,8 @@ interne : les changements attendent la prochaine version.
   suffit), les choix sont dans `work/local_db/` (même forme que l'export ArtifactData :
   `./am use_selection work/local_db <variante>`) et son bouton « Générer »
   monte la version de travail lui-même (`rust/src/local_server.rs`). « Télécharger » y propose
-  720p, 1080p et la création de la 4K (`/api/final` : `make_hd` puis `render final`). « Lire » à côté de
+  720p (faite à la demande : tâche `light`, `POST /api/legere`, `./am legere`, depuis la 1080p ; plus faite
+  par make_moments en local), 1080p et la création de la 4K (`/api/final` : `make_hd` puis `render final`). « Lire » à côté de
   chaque vidéo (menu « Télécharger », page « Téléchargements ») : le fichier rendu lui-même dans un
   `<dialog>` (`playButton`, `playFile`), lu par morceaux (requêtes Range de `send_file`), lâché à la fermeture. Vidéo entière en retard
   (moments changés de `changedSinceWork`, réglages de `info::SETTINGS_FILES` plus récents qu'elle :

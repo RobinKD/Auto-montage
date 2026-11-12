@@ -132,7 +132,7 @@ fn run() -> Result<(), String> {
     let files = out.join("files");
 
     let rush_txt = util::read_text(work.join("rush.txt")).ok_or("work/rush.txt illisible")?;
-    let rush = Path::new(&rush_txt).file_stem().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+    let rush = crate::rush_names::file_safe(&crate::rush_names::display(rush_txt.trim()));
     // Format du rush (9:16, 16:9, 4:3…).
     let size = edit_size(read_json(paths::data().join("edit.json")).as_ref());
     // « 720x1280 » en 9:16 : petit côté de w, au format du rush
@@ -151,9 +151,9 @@ fn run() -> Result<(), String> {
             label: "1080p",
             res: res(1080),
             path: paths::out().join("montage_apercu.mp4"),
-            note: "Rendu de l'aperçu, à la résolution de la composition.",
+            note: "Vidéo entière en 1080p.",
         },
-        Source { id: "4k", label: "4K", res: res(2160), path: paths::out().join("montage_4k.mp4"), note: "Rendu final (auto-montage render final)." },
+        Source { id: "4k", label: "4K", res: res(2160), path: paths::out().join("montage_4k.mp4"), note: "Vidéo entière en 4K, pour la publication." },
     ];
 
     util::mkdirs(&files);

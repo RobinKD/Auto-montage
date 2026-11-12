@@ -284,10 +284,13 @@ pub fn default_source() -> Option<PathBuf> {
     }
 }
 
-/// Nom du rush (sans dossier ni extension), pour nommer les fichiers.
+/// Nom montré du rush (registre rush_names), pour nommer les fichiers.
 pub fn rush_name(source: &Path) -> String {
     let stem = |p: &Path| p.file_stem().map(|s| s.to_string_lossy().into_owned()).unwrap_or_default();
-    util::read_text(paths::work().join("rush.txt")).filter(|r| !r.is_empty()).map(|r| stem(Path::new(&r))).unwrap_or_else(|| stem(source))
+    util::read_text(paths::work().join("rush.txt"))
+        .filter(|r| !r.trim().is_empty())
+        .map(|r| crate::rush_names::file_safe(&crate::rush_names::display(r.trim())))
+        .unwrap_or_else(|| stem(source))
 }
 
 pub fn out_dir() -> PathBuf {

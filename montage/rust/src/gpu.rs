@@ -478,7 +478,7 @@ mod tests {
         assert!(sys.is_gpu());
         assert_eq!(sys.label(), "carte graphique (h264_nvenc, ffmpeg de la machine : /usr/bin/ffmpeg)");
         let va = Encoder { program: Some(PathBuf::from("/usr/bin/ffmpeg")), ..Encoder::named("h264_vaapi") };
-        let cmd = crate::make_hd::command(&va, Path::new("r.mov"), "1", (3840, 2160), Path::new("o.mp4"));
+        let cmd = crate::make_hd::command(&va, Path::new("r.mov"), "1", (3840, 2160), 30, Path::new("o.mp4"));
         assert_eq!(cmd[0], "/usr/bin/ffmpeg");
     }
 

@@ -4,7 +4,8 @@
 //!
 //! Usage : auto-montage join_rushes <vidéo 1> <vidéo 2> [<vidéo 3>…]   assemble
 //!         auto-montage join_rushes --name <vidéo 1> <vidéo 2> […]     nom du rush assemblé
-//! Les vidéos sont dans public/rushes/ ; le rush assemblé aussi (« <vidéo 1> (assemblage de N).mov »).
+//! Les vidéos sont dans public/rushes/ ; le rush assemblé aussi (fichier tiré des noms des vidéos,
+//! nom montré « <vidéo 1> (assemblage de N) », rush_names).
 //! Vidéos de mêmes réglages (codec, taille, cadence, son) : mises bout à bout sans réencodage
 //! (quelques secondes, qualité d'origine). Réglages différents : réencodées aux réglages de la
 //! première (taille, cadence ; H.264 haute qualité), plus long. Déjà assemblées à l'identique
@@ -23,13 +24,21 @@ const DOC: &str = "Plusieurs vidéos pour un même rush : assemblées dans l'ord
 
 Usage : auto-montage join_rushes <vidéo 1> <vidéo 2> [<vidéo 3>…]   assemble
         auto-montage join_rushes --name <vidéo 1> <vidéo 2> […]     nom du rush assemblé
-Les vidéos sont dans public/rushes/ ; le rush assemblé aussi (« <vidéo 1> (assemblage de N).mov »).";
+Les vidéos sont dans public/rushes/ ; le rush assemblé aussi (nom montré « <vidéo 1> (assemblage de N) »).";
 
-/// Nom du rush assemblé à partir de plusieurs vidéos (« essai (assemblage de 2).mov »).
+/// Fichier du rush assemblé à partir de plusieurs vidéos : identifiant tiré de leurs noms, qui
+/// sont leurs empreintes (rush_names) : mêmes vidéos dans le même ordre, même fichier.
 pub fn joined_name(names: &[String]) -> String {
-    let first = std::path::Path::new(&names[0]);
-    let stem: String = first.file_stem().map(|s| s.to_string_lossy().into_owned()).unwrap_or_default().chars().take(150).collect();
-    format!("{stem} (assemblage de {}).mov", names.len())
+    let list: Vec<String> = names.iter().map(|n| basename(n)).collect();
+    crate::rush_names::id_of(&list.join("\n"), "mov")
+}
+
+/// Nom montré du rush assemblé : « <vidéo 1> (assemblage de N) », ou celui qu'il a déjà.
+pub fn joined_label(names: &[String], file: &str) -> String {
+    if paths::rushes().join(file).is_file() {
+        return crate::rush_names::display(file);
+    }
+    format!("{} (assemblage de {})", crate::rush_names::display(&basename(&names[0])), names.len())
 }
 
 static PAREN: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"\([^()]*\)").unwrap());
@@ -256,9 +265,11 @@ pub fn join(names: &[String]) -> Result<PathBuf, String> {
         let _ = fs::remove_file(&part);
         return Err("L'assemblage des vidéos a échoué (voir les messages de ffmpeg ci-dessus).".into());
     }
+    let label = joined_label(names, &out_name);
     fs::rename(&part, &out).map_err(|e| e.to_string())?;
     let _ = fs::write(&meta, pyjson::dumps(&signature(&paths)));
-    progress::say(&format!("Rush assemblé : {out_name} ({total:.0} s)"));
+    let label = crate::rush_names::register(&out_name, &label).unwrap_or(label);
+    progress::say(&format!("Rush assemblé : {label} ({total:.0} s)"));
     Ok(out)
 }
 
@@ -287,6 +298,8 @@ mod tests {
     #[test]
     fn flat_fields() {
         assert_eq!(flat("h264 (High) (avc1 / 0x31637661), yuv420p(tv, bt709, progressive), 1920x1080 [SAR 1:1 DAR 16:9], 30 fps"), vec!["h264", "yuv420p", "1920x1080 [SAR 1:1 DAR 16:9]", "30 fps"]);
-        assert_eq!(joined_name(&["a/essai.mov".into(), "b.mp4".into()]), "essai (assemblage de 2).mov");
+        assert_eq!(joined_name(&["a/essai.mov".into(), "b.mp4".into()]), joined_name(&["essai.mov".into(), "b.mp4".into()]));
+        assert_ne!(joined_name(&["essai.mov".into(), "b.mp4".into()]), joined_name(&["b.mp4".into(), "essai.mov".into()]));
+        assert!(joined_name(&["essai.mov".into(), "b.mp4".into()]).ends_with(".mov"));
     }
 }

@@ -100,6 +100,30 @@ pub fn claude_connected(fresh: bool) -> bool {
     value
 }
 
+/// État de la connexion pour l'affichage (/api/status, page « Rushes et montages ») : le dernier
+/// connu, tout de suite ; relu en arrière-plan s'il a plus de 30 s (« claude auth status » peut
+/// prendre plusieurs secondes, et chaque page le demande à son chargement). Jamais lu : présence
+/// des identifiants, en attendant. Les actions qui ont besoin de Claude vérifient avec
+/// claude_connected.
+pub fn claude_known() -> bool {
+    static REFRESHING: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+    let (at, value) = *CLAUDE_STATUS.lock().unwrap_or_else(|e| e.into_inner());
+    if at.is_some_and(|t| t.elapsed() < Duration::from_secs(30)) {
+        return value;
+    }
+    if !REFRESHING.swap(true, std::sync::atomic::Ordering::SeqCst) {
+        std::thread::spawn(|| {
+            claude_connected(true);
+            REFRESHING.store(false, std::sync::atomic::Ordering::SeqCst);
+        });
+    }
+    if at.is_some() {
+        value
+    } else {
+        std::env::var("ANTHROPIC_API_KEY").map(|k| !k.is_empty()).unwrap_or(false) || (paths::claude().is_some() && credentials_exist())
+    }
+}
+
 /// Connexion et compte pour la page /claude/ : relus à chaque demande, mais pas plus d'une fois
 /// toutes les 2 s (une page d'un autre site qui appellerait l'adresse en boucle ne lance pas
 /// « claude auth status » sans arrêt). Connexion et déconnexion relisent l'état aussitôt.
