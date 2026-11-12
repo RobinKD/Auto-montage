@@ -19,6 +19,7 @@ use std::f64::consts::PI;
 
 const FPS: f64 = 30.0;
 const HOP: f64 = 0.02; // trames de 20 ms
+const LABEL: &str = "Recherche des bruits parasites";
 
 fn load_audio() -> Result<(Vec<f64>, usize), String> {
     let work = paths::work();
@@ -155,7 +156,13 @@ fn run() -> Result<(), String> {
     let hann: Vec<f64> = (0..win).map(|i| 0.5 - 0.5 * (2.0 * PI * i as f64 / (win - 1) as f64).cos()).collect();
     let bins: Vec<f64> = (0..=win / 2).map(|k| k as f64 * srf / win as f64).collect();
     let mut frames: Vec<(&str, f64, f64, f64, f64, f64, Value)> = vec![];
+    // Avancement (interface locale) : secondes gardées analysées.
+    let total: f64 = kept.iter().map(|(a, b, _, _)| b - a).sum::<f64>().max(0.1);
+    let mut done = 0.0;
+    crate::progress::report(LABEL, 0.0, total);
     for (a, b, start, seg) in &kept {
+        done += b - a;
+        crate::progress::report(LABEL, done.min(total), total);
         let i0 = (a * srf) as i64;
         let i1 = (x.len() as i64 - win as i64).min((b * srf) as i64);
         if i1 - i0 < (win * 4) as i64 {

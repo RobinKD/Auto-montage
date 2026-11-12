@@ -295,6 +295,32 @@
   @media (max-width: 520px) {
     .variant { margin-left: 0; }
   }
+  /* Haut de page compact (écran large) : une seule ligne (titre, durée gardée, boutons, variante),
+     description derrière « ? », messages dans la ligne des onglets du lecteur : la frise du moment
+     ouvert tient dans l'écran. */
+  @media (min-width: 901px) {
+    .topbar { align-items: center; padding: 8px 16px; gap: 6px 16px; position: relative; }
+    .brand { flex: 0 0 auto; display: flex; align-items: center; gap: 6px; }
+    .brand .sub { display: none; }
+    .brand.open .sub { display: block; position: absolute; z-index: 30; top: calc(100% - 2px); left: 16px; max-width: 60ch;
+      -webkit-line-clamp: unset; background: var(--panel2); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; color: var(--fg); }
+    .bar { flex-direction: row; flex-wrap: wrap; align-items: center; gap: 6px 14px; }
+    .row1, .row2 { display: contents; }
+    .total { order: 1; }
+    .total .sub { display: none; }
+    .total b { font-size: 20px; }
+    .row2 > * { order: 2; }
+    .variant { order: 3; flex-direction: row; align-items: center; gap: 6px; }
+    .gen-progress { order: 4; flex-basis: 100%; }
+    .viewer .tabs .status { margin-left: auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; align-self: center; }
+    .viewer .tabs .status + .fs-btn { margin-left: 0 !important; }
+    .app.locked .viewer .caption { display: none; }
+    .local #downloads-page { display: none; }
+  }
+  @media (min-width: 901px) and (max-width: 1360px) {
+    .total .label, .variant .label { display: none; }
+  }
+  .about { font: 600 12px/1 var(--body); width: 22px; height: 22px; padding: 0; border-radius: 50%; color: var(--muted); }
   /* Bouton « haut de la page », en bas à droite dès qu'on a fait défiler. */
   .to-top {
     position: fixed; z-index: 40; right: calc(16px + env(safe-area-inset-right, 0px)); bottom: calc(16px + env(safe-area-inset-bottom, 0px));
@@ -467,6 +493,7 @@
   <header class="topbar">
     <div class="brand">
       <h1>Moments</h1>
+      <button type="button" class="about" id="about" aria-expanded="false" aria-controls="sub" title="À quoi sert cette page">?</button>
       <p class="sub" id="sub"></p>
     </div>
     <section class="bar" aria-label="Synthèse">
@@ -480,7 +507,7 @@
             <label class="label" for="variant">Variante</label>
             <div class="variant-controls">
               <select id="variant"></select>
-              <button type="button" id="new-variant">Nouvelle variante</button>
+              <button type="button" id="new-variant" hidden>Nouvelle variante</button>
               <input type="text" id="new-name" placeholder="Nom, ex. courte" hidden>
               <button type="button" id="create" hidden>Créer</button>
             </div>
@@ -972,6 +999,7 @@
   const moments = DATA.moments;
   const byId = new Map(moments.map((m) => [m.id, m]));
   const working = DATA.working;
+  const NEW_VARIANT = "__nouvelle__";  // ligne « Nouvelle variante… » du menu des variantes
   const inEdit = new Set(working ? working.clips.map((c) => c.seg) : []);
   const suggested = moments.filter((m) => m.suggested).map((m) => m.id);
   const state = { variant: "travail", names: { travail: "Travail" }, keep: new Set(suggested) };
@@ -1184,7 +1212,7 @@
   const setStatus = (text, kind = "") => { const el = $("status"); el.textContent = text; el.className = `status ${kind}`; };
   const playIcon = '<svg viewBox="0 0 10 10" aria-hidden="true"><path d="M2 1l7 4-7 4z"/></svg>';
 
-  $("sub").title = $("sub").textContent = `Rush ${DATA.rush} · ${moments.filter((m) => !m.gap).length} moments de parole (+ ${moments.filter((m) => m.gap).length} plans sans parole à part). `
+  $("sub").title = $("sub").textContent = `Rush ${DATA.rushLabel || DATA.rush} · ${moments.filter((m) => !m.gap).length} moments de parole (+ ${moments.filter((m) => m.gap).length} plans sans parole à part). `
     + (DERUSH ? "Sur la frise du bas, cochez les moments à garder, ouvrez-en un pour le couper ou corriger ses sous-titres : la vidéo entière les met bout à bout, sans effets. Puis « Valider le dérush »."
       : "Sur la frise du bas, cochez ce qui reste dans la vidéo entière ; ouvrez un moment pour le corriger, le découper et placer ses effets.");
 
@@ -2651,6 +2679,7 @@ ${HFAudio.voiceElements(spec)}
   // Lecteur à taille fixe : celle qu'il a quand la frise du moment est fermée (« Vidéo entière »).
   // Sans cela, il prend la place laissée par cette frise, dont la hauteur change d'un moment à
   // l'autre (effets, sous-titres). Mesurée frise cachée, sans repeindre entre les deux.
+  let tlkReserve = 0;
   function lockScreen() {
     const app = document.querySelector(".app"), sb = document.querySelector(".screen-box"), tlk = $("tlk");
     if (!app || !sb) return;
@@ -2663,7 +2692,12 @@ ${HFAudio.voiceElements(spec)}
     const h = sb.clientHeight, ih = document.querySelector(".inspector").clientHeight;
     tlk.style.display = "";
     if (open && !matchMedia("(max-width: 900px)").matches) {
-      app.style.setProperty("--screen-h", `${h}px`);
+      // Place de la frise du moment prise sur le lecteur, pour qu'elle tienne dans l'écran : la plus
+      // haute vue jusqu'ici (le lecteur ne change pas de taille d'un moment à l'autre), lecteur
+      // gardé à 180 px au moins.
+      tlkReserve = Math.max(tlkReserve, tlk.offsetHeight);
+      const fit = Math.max(Math.min(h, 180), h - tlkReserve);
+      app.style.setProperty("--screen-h", `${fit}px`);
       app.style.setProperty("--insp-h", `${ih}px`);  // inspecteur sous le lecteur (fenêtre haute)
       app.classList.add("locked");
     }
@@ -3659,9 +3693,12 @@ ${HFAudio.voiceElements(spec)}
       + (changed ? ` · ${changed} moment${changed > 1 ? "s" : ""} changé${changed > 1 ? "s" : ""} depuis la vidéo entière générée` : "");
     const nd = moments.reduce((n, m) => n + doubtsOf(m).length, 0), nm = moments.filter((m) => doubtsOf(m).length).length;
     $("doubt-next").hidden = !nd;
-    $("doubt-next").textContent = `À vérifier : ${nd} mot${nd > 1 ? "s" : ""} dans ${nm} moment${nm > 1 ? "s" : ""} · suivant (${keyLabel("douteSuiv")})`;
+    $("doubt-next").textContent = `À vérifier : ${nd} mot${nd > 1 ? "s" : ""} · suivant (${keyLabel("douteSuiv")})`;
+    $("doubt-next").title = `${nd} mot${nd > 1 ? "s" : ""} à vérifier dans ${nm} moment${nm > 1 ? "s" : ""} : aller au prochain (${keyLabel("douteSuiv")} ; ${keyLabel("doutePrec")} : le précédent)`;
     const sel = $("variant");
-    sel.replaceChildren(...Object.entries(state.names).map(([id, name]) => new Option(name, id, false, id === state.variant)));
+    sel.replaceChildren(...Object.entries(state.names).map(([id, name]) => new Option(name, id, false, id === state.variant)),
+      new Option("Nouvelle variante…", NEW_VARIANT));
+    $("count").closest(".total").title = $("count").textContent;
   }
 
   function render() { renderSummary(); renderList(); }
@@ -3684,14 +3721,15 @@ ${HFAudio.voiceElements(spec)}
   // les boutons qui lancent une tâche sont grisés avec la raison (le serveur la refuserait) ; une
   // préparation de ce rush (« Tout refaire depuis le début ») est suivie dans le bandeau et la page
   // se recharge à sa fin, puisqu'elle refait la page des moments.
-  const JOB_NAMES = { prepare: "Une préparation", regen: "La génération de la vidéo entière", final: "La création de la 4K",
+  const JOB_NAMES = { prepare: "Une préparation", regen: "La génération de la vidéo entière", final: "La création de la 4K", light: "La création de la version légère", son: "La recherche des bruits parasites",
     export: "L'export pour les plateformes", derush: "Le passage à l'auto-montage", decoupage: "Le découpage des moments",
     style: "L'analyse des vidéos d'exemple", update: "La mise à jour d'Auto-montage", reset: "La réinitialisation d'Auto-montage" };
   function setJobBusy(job) {
     const reason = !job ? "" : job.state === "running" ? `${JOB_NAMES[job.kind] || "Une tâche"} est en cours : attendez sa fin`
-      : job.paused ? `La préparation de ${job.paused.arg} est en pause : reprenez-la ou abandonnez-la d'abord (page « Rushes et montages »)` : "";
+      : job.paused ? `La préparation de ${job.paused.argLabel || job.paused.arg} est en pause : reprenez-la ou abandonnez-la d'abord (page « Rushes et montages »)` : "";
     lockBtn($("regen"), "job", reason);
     lockBtn($("valider-derush"), "job", reason);
+    if ($("son-analyse")) lockBtn($("son-analyse"), "job", reason);
     if (reason === jobBusy) return;
     jobBusy = reason;
     renderToolbar();
@@ -3725,7 +3763,7 @@ ${HFAudio.voiceElements(spec)}
         const prep = job.kind === "prepare" && job.state === "running";
         if (prep) {
           showGenProgress(job);
-          setStatus(`Préparation de ${job.arg} en cours : la page des moments sera refaite à la fin. En attendant, elle n'est pas modifiable.`);
+          setStatus(`Préparation de ${job.argLabel || job.arg} en cours : la page des moments sera refaite à la fin. En attendant, elle n'est pas modifiable.`);
         }
         setPrepLock(prep);
         if (preparing && !prep && job.kind === "prepare" && job.state === "done") { location.reload(); return; }
@@ -3756,11 +3794,26 @@ ${HFAudio.voiceElements(spec)}
     if (!name) { $("new-name").focus(); return; }
     const id = slug(name);
     state.names[id] = name;
-    $("new-name").value = ""; $("new-name").hidden = true; $("create").hidden = true; $("new-variant").hidden = false;
+    $("new-name").value = ""; $("new-name").hidden = true; $("create").hidden = true;
     switchVariant(id, true);
   }
 
-  $("variant").addEventListener("change", (e) => switchVariant(e.target.value, false));
+  // « Nouvelle variante… », dernière ligne du menu des variantes (NEW_VARIANT) : nom demandé à côté.
+  $("variant").addEventListener("change", (e) => {
+    if (e.target.value !== NEW_VARIANT) { switchVariant(e.target.value, false); return; }
+    e.target.value = state.variant;
+    $("new-name").hidden = false; $("create").hidden = false; $("new-name").focus();
+  });
+  $("new-name").addEventListener("keydown", (e) => { if (e.key === "Escape") { $("new-name").hidden = true; $("create").hidden = true; } });
+  $("about").addEventListener("click", () => {
+    const open = !$("about").parentElement.classList.contains("open");
+    $("about").parentElement.classList.toggle("open", open);
+    $("about").setAttribute("aria-expanded", String(open));
+  });
+  document.addEventListener("click", (e) => { if (!e.target.closest(".brand")) { $("about").parentElement.classList.remove("open"); $("about").setAttribute("aria-expanded", "false"); } });
+  // Messages (enregistré, chargé…) dans la ligne des onglets du lecteur sur un écran large.
+  if (matchMedia("(min-width: 901px)").matches) $("fullscreen").before($("status"));
+  if (window.AUTO_MONTAGE_LOCAL) document.querySelector(".app").classList.add("local");
 
   function switchVariant(id, copyCurrent) {
     state.variant = id;
@@ -3808,7 +3861,7 @@ ${HFAudio.voiceElements(spec)}
   // un seul pas ; deux pas identiques à moins de 1,5 s (curseur, frappe) sont réunis. HISTORY_MAX pas.
   const HISTORY_MAX = 50;
   const clone = (x) => (x === undefined ? undefined : JSON.parse(JSON.stringify(x)));
-  const historyKey = `am-historique:${DATA.rush}`;
+  const historyKey = `am-historique:${DATA.rush}:${DATA.prepId || 0}`;  // propre à chaque préparation
   const hist = (() => {
     try { const h = JSON.parse(sessionStorage.getItem(historyKey) || "null"); if (h && Array.isArray(h.past)) return { ...h, busy: false, pending: [] }; } catch (e) {}
     return { past: [], future: [], busy: false, pending: [] };
@@ -4009,7 +4062,7 @@ ${HFAudio.voiceElements(spec)}
     // Mémoire juste ou insuffisante pour l'étape en cours (rust/src/memoire.rs) : dit sous la barre.
     const mem = job.stepMemory && job.stepMemory.level !== "ok" ? job.stepMemory.message : "";
     if (mem) $("gen-label").textContent += ` · ${mem}`;
-    $("gen-all-label").textContent = job.kind === "final" ? "Ensemble de la création 4K" : job.kind === "export" ? "Ensemble de l'export"
+    $("gen-all-label").textContent = job.kind === "final" ? "Ensemble de la création 4K" : job.kind === "light" ? "Version légère" : job.kind === "son" ? "Recherche des bruits parasites" : job.kind === "export" ? "Ensemble de l'export"
       : job.kind === "derush" ? "Ensemble du passage à l'auto-montage" : job.kind === "prepare" ? "Ensemble de la préparation" : "Ensemble de la génération";
     $("gen-pause").hidden = job.kind !== "prepare";
     $("gen-cancel-note").textContent = job.kind === "prepare" ? "en pause, elle reprendra là où elle en était" : "la version précédente reste en place";
@@ -4140,6 +4193,7 @@ ${HFAudio.voiceElements(spec)}
             openDownloadMenu().then(() => saveVersion(q));
             return;
           }
+          if (q === "720p" && !d.final.busy) { createLight("telecharger"); return; }
           if (q === "4k" && !d.final.busy) {
             const r = await fetch("/api/final", { method: "POST" }).catch(() => null);
             if (r && r.ok) { afterRegen("telecharger-4k"); followFinal(); return; }
@@ -4696,13 +4750,28 @@ ${HFAudio.voiceElements(spec)}
       $("son-loudness").addEventListener("change", () => putSon({ loudness: $("son-loudness").value === "off" ? false : Number($("son-loudness").value) }));
       for (const k of ["declick", "highpass", "clarity"]) $(`son-${k}`).addEventListener("change", () => putSon({ [k]: $(`son-${k}`).checked }));
       if (!working) lockBtn($("son-analyse"), "work", "Générez d'abord la vidéo entière : la recherche se fait sur son son");
+      // Tâche comme les autres (barre sous la sélection, « Annuler », refusée pendant une autre).
       $("son-analyse").addEventListener("click", async () => {
         $("son-analyse").disabled = true;
-        $("son-status").textContent = "Recherche en cours (quelques secondes)…";
+        $("son-status").textContent = "Recherche en cours…";
         const r = await fetch("/api/son/analyse", { method: "POST" }).catch(() => null);
-        const data = r ? await r.json().catch(() => ({})) : {};
+        if (!r || !r.ok) {
+          const e = r ? await r.json().catch(() => ({})) : {};
+          $("son-analyse").disabled = false;
+          $("son-status").textContent = e.error || "La recherche n'a pas pu démarrer.";
+          return;
+        }
+        let job = null;
+        for (;;) {
+          await new Promise((res) => setTimeout(res, 800));
+          job = await fetch("/api/job").then((x) => x.json()).catch(() => null);
+          if (!job) continue;
+          showGenProgress(job);
+          if (job.state !== "running") break;
+        }
         $("son-analyse").disabled = false;
-        if (!r || !r.ok) { $("son-status").textContent = data.error || "La recherche a échoué."; return; }
+        if (job.state !== "done") { $("son-status").textContent = job.state === "cancelled" ? "Recherche annulée." : `La recherche a échoué : ${job.error || "erreur inconnue"}`; return; }
+        const data = await fetch("/api/son", { cache: "no-store" }).then((x) => x.json()).catch(() => ({}));
         son = data.settings || son;
         hfSon = son;
         $("son-status").textContent = "Recherche terminée.";
@@ -4882,6 +4951,17 @@ ${HFAudio.voiceElements(spec)}
           askStale("download", label, `telecharger:${id}`, () => a.click());
         });
         row.append(playButton(v.parts[0], `${label} (${v.res})`, `${what} · ${mb(v.size)}`, v.filename, `lire:${id}`, id), a);
+      } else if (id === "720p" && data.final && data.final.available) {
+        // Version légère : faite seulement quand on la demande (une passe rapide depuis la 1080p).
+        info.textContent = `${what} · faite à la demande, en quelques secondes`;
+        const mk = Object.assign(document.createElement("button"), { type: "button", textContent: "Créer et télécharger" });
+        mk.disabled = !!data.final.busy;
+        if (data.final.busy) mk.title = data.final.busy;
+        mk.addEventListener("click", () => (staleWhat() ? askStale("download", label, "telecharger:720p", () => createLight("telecharger")) : createLight("telecharger")));
+        const pl = Object.assign(document.createElement("button"), { type: "button", textContent: "Créer et lire" });
+        pl.disabled = mk.disabled;
+        pl.addEventListener("click", () => createLight("lire"));
+        row.append(pl, mk);
       } else if (id === "4k") {
         const f = data.final || {};
         info.textContent = v ? "n'inclut pas les derniers changements : à recréer" : "pas encore créée";
@@ -4918,6 +4998,10 @@ ${HFAudio.voiceElements(spec)}
       menu.append(row);
     }
     await exportSection(menu);
+    // Page « Téléchargements » (toutes les vidéos et copies, avec leur date).
+    const all = Object.assign(document.createElement("a"), { href: "/downloads/", target: "_blank", rel: "noopener", textContent: "Page « Téléchargements »" });
+    all.style.cssText = "align-self: flex-end; font-size: 13px; color: var(--accent);";
+    menu.append(all);
     menu.hidden = false;
   }
   // Copies pour les plateformes (rust/src/export.rs, /api/export) : format, débit et volume de
@@ -5116,6 +5200,24 @@ ${HFAudio.voiceElements(spec)}
     $("dl-menu").hidden = true;
     followFinal();
   }
+  // Version légère (720p) créée à la demande (/api/legere), puis téléchargée ou lue.
+  async function createLight(then) {
+    const r = await fetch("/api/legere", { method: "POST" }).catch(() => null);
+    if (!r || !r.ok) { setStatus((r && (await r.json().catch(() => ({}))).error) || "La version légère n'a pas pu être créée.", "err"); return; }
+    $("dl-menu").hidden = true;
+    for (;;) {
+      await new Promise((res) => setTimeout(res, 1000));
+      const job = await fetch("/api/job").then((x) => x.json()).catch(() => null);
+      if (!job) continue;
+      showGenProgress(job);
+      if (job.state === "running") { setStatus("Création de la version légère…"); continue; }
+      if (job.state !== "done") { setStatus(job.state === "cancelled" ? "Version légère annulée" : `La version légère n'a pas pu être créée : ${job.error || "erreur inconnue"}`, job.state === "cancelled" ? "" : "err"); return; }
+      setStatus(then === "lire" ? "Version légère prête" : "Version légère prête : téléchargement lancé", "ok");
+      await openDownloadMenu();
+      if (then === "lire") playVersion("720p"); else saveVersion("720p");
+      return;
+    }
+  }
   async function followFinal() {
     lockBtn($("regen"), "final", "La création de la 4K est en cours : attendez sa fin");
     for (;;) {
@@ -5170,6 +5272,9 @@ ${HFAudio.voiceElements(spec)}
         afterRegen(quality ? "telecharger-4k" : toPlay ? "lire-4k" : null);
         followFinal();
       })();
+    } else if ((quality === "720p" || toPlay === "720p") && working) {
+      afterRegen(null);
+      createLight(toPlay ? "lire" : "telecharger");
     } else if (toPlay && working) {
       afterRegen(null);
       openDownloadMenu().then(() => playVersion(toPlay));

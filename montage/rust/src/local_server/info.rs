@@ -551,7 +551,7 @@ pub fn instructions_info() -> Value {
 // --- Téléchargements (sans découpe : les fichiers sont servis directement) -------
 pub fn downloads_data() -> Value {
     let rush_txt = read_text(work().join("rush.txt")).filter(|r| !r.is_empty()).unwrap_or_else(|| "rush".into());
-    let rush = splitext(basename(&rush_txt)).0.to_string();
+    let rush = crate::rush_names::file_safe(&crate::rush_names::display(&rush_txt));
     let apercu = out().join("montage_apercu.mp4");
     let edit = util::read_json(edit_json());
     let size = edit_size(edit.as_ref()); // format du rush (9:16, 16:9, 4:3…)
@@ -713,6 +713,7 @@ pub fn projects_data() -> Value {
     let current = current_rush();
     let names: Vec<String> = util::list_dir(moments().join("thumbs")).into_iter().filter(|n| n.starts_with("m_")).collect();
     json!({"current": if current.is_empty() { Value::Null } else { json!(current) },
+           "currentLabel": if current.is_empty() { Value::Null } else { json!(crate::rush_names::display(&current)) },
            "currentPrepared": moments().join("index.html").exists(),
            "currentThumb": if names.is_empty() { Value::Null } else { json!(format!("/thumbs/{}", names[names.len() / 3])) },
            "saved": saved})
@@ -726,12 +727,13 @@ pub fn rush_list() -> Value {
     for name in names {
         let path = rushes().join(&name);
         if path.is_file() && is_video(&name) && !DERIVED.is_match(&name) && !name.starts_with('.') && !name.contains(".part.") {
-            items.push(json!({"name": name, "size": fs::metadata(&path).map(|m| m.len()).unwrap_or(0),
+            items.push(json!({"name": name, "label": crate::rush_names::display(&name), "size": fs::metadata(&path).map(|m| m.len()).unwrap_or(0),
                               "modified": iso_local(util::mtime(&path).unwrap_or(0.0))}));
         }
     }
     let langues: Map<String, Value> = moments_lib::LANGUAGES.iter().map(|(c, l)| (c.to_string(), json!(l))).collect();
     json!({"rushes": items, "current": if current.is_empty() { Value::Null } else { json!(current) },
+           "currentLabel": if current.is_empty() { Value::Null } else { json!(crate::rush_names::display(&current)) },
            "prepared": moments().join("index.html").exists(),
            "free": disk_free(root()), "job": jobs::job_status(),
            "instructions": instructions_info(), "claude": super::claude::claude_known(), "style": style_info(),

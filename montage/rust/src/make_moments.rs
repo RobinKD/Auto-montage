@@ -154,6 +154,25 @@ struct Page {
     strip: Value, // planches de la frise (moments_lib::timeline_strip), pour les vignettes
 }
 
+/// Plan sans parole plus court : pas proposé sur la page (silence entre deux moments).
+const SHORT_GAP: f64 = 1.0;
+
+/// Moments gardés dans les variantes de la page (work/local_db/variantes) : ids, et id avant le
+/// « / » des parties gardées.
+fn kept_in_variants(work: &Path) -> std::collections::HashSet<i64> {
+    let dir = work.join("local_db").join("variantes");
+    let mut out = std::collections::HashSet::new();
+    for name in util::list_dir(&dir).into_iter().filter(|n| n.ends_with(".json")) {
+        let doc = read_json(dir.join(&name)).unwrap_or(Value::Null);
+        let keep = doc.get("keep").or_else(|| doc.get("data").and_then(|d| d.get("keep")));
+        for t in keep.and_then(Value::as_array).into_iter().flatten() {
+            let id = t.as_i64().or_else(|| t.as_str().and_then(|s| s.split('/').next()?.trim().parse().ok()));
+            out.extend(id);
+        }
+    }
+    out
+}
+
 /// Extraits faits à la fois, au plus (la moitié des cœurs, 2 au moins).
 const EXTRACT_WORKERS: usize = 4;
 
@@ -385,6 +404,47 @@ impl Page {
     }
 }
 
+/// Version légère (720p) de la vidéo entière, pour la partager ou la regarder sur téléphone. Une
+/// seule passe, rapide, au débit plafonné : même taille et même qualité mesurées (SSIM 0,996) que
+/// l'ancienne compression en deux passes lentes, trois fois plus vite. `label` : avec l'avancement.
+fn make_light(preview: &Path, target: &Path, scale: &str, label: Option<&str>) -> Result<(), String> {
+    let part = target.with_file_name("montage.part.mp4");
+    let args = vec![
+        p(paths::ffmpeg()), s("-v"), s("error"), s("-y"), s("-i"), p(preview), s("-vf"), s(scale), s("-c:v"), s("libx264"),
+        s("-preset"), s("veryfast"), s("-b:v"), s("2500k"), s("-maxrate"), s("3000k"), s("-bufsize"), s("5000k"),
+        s("-pix_fmt"), s("yuv420p"), s("-c:a"), s("aac"), s("-b:a"), s("128k"), s("-movflags"), s("+faststart"), p(&part),
+    ];
+    let code = match label {
+        Some(l) => crate::progress::ffmpeg(l, &args, None, 0.0, None),
+        None => procs::call(paths::ffmpeg(), &args[1..]),
+    };
+    if code != 0 {
+        let _ = fs::remove_file(&part);
+        return Err(format!("ffmpeg (version légère) : code {code}"));
+    }
+    fs::rename(&part, target).map_err(|e| format!("work/moments/montage.mp4 : {e}"))
+}
+
+/// `legere` : version légère (720p) de la vidéo entière actuelle, à la demande (interface locale).
+pub fn light_main(_args: &[String]) -> i32 {
+    let preview = paths::out().join("montage_apercu.mp4");
+    if !preview.exists() {
+        eprintln!("Erreur : pas encore de vidéo entière (out/montage_apercu.mp4)");
+        return 1;
+    }
+    let edit = read_json(paths::data().join("edit.json")).unwrap_or(json!({}));
+    let (width, height) = edit_size(Some(&edit));
+    let scale = format!("scale={}", res_label(width, height, 720).replace('x', ":"));
+    let target = paths::work().join("moments").join("montage.mp4");
+    match make_light(&preview, &target, &scale, Some("Version légère")) {
+        Ok(()) => 0,
+        Err(e) => {
+            eprintln!("Erreur : {e}");
+            1
+        }
+    }
+}
+
 pub fn main(_args: &[String]) -> i32 {
     match run() {
         Ok(()) => 0,
@@ -440,7 +500,13 @@ fn run() -> Result<(), String> {
     let mut moments: Vec<Value> = vec![];
     // Avancement en secondes de vidéo : durée des extraits faits (moments puis plans sans parole),
     // puis la version de travail pour la page (deux passes, chacune comptée pour la durée du montage).
-    let gap_list = effective_gaps(&raw_segments, &segments, rush_duration(&work));
+    // Plans sans parole de moins de SHORT_GAP s : laissés dans le silence entre deux moments (ils
+    // encombraient la frise), sauf s'ils sont gardés dans une variante (montage déjà commencé).
+    let kept_gaps = kept_in_variants(&work);
+    let gap_list: Vec<Value> = effective_gaps(&raw_segments, &segments, rush_duration(&work))
+        .into_iter()
+        .filter(|g| util::fd(g, "end", 0.0) - util::fd(g, "start", 0.0) >= SHORT_GAP || g["id"].as_i64().is_some_and(|id| kept_gaps.contains(&id)))
+        .collect();
     // Extraits déjà faits pour les mêmes bornes : gardés (une scission ou une fusion ne refait
     // que les moments touchés). clips/.bornes.json : nom -> [début, fin].
     let sig_path = out.join("clips").join(".bornes.json");
@@ -609,24 +675,23 @@ fn run() -> Result<(), String> {
     let mut working = Value::Null;
     if preview.exists() {
         let target = out.join("montage.mp4");
-        // Recompressée seulement si la version de travail a changé depuis (scission, fusion…).
-        // Une seule passe, rapide, au même débit plafonné : même taille et même qualité mesurées
-        // (SSIM 0,996) que l'ancienne compression en deux passes lentes, trois fois plus vite.
-        if !target.exists() || py_mtime(&target).unwrap_or(0.0) < py_mtime(&preview).unwrap_or(0.0) {
-            let part = out.join("montage.part.mp4");
-            let args = vec![
-                s("-v"), s("error"), s("-y"), s("-i"), p(&preview), s("-vf"), working_scale.clone(), s("-c:v"), s("libx264"),
-                s("-preset"), s("veryfast"), s("-b:v"), s("2500k"), s("-maxrate"), s("3000k"), s("-bufsize"), s("5000k"),
-                s("-pix_fmt"), s("yuv420p"), s("-c:a"), s("aac"), s("-b:a"), s("128k"), s("-movflags"), s("+faststart"), p(&part),
-            ];
-            ffmpeg_ok(&args, "version de travail")?;
-            fs::rename(&part, &target).map_err(|e| format!("work/moments/montage.mp4 : {e}"))?;
+        if std::env::var("AM_INTERFACE_LOCALE").as_deref() == Ok("1") {
+            // Interface locale : version légère faite seulement quand on la demande (`legere`) ;
+            // celle d'une vidéo entière précédente est effacée.
+            if target.exists() && py_mtime(&target).unwrap_or(0.0) < py_mtime(&preview).unwrap_or(0.0) {
+                let _ = fs::remove_file(&target);
+            }
+        } else if !target.exists() || py_mtime(&target).unwrap_or(0.0) < py_mtime(&preview).unwrap_or(0.0) {
+            // Page publiée sur claude.ai : elle joue et télécharge cette version légère.
+            make_light(&preview, &target, &working_scale, None)?;
         }
         report_every(LABEL, steps_total, steps_total, 0.0);
         let edit = read_json(&edit_path).ok_or("src/data/edit.json illisible")?;
         let fps = util::fd(&edit, "fps", 30.0);
+        let local = std::env::var("AM_INTERFACE_LOCALE").as_deref() == Ok("1");
         working = json!({
-            "src": "montage.mp4",
+            // Interface locale : la vidéo entière en 1080p (la légère n'existe qu'à la demande).
+            "src": if local { "/out/montage_apercu.mp4" } else { "montage.mp4" },
             "duration": round_to(util::fd(&edit, "durationInFrames", 0.0) / fps, 2),
             // Heure du rendu (UTC), affichée sur la page pour voir que la version a changé.
             "renderedAt": iso_utc(py_mtime(&preview).unwrap_or(0.0)),
@@ -708,7 +773,10 @@ fn run() -> Result<(), String> {
         persons_obj.insert(k.to_string(), json!(v));
     }
     let data = json!({
-        "rush": rush_name, "width": width, "height": height, "layout": frame_layout(width, height), "moments": moments,
+        // prepId : date de la transcription (segments.json, refait seulement par une préparation) :
+        // l'historique Annuler / Rétablir de la page est propre à chaque préparation.
+        "rush": rush_name, "rushLabel": crate::rush_names::display(&rush_name),
+        "prepId": util::mtime(work.join("segments.json")).map(|t| t.floor() as i64).unwrap_or(0), "width": width, "height": height, "layout": frame_layout(width, height), "moments": moments,
         "working": working, "sfxCatalog": sfx_catalog, "regenTrigger": trigger, "downloadsPage": downloads_page,
         "intro": intro, "captionFont": font,
         "captionLines": {"lines": caption_lines.get("lines").cloned().unwrap_or(Value::Null),
@@ -725,8 +793,7 @@ fn run() -> Result<(), String> {
     });
     // Nom du rush échappé, données sans « < » (une transcription contenant « </script> » ne
     // referme pas le script de la page).
-    let stem = Path::new(&rush_name).file_stem().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
-    let page = page.replace("__RUSH__", &html_escape(&stem));
+    let page = page.replace("__RUSH__", &html_escape(&crate::rush_names::display(&rush_name)));
     let page = page.replace("/*__DATA__*/null", &pyjson::dumps_utf8(&data).replace('<', "\\u003c"));
     fs::write(out.join("index.html"), page).map_err(|e| e.to_string())?;
     let suggested: Vec<&Value> = moments.iter().filter(|m| m["suggested"] == json!(true)).collect();

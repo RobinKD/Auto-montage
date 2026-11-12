@@ -277,6 +277,29 @@
   const minutes = (s) => (s < 90 ? "1 à 2 min" : `environ ${Math.round(s / 60)} min`);
   // Durée prévue (absente tant que la machine n'a pas mesuré ces étapes au moins 3 fois).
   const took = (s) => (typeof s === "number" ? ` (${minutes(s)} sur cet ordinateur)` : "");
+  // Version légère (720p) : faite seulement quand on la demande, en quelques secondes.
+  if (window.AUTO_MONTAGE_LOCAL && DATA.final && DATA.final.available && !DATA.versions.some((v) => v.id === "720p")) {
+    const li = document.createElement("li");
+    li.innerHTML = `<div class="q">720p<small>légère</small></div><div class="info"><span class="note">Copie compressée de la vidéo entière, pour la partager ou la regarder sur téléphone : faite à la demande, en quelques secondes.</span></div>`;
+    const make = Object.assign(document.createElement("button"), { type: "button", textContent: "Créer la version légère" });
+    make.disabled = !!DATA.final.busy;
+    if (DATA.final.busy) make.title = DATA.final.busy;
+    make.style.alignSelf = "flex-start";
+    make.addEventListener("click", async () => {
+      make.disabled = true;
+      make.textContent = "Création…";
+      const r = await fetch("/api/legere", { method: "POST" }).catch(() => null);
+      if (!r || !r.ok) { make.textContent = "Créer la version légère"; make.disabled = false; make.title = (r && (await r.json().catch(() => ({}))).error) || "Échec"; return; }
+      for (;;) {
+        await new Promise((res) => setTimeout(res, 1000));
+        const job = await fetch("/api/job").then((x) => x.json()).catch(() => null);
+        if (job && job.state !== "running") { location.reload(); return; }
+      }
+    });
+    li.querySelector(".info").append(make);
+    list.querySelector(".empty")?.remove();
+    list.prepend(li);
+  }
   const v4k = DATA.versions.find((v) => v.id === "4k");
   if (window.AUTO_MONTAGE_LOCAL && DATA.final && DATA.final.available && (!v4k || v4k.stale)) {
     let li = v4k ? $("dl-4k").closest("li") : null;

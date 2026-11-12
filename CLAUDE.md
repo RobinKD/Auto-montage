@@ -95,6 +95,20 @@ interne : les changements attendent la prochaine version.
 - L'effet visuel « visage gêné » est fait à la main par l'utilisateur ; seule la voix
   tremble automatiquement.
 - Domaines réseau nécessaires : `montage/env/allowed-domains.txt`.
+- Vidéos envoyées (`rust/src/rush_names.rs`) : écrites dans `public/rushes/` sous l'empreinte SHA-256 de leur
+  contenu (16 caractères + extension, calculée pendant l'envoi : même vidéo gardée une fois, jamais de
+  remplacement) ; nom montré partout (pages, montages, place, fichiers téléchargés et exports) d'après le
+  registre `public/rushes/noms.json` (fichier → nom, unique : « nom (2) »), sinon le nom du fichier
+  (`display`) ; « Renommer » (/rush/, `POST /api/rushes/renommer`). Rush assemblé : fichier tiré des noms
+  des vidéos (`join_rushes::joined_name`, `POST /api/rushes/assemblage`), nom « <vidéo 1> (assemblage de
+  N) » ; vidéo d'un dérush validé : nouvel identifiant à chaque validation, nom « <rush> (dérush) ».
+  Les fichiers restent la clé interne (rush.txt, projets, `DATA.rush`) ; noms montrés : `label`,
+  `currentLabel`, `argLabel` de l'API, `DATA.rushLabel`.
+- « Tout refaire depuis le début » (même rush que le montage en cours, `redo` de `POST /api/prepare`) :
+  `project::reset_current` efface avant la préparation `REDO_RESET` (découpe, choix de Claude, sélection,
+  historique, analyses) et les documents de la page, et `REDO_GLOBAL` (réglages de tout le montage) si la
+  case « Garder les réglages » est décochée (choix gardé dans localStorage `am-refaire-reglages`) ;
+  historique de la page propre à chaque préparation (`DATA.prepId`).
 - Quand le rush change, `prepare` met le montage de l'ancien rush de côté dans
   `work/projets/<rush>/` (`./am project save` : work/ hors fichiers communs, versions de
   travail, rendus, choix de la page) ; `./am project open <dossier>` le rouvre sans rien recalculer
@@ -210,7 +224,8 @@ interne : les changements attendent la prochaine version.
   `voice`, `denoise` 0-3, `declick`, `highpass`, `clarity`, `mute` = fenêtres en temps du rush
   atténuées de 15 dB) et `gain` par moment, appliqués par `build_edit` (filtres ffmpeg sur la
   piste voix), sauf `highpass` et `clarity`, faits au rendu par HyperFrames (`selection/hf_audio.js`,
-  avec le limiteur à -1,5 dB) ; `rust/src/analyze_sound.rs` (bruit de fond, clics et chocs) → `work/son_analyse.json`.
+  avec le limiteur à -1,5 dB) ; `rust/src/analyze_sound.rs` (bruit de fond, clics et chocs) → `work/son_analyse.json`
+  (tâche `son` de l'interface locale, `POST /api/son/analyse`, barre et « Annuler »).
 - Volume normalisé (repris de FilmCraft, `rust/src/loudness.rs` : compteur EBU R128 / BS.1770-4, plage,
   crête vraie ×4, limiteur à anticipation) : `loudness` de `work/son.json` (−14 LUFS par défaut, `false` :
   désactivé, rien en dérushage). `build_edit` amène la voix à la cible −3 dB, puis `render` mesure la vidéo
@@ -477,7 +492,8 @@ interne : les changements attendent la prochaine version.
   suffit), les choix sont dans `work/local_db/` (même forme que l'export ArtifactData :
   `./am use_selection work/local_db <variante>`) et son bouton « Générer »
   monte la version de travail lui-même (`rust/src/local_server.rs`). « Télécharger » y propose
-  720p, 1080p et la création de la 4K (`/api/final` : `make_hd` puis `render final`). « Lire » à côté de
+  720p (faite à la demande : tâche `light`, `POST /api/legere`, `./am legere`, depuis la 1080p ; plus faite
+  par make_moments en local), 1080p et la création de la 4K (`/api/final` : `make_hd` puis `render final`). « Lire » à côté de
   chaque vidéo (menu « Télécharger », page « Téléchargements ») : le fichier rendu lui-même dans un
   `<dialog>` (`playButton`, `playFile`), lu par morceaux (requêtes Range de `send_file`), lâché à la fermeture. Vidéo entière en retard
   (moments changés de `changedSinceWork`, réglages de `info::SETTINGS_FILES` plus récents qu'elle :

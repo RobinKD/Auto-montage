@@ -50,6 +50,16 @@ pub fn prepare_steps() -> Vec<Step> {
     ]
 }
 
+/// « Rechercher les bruits parasites » (panneau « Son de la voix »), avec barre et « Annuler ».
+pub fn sound_steps() -> Vec<Step> {
+    vec![step("recherche des bruits parasites", &["analyze_sound"])]
+}
+
+/// Version légère (720p) de la vidéo entière, à la demande (menu « Télécharger », Téléchargements).
+pub fn light_steps() -> Vec<Step> {
+    vec![step("version légère", &["legere"])]
+}
+
 /// Version 4K (bouton des pages) : source 4K des seules images gardées, puis rendu final.
 pub fn final_steps() -> Vec<Step> {
     vec![step("source 4K", &["make_hd"]), step("rendu 4K", &["render", "final"])]
@@ -98,7 +108,7 @@ pub fn prepare_plan(with_claude: bool, derush: bool) -> Vec<Step> {
 // poste, rush de 26 s sur 2 cœurs) ; elles sont recalées après chaque tâche réussie sur les
 // durées réelles de la machine (work/timings.json), et l'opération en cours suit sa propre
 // vitesse dès qu'elle a avancé.
-pub const PLAN: [(&str, &[&str]); 10] = [
+pub const PLAN: [(&str, &[&str]); 12] = [
     ("préparation du rush", &["Copie du rush en 1080p", "Extraction du son", "Transcription", "Position du visage", "Locuteurs"]),
     ("rendu de la vidéo entière", &["Rendu de la vidéo"]),
     ("rendu 1080p", &["Rendu de la vidéo"]),
@@ -109,6 +119,8 @@ pub const PLAN: [(&str, &[&str]); 10] = [
     ("mesures des vidéos d'exemple", &["Analyse des vidéos d'exemple"]),
     ("export pour les plateformes", &["Export pour les plateformes"]),
     ("vidéo du dérush", &["Vidéo du dérush"]),
+    ("version légère", &["Version légère"]),
+    ("recherche des bruits parasites", &["Recherche des bruits parasites"]),
 ];
 
 fn plan_of(step: &str) -> &'static [&'static str] {
@@ -120,7 +132,7 @@ pub fn plan_json() -> Value {
 }
 
 /// (clé, échelle, secondes par seconde d'échelle, écrit en entier dans timings.json).
-pub const RATES: [(&str, &str, f64, bool); 22] = [
+pub const RATES: [(&str, &str, f64, bool); 24] = [
     ("Copie du rush en 1080p", "rush", 0.3, false),
     ("Extraction du son", "rush", 0.01, false),
     ("Transcription", "rush", 0.16, false),
@@ -154,6 +166,10 @@ pub const RATES: [(&str, &str, f64, bool); 22] = [
     // Dérush validé (derush_video) : moments gardés réencodés depuis le rush d'origine (H.264
     // « veryfast »), échelle = durée du montage du dérush.
     ("Vidéo du dérush", "montage", 0.8, false),
+    // Version légère (720p) à la demande : une passe « veryfast » depuis la vidéo entière 1080p
+    // (22 s pour un montage de 96 s sur 4 cœurs).
+    ("Version légère", "montage", 0.25, false),
+    ("Recherche des bruits parasites", "montage", 0.05, false),
 ];
 
 fn rates_table() -> impl Iterator<Item = &'static (&'static str, &'static str, f64, bool)> {
@@ -935,6 +951,7 @@ fn run_steps(steps: &[Step], arg: &str, args: &[String], first: usize) -> Result
         if reprise {
             command.env("AM_REPRISE", "1");
         }
+        command.env("AM_INTERFACE_LOCALE", "1"); // make_moments : version légère seulement à la demande
         procs::new_group(&mut command);
         let spawned = command.spawn();
         drop(command); // ferme nos copies de l'écriture : la lecture finit avec le programme
@@ -1428,6 +1445,8 @@ pub fn kind_name(kind: &str) -> Option<&'static str> {
         "prepare" => "Préparation",
         "regen" => "Génération",
         "final" => "Création 4K",
+        "light" => "Version légère",
+        "son" => "Recherche des bruits parasites",
         "update" => "Mise à jour",
         "reset" => "Réinitialisation",
         "style" => "Analyse du style",
@@ -1564,7 +1583,7 @@ pub fn report_text() -> String {
     ));
     lines.push(format!(
         "Rush en cours : {} ; page des moments : {}",
-        read_text(work().join("rush.txt")).filter(|r| !r.is_empty()).unwrap_or_else(|| "aucun".into()),
+        read_text(work().join("rush.txt")).filter(|r| !r.is_empty()).map(|r| format!("{} ({})", crate::rush_names::display(r.trim()), r.trim())).unwrap_or_else(|| "aucun".into()),
         if moments().join("index.html").exists() { "oui" } else { "non" }
     ));
     lines.push(format!("Tâche : {state} {kind} {step} {error}"));
@@ -1727,7 +1746,15 @@ pub fn job_status() -> Value {
     status.insert("log".into(), json!(log[log.len().saturating_sub(30)..]));
     status.insert("now".into(), fnum(now()));
     let state = gs(&j.m, "state").to_string();
-    status.insert("paused".into(), paused_task_state(&state).map(Value::Object).unwrap_or(Value::Null));
+    let label = |a: &Value| a.as_str().filter(|s| !s.is_empty()).map(|s| json!(crate::rush_names::display(s))).unwrap_or(Value::Null);
+    // Nom montré du rush de la tâche (registre rush_names : les fichiers sont des empreintes).
+    status.insert("argLabel".into(), label(j.m.get("arg").unwrap_or(&Value::Null)));
+    let paused = paused_task_state(&state).map(|mut p| {
+        let l = label(p.get("arg").unwrap_or(&Value::Null));
+        p.insert("argLabel".into(), l);
+        Value::Object(p)
+    });
+    status.insert("paused".into(), paused.unwrap_or(Value::Null));
     status.insert("plan".into(), plan_json());
     if state == "running" {
         let (current, rest) = remaining_time(&j.m);
@@ -1748,7 +1775,8 @@ pub fn job_brief() -> Value {
     let j = lock();
     let state = gs(&j.m, "state").to_string();
     let paused = paused_task_state(&state).and_then(|r| r.get("arg").cloned()).unwrap_or(Value::Null);
-    json!({"kind": j.m.get("kind").cloned().unwrap_or(Value::Null), "state": state, "paused": paused})
+    let paused_label = paused.as_str().map(|s| json!(crate::rush_names::display(s))).unwrap_or(Value::Null);
+    json!({"kind": j.m.get("kind").cloned().unwrap_or(Value::Null), "state": state, "paused": paused, "pausedLabel": paused_label})
 }
 
 /// Style : les vidéos d'exemple sont-elles là (pour /api/prepare) ?

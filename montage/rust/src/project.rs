@@ -173,6 +173,8 @@ pub fn summary() -> Map<String, Value> {
     let rush = read(&work.join("rush.txt")).unwrap_or_default();
     let mut info = Map::new();
     info.insert("rush".into(), json!(Path::new(&rush).file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default()));
+    // Nom montré au moment de l'enregistrement (la vidéo peut être effacée ensuite ; registre rush_names).
+    info.insert("label".into(), json!(crate::rush_names::display(&rush)));
     info.insert("key".into(), read(&work.join("rush_key.txt")).map(Value::String).unwrap_or(Value::Null));
     info.insert("savedAt".into(), json!(chrono::Utc::now().format("%Y-%m-%dT%H:%M:%S+00:00").to_string()));
     let duration = read_json(paths::data().join("edit.json")).and_then(|e| {
@@ -265,7 +267,7 @@ pub fn save() -> Result<Option<(String, String)>, String> {
     info.insert("size".into(), json!(size_of(&dest)));
     let text = pyjson::dumps_with(&Value::Object(info), pyjson::Opts { indent: Some(1), ensure_ascii: false, sort_keys: false });
     fs::write(dest.join("projet.json"), text).map_err(err)?;
-    Ok(Some((name.clone(), format!("Montage de {rush} mis de côté dans work/projets/{name}"))))
+    Ok(Some((name.clone(), format!("Montage de {} mis de côté dans work/projets/{name}", crate::rush_names::display(&rush)))))
 }
 
 /// Nom de dossier acceptable (pas de chemin, pas de dossier caché) avec un projet.json.
@@ -283,6 +285,7 @@ pub fn open_project(name: &str) -> Result<String, String> {
     let mut src = store().join(name);
     let info = read_json(src.join("projet.json")).ok_or_else(|| format!("Montage enregistré illisible : {name}"))?;
     let info_rush = info.get("rush").and_then(Value::as_str).unwrap_or("").to_string();
+    let info_label = label_of(info.as_object().unwrap_or(&Map::new()));
     let mut said = vec![];
     if let Some(current) = read(&work.join("rush.txt")).filter(|r| !r.is_empty()) {
         let base = Path::new(&current).file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
@@ -291,7 +294,7 @@ pub fn open_project(name: &str) -> Result<String, String> {
         if base == info_rush && key == info_key {
             // Même rush préparé à nouveau entre-temps : l'état actuel remplace l'ancien.
             fs::remove_dir_all(&src).map_err(err)?;
-            return Ok(format!("{info_rush} est déjà le rush en cours"));
+            return Ok(format!("{info_label} est déjà le rush en cours"));
         }
         // Mis à l'écart le temps d'enregistrer le montage en cours (qui peut prendre ce nom).
         let aside = store().join(format!(".ouverture-{name}"));
@@ -332,7 +335,7 @@ pub fn open_project(name: &str) -> Result<String, String> {
     let rush = read(&work.join("rush.txt")).filter(|r| !r.is_empty()).unwrap_or_else(|| "-".into());
     let missing = !root.join(&rush).exists();
     said.push(format!(
-        "Montage de {info_rush} rouvert{}",
+        "Montage de {info_label} rouvert{}",
         if missing { " (vidéo d'origine absente de public/rushes : la 4K ne pourra pas être refaite)" } else { "" }
     ));
     Ok(said.join("\n"))
@@ -360,10 +363,35 @@ pub fn current_paths() -> Vec<PathBuf> {
     let work = paths::work();
     let mut out: Vec<PathBuf> = util::list_dir(&work).into_iter().filter(|e| !SHARED.contains(&e.as_str())).map(|e| work.join(e)).collect();
     out.extend(MOVED.iter().map(|r| rel(&root, r)).filter(|p| lexists(p)));
-    if let Some(rush) = read(&work.join("rush.txt")) {
-        out.extend(page_docs(rush.trim()).into_iter().map(|(c, f)| work.join("local_db").join(c).join(f)));
+    if let Some(rush) = current() {
+        out.extend(page_docs(&rush).into_iter().map(|(c, f)| work.join("local_db").join(c).join(f)));
     }
     out
+}
+
+/// Fichiers de work/ effacés par « Tout refaire depuis le début » : découpe, choix de Claude,
+/// sélection de la version de travail, historique, analyses et mesures faites sur l'ancien découpage.
+pub const REDO_RESET: [&str; 9] = [
+    "decoupage.json", "suggestions.json", "edit_choices.json", "selection.json", "historique", "son_analyse.json", "volume.json",
+    "exports.json", "video_reglages.json",
+];
+/// Réglages de tout le montage, effacés aussi si la page ne demande pas de les garder.
+pub const REDO_GLOBAL: [&str; 5] = ["habillage.json", "son.json", "caption_style.json", "couleur.json", "transitions.json"];
+
+/// « Tout refaire depuis le début » du montage en cours : ce qui dépend de l'ancienne transcription
+/// (REDO_RESET, documents de la page : moments et variantes) est effacé avant la préparation ;
+/// les réglages de tout le montage (REDO_GLOBAL) restent si keep_global.
+pub fn reset_current(keep_global: bool) -> Result<(), String> {
+    let work = paths::work();
+    let Some(rush) = current() else { return Ok(()) };
+    for (coll, fname) in page_docs(&rush) {
+        let _ = fs::remove_file(work.join("local_db").join(coll).join(fname));
+    }
+    let globals: &[&str] = if keep_global { &[] } else { &REDO_GLOBAL };
+    for f in REDO_RESET.iter().chain(globals.iter()) {
+        util::remove_all(&work.join(f));
+    }
+    Ok(())
 }
 
 /// Supprime le montage en cours, même quand c'est le seul : il est rangé comme par save (vidéos
@@ -377,7 +405,18 @@ pub fn delete_current() -> Result<String, String> {
     for part in crate::place::render_parts() {
         util::remove_all(&part);
     }
-    Ok(format!("Montage de {rush} supprimé"))
+    Ok(format!("Montage de {} supprimé", crate::rush_names::display(&rush)))
+}
+
+/// Nom montré du rush d'un montage enregistré : celui du registre (renommé depuis), sinon celui
+/// gardé à l'enregistrement, sinon le nom du fichier.
+fn label_of(info: &Map<String, Value>) -> String {
+    let rush = info.get("rush").and_then(Value::as_str).unwrap_or("");
+    if paths::rushes().join(rush).is_file() || info.get("label").and_then(Value::as_str).is_none() {
+        crate::rush_names::display(rush)
+    } else {
+        info.get("label").and_then(Value::as_str).unwrap_or(rush).to_string()
+    }
 }
 
 /// Montages enregistrés, du plus récent au plus ancien (projet.json + id, rushPresent, thumb).
@@ -388,6 +427,8 @@ pub fn listing() -> Vec<Value> {
         let rush_file = paths::rushes().join(info.get("rush").and_then(Value::as_str).unwrap_or(""));
         let thumbs = store().join(&name).join("work").join("moments").join("thumbs");
         let has_thumb = util::list_dir(&thumbs).iter().any(|n| n.starts_with("m_"));
+        let label = label_of(&info);
+        info.insert("label".into(), json!(label));
         info.insert("id".into(), json!(name));
         info.insert("rushPresent".into(), json!(rush_file.is_file()));
         info.insert("thumb".into(), if has_thumb { json!(format!("/api/projects/{name}/thumb")) } else { Value::Null });

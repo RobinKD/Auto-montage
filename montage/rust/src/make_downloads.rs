@@ -132,7 +132,7 @@ fn run() -> Result<(), String> {
     let files = out.join("files");
 
     let rush_txt = util::read_text(work.join("rush.txt")).ok_or("work/rush.txt illisible")?;
-    let rush = Path::new(&rush_txt).file_stem().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+    let rush = crate::rush_names::file_safe(&crate::rush_names::display(rush_txt.trim()));
     // Format du rush (9:16, 16:9, 4:3…).
     let size = edit_size(read_json(paths::data().join("edit.json")).as_ref());
     // « 720x1280 » en 9:16 : petit côté de w, au format du rush

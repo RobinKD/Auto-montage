@@ -235,6 +235,7 @@
   // ou tâche en cours (une génération demandée à Claude serait refusée jusqu'à sa fin).
   const NAMES = { prepare: "Une préparation", regen: "La génération de la vidéo entière", final: "La création de la 4K",
     export: "L'export pour les plateformes", derush: "Le passage à l'auto-montage", decoupage: "Le découpage des moments",
+    light: "La création de la version légère", son: "La recherche des bruits parasites",
     style: "L'analyse des vidéos d'exemple", update: "La mise à jour", reset: "La réinitialisation" };
   async function context() {
     const st = await fetch("/api/status", { cache: "no-store" }).then((r) => r.json()).catch(() => null);

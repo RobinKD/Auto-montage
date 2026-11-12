@@ -3,7 +3,8 @@
 //! l'auto-montage prépare ensuite comme un seul moment.
 //!
 //! Usage : auto-montage derush_video [<nom de la vidéo>]
-//! Sortie : public/rushes/<nom> (par défaut « <rush> (dérush).mp4 ») depuis le rush d'origine
+//! Sortie : public/rushes/<nom> (par défaut un nouvel identifiant, nom montré « <rush> (dérush) »,
+//! rush_names) depuis le rush d'origine
 //! (work/rush.txt, qualité d'origine, H.264 CRF 16, toutes les pistes son mélangées), et
 //! work/derush_segments.json : un seul segment de toute la vidéo avec les mots gardés (textes
 //! corrigés sur la page, temps de la vidéo), repris par `prepare --transcription` sans Whisper.
@@ -33,13 +34,23 @@ pub fn suite_dir() -> PathBuf {
 /// Pas des positions du visage (detect_face).
 const FACE_STEP: f64 = 0.5;
 
-/// Nom de la vidéo du dérush d'un rush (« essai.mov » → « essai (dérush).mp4 », sans doubler
-/// le suffixe pour le dérush d'un dérush).
+/// Fichier de la vidéo du dérush d'un rush : nouvel identifiant à chaque validation (rush_names),
+/// pour qu'une deuxième validation ne remplace pas la vidéo dont se sert le montage enregistré.
 pub fn output_name(rush: &str) -> String {
-    let stem = std::path::Path::new(rush.trim()).file_stem().map(|s| s.to_string_lossy().into_owned()).unwrap_or_default();
-    let stem = stem.trim_end_matches(" (dérush)");
-    let stem: String = stem.chars().take(150).collect();
-    format!("{stem} (dérush).mp4")
+    let nanos = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_nanos()).unwrap_or(0);
+    crate::rush_names::id_of(&format!("{}\n{nanos}\n{}", rush.trim(), std::process::id()), "mp4")
+}
+
+/// Nom montré de la vidéo du dérush (« essai » → « essai (dérush) », sans doubler le suffixe pour
+/// le dérush d'un dérush ; le registre ajoute « (2) »… si ce nom est déjà pris).
+pub fn output_label(rush: &str) -> String {
+    let label = crate::rush_names::display(rush.trim());
+    let base = match label.rfind(" (dérush)") {
+        Some(i) => &label[..i],
+        None => label.as_str(),
+    };
+    let base: String = base.chars().take(140).collect();
+    format!("{base} (dérush)")
 }
 
 /// Plages gardées du rush (secondes) d'après les plans d'edit.json.
@@ -292,6 +303,7 @@ pub fn main(args: &[String]) -> i32 {
         eprintln!("public/rushes/{name} : {e}");
         return 1;
     }
+    let label = crate::rush_names::register(&name, &output_label(&rush)).unwrap_or_else(|_| output_label(&rush));
     let work_video = suite.join("rush_1080.mp4");
     let ready = if work_out.is_some() { fs::rename(&work_part, &work_video) } else { link_or_copy(&dest, &work_video) };
     if let Err(e) = ready {
@@ -303,7 +315,7 @@ pub fn main(args: &[String]) -> i32 {
         eprintln!("work/derush_segments.json : {e}");
         return 1;
     }
-    println!("public/rushes/{name} ({} mots transcrits)", util::arr(&edit, "derushWords").len());
+    println!("Vidéo du dérush : {label} (public/rushes/{name}, {} mots transcrits)", util::arr(&edit, "derushWords").len());
     0
 }
 
@@ -313,8 +325,9 @@ mod tests {
 
     #[test]
     fn names() {
-        assert_eq!(output_name("public/rushes/essai.mov"), "essai (dérush).mp4");
-        assert_eq!(output_name("public/rushes/essai (dérush).mp4"), "essai (dérush).mp4");
+        assert!(output_name("public/rushes/essai.mov").ends_with(".mp4"));
+        assert_eq!(output_label("public/rushes/essai.mov"), "essai (dérush)");
+        assert_eq!(output_label("public/rushes/essai (dérush).mp4"), "essai (dérush)");
     }
 
     #[test]

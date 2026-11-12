@@ -81,6 +81,8 @@
   .am-ask::backdrop { background: rgb(0 0 0 / 0.45); }
   .am-ask h2 { font: 700 17px/1.3 var(--display, sans-serif); margin: 0 0 8px; }
   .am-ask p { margin: 0 0 8px; white-space: pre-line; }
+  .am-ask-check { display: flex; gap: 8px; align-items: flex-start; margin: 4px 0 0; font-weight: 600; cursor: pointer; }
+  .am-ask-check input { margin-top: 4px; accent-color: var(--accent, #2d6a5a); }
   .am-ask-foot { display: flex; justify-content: flex-end; gap: 8px; margin-top: 14px; flex-wrap: wrap; }
   .am-ask-foot button { font: inherit; font-weight: 600; border-radius: 8px; padding: 7px 14px; cursor: pointer;
     border: 1px solid var(--line, #e4ded4); background: var(--bg, #f5f3ef); color: var(--fg, #1f1d1a); }
@@ -235,7 +237,8 @@
   }
   // Confirmation dans une fenêtre de la page (au lieu de confirm() du navigateur, qui bloque la
   // page et ne se met pas en forme) : amConfirm(texte, { title, ok, cancel, danger }) → promesse
-  // de true (bouton ok) ou false (Annuler, Échap).
+  // de true (bouton ok) ou false (Annuler, Échap). Avec check: { label, checked } : une case sous le
+  // texte, et la promesse donne { checked } (bouton ok) ou false.
   window.amConfirm = (text, o = {}) => new Promise((resolve) => {
     if (!document.querySelector("style[data-am-ask]")) {
       const st = document.createElement("style");
@@ -252,10 +255,18 @@
     ok.textContent = o.ok || "Continuer";
     no.textContent = o.cancel || "Annuler";
     if (o.danger) ok.classList.add("am-danger");
+    let box = null;
+    if (o.check) {
+      const lab = document.createElement("label");
+      lab.className = "am-ask-check";
+      box = Object.assign(document.createElement("input"), { type: "checkbox", checked: !!o.check.checked });
+      lab.append(box, " ", o.check.label);
+      dlg.querySelector("p").after(lab);
+    }
     let answer = false;
     ok.addEventListener("click", () => { answer = true; dlg.close(); });
     no.addEventListener("click", () => dlg.close());
-    dlg.addEventListener("close", () => { dlg.remove(); resolve(answer); });
+    dlg.addEventListener("close", () => { dlg.remove(); resolve(answer && box ? { checked: box.checked } : answer); });
     document.body.append(dlg);
     dlg.showModal();
     ok.focus();

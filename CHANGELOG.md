@@ -9,8 +9,25 @@ installateurs (voir `packaging/README.md`).
 - **Vidéo « à jour » fiable** : un réglage changé pendant une génération n'est plus considéré comme
   inclus dans la vidéo, et cocher ou décocher un effet proposé ne demande plus de la régénérer. Une
   coupe dont les deux parties sont gardées ne compte plus comme deux moments changés.
-- **« Tout refaire » et nouveau rush** : les anciens sous-titres (SRT, VTT), l'ancienne 4K et les
-  anciennes copies pour les plateformes ne sont plus proposés avec le nouveau montage.
+- **« Tout refaire depuis le début » repart vraiment à zéro** : coupes, textes corrigés, moments
+  gardés, réglages de chaque moment, choix de Claude et historique de la page sont effacés (ils
+  visaient l'ancienne transcription). Une case garde ou non les réglages de tout le montage
+  (couleurs, son, transitions, style des sous-titres, zooms) ; la page retient le dernier choix.
+  Les anciens sous-titres (SRT, VTT), l'ancienne 4K et les anciennes copies pour les plateformes ne
+  sont plus proposés avec le nouveau montage.
+- **Vidéos du même nom** : une vidéo envoyée ne remplace plus jamais une autre du même nom (la
+  seconde s'appelle « nom (2) »), et la même vidéo envoyée deux fois n'est gardée qu'une fois. Une
+  deuxième validation du même dérush ne remplace plus la vidéo du premier. **Renommer** change le
+  nom montré d'une vidéo partout, y compris dans les noms des fichiers téléchargés.
+- **Frise toujours à l'écran** : sur un écran large, le haut de la page des moments tient sur une
+  ligne, et le lecteur laisse la place à la frise du moment ouvert.
+- **Variantes** : une seule liste, dont le dernier choix crée une nouvelle variante.
+- **Version légère (720p) à la demande** : elle n'est plus faite à chaque génération (plus rapide),
+  mais en quelques secondes quand on la lit ou la télécharge.
+- **« Rechercher les bruits parasites »** a sa barre d'avancement et son bouton « Annuler ».
+- **Frise plus lisible** : les silences de moins d'une seconde n'y sont plus montrés à part.
+- **Réglages communs à tous les montages** (sons et vidéos d'exemple, lignes des sous-titres,
+  effets proposés) : regroupés dans une section à part de « Rushes et montages ».
 - **Page des moments pendant une préparation** : elle n'est plus modifiable (ce qui y était changé
   était perdu), et elle a son bouton « Mettre en pause ».
 - **Raccourcis** : G garde ou retire le moment ouvert, I et O placent le début et la fin de la
