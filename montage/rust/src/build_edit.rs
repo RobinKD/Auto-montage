@@ -22,7 +22,7 @@
 //!            ding, boum, montee, glitch, photo, faux, juste… ou personnels : "perso-<nom>")
 //!    "vfx": {"segment": [effet visuel, …]}}  (comme sur la page, temps depuis le début de
 //!            l'extrait du moment : {"kind": "zoomin"|"zoomsec"|"dezoom"|"shake", "at", "dur",
-//!            "force" (%)}, {"kind": "flash", "at", "dur"}, {"kind": "highlight", "text": "mot",
+//!            "force" (%)} (zoomin : jusqu'à la fin de la partie du moment, ou à la fin de « dur » avec "stop": true), {"kind": "flash", "at", "dur"}, {"kind": "highlight", "text": "mot",
 //!            "color": "#rrggbb"}, {"kind": "zoomlibre", "at", "dur", "from": {"s", "x", "y"},
 //!            "to": {"s", "x", "y"}} (zoom progressif d'un cadre à l'autre : grossissement s de 1 à 4,
 //!            centre x, y de l'image visible de 0 à 1), {"kind": "filtre", "effect": id de look::EFFECTS
@@ -50,6 +50,10 @@ use std::sync::LazyLock;
 /// Cadence du montage (moments_lib::montage_fps : celle du rush, 30 pour un montage plus ancien).
 static FPS: LazyLock<f64> = LazyLock::new(|| crate::moments_lib::montage_fps(&paths::work()) as f64);
 const SR: usize = 48000;
+
+/// Effets gardés en dérushage : les zooms de l'étape « Zooms » (« Valider le dérush » de la page
+/// des moments), centrés sur le visage comme en auto-montage.
+pub const DERUSH_ZOOMS: [&str; 3] = ["zoomin", "zoomsec", "dezoom"];
 
 // --- Petits outils : valeurs JSON lues comme Python les lirait ----------------------------
 
@@ -853,9 +857,10 @@ fn run() -> Result<(), String> {
 
     // --- Mode « Dérushage » (bandeau de l'interface locale, work/mode.txt) ----------------------
     // Seulement les moments gardés, coupés comme sur la page : ni effets, ni voix modifiée, ni
-    // cadrage, ni réglages du son ; plus bas, ni zooms, et les sous-titres (corrigés sur la page)
-    // seulement si la case « Sous-titres » est cochée (work/derush.json). Les choix d'effets restent
-    // enregistrés et reviennent en mode Auto-montage.
+    // cadrage, ni réglages du son ; plus bas, ni zooms automatiques, et les sous-titres (corrigés sur
+    // la page) seulement si la case « Sous-titres » est cochée (work/derush.json). Seuls restent les
+    // zooms placés à l'étape « Zooms » de « Valider le dérush » (DERUSH_ZOOMS, centrés sur le visage).
+    // Les autres choix d'effets restent enregistrés et reviennent en mode Auto-montage.
     let derush = app_mode(&work) == "derush";
     let mut derush_subs = true;
     if derush {
@@ -871,13 +876,28 @@ fn run() -> Result<(), String> {
         page_transitions.clear();
         page_auto.clear();
         page_sfx = OMap::new();
-        page_vfx = OMap::new();
+        let mut zooms_n = 0;
+        let mut only_zooms = OMap::new();
         for k in &keep {
             page_sfx.insert(k.seg, vec![]);
-            page_vfx.insert(k.seg, vec![]);
+            let list: Vec<Value> = page_vfx
+                .get(&k.seg)
+                .map(|l| l.iter().filter(|f| DERUSH_ZOOMS.contains(&f.get("kind").and_then(Value::as_str).unwrap_or(""))).cloned().collect())
+                .unwrap_or_default();
+            zooms_n += list.len();
+            only_zooms.insert(k.seg, list);
         }
+        page_vfx = only_zooms;
         derush_subs = derush_subtitles(&work);
-        println!("Mode Dérushage : moments coupés, sans effets{}", if derush_subs { "" } else { " ni sous-titres" });
+        let zooms_txt = match zooms_n {
+            0 => String::new(),
+            1 => ", 1 zoom".into(),
+            n => format!(", {n} zooms"),
+        };
+        println!(
+            "Mode Dérushage : moments coupés, sans effets{}{zooms_txt}",
+            if derush_subs { "" } else { " ni sous-titres" }
+        );
     }
 
     // --- Audio d'origine ----------------------------------------------------------
@@ -1291,8 +1311,10 @@ fn run() -> Result<(), String> {
                 let force = pyfloat(fx.get("force"), 25.0).min(150.0).max(0.0) / 100.0;
                 match kind {
                     "zoomin" => {
-                        // zoom progressif, gardé jusqu'à la fin de la partie du moment
-                        let end = clip_at(seg_id, at).end();
+                        // zoom progressif, gardé jusqu'à la fin de la partie du moment, ou arrêté à
+                        // la fin de sa durée avec « stop » (étape « Zooms » du dérush)
+                        let part_end = clip_at(seg_id, at).end();
+                        let end = if truthy(fx.get("stop")) { page_time(seg_id, at + dur).min(part_end).max(start + 0.05) } else { part_end };
                         zoom_fx.push((
                             round_to(start, 3),
                             json!({"type": "in", "start": r3(start), "anim": r3(dur), "end": r3(end), "force": num(force)}),

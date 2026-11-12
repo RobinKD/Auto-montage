@@ -163,7 +163,7 @@ interne : les changements attendent la prochaine version.
   appliquées par Claude quand le montage en cours est en auto-montage ; en dérushage, des consignes
   écrites font choisir les moments par Claude, `jobs::prepare_plan`, étape « choix des moments
   (Claude) », `claude_tasks::derush_instructions` : seulement work/suggestions.json) ; « Valider le dérush » (page des moments, dérushage seulement) propose
-  « Télécharger derush » (« Générer », puis menu « Télécharger » ; « Générer la vidéo entière »,
+  « Télécharger le dérush » (« Générer », puis menu « Télécharger » ; « Générer la vidéo entière »,
   `#regen`, est caché en dérushage), ou passe à l'auto-montage
   (`POST /api/derush/valider`, tâche `derush` : use_selection, build_edit, `rust/src/derush_video.rs`
   (moments gardés d'edit.json mis bout à bout depuis le rush d'origine → `public/rushes/<rush>
@@ -184,9 +184,20 @@ interne : les changements attendent la prochaine version.
   case « Sous-titres » (cochée par défaut, `work/derush.json`, `moments_lib.derush_subtitles`, PUT
   `/api/derush`, `<html data-subtitles>` ; « Style des sous-titres », marqué `data-subtitles-only`,
   seulement cochée). La préparation se fait sans Claude, sauf consignes écrites pour choisir les moments (discussion et analyse du style refusées), et `build_edit`
-  (`DERUSH`) ignore effets, voix, cadrage, son.json, zooms, rebond et karaoké, et les sous-titres
+  (`DERUSH`) ignore effets (sauf les zooms du dérush), voix, cadrage, son.json, zooms automatiques, rebond et karaoké, et les sous-titres
   si la case est décochée (choix gardés pour le mode Auto-montage). Une nouvelle partie liée aux effets ou à Claude
   doit recevoir `data-mode-montage`.
+- Zooms du dérush (« Valider le dérush » > « Ajouter des zooms », page des moments, `enterZoomStep`,
+  classe `zoom-step` du `body`) : frise de la vidéo du dérush (`#tlz`, `renderZoomTl` : parties de
+  `livePlan` bout à bout) à la place des autres, repères de début et de fin (« Début ici » / « Fin ici »,
+  touches I et O : `debutIci` / `finIci` de `SHORTCUTS`, les mêmes que pour la partie gardée, glissés), type (`ZOOM_TYPES` : zoomin, zoomsec, dezoom) et force
+  (curseur de `ZOOM_FORCE_MIN` à `ZOOM_FORCE_MAX` %) dans l'inspecteur (`renderZoomPanel`). Chaque zoom est un effet `vfx` du moment où il
+  commence (temps de l'extrait, `zoomin` avec `stop` : arrêté à la fin de `dur`), arrêté à la fin de ce moment ; `build_edit`
+  ne garde en dérushage que ces effets (`DERUSH_ZOOMS`) → `zoomFx` (rendu HyperFrames, plus `plain`),
+  centrés sur le visage comme en auto-montage (`faceAt`, `faceInClip` ; aperçu de la page : `zoomsOf`,
+  branche `DERUSH` de `drawOverlay`) ; `settingsOf` compte les zooms en dérushage (vidéo en retard).
+  En passant à l'auto-montage, `derush_video` les écrit dans `work/derush_suite/zooms.json` et `prepare`
+  les met dans `work/local_db/moments/0.json` (seul moment de la vidéo du dérush).
 - Bandeau et menu des pages de l'interface locale : `local/menu.js`, ajouté par
   `local_server` à toutes ses pages (liste `PAGES`) ; pas de liens de navigation dans les pages.
   Pendant une tâche (`job` de `/api/status`, `jobs::job_brief`), le choix du mode est grisé (PUT `/api/mode`

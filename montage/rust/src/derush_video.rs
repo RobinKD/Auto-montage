@@ -18,6 +18,8 @@
 //!                   (instant le plus proche du rush, toutes les 0,5 s), vignettes dans visages/ ;
 //!   locuteurs.json  personne de chaque locuteur ; le locuteur de chaque mot (« spk ») va dans
 //!                   work/derush_segments.json (mot du rush le plus recouvrant) ;
+//!   zooms.json      zooms placés à l'étape « Zooms » du dérush (zoomFx d'edit.json), en effets
+//!                   visuels du seul moment de la vidéo du dérush (prepare les met dans son document) ;
 //!   cle.txt         nom de la vidéo du dérush (suite d'un autre dérush : ignorée).
 
 use crate::moments_lib::{audio_map_of, audio_streams, display_size, work_size};
@@ -206,7 +208,34 @@ fn carry_over(edit: &Value, total: f64, name: &str, segments: &mut Value) {
     if work.join("locuteurs.json").is_file() && add_speakers(&mut segments[0], &rush_segments, &clips) {
         let _ = fs::copy(work.join("locuteurs.json"), dir.join("locuteurs.json"));
     }
+    let zooms = zoom_effects(edit);
+    let _ = fs::remove_file(dir.join("zooms.json"));
+    if !zooms.is_empty() {
+        let _ = util::write_json(dir.join("zooms.json"), &Value::Array(zooms), None);
+    }
     let _ = fs::write(dir.join("cle.txt"), format!("{name}\n"));
+}
+
+/// Zooms du dérush (zoomFx d'edit.json, temps du montage = temps de la vidéo du dérush), en effets
+/// visuels de la page des moments (« at », « dur » depuis le début de l'extrait du seul moment, qui
+/// commence à 0) : ils reviennent sur ce moment en auto-montage.
+fn zoom_effects(edit: &Value) -> Vec<Value> {
+    let r3 = |x: f64| (x * 1000.0).round() / 1000.0;
+    util::arr(edit, "zoomFx")
+        .iter()
+        .filter_map(|z| {
+            let f = |k: &str| z.get(k).and_then(Value::as_f64);
+            let (start, end) = (f("start")?, f("end")?);
+            let anim = f("anim").unwrap_or(end - start);
+            let force = (f("force").unwrap_or(0.25) * 100.0).round();
+            Some(match z.get("type").and_then(Value::as_str)? {
+                "in" => json!({"kind": "zoomin", "at": r3(start), "dur": r3(anim), "stop": true, "force": force}),
+                "punch" => json!({"kind": "zoomsec", "at": r3(start), "dur": r3(end - start), "force": force}),
+                "out" => json!({"kind": "dezoom", "at": r3(start), "dur": r3(anim), "force": force}),
+                _ => return None,
+            })
+        })
+        .collect()
 }
 
 /// Copie (lien physique si possible) d'un fichier.
@@ -326,6 +355,24 @@ pub fn main(args: &[String]) -> i32 {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn zooms_carried() {
+        let edit = json!({"zoomFx": [
+            {"type": "in", "start": 1.0, "anim": 2.0, "end": 3.0, "force": 0.3},
+            {"type": "punch", "start": 4.0, "anim": 0.5, "end": 4.5, "force": 0.25},
+            {"type": "out", "start": 5.0, "anim": 1.0, "end": 6.0, "force": 0.5},
+            {"type": "key", "start": 0.0, "end": 9.0}]});
+        assert_eq!(
+            zoom_effects(&edit),
+            vec![
+                json!({"kind": "zoomin", "at": 1.0, "dur": 2.0, "stop": true, "force": 30.0}),
+                json!({"kind": "zoomsec", "at": 4.0, "dur": 0.5, "force": 25.0}),
+                json!({"kind": "dezoom", "at": 5.0, "dur": 1.0, "force": 50.0}),
+            ]
+        );
+        assert!(zoom_effects(&json!({})).is_empty());
+    }
 
     #[test]
     fn names() {

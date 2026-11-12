@@ -291,6 +291,21 @@ pub fn main(args: &[String]) -> i32 {
         ok
     };
     let speakers_carried = faces_carried && suite.join("locuteurs.json").is_file() && fs::copy(suite.join("locuteurs.json"), work.join("locuteurs.json")).is_ok();
+    // Zooms placés à l'étape « Zooms » du dérush : effets visuels du seul moment de la vidéo du
+    // dérush (segment 0), dans son document de la page des moments (work/local_db/moments/0.json).
+    if carried {
+        if let Some(serde_json::Value::Array(zooms)) = util::read_json(suite.join("zooms.json")) {
+            let doc = work.join("local_db").join("moments").join("0.json");
+            let other = util::read_json(&doc).is_some_and(|d| d.get("rush").and_then(serde_json::Value::as_str) != Some(base.as_str()));
+            if !other {
+                util::mkdirs(doc.parent().unwrap());
+                let n = zooms.len();
+                if util::write_json(&doc, &serde_json::json!({"rush": base, "vfx": zooms}), Some(1)).is_ok() {
+                    progress::say(&format!("Zooms du dérush repris : {n}"));
+                }
+            }
+        }
+    }
     // Mémoire nécessaire à chaque étape d'après la vidéo, comparée à la mémoire libre (avertissement).
     let _ = step(&["memoire", &rush]);
     // Langue du rush (transcription, consignes appliquées par Claude) : celle choisie pour cette préparation.

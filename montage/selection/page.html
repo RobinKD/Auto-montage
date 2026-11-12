@@ -447,6 +447,44 @@
   .ktrack .wd.doubt-w { color: #ffd2a6; }
   .ktrack .kf { position: absolute; width: 14px; height: 14px; margin: -7px 0 0 -7px; transform: rotate(45deg); background: var(--key); border: 2px solid #000; border-radius: 2px; padding: 0; z-index: 4; cursor: pointer; }
   .ktrack .kf:hover, .ktrack .kf:focus-visible { outline: 2px solid #fff; }
+  /* Étape « Zooms » du dérush (« Valider le dérush » > « Ajouter des zooms ») : une frise de la vidéo
+     du dérush à la place des autres, zooms au-dessus des images, repères de début et de fin. */
+  body.zoom-step #toolbar, body.zoom-step #tlm, body.zoom-step #tlk, body.zoom-step .insp-tabs, body.zoom-step #tab-moment { display: none !important; }
+  .tlz { display: grid; grid-template-columns: 74px minmax(0, 1fr); min-width: 0; border-top: 2px solid var(--accent); }
+  .tlz[hidden] { display: none; }
+  .tlz .tlk-head .when { color: var(--accent); }
+  .tlz .zlabels .z { height: 40px; } .tlz .zlabels .v { height: 46px; }
+  .ztrack { position: relative; height: 86px; cursor: ew-resize; touch-action: none; }
+  .ztrack .kfilm { position: absolute; top: 44px; height: 38px; display: flex; overflow: hidden; border-radius: 4px; pointer-events: none; }
+  .ztrack .kfilm span { flex: none; height: 100%; background-repeat: no-repeat; }
+  .ztrack .zsep { position: absolute; top: 40px; bottom: 0; width: 2px; margin-left: -1px; background: var(--bg); z-index: 1; pointer-events: none; }
+  .ztrack .zb { position: absolute; top: 8px; height: 26px; border-radius: 5px; border: 0; padding: 0 6px; font-size: 12px; line-height: 26px; color: #fff;
+    text-align: left; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer; z-index: 2; min-width: 8px;
+    background: color-mix(in srgb, var(--accent) 70%, transparent); }
+  .ztrack .zb.zoomsec { background: color-mix(in srgb, var(--vfx) 75%, transparent); }
+  .ztrack .zb.dezoom { background: color-mix(in srgb, var(--sfx) 75%, transparent); }
+  .ztrack .zb.sel { outline: 2px solid #fff; z-index: 3; }
+  .ztrack .zb:hover, .ztrack .zb:focus-visible { outline: 2px solid #fff; }
+  .ztrack .zr { position: absolute; top: 0; bottom: 0; background: rgb(255 255 255 / 0.14); border-left: 2px solid #3ddc84; border-right: 2px solid #ff5f5f; pointer-events: none; z-index: 1; }
+  .ztrack .zm { position: absolute; top: 0; height: 18px; margin-left: -9px; width: 18px; padding: 0; border: 0; border-radius: 4px; font-size: 10px; font-weight: 700;
+    line-height: 18px; text-align: center; color: #000; cursor: ew-resize; z-index: 5; touch-action: none; }
+  .ztrack .zm.a { background: #3ddc84; } .ztrack .zm.b { background: #ff5f5f; }
+  .zpanel .zchoice { display: flex; flex-direction: column; gap: 6px; margin: 4px 0 12px; }
+  .zpanel .zchoice label { display: flex; gap: 8px; align-items: baseline; padding: 7px 10px; border: 1px solid var(--line); border-radius: 8px; cursor: pointer; font-size: 14px; }
+  .zpanel .zchoice label:has(input:checked) { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 14%, transparent); }
+  .zpanel .zchoice small { display: block; color: var(--muted); font-size: 12px; }
+  .zpanel .zchoice.row { flex-direction: row; flex-wrap: wrap; }
+  .zpanel .zforce { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--muted); margin: 4px 0 12px; }
+  .zpanel .zforce input { flex: 1; accent-color: var(--accent); }
+  .zpanel .zforce b { color: var(--fg); min-width: 3.2em; text-align: right; font-variant-numeric: tabular-nums; }
+  .zpanel .zrange { font-family: var(--mono); font-size: 13px; font-variant-numeric: tabular-nums; margin: 4px 0 10px; display: grid; grid-template-columns: auto 1fr; gap: 3px 10px; }
+  .zpanel .zrange .na { color: var(--muted); font-family: inherit; }
+  .zpanel .zsteps { margin: 0 0 12px; padding-left: 20px; font-size: 13px; color: var(--muted); }
+  .zpanel .zlist { display: flex; flex-direction: column; gap: 4px; margin: 4px 0 12px; }
+  .zpanel .zlist div { display: flex; gap: 4px; }
+  .zpanel .zlist button:first-child { flex: 1; text-align: left; font-size: 13px; }
+  .zpanel .zlist .sel button:first-child { border-color: var(--accent); }
+  .zpanel .zwarn { color: var(--warn); font-size: 13px; }
   .fxset.focus { outline: 1px solid var(--accent); border-radius: 6px; outline-offset: 3px; }
   /* Réglage d'un cadre du zoom libre, sur l'image du lecteur. */
   .framer { position: absolute; inset: 0; z-index: 4; cursor: grab; touch-action: none; outline: 2px dashed var(--key); outline-offset: -2px; }
@@ -733,6 +771,7 @@
       <div class="tlm-scroll" id="tlm-scroll"><div class="tlm-in" id="tlm-in"></div></div>
     </div>
     <div class="tlk" id="tlk" hidden></div>
+    <div class="tlz" id="tlz" hidden aria-label="Frise des zooms"></div>
   </section>
 </main>
 <button type="button" class="to-top" id="to-top" hidden title="Revenir en haut de la page" aria-label="Revenir en haut de la page">↑</button>
@@ -742,15 +781,17 @@
   <p id="valider-sum"></p>
   <div class="dlg-choices">
     <button type="button" class="dlg-choice regen" id="valider-dl"><b>Télécharger le dérush</b>
-      <span>Les moments gardés mis bout à bout, avec leurs sous-titres si la case « Sous-titres » est cochée ; la vidéo se télécharge à la fin, dans la qualité choisie ci-dessous.</span></button>
+      <span>Les moments gardés mis bout à bout, avec leurs sous-titres si la case « Sous-titres » est cochée et les zooms ajoutés ; la vidéo se télécharge à la fin, dans la qualité choisie ci-dessous.</span></button>
     <fieldset class="dlg-quality" id="valider-quality" hidden>
       <legend>Qualité de la vidéo téléchargée</legend>
       <label><input type="radio" name="valider-q" value="720p"> <b>720p</b> <small>légère, pour le téléphone ou pour partager vite</small></label>
       <label><input type="radio" name="valider-q" value="1080p" checked> <b>1080p</b> <small>vidéo entière, la plus courante</small></label>
       <label><input type="radio" name="valider-q" value="4k"> <b>4K</b> <small id="valider-4k-note">pour la publication ; plus longue à créer (source 4K et nouveau rendu après la vidéo entière)</small></label>
     </fieldset>
+    <button type="button" class="dlg-choice" id="valider-zooms"><b>Ajouter des zooms</b>
+      <span id="valider-zooms-sum">Avant de télécharger : placez des zooms sur le visage avec la frise et la tête de lecture (début, fin, type de zoom). Ils sont aussi repris en auto-montage.</span></button>
     <button type="button" class="dlg-choice" id="valider-montage" hidden><b>Passer à l'auto-montage</b>
-      <span>Les moments gardés deviennent une seule vidéo, un seul moment avec ses sous-titres corrigés, sur lequel vous réglez ensuite les effets et le son. Le dérush reste dans « Montages » (page « Rushes et montages »).</span></button>
+      <span>Les moments gardés deviennent une seule vidéo, un seul moment avec ses sous-titres corrigés et ses zooms, sur lequel vous réglez ensuite les effets et le son. Le dérush reste dans « Montages » (page « Rushes et montages »).</span></button>
   </div>
   <div class="dlg-foot"><span class="sub" id="valider-msg" role="status"></span><button type="button" id="valider-close">Annuler</button></div>
 </dialog>
@@ -797,6 +838,16 @@
   // son (masqués ici, ignorés par build_edit). « Valider le dérush » mène à l'auto-montage ; le mode se change
   // aussi dans le menu (local/menu.js).
   const DERUSH = !!window.AUTO_MONTAGE_LOCAL && document.documentElement.dataset.mode === "derush";
+  // Étape « Zooms » du dérush (enterZoomStep) : types et forces proposés ; a, b : début et fin du
+  // zoom en préparation (temps de la vidéo du dérush) ; sel : zoom choisi (moment, rang dans vfx).
+  const ZOOM_TYPES = [
+    { id: "zoomin", label: "Zoom avant", desc: "l'image se rapproche doucement du visage, du début à la fin du zoom" },
+    { id: "zoomsec", label: "Zoom sec", desc: "plan rapproché d'un coup sur le visage, retour à l'image entière à la fin" },
+    { id: "dezoom", label: "Dézoom", desc: "part d'un plan rapproché sur le visage et revient doucement à l'image entière" },
+  ];
+  const ZOOM_FORCE_MIN = 5, ZOOM_FORCE_MAX = 100;  // force en % (curseur de l'étape « Zooms »)
+  const isZoomFx = (f) => !!f && ZOOM_TYPES.some((z) => z.id === f.kind);
+  const zs = { on: false, a: null, b: null, kind: "zoomin", force: 30, sel: null, zoom: 1, msg: "" };
   // Dérushage : sous-titres dans la vidéo entière (case « Sous-titres », work/derush.json,
   // cochée par défaut ; écrit par le serveur sur <html data-subtitles>).
   const derushSubs = () => document.documentElement.dataset.subtitles !== "0";
@@ -860,6 +911,7 @@
   const spkColor = (k) => SPK_COLORS[k % SPK_COLORS.length];
   const hasTurns = (m) => (m.turns || []).some((r) => r[2] > 0);
   function focusPersonAt(m, t) {
+    if (DERUSH) return null;  // dérushage : cadrage de tout le monde (build_edit)
     const p = focusOf(m);
     if (p || focusMode(m) !== "auto") return p;
     const r = (m.turns || []).find((x) => t >= x[0] && t < x[1]);
@@ -1152,10 +1204,10 @@
       out.gain = e && typeof e.gain === "number" ? e.gain : 1;
       out.focus = e ? focusValue(e.focus) : null;
       out.transition = e && e.transition && typeof e.transition === "object" ? e.transition : null;
-    }
+    } else out.zooms = vfxOf(m, e, first).filter(isZoomFx);  // dérushage : zooms seulement (build_edit)
     return out;
   }
-  const CHANGE_LABELS = { keep: "gardé", trim: "début et fin", text: "sous-titres",
+  const CHANGE_LABELS = { keep: "gardé", trim: "début et fin", text: "sous-titres", zooms: "zooms",
     sfx: "effets sonores", vfx: "effets visuels", gain: "volume de la voix", focus: "cadrage", transition: "transition" };
   // null : rien à signaler (réglages pas encore chargés, ou moment absent des deux) ;
   // { kind: "same" | "added" | "removed" | "changed", what: [réglages changés] }.
@@ -1322,8 +1374,9 @@
 
   function buildOverlay(m) {
     const words = wordsOf(m);
+    // Dérushage : seulement les zooms de l'étape « Zooms » (build_edit, DERUSH_ZOOMS).
     if (DERUSH) return { m, serial: ++overlaySerial, caps: derushSubs() ? captionGroups(words) : [], events: [], typed: [], chips: [], voice: [], zoomType: 0,
-                         zooms: [], shakes: [], flashes: [], hl: [], looks: [] };
+                         zooms: zoomsOf(m), shakes: [], flashes: [], hl: [], looks: [] };
     const events = [], voice = [];
     for (const f of sfxOf(m)) {
       if (f.kind === "voix") { voice.push({ a: Number(f.at) || 0, b: (Number(f.at) || 0) + (Number(f.dur) || 1), force: voiceForce(f), voice: voiceOf(f) }); continue; }
@@ -1350,13 +1403,10 @@
       }
     }
     // Zooms, secousses, flashs, mots mis en valeur (mêmes règles que build_edit).
-    const zooms = [], shakes = [], flashes = [], hl = [], looks = [];
+    const zooms = zoomsOf(m), shakes = [], flashes = [], hl = [], looks = [];
     for (const f of vfxOf(m)) {
       const a = Number(f.at) || 0, d = Math.max(0.05, Number(f.dur) || 0.8), force = (Number(f.force) || 0) / 100;
-      if (f.kind === "zoomin") zooms.push({ type: "in", a, b: Infinity, anim: d, force });
-      else if (f.kind === "zoomsec") zooms.push({ type: "punch", a, b: a + d, anim: d, force });
-      else if (f.kind === "dezoom") zooms.push({ type: "out", a, b: a + d, anim: d, force });
-      else if (f.kind === "shake") shakes.push({ a, b: a + d, force });
+      if (f.kind === "shake") shakes.push({ a, b: a + d, force });
       else if (f.kind === "flash") flashes.push({ a, b: a + d });
       else if (f.kind === "filtre" && LOOK && LOOK.hasEffect(f.effect)) looks.push({ a, b: a + d, effect: f.effect, force: Number(f.force ?? 50) });
       else if (f.kind === "highlight" && String(f.text || "").trim()) hl.push({ words: String(f.text).split(/\s+/).map(normWord).filter(Boolean), color: f.color || "#ffd84d" });
@@ -1364,6 +1414,19 @@
     const key = vfxOf(m).find((f) => f.kind === "zoomlibre") || null;  // zoom libre : tout le moment
     return { m, serial: ++overlaySerial, caps: captionGroups(words), events: events.map((e) => ({ ...e, done: false })), typed, chips, voice, zoomType: m.id % 2,
              zooms, shakes, flashes, hl, key, looks };
+  }
+
+  // Zooms d'un moment (zoom avant gardé jusqu'à la fin de l'extrait, ou arrêté à la fin de sa durée avec « stop »), en temps
+  // de l'extrait : mêmes règles que build_edit (zoomFx).
+  function zoomsOf(m) {
+    const out = [];
+    for (const f of vfxOf(m)) {
+      const a = Number(f.at) || 0, d = Math.max(0.05, Number(f.dur) || 0.8), force = (Number(f.force) || 0) / 100;
+      if (f.kind === "zoomin") out.push({ type: "in", a, b: f.stop ? a + d : Infinity, anim: d, force });
+      else if (f.kind === "zoomsec") out.push({ type: "punch", a, b: a + d, anim: d, force });
+      else if (f.kind === "dezoom") out.push({ type: "out", a, b: a + d, anim: d, force });
+    }
+    return out;
   }
 
   // Voix modifiées (moments_lib.VOICES) : identifiant, libellé, description.
@@ -1618,8 +1681,18 @@ ${HFAudio.voiceElements(spec)}
     if (mode === "moment" && !player.paused && isTrimmed(fx.m) && t >= trimOf(fx.m).out) player.pause();
     // Dérushage : image du rush telle quelle (ni zoom, ni voix modifiée) ; sous-titres simples
     // si la case « Sous-titres » est cochée (fx.caps vide sinon, buildOverlay).
-    if (DERUSH) player.style.transform = "";
-    else {
+    if (DERUSH) {
+      // Zooms de l'étape « Zooms » seulement, sur le visage (sans zoom automatique).
+      const z = fx.zooms.find((x) => t >= x.a && t < x.b);
+      if (z) {
+        const p = Math.min(1, Math.max(0, (t - z.a) / Math.max(0.01, z.anim)));
+        const e2 = p < 0.5 ? 2 * p * p : 1 - Math.pow(-2 * p + 2, 2) / 2;
+        const fc = faceInClip(fx.m, t), scale = Math.min(z.type === "in" ? 1 + z.force * e2 : z.type === "punch" ? 1 + z.force : 1 + z.force * (1 - e2), fc.s);
+        zoomNow = { s: scale, ox: fc.x, oy: fc.y, tx: 0, ty: 0 };
+      } else zoomNow = { s: 1, ox: 0.5, oy: 0.5, tx: 0, ty: 0 };
+      player.style.transformOrigin = `${zoomNow.ox * 100}% ${zoomNow.oy * 100}%`;
+      player.style.transform = zoomNow.s > 1.0005 ? zoomCss(zoomNow, null) : "";
+    } else {
     hfUpdate(fx.m);
     setVoice(fx.voice.find((v) => t >= v.a && t < v.b && !isHfVoice(v)) || null);
     // Zoom : tranches de 1,8 s, alternance zoom progressif / zoom sec, centré sur le visage.
@@ -1794,7 +1867,7 @@ ${HFAudio.voiceElements(spec)}
   function liveHoldFrame() {
     if (player.readyState < 2 || !player.videoWidth) return;
     const cv = $("tr-out");
-    drawZoomed(cv, DERUSH ? { s: 1, ox: 0.5, oy: 0.5, tx: 0, ty: 0 } : zoomNow);
+    drawZoomed(cv, zoomNow);
     if (LOOK) LOOK.applyStyle(cv, null);
     holdStyle(cv);
     cv.hidden = false;
@@ -2897,6 +2970,7 @@ ${HFAudio.voiceElements(spec)}
     const pane = $("insp-moment"), scroll = pane.scrollTop;
     const active = document.activeElement && pane.contains(document.activeElement) && document.activeElement.id ? document.activeElement : null;
     const activeId = active ? active.id : null, selStart = active && "selectionStart" in active ? active.selectionStart : null;
+    if (zs.on) { $("insp-moment").hidden = false; $("insp-all").hidden = true; renderZoomPanel(pane); return; }
     const om = openMoment(), out = [];
     if (frise.sel.size > 1) {
       const list = selected(), kept = list.filter((m) => isKept(m)).length;
@@ -3018,9 +3092,268 @@ ${HFAudio.voiceElements(spec)}
     syncMain();
     renderToolbar();
     renderMomentTl();
+    renderZoomTl();
     renderInspector();
     drawPlayheads();
   }
+  // --- Étape « Zooms » du dérush (« Valider le dérush » > « Ajouter des zooms ») ---------------
+  // La vidéo du dérush (moments gardés bout à bout, comme l'onglet « Vidéo entière ») sur une seule
+  // frise : début et fin du zoom placés à la tête de lecture (« Début ici », « Fin ici », touches I
+  // et O, ou repères glissés), type et force choisis, puis « Ajouter le zoom ». Chaque zoom est un
+  // effet visuel du moment où il commence (vfx : zoomin avec « stop », zoomsec, dezoom ; temps de
+  // l'extrait), qui s'arrête au plus tard à la fin de ce moment ; build_edit le garde en dérushage
+  // (DERUSH_ZOOMS) et le rendu le centre sur le visage ; derush_video le reporte sur le moment de la
+  // vidéo du dérush en auto-montage (zooms.json).
+  function zoomEntries(plan = livePlan()) {  // zooms des moments gardés, en temps de la vidéo du dérush
+    const out = [];
+    for (const e of plan.list) {
+      const len = e.b - e.a;
+      vfxOf(e.m).forEach((f, idx) => {
+        if (!isZoomFx(f)) return;
+        const at = Number(f.at) || 0, dur = Math.max(0.05, Number(f.dur) || 0.8);
+        const end = f.kind === "zoomin" ? (f.stop ? at + dur : e.b) : at + dur;
+        const A = e.T + Math.max(0, at - e.a), B = e.T + Math.min(len, end - e.a);
+        if (B - A >= 0.02) out.push({ id: e.m.id, idx, f, A, B, e });
+      });
+    }
+    return out.sort((x, y) => x.A - y.A);
+  }
+  const zoomLabel = (kind) => (ZOOM_TYPES.find((z) => z.id === kind) || { label: kind }).label;
+  const zoomSel = (list = zoomEntries()) => (zs.sel ? list.find((z) => z.id === zs.sel.id && z.idx === zs.sel.idx) || null : null);
+  // Partie de la vidéo du dérush qui contient T (le zoom y commence et s'y arrête).
+  const entryAt = (plan, T) => [...plan.list].reverse().find((e) => e.T <= T + 1e-6) || plan.list[0];
+  function zoomRange() {
+    const z = zoomSel();
+    return z ? [z.A, z.B] : [zs.a, zs.b];
+  }
+  function enterZoomStep() {
+    if (!livePlan().list.length) return;
+    zs.on = true; zs.sel = null; zs.a = zs.b = null; zs.msg = "";
+    frise.open = null; frise.sel.clear(); editing = null; frise.tab = "moment";
+    document.body.classList.add("zoom-step");
+    showLive(false);
+    renderOpen();
+    $("tlz").scrollIntoView({ block: "nearest" });
+  }
+  function leaveZoomStep() {
+    zs.on = false; zs.sel = null;
+    document.body.classList.remove("zoom-step");
+    $("tlz").hidden = true;
+    renderOpen();
+  }
+  // Effet du zoom [A, B] (temps de la vidéo du dérush) dans le moment où il commence.
+  function zoomEffect(plan, A, B, kind, force) {
+    const e = entryAt(plan, A), end = Math.min(B, e.T + e.b - e.a), r3 = (x) => Math.round(x * 1000) / 1000;
+    if (end - A < 0.1) return null;
+    const at = r3(e.a + (A - e.T)), dur = r3(end - A);
+    return { e, f: kind === "zoomin" ? { kind, at, dur, stop: true, force } : { kind, at, dur, force } };
+  }
+  async function saveZoom(A, B, kind, force) {
+    const plan = livePlan(), made = zoomEffect(plan, A, B, kind, force);
+    if (!made) { zs.msg = "Zoom trop court : au moins 0,1 s entre le début et la fin."; renderInspector(); return false; }
+    const old = zoomSel();
+    if (old && old.id === made.e.m.id) {
+      const next = vfxOf(made.e.m).map((x) => ({ ...x }));
+      next[old.idx] = made.f;
+      await saveMoment(made.e.m.id, { vfx: next });
+      zs.sel = { id: made.e.m.id, idx: old.idx };
+    } else {
+      if (old) await saveMoment(old.id, { vfx: vfxOf(old.e.m).filter((_, i) => i !== old.idx) });
+      const next = [...vfxOf(made.e.m).map((x) => ({ ...x })), made.f];
+      await saveMoment(made.e.m.id, { vfx: next });
+      zs.sel = old ? { id: made.e.m.id, idx: next.length - 1 } : null;
+    }
+    zs.msg = B > made.e.T + made.e.b - made.e.a + 0.02 ? "Un zoom reste dans un moment : il s'arrête à la fin de celui-ci." : "";
+    return true;
+  }
+  async function addZoom() {
+    if (zs.a === null || zs.b === null) return;
+    if (await saveZoom(zs.a, zs.b, zs.kind, zs.force)) {
+      zs.a = zs.b = null;
+      setStatus("Zoom ajouté : il sera dans la vidéo téléchargée", "ok");
+      renderOpen();
+    }
+  }
+  async function deleteZoom(z) {
+    if (!z) return;
+    await saveMoment(z.id, { vfx: vfxOf(z.e.m).filter((_, i) => i !== z.idx) });
+    zs.sel = null; zs.msg = "";
+    renderOpen();
+  }
+  // Début ou fin à l'instant T : zoom choisi (déplacé), ou zoom en préparation.
+  async function setZoomMark(which, T) {
+    T = Math.round(T * 30) / 30;
+    const z = zoomSel();
+    if (z) {
+      const A = which === "a" ? T : z.A, B = which === "b" ? T : z.B;
+      if (B - A < 0.1) { zs.msg = which === "a" ? "Le début doit être avant la fin du zoom." : "La fin doit être après le début du zoom."; renderInspector(); return; }
+      await saveZoom(A, B, z.f.kind, Number(z.f.force) || 30);
+      renderOpen();
+      return;
+    }
+    zs[which] = T;
+    if (zs.a !== null && zs.b !== null && zs.b - zs.a < 0.1) zs[which === "a" ? "b" : "a"] = null;  // repère d'avant ou d'après remis à zéro
+    zs.msg = "";
+    renderOpen();
+  }
+  function pickZoom(z) {
+    zs.sel = z ? { id: z.id, idx: z.idx } : null;
+    zs.msg = "";
+    if (z) { zs.kind = z.f.kind; zs.force = Math.round(Number(z.f.force) || 30); liveSeek(z.A, false); }
+    renderOpen();
+  }
+  async function setZoomKind(kind, force) {
+    zs.kind = kind; zs.force = force;
+    const z = zoomSel();
+    if (z) { await saveZoom(z.A, z.B, kind, force); renderOpen(); } else renderInspector();
+  }
+  // Frise de la vidéo du dérush : règle, zooms, images ; repères de début et de fin du zoom.
+  function renderZoomTl() {
+    const box = $("tlz");
+    box.hidden = !zs.on;
+    if (!zs.on) { box.replaceChildren(); return; }
+    const old = box.querySelector(".tlk-scroll"), keep = old ? old.scrollLeft : 0;
+    const plan = livePlan(), len = Math.max(0.5, plan.total);
+    const avail = Math.max(200, ((box.clientWidth || $("edit").clientWidth || 900) - 90)), pps = (avail * zs.zoom) / len;
+    const head = el("div", "tlk-head");
+    const play = btn("▶", `Lecture / pause (${keyLabel("lecture")})`, togglePlay, "play");
+    const nudge = (text, d, title) => btn(text, title, () => step(d / 30));
+    const markA = btn("Début ici", `Début du zoom à la tête de lecture (${keyLabel("debutIci")})`, () => setZoomMark("a", liveTime()));
+    const markB = btn("Fin ici", `Fin du zoom à la tête de lecture (${keyLabel("finIci")})`, () => setZoomMark("b", liveTime()));
+    const zoom = el("span", "zoom");
+    const setZ = (d) => { zs.zoom = Math.max(1, Math.min(64, zs.zoom * (d > 0 ? 2 : 0.5))); renderZoomTl(); };
+    const zo = btn("−", "Voir toute la vidéo", () => setZ(-1)), zi = btn("+", "Agrandir la frise : le début et la fin se placent plus finement", () => setZ(1));
+    zo.disabled = zs.zoom <= 1; zi.disabled = zs.zoom >= 64;
+    zoom.append(document.createTextNode("Zoom"), zo, el("span", "", `×${zs.zoom}`), zi);
+    head.append(el("span", "when", "Zooms"), el("span", "txt", "Vidéo du dérush : placez le début et la fin à la tête de lecture"),
+      play, nudge("‹", -1, `Une image avant (${keyLabel("imagePrec")})`), nudge("›", 1, `Une image après (${keyLabel("imageSuiv")})`), el("span", "at-info"),
+      markA, markB, zoom, btn("✕", "Quitter l'étape « Zooms » (les zooms sont gardés)", leaveZoomStep));
+    const labels = el("div", "tlk-labels zlabels");
+    labels.append(el("span", "r"), el("span", "z", "Zooms"), el("span", "v", "Vidéo"));
+    const sc = el("div", "tlk-scroll"), inner = el("div", "tlk-in");
+    inner.style.width = `${len * pps + 16}px`;
+    const track = el("div", "ztrack");
+    for (const e of plan.list) {
+      const film = filmstrip(clipStart(e.m) + e.a, clipStart(e.m) + e.b, (e.b - e.a) * pps, 38, e.m.thumb);
+      film.className = "kfilm";
+      Object.assign(film.style, { left: `${e.T * pps}px`, width: `${(e.b - e.a) * pps}px` });
+      track.append(film);
+      if (e.T > 0) { const sep = el("span", "zsep"); sep.style.left = `${e.T * pps}px`; track.append(sep); }
+    }
+    const list = zoomEntries(plan), cur = zoomSel(list);
+    for (const z of list) {
+      const title = `${zoomLabel(z.f.kind)} · ${tc(z.A)} → ${tc(z.B)}`;
+      const b = btn(zoomLabel(z.f.kind), `${title} : clic pour le choisir`, (ev) => { ev.stopPropagation(); pickZoom(z); }, `zb ${z.f.kind}${cur === z ? " sel" : ""}`);
+      Object.assign(b.style, { left: `${z.A * pps}px`, width: `${Math.max(8, (z.B - z.A) * pps)}px` });
+      b.setAttribute("aria-label", title);
+      b.addEventListener("pointerdown", (ev) => ev.stopPropagation());
+      track.append(b);
+    }
+    // Repères de début (vert) et de fin (rouge), glissés : la tête de lecture suit.
+    const [ra, rb] = zoomRange();
+    if (ra !== null && rb !== null) {
+      const r = el("span", "zr");
+      Object.assign(r.style, { left: `${ra * pps}px`, width: `${Math.max(0, rb - ra) * pps}px` });
+      track.append(r);
+    }
+    for (const [which, T] of [["a", ra], ["b", rb]]) {
+      if (T === null) continue;
+      const mk = btn(which === "a" ? "D" : "F", which === "a" ? "Début du zoom : glisser pour le déplacer" : "Fin du zoom : glisser pour la déplacer", null, `zm ${which}`);
+      mk.style.left = `${T * pps}px`;
+      mk.addEventListener("pointerdown", (ev) => {
+        ev.stopPropagation(); ev.preventDefault();
+        mk.setPointerCapture(ev.pointerId);
+        let to = T;
+        const move = (e) => { const r = inner.getBoundingClientRect(); to = Math.max(0, Math.min(len, (e.clientX - r.left) / pps)); mk.style.left = `${to * pps}px`; liveSeek(to, false); };
+        const up = () => { mk.removeEventListener("pointermove", move); mk.removeEventListener("pointerup", up); if (Math.abs(to - T) > 1e-3) setZoomMark(which, to); };
+        mk.addEventListener("pointermove", move);
+        mk.addEventListener("pointerup", up);
+      });
+      track.append(mk);
+    }
+    track.addEventListener("pointerdown", (ev) => {
+      if (ev.button) return;
+      ev.preventDefault();
+      track.setPointerCapture(ev.pointerId);
+      const at = (e) => { const r = inner.getBoundingClientRect(); liveSeek(Math.max(0, Math.min(len, (e.clientX - r.left) / pps)), false); };
+      const pan = edgePan(sc, (x) => at({ clientX: x }));
+      const move = (e) => { at(e); pan.move(e.clientX); };
+      at(ev);
+      const up = () => { pan.stop(); track.removeEventListener("pointermove", move); track.removeEventListener("pointerup", up); };
+      track.addEventListener("pointermove", move);
+      track.addEventListener("pointerup", up);
+    });
+    inner.append(ruler(len, pps, (t) => liveSeek(t, false), true), track, el("span", "phead"));
+    inner.dataset.pps = String(pps);
+    sc.append(inner);
+    box.replaceChildren(head, labels, sc);
+    sc.scrollLeft = keep;
+    drawPlayheads();
+  }
+  // Inspecteur de l'étape « Zooms » : mode d'emploi, début et fin, type et force, zooms placés.
+  function renderZoomPanel(pane) {
+    const out = [], list = zoomEntries(), cur = zoomSel(list), [ra, rb] = zoomRange();
+    out.push(el("h2", "", cur ? "Zoom choisi" : "Ajouter un zoom"));
+    const steps = el("ol", "zsteps");
+    for (const t of [`Mettez la tête de lecture au début du zoom (cliquez sur la frise ou lisez la vidéo), puis « Début ici » (${keyLabel("debutIci")}).`,
+      `Mettez-la à la fin du zoom, puis « Fin ici » (${keyLabel("finIci")}).`,
+      "Choisissez le type de zoom et sa force, puis « Ajouter le zoom ». Le zoom se fait sur le visage."]) steps.append(el("li", "", t));
+    if (!cur) out.push(steps);
+    const range = el("div", "zrange");
+    range.append(el("span", "", "Début"), ra === null ? el("span", "na", "pas encore placé") : el("b", "", tc(ra)),
+      el("span", "", "Fin"), rb === null ? el("span", "na", "pas encore placée") : el("b", "", tc(rb)));
+    if (ra !== null && rb !== null) range.append(el("span", "", "Durée"), el("b", "", `${(rb - ra).toFixed(1).replace(".", ",")} s`));
+    out.push(range);
+    if (!cur && ra !== null && rb !== null) {
+      const e = entryAt(livePlan(), ra);
+      if (rb > e.T + e.b - e.a + 0.02) out.push(el("p", "zwarn", `La fin est dans le moment suivant : le zoom s'arrêtera à la fin de ce moment (${tc(e.T + e.b - e.a)}).`));
+    }
+    out.push(el("h3", "", "Type de zoom"));
+    const kinds = el("div", "zchoice");
+    for (const z of ZOOM_TYPES) {
+      const l = el("label"), r = Object.assign(document.createElement("input"), { type: "radio", name: "zs-kind", value: z.id, checked: zs.kind === z.id });
+      r.addEventListener("change", () => setZoomKind(z.id, zs.force));
+      const txt = el("span");
+      txt.append(el("b", "", z.label), el("small", "", z.desc));
+      l.append(r, txt);
+      kinds.append(l);
+    }
+    // Force : grossissement en % (curseur ; le zoom reste plafonné pour ne couper aucun visage).
+    out.push(kinds, el("h3", "", "Force"));
+    const fbox = el("label", "zforce"), val = el("b", "", `${zs.force} %`);
+    const fr = Object.assign(document.createElement("input"), { type: "range", min: String(ZOOM_FORCE_MIN), max: String(ZOOM_FORCE_MAX), step: "1", value: String(zs.force) });
+    fr.id = "zs-force";
+    fr.setAttribute("aria-label", "Force du zoom");
+    fr.addEventListener("input", () => { val.textContent = `${fr.value} %`; });
+    fr.addEventListener("change", () => setZoomKind(zs.kind, Number(fr.value)));
+    fbox.append(el("span", "", "Léger"), fr, el("span", "", "Fort"), val);
+    out.push(fbox);
+    if (zs.msg) out.push(el("p", "zwarn", zs.msg));
+    const actions = el("div", "editor-actions");
+    if (cur) {
+      actions.append(btn("Supprimer ce zoom", "", () => deleteZoom(cur)), btn("Nouveau zoom", "Ne plus modifier ce zoom : en placer un autre", () => pickZoom(null)));
+    } else {
+      const add = btn("Ajouter le zoom", ra === null || rb === null ? "Placez d'abord le début et la fin" : "", addZoom, "primary");
+      add.disabled = ra === null || rb === null;
+      actions.append(add);
+    }
+    out.push(actions, el("h3", "", list.length ? `Zooms placés (${list.length})` : "Aucun zoom placé"));
+    const zl = el("div", "zlist");
+    for (const z of list) {
+      const row = el("div", cur === z ? "sel" : "");
+      row.append(btn(`${tc(z.A)} · ${zoomLabel(z.f.kind)} · ${(z.B - z.A).toFixed(1).replace(".", ",")} s`, "Choisir ce zoom (modifier son début, sa fin, son type)", () => pickZoom(z)),
+        btn("✕", "Supprimer ce zoom", () => deleteZoom(z)));
+      zl.append(row);
+    }
+    out.push(zl);
+    const done = el("div", "editor-actions");
+    done.append(btn("Terminer : télécharger ou passer à l'auto-montage", "Fenêtre « Valider le dérush »", () => { leaveZoomStep(); $("valider-derush").click(); }, "primary"),
+      btn("Revenir au dérush", "Quitter l'étape « Zooms » : les zooms sont gardés", leaveZoomStep));
+    out.push(done);
+    pane.replaceChildren(el("div", "zpanel"));
+    pane.firstChild.append(...out);
+  }
+
   let resizeT = null;
   window.addEventListener("resize", () => { clearTimeout(resizeT); resizeT = setTimeout(renderList, 150); });
 
@@ -3035,7 +3368,7 @@ ${HFAudio.voiceElements(spec)}
   // Tête de lecture déplacée (pas pendant la lecture) : chaque frise est centrée sur elle, sauf
   // celle où on vient de cliquer ou de glisser (scrubFrom ; clavier ou ailleurs : les deux).
   let scrubFrom = null;
-  const centered = { rush: null, moment: null };
+  const centered = { rush: null, moment: null, zoom: null };
   function center(which, sc, x, t) {
     if (centered[which] !== null && Math.abs(centered[which] - t) < 1e-3) return;  // pas bougé : défilement de l'utilisateur gardé
     centered[which] = t;
@@ -3071,6 +3404,21 @@ ${HFAudio.voiceElements(spec)}
     }
     const tcEl = $("tl-tc");
     if (tcEl) tcEl.textContent = `${tc(rt ?? 0)} / ${tc(rushEnd)}`;
+    // Frise des zooms : tête de lecture en temps de la vidéo du dérush.
+    const zin = zs.on ? document.querySelector("#tlz .tlk-in") : null;
+    if (zin) {
+      const zph = zin.querySelector(".phead"), zpps = Number(zin.dataset.pps) || 1, T = mode === "live" ? liveTime() : null;
+      if (zph) { zph.style.display = T === null ? "none" : ""; if (T !== null) zph.style.left = `${T * zpps}px`; }
+      const info = document.querySelector("#tlz .at-info");
+      if (info) info.textContent = T === null ? "" : `${tc(T)} / ${tc(livePlan().total)}`;
+      const play = document.querySelector("#tlz .play");
+      if (play) { play.textContent = playing ? "❚❚" : "▶"; play.setAttribute("aria-label", playing ? "Pause" : "Lecture"); }
+      if (T !== null && zph) {
+        const zsc = zin.parentElement;
+        if (playing) { if (zph.offsetLeft < zsc.scrollLeft || zph.offsetLeft > zsc.scrollLeft + zsc.clientWidth - 16) zsc.scrollLeft = zph.offsetLeft - zsc.clientWidth / 4; centered.zoom = null; }
+        else center("zoom", zsc, T * zpps, T);
+      }
+    }
   }
   for (const ev of ["timeupdate", "seeked", "pause", "play"]) player.addEventListener(ev, drawPlayheads);
 
@@ -3088,8 +3436,8 @@ ${HFAudio.voiceElements(spec)}
     ["momentSuiv", "Moment suivant", ["Maj+→"]],
     ["couper", "Couper le moment ouvert à la tête de lecture", ["C"]],
     ["garder", "Garder ou retirer le moment ouvert (ou la sélection)", ["G"]],
-    ["debutIci", "Début de la partie gardée à la tête de lecture (moment ouvert)", ["I"]],
-    ["finIci", "Fin de la partie gardée à la tête de lecture (moment ouvert)", ["O"]],
+    ["debutIci", "Début de la partie gardée (moment ouvert) ou du zoom (étape « Zooms » du dérush) à la tête de lecture", ["I"]],
+    ["finIci", "Fin de la partie gardée (moment ouvert) ou du zoom (étape « Zooms » du dérush) à la tête de lecture", ["O"]],
     ["douteSuiv", "Mot à vérifier suivant", ["V"]],
     ["doutePrec", "Mot à vérifier précédent", ["Maj+V"]],
     ["fermer", "Fermer le moment (ou le réglage du cadre)", ["Échap"]],
@@ -3116,7 +3464,7 @@ ${HFAudio.voiceElements(spec)}
   document.addEventListener("keydown", () => { scrubFrom = null; }, true);
   document.addEventListener("pointerdown", (e) => {
     const t = e.target.closest ? e.target : null;
-    scrubFrom = t && t.closest("#tlm-scroll") ? "rush" : t && t.closest("#tlk .tlk-scroll") ? "moment" : null;
+    scrubFrom = t && t.closest("#tlm-scroll") ? "rush" : t && t.closest("#tlk .tlk-scroll") ? "moment" : t && t.closest("#tlz .tlk-scroll") ? "zoom" : null;
   }, true);
   document.addEventListener("keydown", (e) => {
     if (e.defaultPrevented || keysCapture || $("play-dlg").open) return;  // « Lire » : touches du lecteur de la vidéo
@@ -3135,6 +3483,13 @@ ${HFAudio.voiceElements(spec)}
       return;
     }
     if (t && t.closest && t.closest("input, textarea, select, [contenteditable], [role=slider], dialog")) return;
+    if (zs.on) {  // étape « Zooms » : vidéo du dérush seulement
+      if (act === "debutIci" || act === "finIci") { e.preventDefault(); setZoomMark(act === "debutIci" ? "a" : "b", liveTime()); }
+      else if (act === "lecture") { e.preventDefault(); togglePlay(); }
+      else if (act === "imagePrec" || act === "imageSuiv") { e.preventDefault(); step((act === "imagePrec" ? -1 : 1) / FPS); }
+      else if (act === "fermer") { if (zs.sel) pickZoom(null); else if (zs.a !== null || zs.b !== null) { zs.a = zs.b = null; renderOpen(); } }
+      return;
+    }
     const om = openMoment();
     if (act === "lecture") {
       e.preventDefault();
@@ -4192,7 +4547,9 @@ ${HFAudio.voiceElements(spec)}
       const kept = moments.filter(isKept), n = kept.length, total = kept.reduce((t, m) => t + durOf(m), 0);
       $("valider-sum").textContent = n ? `${n} moment${n > 1 ? "s" : ""} gardé${n > 1 ? "s" : ""}, ${durText(total)} de vidéo.`
         : "Aucun moment gardé : cochez d'abord les moments à garder sur la frise.";
-      $("valider-dl").disabled = $("valider-montage").disabled = !n;
+      $("valider-dl").disabled = $("valider-montage").disabled = $("valider-zooms").disabled = !n;
+      const nz = n ? zoomEntries().length : 0;
+      $("valider-zooms").querySelector("b").textContent = nz ? `Zooms (${nz} placé${nz > 1 ? "s" : ""})` : "Ajouter des zooms";
       $("valider-msg").textContent = "";
       // Qualité du fichier téléchargé (interface locale) : 720p et 1080p sortent de la génération,
       // la 4K se crée ensuite (/api/final) ; choix gardé sur cet ordinateur.
@@ -4208,6 +4565,7 @@ ${HFAudio.voiceElements(spec)}
       dlg.showModal();
     });
     $("valider-close").addEventListener("click", () => dlg.close());
+    $("valider-zooms").addEventListener("click", () => { dlg.close(); enterZoomStep(); });
     $("valider-dl").addEventListener("click", async () => {
       const q = window.AUTO_MONTAGE_LOCAL ? (document.querySelector('input[name="valider-q"]:checked') || {}).value || "1080p" : "";
       try { if (q) localStorage.setItem(DERUSH_QUALITY, q); } catch (e) { /* stockage indisponible */ }

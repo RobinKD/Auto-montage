@@ -6,6 +6,11 @@ installateurs (voir `packaging/README.md`).
 
 ## 1.8
 
+- **Zooms sur le visage avant de télécharger le dérush** : « Valider le dérush » propose maintenant
+  « Ajouter des zooms ». La vidéo du dérush s'affiche sur une frise : début et fin du zoom à la tête de
+  lecture (« Début ici » / « Fin ici », touches I et O, repères à glisser), zoom avant, zoom sec ou
+  dézoom, force réglée au curseur. Le zoom est toujours centré sur le visage ; il est dans la vidéo
+  téléchargée et repris en passant à l'auto-montage.
 - **Images par seconde du rush gardées** : la vidéo montée a le même nombre d'images par seconde que
   le rush (25 restent 25 au lieu de passer à 30). Pour un rush filmé à 50 ou 60 images/s, « Rushes et
   montages » propose de passer à 25 ou 30 images/s (case cochée au départ, choix retenu) : le rendu
