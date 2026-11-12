@@ -48,6 +48,8 @@
   .app.locked .stage { flex: none; }
   .app.locked .screen-box { flex: none; height: var(--screen-h); }
   .app.locked .inspector { contain: size; }
+  /* Préparation en cours : la page sera refaite à la fin, rien n'y est modifiable (watch). */
+  .app.prep-lock .inspector, .app.prep-lock #edit, .app.prep-lock .variant, .app.prep-lock .history-btns, .app.prep-lock #reset { opacity: .45; }
   .screen { background: var(--frame); border-radius: 6px; overflow: hidden; aspect-ratio: var(--ar, 9 / 16);
     width: min(100cqw, calc(100cqh * var(--arn, 0.5625))); height: auto; }
   .screen { position: relative; container-type: inline-size; }
@@ -489,7 +491,7 @@
             <button type="button" id="undo" disabled title="Rien à annuler"><span aria-hidden="true">↶</span> Annuler</button>
             <button type="button" id="redo" disabled title="Rien à rétablir"><span aria-hidden="true">↷</span> Rétablir</button>
           </span>
-          <button type="button" id="reset" title="Revenir aux moments gardés au départ (ceux suggérés à la préparation)">Revenir au derush initial</button>
+          <button type="button" id="reset" title="Revenir aux moments gardés au départ (ceux suggérés à la préparation)">Revenir au dérush initial</button>
           <button type="button" id="regen" class="regen" hidden>Générer la vidéo entière</button>
           <button type="button" id="valider-derush" class="regen" hidden title="Terminer le dérushage : générer et télécharger la vidéo, ou passer à l'auto-montage">Valider le dérush</button>
           <button type="button" id="doubt-next" hidden title="Aller au prochain mot dont la transcription est incertaine (touche V ; Maj + V : le précédent)"></button>
@@ -500,7 +502,7 @@
           <progress id="gen-bar" max="1" value="0"></progress>
           <div><span id="gen-all-label">Ensemble de la génération</span><span id="gen-all-facts"></span></div>
           <progress id="gen-all" max="1" value="0"></progress>
-          <div><button type="button" id="gen-cancel">Annuler</button><span id="gen-cancel-note">la version précédente reste en place</span></div>
+          <div><button type="button" id="gen-pause" hidden>Mettre en pause</button> <button type="button" id="gen-cancel">Annuler</button><span id="gen-cancel-note">la version précédente reste en place</span></div>
         </div>
       </section>
   </header>
@@ -565,7 +567,7 @@
       <div class="insp-pane" id="insp-all" role="tabpanel" aria-labelledby="itab-all" hidden>
       <div class="cap-style derush-subs" id="derush-subs-row" hidden>
         <label><input type="checkbox" id="derush-subs"> Sous-titres dans la vidéo entière</label>
-        <span class="sub" id="derush-subs-status" role="status">Le texte se corrige avec « Corriger » sur chaque moment ; appliqué au prochain « Télécharger derush » (« Valider le dérush »).</span>
+        <span class="sub" id="derush-subs-status" role="status">Le texte se corrige avec « Corriger » sur chaque moment ; appliqué au prochain « Télécharger le dérush » (« Valider le dérush »).</span>
       </div>
       <details class="cap-style" id="cap-style" hidden data-subtitles-only>
         <summary>Style des sous-titres</summary>
@@ -712,7 +714,7 @@
   <h2 id="valider-title">Valider le dérush</h2>
   <p id="valider-sum"></p>
   <div class="dlg-choices">
-    <button type="button" class="dlg-choice regen" id="valider-dl"><b>Télécharger derush</b>
+    <button type="button" class="dlg-choice regen" id="valider-dl"><b>Télécharger le dérush</b>
       <span>Les moments gardés mis bout à bout, avec leurs sous-titres si la case « Sous-titres » est cochée ; la vidéo se télécharge à la fin, dans la qualité choisie ci-dessous.</span></button>
     <fieldset class="dlg-quality" id="valider-quality" hidden>
       <legend>Qualité de la vidéo téléchargée</legend>
@@ -1130,13 +1132,22 @@
   // { kind: "same" | "added" | "removed" | "changed", what: [réglages changés] }.
   function workChange(m) {
     if (!WORK_PAGE || !momentsLoaded) return null;
-    const before = tokensOf(m, workTokens);
+    let before = tokensOf(m, workTokens);
     const now = state.keep.has(m.id) ? [String(m.id)] : [];
+    // Partie coupée depuis la vidéo entière (splitFrom) : comparée au moment d'origine, dont elle
+    // reprend une partie. Coupe dont les parties sont gardées : rien de changé (texte, effets,
+    // début et fin ont été répartis par la coupe, pas changés).
+    const origin = m.splitFrom !== undefined && m.splitFrom !== null && m.splitFrom !== m.id ? m.splitFrom : null;
+    const fromCut = !before.length && origin !== null && tokensOf({ id: origin }, workTokens).length > 0;
+    if (fromCut) before = [String(m.id)];
     if (!before.length && !now.length) return null;
     if (!before.length) return { kind: "added", what: [] };
     if (!now.length) return { kind: "removed", what: [] };
-    const a = settingsOf(m, workEdits[m.id], workFirst), b = settingsOf(m, edits[m.id]);
-    const what = Object.keys(b).filter((k) => stable(a[k]) !== stable(b[k]));
+    const a = settingsOf(m, workEdits[fromCut ? origin : m.id], workFirst), b = settingsOf(m, edits[m.id]);
+    // Le moment d'origine, raccourci par la coupe, se compare de même.
+    const wasCut = !fromCut && moments.some((p) => p.splitFrom === m.id && p.id !== m.id && !tokensOf(p, workTokens).length);
+    const cutShared = fromCut || wasCut ? new Set(["trim", "text", "sfx", "vfx"]) : new Set();
+    const what = Object.keys(b).filter((k) => !cutShared.has(k) && stable(a[k]) !== stable(b[k]));
     if (stable(before) !== stable(now)) what.unshift("keep");
     return { kind: what.length ? "changed" : "same", what: what.map((k) => CHANGE_LABELS[k]) };
   }
@@ -1157,7 +1168,18 @@
   const voiceGainOf = (m) => (edits[m.id] && typeof edits[m.id].gain === "number" ? edits[m.id].gain : 1);
 
   const $ = (id) => document.getElementById(id);
-  const fmt = (s) => `${Math.floor(s / 60)}:${String(Math.round(s % 60)).padStart(2, "0")}`;
+  // Confirmation dans une fenêtre de la page (local/menu.js : amConfirm), confirm() sinon.
+  const ask = (text, o) => (window.amConfirm ? window.amConfirm(text, o) : Promise.resolve(confirm(text)));
+  // Temps : « 1:36.40 » (minutes:secondes.centièmes) partout ; durées dans les textes : « 1 min 36 »,
+  // ou « 36,4 s » sous la minute.
+  const clockOf = (t) => {
+    const c = Math.max(0, Math.round(t * 100));
+    return `${Math.floor(c / 6000)}:${String(Math.floor(c / 100) % 60).padStart(2, "0")}.${String(c % 100).padStart(2, "0")}`;
+  };
+  const durText = (s) => {
+    const r = Math.round(s);
+    return s < 59.95 ? `${(Math.round(s * 10) / 10).toString().replace(".", ",")} s` : `${Math.floor(r / 60)} min${r % 60 ? ` ${String(r % 60).padStart(2, "0")}` : ""}`;
+  };
   const slug = (s) => s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "variante";
   const setStatus = (text, kind = "") => { const el = $("status"); el.textContent = text; el.className = `status ${kind}`; };
   const playIcon = '<svg viewBox="0 0 10 10" aria-hidden="true"><path d="M2 1l7 4-7 4z"/></svg>';
@@ -1912,7 +1934,7 @@ ${HFAudio.voiceElements(spec)}
     if (mode !== "live") return;
     if (!plan.list.length) { $("caption").textContent = "Aucun moment gardé : cochez des moments sur la frise pour les voir bout à bout ici."; return; }
     const n = new Set(plan.list.map((e) => e.m.id)).size;
-    $("caption").textContent = `Vidéo entière en direct · ${n} moment${n > 1 ? "s" : ""} · ${fmt(plan.total)} · les moments gardés bout à bout, avec leurs réglages actuels`
+    $("caption").textContent = `Vidéo entière en direct · ${n} moment${n > 1 ? "s" : ""} · ${durText(plan.total)} · les moments gardés bout à bout, avec leurs réglages actuels`
       + (DERUSH ? "" : " (aperçu : le rendu peut différer un peu)");
   }
   // autoplay : lancer la lecture ; quiet : sans redessiner la liste (curseur de découpe en cours
@@ -1933,8 +1955,8 @@ ${HFAudio.voiceElements(spec)}
     fx = buildOverlay(m);
     $("ov").hidden = false;
     $("caption").textContent = m.gap
-      ? `Plan sans parole à ${fmt(m.start)} · partie gardée seulement`
-      : `Moment à ${fmt(m.start)} · ${DERUSH ? (derushSubs() ? "image du rush, avec ses sous-titres" : "image du rush, sans sous-titres") : "habillé comme dans la vidéo entière"}`;
+      ? `Plan sans parole à ${clockOf(m.start)} · partie gardée seulement`
+      : `Moment à ${clockOf(m.start)} · ${DERUSH ? (derushSubs() ? "image du rush, avec ses sous-titres" : "image du rush, sans sous-titres") : "habillé comme dans la vidéo entière"}`;
     if (autoplay) player.play().catch(() => {});
     requestAnimationFrame(drawOverlay);
     if (quiet) syncCurrent(); else renderList();
@@ -2013,7 +2035,7 @@ ${HFAudio.voiceElements(spec)}
         tick.style.left = pct(a + k * (unit + pause));
         bar.append(tick);
       }
-      info.textContent = `${a.toFixed(2)} → ${shown.toFixed(2)} s` + (unit > 0 && n > 1 ? ` · ×${n}` : "");
+      info.textContent = `${clockOf(a)} → ${clockOf(shown)}` + (unit > 0 && n > 1 ? ` · ×${n}` : "");
       now.hidden = currentMoment !== m.id;
       if (!now.hidden) now.style.left = pct(Math.min(len, player.currentTime));
     };
@@ -2081,7 +2103,7 @@ ${HFAudio.voiceElements(spec)}
     // Historique : instantané d'avant (découpage, réglages des moments, variantes) gardé par le serveur.
     if (data.snapshot) {
       const LABELS = { split: "coupe", unsplit: "recollage" };
-      remember({ kind: "decoupage", label: `${LABELS[action] || action} du moment à ${fmt(m.start)}`, prev: data.snapshot, next: null });
+      remember({ kind: "decoupage", label: `${LABELS[action] || action} du moment à ${clockOf(m.start)}`, prev: data.snapshot, next: null });
       await new Promise((res) => setTimeout(res, 10));  // entrée enregistrée avant le rechargement
     }
     await reloadAfterJob(data.message);
@@ -2165,14 +2187,13 @@ ${HFAudio.voiceElements(spec)}
     const d = curDur(), now = curTime();
     seek.max = String(d || 1);
     if (!seeking) seek.value = String(now);
-    $("t-time").textContent = `${now.toFixed(2)} / ${d.toFixed(2)} s`;
+    $("t-time").textContent = `${clockOf(now)} / ${clockOf(d)}`;
     $("t-play").textContent = player.paused ? "▶" : "❚❚";
     $("t-play").setAttribute("aria-label", player.paused ? "Lecture" : "Pause");
     // Barre du plein écran.
-    const clock = (x) => `${Math.floor(x / 60)}:${String(Math.floor(x % 60)).padStart(2, "0")}`;
     $("fs-seek").max = String(d || 1);
     if (!seeking) $("fs-seek").value = String(now);
-    $("fs-time").textContent = `${clock(now)} / ${clock(d)}`;
+    $("fs-time").textContent = `${clockOf(now)} / ${clockOf(d)}`;
     $("fs-play").textContent = player.paused ? "▶" : "❚❚";
     $("fs-play").setAttribute("aria-label", player.paused ? "Lecture" : "Pause");
   }
@@ -2249,17 +2270,14 @@ ${HFAudio.voiceElements(spec)}
     b.addEventListener("click", onClick);
     return b;
   };
-  const tc = (t) => {  // minutes:secondes.images (30 images par seconde)
-    const f = Math.max(0, Math.round(t * 30));
-    return `${String(Math.floor(f / 1800)).padStart(2, "0")}:${String(Math.floor(f / 30) % 60).padStart(2, "0")}.${String(f % 30).padStart(2, "0")}`;
-  };
+  const tc = clockOf;
   // Partie gardée d'un moment, en temps du rush (début et fin choisis aux poignées).
   function keptRanges(m) {
     if (!isKept(m)) return [];
     const [a, b] = speechSpan(m), s0 = clipStart(m);
     return b > a ? [[s0 + a, s0 + b]] : [];
   }
-  const momentLabel = (m) => (m.gap ? `Sans parole · ${(m.end - m.start).toFixed(1)} s` : DERUSH && !derushSubs() ? m.text
+  const momentLabel = (m) => (m.gap ? `Sans parole · ${durText(m.end - m.start)}` : DERUSH && !derushSubs() ? m.text
     : noSub(m) ? `Sans sous-titres · ${m.text}` : textOf(m));
   const openMoment = () => (frise.open !== null && frise.sel.size <= 1 ? byId.get(frise.open) || null : null);
 
@@ -2355,8 +2373,8 @@ ${HFAudio.voiceElements(spec)}
     }
     const label = momentLabel(m);
     const status = on ? (partial ? "gardé en partie" : "gardé") : "retiré";
-    b.title = `${fmt(m.start)} · ${(m.end - m.start).toFixed(1)} s · ${status}${m.reason ? ` · retrait suggéré (${m.reason})` : ""}${changed ? `\n${changeText(change)}` : ""}\n${label}`;
-    b.setAttribute("aria-label", `${m.gap ? "Plan sans parole" : "Moment"} à ${fmt(m.start)}, ${status}${changed ? `, ${changeText(change).toLowerCase()}` : ""} : ${label}`);
+    b.title = `${clockOf(m.start)} · ${durText(m.end - m.start)} · ${status}${m.reason ? ` · retrait suggéré (${m.reason})` : ""}${changed ? `\n${changeText(change)}` : ""}\n${label}`;
+    b.setAttribute("aria-label", `${m.gap ? "Plan sans parole" : "Moment"} à ${clockOf(m.start)}, ${status}${changed ? `, ${changeText(change).toLowerCase()}` : ""} : ${label}`);
     if (changed) b.append(el("span", "chg-dot"));
     const nd = doubtsOf(m).length;
     if (nd) {
@@ -2568,12 +2586,12 @@ ${HFAudio.voiceElements(spec)}
     // Garder / Retirer : seulement s'il y a un moment à changer.
     const keptN = list.filter((m) => isKept(m)).length;
     items.push(el("span", "sep"),
-      tool("✓ Garder", list.length && keptN === list.length ? "Déjà gardé dans la vidéo entière" : "Garder dans la vidéo entière", () => setKept(list, true), keptN < list.length),
-      tool("⊘ Retirer", list.length && !keptN ? "Déjà retiré de la vidéo entière" : "Retirer de la vidéo entière", () => setKept(list, false), keptN > 0),
+      tool("✓ Garder", list.length && keptN === list.length ? "Déjà gardé dans la vidéo entière" : `Garder dans la vidéo entière (${keyLabel("garder")})`, () => setKept(list, true), keptN < list.length),
+      tool("⊘ Retirer", list.length && !keptN ? "Déjà retiré de la vidéo entière" : `Retirer de la vidéo entière (${keyLabel("garder")})`, () => setKept(list, false), keptN > 0),
       tool("✎ Corriger", "Corriger le texte des sous-titres du moment ouvert", fixText, !!om && !om.gap));
     if (frise.sel.size > 1) {
       const kept = list.filter((m) => isKept(m)).length;
-      items.push(el("span", "selinfo", `${list.length} sélectionnés · ${kept} gardés · ${fmt(list.reduce((t, m) => t + m.end - m.start, 0))}`),
+      items.push(el("span", "selinfo", `${list.length} sélectionnés · ${kept} gardés · ${durText(list.reduce((t, m) => t + m.end - m.start, 0))}`),
         tool("Désélectionner", "", () => { frise.sel.clear(); frise.anchor = null; frise.open = null; renderOpen(); }, true));
     }
     const time = el("span", "tc");
@@ -2665,10 +2683,10 @@ ${HFAudio.voiceElements(spec)}
     prev.disabled = i <= 0; next.disabled = i >= moments.length - 1;
     const play = btn("▶", `Lecture / pause du moment (${keyLabel("lecture")})`, () => { if (mode !== "moment" || currentMoment !== m.id) showMoment(m.id); else togglePlay(); }, "play");
     const nudge = (text, frames, title) => btn(text, title, () => seekMoment(m, momentTime(m) + frames / 30));
-    head.append(el("span", "when", `${m.gap ? "Plan sans parole" : "Moment"} à ${fmt(m.start)}`), el("span", "txt", m.gap ? "" : momentLabel(m)),
+    head.append(el("span", "when", `${m.gap ? "Plan sans parole" : "Moment"} à ${clockOf(m.start)}`), el("span", "txt", m.gap ? "" : momentLabel(m)),
       prev, next, play, nudge("‹", -1, `Une image avant (${keyLabel("imagePrec")})`), nudge("›", 1, `Une image après (${keyLabel("imageSuiv")})`), el("span", "at-info"));
-    head.append(btn("Début ici", "Commencer la partie gardée à la tête de lecture (le début est retiré)", () => trimEdge(m, "a", momentTime(m))),
-      btn("Fin ici", "Finir la partie gardée à la tête de lecture (la fin est retirée)", () => trimEdge(m, "b", momentTime(m))));
+    head.append(btn("Début ici", `Commencer la partie gardée à la tête de lecture, le début est retiré (${keyLabel("debutIci")})`, () => trimEdge(m, "a", momentTime(m))),
+      btn("Fin ici", `Finir la partie gardée à la tête de lecture, la fin est retirée (${keyLabel("finIci")})`, () => trimEdge(m, "b", momentTime(m))));
     if (!m.gap) { const c = btn("✂ Couper ici", cutTitle(m), () => cutHere(m), "primary"); c.disabled = !canCut(m); head.append(c); }
     // Zoom : ×2 par pas, jusqu'à ce qu'environ 4 secondes remplissent la largeur (×16 au moins) ;
     // un long moment (la vidéo entière après « Valider le dérush ») se lit ainsi mot par mot.
@@ -2731,7 +2749,7 @@ ${HFAudio.voiceElements(spec)}
     track.append(film);
     if (FXH) {
       for (const x of fxs) {
-        const title = `${x.name} · ${x.a.toFixed(2)} s`;
+        const title = `${x.name} · ${clockOf(x.a)}`;
         const mk = btn(x.name, title, (e) => { e.stopPropagation(); frise.focus = x.focus; frise.tab = "moment"; seekMoment(m, x.a); renderInspector(); }, `fxm ${x.cls}`);
         span(mk, x.a, x.b);
         mk.style.top = `${4 + x.lane * LANE}px`;
@@ -2760,7 +2778,7 @@ ${HFAudio.voiceElements(spec)}
         const wd = span(el("span", `wd${w.d ? " doubt-w" : ""}`, w.text), w.a, Math.max(w.b, w.a + 0.05));
         wd.style.top = `${FXH + 4}px`;
         wd.dataset.a = String(w.a);
-        wd.title = `« ${w.text} » · ${w.a.toFixed(2)} s${w.d ? " · transcription incertaine, à vérifier" : ""}`;
+        wd.title = `« ${w.text} » · ${clockOf(w.a)}${w.d ? " · transcription incertaine, à vérifier" : ""}`;
         if (SPEAKERS.length > 1 && Number.isInteger(w.s)) {  // qui parle (diarize)
           wd.style.boxShadow = `inset 0 -3px 0 ${spkColor(w.s)}`;
           wd.title += ` · locuteur ${w.s + 1}`;
@@ -2817,11 +2835,11 @@ ${HFAudio.voiceElements(spec)}
     if (frise.sel.size > 1) {
       const list = selected(), kept = list.filter((m) => isKept(m)).length;
       out.push(el("h2", "", `${list.length} moments sélectionnés`),
-        el("p", "sub", `${kept} gardés · ${fmt(list.reduce((t, m) => t + m.end - m.start, 0))} de rush. Maj + clic : une suite de moments ; Ctrl (⌘) + clic : un de plus ou de moins. Garder, retirer ou désélectionner : barre d'outils au-dessus des frises.`));
+        el("p", "sub", `${kept} gardés · ${durText(list.reduce((t, m) => t + m.end - m.start, 0))} de rush. Maj + clic : une suite de moments ; Ctrl (⌘) + clic : un de plus ou de moins. Garder, retirer ou désélectionner : barre d'outils au-dessus des frises.`));
     } else if (om) {
       const m = om, on = isKept(m);
-      out.push(el("h2", "", `${m.gap ? "Plan sans parole" : "Moment"} à ${fmt(m.start)}`),
-        el("p", "sub", `${(m.end - m.start).toFixed(1)} s${on && isTrimmed(m) ? ` · ${durOf(m).toFixed(1)} s gardées` : ""}`));
+      out.push(el("h2", "", `${m.gap ? "Plan sans parole" : "Moment"} à ${clockOf(m.start)}`),
+        el("p", "sub", `${durText(m.end - m.start)}${on && isTrimmed(m) ? ` · ${durText(durOf(m))} gardées` : ""}`));
       const badges = el("div", "insp-badges");
       const keep = el("label", "at-keep badge" + (on ? " on" : ""));
       const box = el("input");
@@ -2841,7 +2859,7 @@ ${HFAudio.voiceElements(spec)}
         const tip = el("span", "chg-tip");
         tip.append(el("b", "", `Modifié depuis la vidéo entière générée${workStamp()}`),
           el("span", "", change.kind === "changed" ? `Changé : ${changeWhat(change)}` : `Moment ${changeWhat(change)}`),
-          el("small", "", DERUSH ? "« Télécharger derush » prend en compte ce changement." : "« Générer la vidéo entière » prend en compte ce changement."));
+          el("small", "", DERUSH ? "« Télécharger le dérush » prend en compte ce changement." : "« Générer la vidéo entière » prend en compte ce changement."));
         tag.append(tip);
         badges.append(tag);
       } else if (!m.reason && (change ? change.kind === "same" : inEdit.has(m.id))) badges.append(el("span", "badge", "Dans la vidéo générée"));
@@ -2880,7 +2898,7 @@ ${HFAudio.voiceElements(spec)}
             wordsOf(m).filter((w) => w.text).forEach((w, k) => {
               if (k) para.append(" ");
               if (!w.d) return para.append(w.text);
-              const b = btn(w.text, `Écouter « ${w.text} » (${w.a.toFixed(2)} s)`, () => seekMoment(m, w.a), "doubt-w");
+              const b = btn(w.text, `Écouter « ${w.text} » (${clockOf(w.a)})`, () => seekMoment(m, w.a), "doubt-w");
               para.append(b);
               // Autre version entendue à la seconde écoute (relecture) : prise d'un clic.
               const alt = m.words[w.k].alt;
@@ -2943,10 +2961,10 @@ ${HFAudio.voiceElements(spec)}
   // Tête de lecture : dans la frise du rush (moment ou vidéo entière en lecture) et dans celle
   // du moment ; le temps affiché dit le mot prononcé à cet instant.
   function describeAt(m, t) {
-    if (m.gap) return `${t.toFixed(2)} s`;
+    if (m.gap) return clockOf(t);
     const words = wordsOf(m).map((w, k) => ({ ...w, text: w.text || m.words[k].w })).filter((w) => w.text);
     const w = words.find((x) => t >= x.a && t < x.b), prev = [...words].reverse().find((x) => x.b <= t);
-    return `${t.toFixed(2)} s · ${w ? `« ${w.text} »` : prev ? `après « ${prev.text} »` : "avant la parole"}`;
+    return `${clockOf(t)} · ${w ? `« ${w.text} »` : prev ? `après « ${prev.text} »` : "avant la parole"}`;
   }
   // Tête de lecture déplacée (pas pendant la lecture) : chaque frise est centrée sur elle, sauf
   // celle où on vient de cliquer ou de glisser (scrubFrom ; clavier ou ailleurs : les deux).
@@ -3003,6 +3021,9 @@ ${HFAudio.voiceElements(spec)}
     ["momentPrec", "Moment précédent", ["Maj+←"]],
     ["momentSuiv", "Moment suivant", ["Maj+→"]],
     ["couper", "Couper le moment ouvert à la tête de lecture", ["C"]],
+    ["garder", "Garder ou retirer le moment ouvert (ou la sélection)", ["G"]],
+    ["debutIci", "Début de la partie gardée à la tête de lecture (moment ouvert)", ["I"]],
+    ["finIci", "Fin de la partie gardée à la tête de lecture (moment ouvert)", ["O"]],
     ["douteSuiv", "Mot à vérifier suivant", ["V"]],
     ["doutePrec", "Mot à vérifier précédent", ["Maj+V"]],
     ["fermer", "Fermer le moment (ou le réglage du cadre)", ["Échap"]],
@@ -3035,6 +3056,8 @@ ${HFAudio.voiceElements(spec)}
     if (e.defaultPrevented || keysCapture || $("play-dlg").open) return;  // « Lire » : touches du lecteur de la vidéo
     const act = actionOf(e), t = e.target;
     if (!act) return;
+    // Préparation en cours : la page n'est pas modifiable (setPrepLock).
+    if (document.querySelector(".app.prep-lock") && ["annuler", "retablir", "couper", "garder", "debutIci", "finIci"].includes(act)) return;
     if (act === "annuler" || act === "retablir") {
       if (t && t.closest && t.closest("input[type=text], input:not([type]), textarea, [contenteditable], dialog")) return;  // annulation du champ
       e.preventDefault();
@@ -3062,6 +3085,15 @@ ${HFAudio.voiceElements(spec)}
       if (!canCut(om)) return;
       e.preventDefault();
       cutHere(om);
+    } else if (act === "garder") {
+      const list = frise.sel.size > 1 ? selected() : om ? [om] : [];
+      if (!list.length) return;
+      e.preventDefault();
+      setKept(list, !list.every((m) => isKept(m)));
+    } else if (act === "debutIci" || act === "finIci") {
+      if (!om) return;
+      e.preventDefault();
+      trimEdge(om, act === "debutIci" ? "a" : "b", momentTime(om));
     } else if (act === "douteSuiv" || act === "doutePrec") {
       e.preventDefault();
       jumpDoubt(act === "doutePrec" ? -1 : 1);
@@ -3484,7 +3516,7 @@ ${HFAudio.voiceElements(spec)}
             for (const which of ["from", "to"]) {
               const k = keyFrame(f[which]), t = which === "from" ? a : b;
               const line = el("div", "kzrow");
-              line.append(el("span", "", `${t.toFixed(2)} s · ${Math.round(k.s * 100)} %`),
+              line.append(el("span", "", `${clockOf(t)} · ${Math.round(k.s * 100)} %`),
                 btn("Ici", `${which === "from" ? "Début" : "Fin"} du zoom à la tête de lecture, puis réglage de son cadre`, () => {
                   const now = Math.round(momentTime(m) * 100) / 100;
                   if (which === "from" ? now >= b - 0.05 : now <= a + 0.05) {
@@ -3612,7 +3644,7 @@ ${HFAudio.voiceElements(spec)}
 
   function renderSummary() {
     const kept = moments.filter((m) => isKept(m));
-    $("kept").textContent = fmt(kept.reduce((t, m) => t + durOf(m), 0));
+    $("kept").textContent = durText(kept.reduce((t, m) => t + durOf(m), 0));
     const speech = moments.filter((m) => !m.gap);
     const total = speech.reduce((t, m) => t + m.end - m.start, 0);
     const gapsKept = kept.filter((m) => m.gap).length;
@@ -3623,7 +3655,7 @@ ${HFAudio.voiceElements(spec)}
     const atStart = state.keep.size === suggested.length && suggested.every((id) => state.keep.has(id));
     lockBtn($("reset"), "same", atStart ? "La sélection est déjà celle de départ" : "");
     $("count").textContent = `${kept.length - gapsKept} moments de parole sur ${speech.length}`
-      + (gapsKept ? ` + ${gapsKept} plan${gapsKept > 1 ? "s" : ""} sans parole` : "") + ` · parole totale ${fmt(total)}`
+      + (gapsKept ? ` + ${gapsKept} plan${gapsKept > 1 ? "s" : ""} sans parole` : "") + ` · parole totale ${durText(total)}`
       + (changed ? ` · ${changed} moment${changed > 1 ? "s" : ""} changé${changed > 1 ? "s" : ""} depuis la vidéo entière générée` : "");
     const nd = moments.reduce((n, m) => n + doubtsOf(m).length, 0), nm = moments.filter((m) => doubtsOf(m).length).length;
     $("doubt-next").hidden = !nd;
@@ -3665,6 +3697,25 @@ ${HFAudio.voiceElements(spec)}
     renderToolbar();
     renderOpen();
   }
+  // Préparation en cours : frises, inspecteur et boutons du haut inertes (ce qui y serait changé
+  // serait perdu quand la page est refaite), raison au survol.
+  function setPrepLock(on) {
+    const app = document.querySelector(".app");
+    if (!app || app.classList.contains("prep-lock") === on) return;
+    app.classList.toggle("prep-lock", on);
+    const why = "Préparation en cours : la page des moments sera refaite à la fin";
+    for (const el of [document.querySelector(".inspector"), $("edit"), document.querySelector(".variant"), document.querySelector(".history-btns"), $("reset")]) {
+      if (!el) continue;
+      el.inert = on;
+      if (on) { el.dataset.prepTitle = el.title || ""; el.title = why; } else if ("prepTitle" in el.dataset) { el.title = el.dataset.prepTitle; delete el.dataset.prepTitle; }
+    }
+  }
+  $("gen-pause").addEventListener("click", async () => {
+    $("gen-pause").disabled = true;
+    const res = await fetch("/api/job/pause", { method: "POST" }).catch(() => null);
+    setTimeout(() => { $("gen-pause").disabled = false; }, 2000);
+    setStatus(res && res.ok ? "Préparation mise en pause : reprenez-la depuis la page « Rushes et montages »." : "La préparation n'a pas pu être mise en pause.", res && res.ok ? "" : "err");
+  });
   if (window.AUTO_MONTAGE_LOCAL) {
     let preparing = false;
     const watch = async () => {
@@ -3674,8 +3725,9 @@ ${HFAudio.voiceElements(spec)}
         const prep = job.kind === "prepare" && job.state === "running";
         if (prep) {
           showGenProgress(job);
-          setStatus(`Préparation de ${job.arg} en cours : la page des moments sera refaite à la fin, et ce qui y est changé maintenant sera perdu.`, "err");
+          setStatus(`Préparation de ${job.arg} en cours : la page des moments sera refaite à la fin. En attendant, elle n'est pas modifiable.`);
         }
+        setPrepLock(prep);
         if (preparing && !prep && job.kind === "prepare" && job.state === "done") { location.reload(); return; }
         if (preparing && !prep) showGenProgress(job);
         preparing = prep;
@@ -3779,7 +3831,7 @@ ${HFAudio.voiceElements(spec)}
     }
     const m = byId.get(it.id);
     const what = it.keys.split(",").filter(Boolean).map((k) => FIELD[k] || k).join(", ");
-    return `${what || "réglages"} du moment${m ? ` à ${fmt(m.start)}` : ""}`;
+    return `${what || "réglages"} du moment${m ? ` à ${clockOf(m.start)}` : ""}`;
   }
   function remember(item) {
     if (hist.busy) return;
@@ -3912,7 +3964,7 @@ ${HFAudio.voiceElements(spec)}
         trim: e.trim || null,  // début et fin gardés (poignées)
         updatedAt: new Date().toISOString(),
       });
-      setStatus(`Moment à ${fmt(m.start)} enregistré`, "ok");
+      setStatus(`Moment à ${clockOf(m.start)} enregistré`, "ok");
     } catch (e) {
       setStatus(e && e.code === "not_granted" ? "Lecture seule : vous ne pouvez pas modifier ce moment" : "Échec de l'enregistrement du moment, réessayez", "err");
     }
@@ -3959,12 +4011,13 @@ ${HFAudio.voiceElements(spec)}
     if (mem) $("gen-label").textContent += ` · ${mem}`;
     $("gen-all-label").textContent = job.kind === "final" ? "Ensemble de la création 4K" : job.kind === "export" ? "Ensemble de l'export"
       : job.kind === "derush" ? "Ensemble du passage à l'auto-montage" : job.kind === "prepare" ? "Ensemble de la préparation" : "Ensemble de la génération";
-    $("gen-cancel-note").textContent = job.kind === "prepare" ? "pour la mettre en pause : page « Rushes et montages »" : "la version précédente reste en place";
+    $("gen-pause").hidden = job.kind !== "prepare";
+    $("gen-cancel-note").textContent = job.kind === "prepare" ? "en pause, elle reprendra là où elle en était" : "la version précédente reste en place";
     $("gen-all").value = job.overall || 0;
     $("gen-all-facts").textContent = `${Math.floor((job.overall || 0) * 100)} %${remaining(job.remaining)}`;
   }
   $("gen-cancel").addEventListener("click", async () => {
-    if (!confirm("Annuler ? La tâche s'arrête tout de suite ; la version précédente reste en place.")) return;
+    if (!await ask("Elle s'arrête tout de suite ; la version précédente reste en place.", { title: "Arrêter la tâche en cours ?", ok: "Arrêter", cancel: "Laisser continuer", danger: true })) return;
     $("gen-cancel").disabled = true;
     await fetch("/api/job/cancel", { method: "POST" }).catch(() => {});
     setTimeout(() => { $("gen-cancel").disabled = false; }, 2000);
@@ -4052,7 +4105,7 @@ ${HFAudio.voiceElements(spec)}
     $("valider-derush").hidden = false;
     $("valider-derush").addEventListener("click", () => {
       const kept = moments.filter(isKept), n = kept.length, total = kept.reduce((t, m) => t + durOf(m), 0);
-      $("valider-sum").textContent = n ? `${n} moment${n > 1 ? "s" : ""} gardé${n > 1 ? "s" : ""}, ${fmt(total)} de vidéo.`
+      $("valider-sum").textContent = n ? `${n} moment${n > 1 ? "s" : ""} gardé${n > 1 ? "s" : ""}, ${durText(total)} de vidéo.`
         : "Aucun moment gardé : cochez d'abord les moments à garder sur la frise.";
       $("valider-dl").disabled = $("valider-montage").disabled = !n;
       $("valider-msg").textContent = "";
@@ -4074,6 +4127,25 @@ ${HFAudio.voiceElements(spec)}
       const q = window.AUTO_MONTAGE_LOCAL ? (document.querySelector('input[name="valider-q"]:checked') || {}).value || "1080p" : "";
       try { if (q) localStorage.setItem(DERUSH_QUALITY, q); } catch (e) { /* stockage indisponible */ }
       dlg.close();
+      // Vidéo déjà à jour (aucun moment ni réglage changé depuis) : téléchargée tout de suite, ou
+      // seulement la 4K créée, sans tout régénérer.
+      if (q) {
+        for (let i = 0; i < 25 && dirty; i++) await new Promise((r) => setTimeout(r, 200));
+        const d = await fetch("/api/downloads", { cache: "no-store" }).then((r) => r.json()).catch(() => null);
+        if (d) dlData = d;
+        const v = d && (d.versions || []).find((x) => x.id === q);
+        if (d && d.final && d.final.available && !d.final.changed && !staleWhat()) {
+          if (v && !v.stale) {
+            setStatus(`Vidéo déjà à jour : téléchargement en ${q === "4k" ? "4K" : q} lancé.`, "ok");
+            openDownloadMenu().then(() => saveVersion(q));
+            return;
+          }
+          if (q === "4k" && !d.final.busy) {
+            const r = await fetch("/api/final", { method: "POST" }).catch(() => null);
+            if (r && r.ok) { afterRegen("telecharger-4k"); followFinal(); return; }
+          }
+        }
+      }
       afterRegen(q ? `telecharger:${q}` : "telecharger");
       await startRegen();
     });
@@ -4157,8 +4229,8 @@ ${HFAudio.voiceElements(spec)}
         body: JSON.stringify({ subtitles: box.checked }) }).catch(() => null);
       if (!r || !r.ok) { box.checked = !box.checked; $("derush-subs-status").textContent = "Réglage non enregistré : Auto-montage ne répond pas."; return; }
       document.documentElement.dataset.subtitles = box.checked ? "1" : "0";
-      $("derush-subs-status").textContent = box.checked ? "Sous-titres ajoutés au prochain « Télécharger derush »."
-        : "Pas de sous-titres au prochain « Télécharger derush » (le texte corrigé reste gardé).";
+      $("derush-subs-status").textContent = box.checked ? "Sous-titres ajoutés au prochain « Télécharger le dérush »."
+        : "Pas de sous-titres au prochain « Télécharger le dérush » (le texte corrigé reste gardé).";
       editing = null;
       renderSummary();  // bouton « À vérifier » : mots à vérifier seulement avec les sous-titres
       if (mode === "moment" && currentMoment !== null) {
@@ -4707,7 +4779,7 @@ ${HFAudio.voiceElements(spec)}
             const r = await putEffects();
             $("fx-choice-status").textContent = r && r.ok ? "Enregistré." : "Le choix n'a pas pu être enregistré.";
             const used = cb.checked ? 0 : moments.filter((m) => hasFx(m, e.id)).length;
-            if (used && confirm(`« ${e.label} » est coché sur ${used} moment${used > 1 ? "s" : ""}. Le décocher aussi sur ${used > 1 ? "tous ces moments" : "ce moment"} ?`)) {
+            if (used && await ask(`« ${e.label} » est coché sur ${used} moment${used > 1 ? "s" : ""}. Le décocher aussi sur ${used > 1 ? "tous ces moments" : "ce moment"} ?`, { title: "Effet placé sur des moments", ok: "Le décocher aussi", cancel: "Le laisser sur les moments" })) {
               const n = await purgeEffect(e.id, e.label);
               $("fx-choice-status").textContent = `Enregistré ; « ${e.label} » décoché sur ${n} moment${n > 1 ? "s" : ""}.`;
             }
@@ -4769,7 +4841,7 @@ ${HFAudio.voiceElements(spec)}
     // Rien de généré : une seule ligne qui dit quoi faire (pas de liste de « pas encore »).
     if (!data.versions.length && !(data.final && data.final.available)) {
       menu.append(Object.assign(document.createElement("div"), { className: "row", textContent: DERUSH
-        ? "Pas encore de vidéo : « Valider le dérush », puis « Télécharger derush »."
+        ? "Pas encore de vidéo : « Valider le dérush », puis « Télécharger le dérush »."
         : "Pas encore de vidéo : « Générer la vidéo entière » d'abord." }));
       menu.hidden = false;
       return;
@@ -5037,7 +5109,7 @@ ${HFAudio.voiceElements(spec)}
   async function createFinal(btn, estimate, asked) {
     // Vidéo entière en retard : la mettre à jour d'abord (puis la 4K se crée d'elle-même), ou pas.
     if (!asked && staleWhat()) { askStale("final", "4K", "creer-4k", () => createFinal(btn, estimate, true)); return; }
-    if (!asked && !confirm(`Créer la version 4K ? Cela prend du temps${took(estimate)}. Vous pourrez continuer à utiliser la page pendant ce temps.`)) return;
+    if (!asked && !await ask(`Cela prend du temps${took(estimate)}. Vous pourrez continuer à utiliser la page pendant ce temps.`, { title: "Créer la version 4K ?", ok: "Créer la 4K" })) return;
     btn.disabled = true;
     const r = await fetch("/api/final", { method: "POST" });
     if (!r.ok) { setStatus((await r.json().catch(() => ({}))).error || `erreur ${r.status}`, "err"); btn.disabled = false; return; }
@@ -5045,14 +5117,14 @@ ${HFAudio.voiceElements(spec)}
     followFinal();
   }
   async function followFinal() {
-    $("regen").disabled = true;
+    lockBtn($("regen"), "final", "La création de la 4K est en cours : attendez sa fin");
     for (;;) {
       await new Promise((r) => setTimeout(r, 1500));
       const job = await fetch("/api/job").then((r) => r.json()).catch(() => null);
       if (!job) continue;
       showGenProgress(job);
       if (job.state === "running") { setStatus(`Création de la version 4K : ${job.step}…`); continue; }
-      $("regen").disabled = false;
+      lockBtn($("regen"), "final", "");
       if (job.state === "cancelled") { setStatus("Création de la 4K annulée"); return; }
       let next = null;  // 4K demandée par « Valider le dérush » ou « Télécharger » : téléchargée (ou lue) dès qu'elle est prête
       try { next = sessionStorage.getItem(AFTER_REGEN); } catch (e) { /* stockage indisponible */ }
@@ -5072,6 +5144,13 @@ ${HFAudio.voiceElements(spec)}
     $("download").hidden = false;
     $("download").title = "Télécharger la vidéo entière (720p, 1080p) ou créer la version 4K";
     $("download").addEventListener("click", () => ($("dl-menu").hidden ? openDownloadMenu() : ($("dl-menu").hidden = true)));
+    // Rien de généré : « Télécharger » grisé avec la raison, lien « Toutes les qualités » caché.
+    fetch("/api/downloads", { cache: "no-store" }).then((r) => r.json()).then((d) => {
+      const none = !d.versions.length && !(d.final && d.final.available);
+      lockBtn($("download"), "none", none ? (DERUSH ? "Pas encore de vidéo : « Valider le dérush », puis « Télécharger le dérush »"
+        : "Pas encore de vidéo : « Générer la vidéo entière » d'abord") : "");
+      $("downloads-page").hidden = none;
+    }).catch(() => {});
     let after = null;
     try { after = sessionStorage.getItem(AFTER_REGEN); } catch (e) { /* stockage indisponible */ }
     // « telecharger:<qualité> » (« Valider le dérush ») : 720p ou 1080p téléchargée tout de suite ;
@@ -5148,7 +5227,7 @@ ${HFAudio.voiceElements(spec)}
   (async () => {
     if (!DATA.regenTrigger && !window.AUTO_MONTAGE_LOCAL) return;
     mcp = await window.claude?.use?.("mcp") ?? null;
-    if (mcp && !DERUSH) $("regen").hidden = false;  // en dérushage : « Télécharger derush » de « Valider le dérush »
+    if (mcp && !DERUSH) $("regen").hidden = false;  // en dérushage : « Télécharger le dérush » de « Valider le dérush »
     // Page rouverte pendant une génération locale : on reprend le suivi.
     if (window.AUTO_MONTAGE_LOCAL) {
       const job = await fetch("/api/job").then((r) => r.json()).catch(() => null);

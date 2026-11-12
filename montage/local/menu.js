@@ -74,6 +74,18 @@
   .am-off-page p { margin: 0 0 12px; color: var(--muted, #6f695f); }
   .am-off-page button { font: inherit; font-weight: 600; color: #fff; background: var(--accent, #2d6a5a); border: 0; border-radius: 8px; padding: 8px 14px; cursor: pointer; }
   @media (max-width: 640px) { .am-here { display: none; } .am-brand { display: none; } .am-keys { padding: 6px 9px; } }
+  /* Fenêtre de confirmation commune (window.amConfirm), à la place de confirm() du navigateur. */
+  .am-ask { max-width: min(520px, calc(100vw - 32px)); border: 1px solid var(--line, #e4ded4); border-radius: 12px; padding: 18px 20px;
+    background: var(--surface, #fffdf9); color: var(--fg, #1f1d1a); font-family: var(--body, sans-serif); font-size: 15px; line-height: 1.45;
+    box-shadow: 0 16px 40px rgb(0 0 0 / 0.25); }
+  .am-ask::backdrop { background: rgb(0 0 0 / 0.45); }
+  .am-ask h2 { font: 700 17px/1.3 var(--display, sans-serif); margin: 0 0 8px; }
+  .am-ask p { margin: 0 0 8px; white-space: pre-line; }
+  .am-ask-foot { display: flex; justify-content: flex-end; gap: 8px; margin-top: 14px; flex-wrap: wrap; }
+  .am-ask-foot button { font: inherit; font-weight: 600; border-radius: 8px; padding: 7px 14px; cursor: pointer;
+    border: 1px solid var(--line, #e4ded4); background: var(--bg, #f5f3ef); color: var(--fg, #1f1d1a); }
+  .am-ask-foot .am-ask-ok { background: var(--accent, #2d6a5a); border-color: var(--accent, #2d6a5a); color: #fff; }
+  .am-ask-foot .am-ask-ok.am-danger { background: var(--warn, #9a5b12); border-color: var(--warn, #9a5b12); }
   .am-bar :focus-visible { outline: 2px solid var(--accent, #2d6a5a); outline-offset: 2px; }
   @media (prefers-reduced-motion: reduce) { .am-toggle .am-chev { transition: none; } }`;
 
@@ -121,7 +133,12 @@
       li.append(a);
       panel.querySelector("ul").append(li);
     }
-    const open = (yes) => { panel.hidden = !yes; toggle.setAttribute("aria-expanded", String(yes)); };
+    // Menu ouvert : état relu (une tâche a pu commencer ou finir depuis le chargement de la page).
+    const open = (yes) => {
+      panel.hidden = !yes;
+      toggle.setAttribute("aria-expanded", String(yes));
+      if (yes) fetch("/api/status").then((r) => r.json()).then((st) => markMode(bar, st)).catch(() => {});
+    };
     toggle.addEventListener("click", () => open(panel.hidden));
     document.addEventListener("click", (e) => { if (!bar.contains(e.target)) open(false); });
     document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !panel.hidden) { open(false); toggle.focus(); } });
@@ -161,7 +178,8 @@
     if (r && r.ok) { location.reload(); return; }
     buttons.forEach((b) => { b.disabled = false; });
     const err = r ? (await r.json().catch(() => ({}))).error : null;
-    alert(`Le mode n'a pas pu être changé : ${err || "Auto-montage ne répond pas."}`);
+    const note = bar.querySelector(".am-panel-mode .am-mode-note");
+    note.textContent = `Le mode n'a pas pu être changé : ${err || "Auto-montage ne répond pas."}`;
   }
   // Mode : pas de changement pendant une tâche (préparation, génération, passage à l'auto-montage…,
   // qui lisent le mode) ; sans montage en cours, il décide de l'usage des consignes du prochain rush.
@@ -215,6 +233,33 @@
       }
     }
   }
+  // Confirmation dans une fenêtre de la page (au lieu de confirm() du navigateur, qui bloque la
+  // page et ne se met pas en forme) : amConfirm(texte, { title, ok, cancel, danger }) → promesse
+  // de true (bouton ok) ou false (Annuler, Échap).
+  window.amConfirm = (text, o = {}) => new Promise((resolve) => {
+    if (!document.querySelector("style[data-am-ask]")) {
+      const st = document.createElement("style");
+      st.dataset.amAsk = "1";
+      st.textContent = css.slice(css.indexOf("  /* Fenêtre de confirmation"), css.indexOf("  .am-bar :focus-visible"));
+      document.head.append(st);
+    }
+    const dlg = document.createElement("dialog");
+    dlg.className = "am-ask";
+    dlg.innerHTML = '<h2></h2><p></p><div class="am-ask-foot"><button type="button" class="am-ask-no"></button><button type="button" class="am-ask-ok"></button></div>';
+    dlg.querySelector("h2").textContent = o.title || "Confirmer";
+    dlg.querySelector("p").textContent = text;
+    const ok = dlg.querySelector(".am-ask-ok"), no = dlg.querySelector(".am-ask-no");
+    ok.textContent = o.ok || "Continuer";
+    no.textContent = o.cancel || "Annuler";
+    if (o.danger) ok.classList.add("am-danger");
+    let answer = false;
+    ok.addEventListener("click", () => { answer = true; dlg.close(); });
+    no.addEventListener("click", () => dlg.close());
+    dlg.addEventListener("close", () => { dlg.remove(); resolve(answer); });
+    document.body.append(dlg);
+    dlg.showModal();
+    ok.focus();
+  });
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", build);
   else build();
 })();

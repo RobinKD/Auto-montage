@@ -338,6 +338,21 @@ fn estimate(key: &str, rates: &Map<String, Value>, m: &Map<String, Value>) -> f6
     rate(rates, key) * scale
 }
 
+/// Durée prévue d'une préparation de `rush_seconds` de vidéo (page « Rushes et montages », avant
+/// de la lancer) : seulement si chaque étape a été assez mesurée sur cette machine.
+pub fn prepare_estimate(steps: &[String], rush_seconds: f64) -> Option<f64> {
+    let samples = load_samples();
+    if rush_seconds <= 0.0 || !steps.iter().all(|s| measured(&samples, s)) {
+        return None;
+    }
+    let rates = load_rates();
+    let mut m = Map::new();
+    m.insert("kind".into(), json!("prepare"));
+    m.insert("rushSeconds".into(), fnum(rush_seconds));
+    m.insert("startedTs".into(), fnum(now()));
+    Some(steps.iter().map(|s| plan_of(s).iter().map(|k| estimate(k, &rates, &m)).sum::<f64>() + estimate(&format!("étape:{s}"), &rates, &m)).sum())
+}
+
 /// Recale les vitesses sur les durées mesurées de la tâche qui vient de réussir.
 fn learn_timings(m: &Map<String, Value>) {
     let mut rates = load_rates();

@@ -126,6 +126,8 @@
 
 <script>
   const $ = (id) => document.getElementById(id);
+  // Confirmation dans une fenêtre de la page (local/menu.js : amConfirm), confirm() sinon.
+  const ask = (text, o) => (window.amConfirm ? window.amConfirm(text, o) : Promise.resolve(confirm(text)));
   function say(id, text, kind = "") { $(id).textContent = text; $(id).className = kind; }
 
   // Notes de version (Markdown du CHANGELOG) : les lignes coupées à 95 caractères dans le
@@ -221,7 +223,7 @@
   });
 
   $("apply").addEventListener("click", async () => {
-    if (!confirm("Installer la nouvelle version ? Auto-montage redémarre ensuite (environ une minute) ; vos montages et réglages sont gardés.")) return;
+    if (!await ask("Auto-montage redémarre ensuite (environ une minute) ; vos montages et réglages sont gardés.", { title: "Installer la nouvelle version ?", ok: "Installer" })) return;
     $("apply").disabled = true;
     const { ok, data } = await post("/api/update/apply");
     if (!ok) {
@@ -236,7 +238,7 @@
 
   $("reset").addEventListener("click", async () => {
     const v = $("reset-version").textContent;
-    if (!confirm(`Réinitialiser Auto-montage ${v} ?\n\nLes fichiers du programme modifiés ou effacés sont remis comme dans la version publiée sur GitHub (une copie des fichiers remplacés est gardée dans montage/work/sauvegardes/). Vos montages, rushes, rendus et réglages ne sont pas touchés.\n\nAuto-montage redémarre ensuite (environ une minute).`)) return;
+    if (!await ask(`Les fichiers du programme modifiés ou effacés sont remis comme dans la version publiée sur GitHub (une copie des fichiers remplacés est gardée dans montage/work/sauvegardes/). Vos montages, rushes, rendus et réglages ne sont pas touchés.\n\nAuto-montage redémarre ensuite (environ une minute).`, { title: `Réinitialiser Auto-montage ${v} ?`, ok: "Réinitialiser", danger: true })) return;
     $("reset").disabled = true;
     const { ok, data } = await post("/api/update/reset", { confirm: true });
     if (!ok) { say("reset-msg", data.error || "La réinitialisation n'a pas pu démarrer.", "err"); $("reset").disabled = false; return; }

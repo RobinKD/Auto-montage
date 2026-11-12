@@ -45,7 +45,7 @@ pub const SHARED: [&str; 22] = [
     "rendu_parties", "memoire_mesures.json", "timings_mesures.json", "tache.json", "reprise", "derush_suite",
 ];
 /// Hors de work/ : déplacés (lourds) ou copiés (suivis par git, restent en place).
-pub const MOVED: [&str; 8] = [
+pub const MOVED: [&str; 10] = [
     "public/rushes/rush_1080.mp4",
     "public/rushes/rush_1080.webm",
     "public/rushes/rush_2160.mp4",
@@ -53,6 +53,8 @@ pub const MOVED: [&str; 8] = [
     "public/audio",
     "out/montage_apercu.mp4",
     "out/montage_4k.mp4",
+    "out/montage.srt", // sous-titres en fichiers (subtitles.rs)
+    "out/montage.vtt",
     "out/export", // copies pour les plateformes (export.rs)
 ];
 pub const COPIED: [&str; 2] = ["src/data/edit.json", "src/data/face.json"];

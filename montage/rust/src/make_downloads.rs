@@ -151,9 +151,9 @@ fn run() -> Result<(), String> {
             label: "1080p",
             res: res(1080),
             path: paths::out().join("montage_apercu.mp4"),
-            note: "Rendu de l'aperçu, à la résolution de la composition.",
+            note: "Vidéo entière en 1080p.",
         },
-        Source { id: "4k", label: "4K", res: res(2160), path: paths::out().join("montage_4k.mp4"), note: "Rendu final (auto-montage render final)." },
+        Source { id: "4k", label: "4K", res: res(2160), path: paths::out().join("montage_4k.mp4"), note: "Vidéo entière en 4K, pour la publication." },
     ];
 
     util::mkdirs(&files);

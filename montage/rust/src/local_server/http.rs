@@ -287,7 +287,7 @@ fn do_get(req: &Req) -> Reply {
         "/api/effects" => return send_json(&effects_info(), 200),
         "/api/status" => {
             return send_json(
-                &json!({"version": *VERSION, "claude": claude::claude_connected(false),
+                &json!({"version": *VERSION, "claude": claude::claude_known(),
                         "claudeInstalled": paths::claude().is_some(),
                         "styleAnalysis": read_text(work().join("analyse_style.md")),
                         "update": claude::update_summary(),
@@ -330,6 +330,8 @@ fn do_get(req: &Req) -> Reply {
             let names: Vec<String> = steps.into_iter().map(|(n, _)| n).collect();
             let vpaths: Vec<PathBuf> = parts.iter().map(|n| rushes().join(n)).collect();
             let mut plan = memoire::summary(&names, &memoire::video_info(&vpaths, None));
+            let seconds: f64 = vpaths.iter().map(|p| media_seconds(p)).sum();
+            plan["estimate"] = jobs::prepare_estimate(&names, seconds).map(|e| json!(util::round_int(e))).unwrap_or(Value::Null);
             let kept = jobs::kept_parts(&parts);
             plan["kept"] = json!(jobs::abandon_parts_def().iter().filter(|(pid, _, _)| kept.iter().any(|k| k == pid)).map(|(_, l, _)| *l).collect::<Vec<_>>());
             return send_json(&plan, 200);

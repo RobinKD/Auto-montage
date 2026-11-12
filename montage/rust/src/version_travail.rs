@@ -242,7 +242,7 @@ pub fn run(rush: &Path) -> i32 {
         if done > 0 {
             progress::say(&format!("Reprise de la copie du rush : {done} morceau(x) sur {count} déjà faits"));
         }
-        progress::say(&format!("Copie du rush {w}x{h}, {:.3} images/s, {count} morceau(x)", fps.f()));
+        progress::say(&format!("Copie du rush {w}x{h}, {} images/s, {count} morceau(x)", util::fmt_g(fps.f(), 5).replace('.', ",")));
         if !sound.exists() {
             let part = dir.join("son.part.flac");
             let mut cmd = vec![ffmpeg.clone(), "-v".into(), "error".into(), "-y".into(), "-i".into(), rush_s.clone()];

@@ -560,8 +560,8 @@ pub fn downloads_data() -> Value {
         ("720p", "Légère", res(720), moments().join("montage.mp4"), "/montage.mp4",
          "Copie compressée de la vidéo entière, pour la partager ou la regarder sur téléphone."),
         ("1080p", "1080p", res(1080), apercu.clone(), "/out/montage_apercu.mp4",
-         "Rendu de l'aperçu, à la résolution de la composition."),
-        ("4k", "4K", res(2160), out().join("montage_4k.mp4"), "/out/montage_4k.mp4", "Rendu final, pour la publication."),
+         "Vidéo entière en 1080p."),
+        ("4k", "4K", res(2160), out().join("montage_4k.mp4"), "/out/montage_4k.mp4", "Vidéo entière en 4K, pour la publication."),
     ];
     let mut versions = vec![];
     for (vid, label, res, path, url, note) in sources {
@@ -600,14 +600,17 @@ pub fn downloads_data() -> Value {
            "settingsChanged": settings_changed()})
 }
 
-/// Réglages de tout le montage changés depuis la dernière vidéo entière (fichier de work/ plus
-/// récent qu'elle) : la page propose de la régénérer avant de télécharger, lire ou créer la 4K.
+/// Réglages de tout le montage changés depuis la dernière vidéo entière : la page propose de la
+/// régénérer avant de télécharger, lire ou créer la 4K. Comparés à l'empreinte notée au moment où
+/// `build_edit` les a lus (`moments_lib::settings_print`, gardée par `render`) : un réglage changé
+/// pendant la génération compte, un réglage sans effet sur la vidéo (effets proposés) non. Vidéo
+/// sans empreinte (rendue par une version précédente) : fichiers plus récents qu'elle.
 /// Les moments eux-mêmes sont comparés par la page (`workChange`).
 pub const SETTINGS_FILES: [(&str, &str); 8] = [
     ("habillage.json", "zooms et animations"),
     ("son.json", "son de la voix"),
     ("caption_style.json", "style des sous-titres"),
-    ("effets_page.json", "effets proposés"),
+    ("effets_page.json", "volume des effets"),
     ("couleur.json", "couleurs"),
     ("transitions.json", "transitions"),
     ("derush.json", "sous-titres du dérush"),
@@ -615,12 +618,30 @@ pub const SETTINGS_FILES: [(&str, &str); 8] = [
 ];
 
 pub fn settings_changed() -> Vec<&'static str> {
-    let Some(rendered) = util::mtime(out().join("montage_apercu.mp4")) else { return vec![] };
+    let apercu = out().join("montage_apercu.mp4");
+    let Some(rendered) = util::mtime(&apercu) else { return vec![] };
+    if let Some(before) = crate::moments_lib::video_print(&work(), "montage_apercu.mp4") {
+        let changed = crate::moments_lib::settings_diff(&before, &crate::moments_lib::settings_print(&work()));
+        return SETTINGS_FILES.iter().filter(|(f, _)| changed.iter().any(|c| c == f)).map(|(_, label)| *label).collect();
+    }
     SETTINGS_FILES
         .iter()
         .filter(|(f, _)| util::mtime(work().join(f)).is_some_and(|t| t > rendered + 2.0))
         .map(|(_, label)| *label)
         .collect()
+}
+
+/// Choix de la page des moments changés depuis la vidéo entière (empreinte, sinon dates).
+fn page_changed(rendered: f64) -> bool {
+    if let Some(before) = crate::moments_lib::video_print(&work(), "montage_apercu.mp4") {
+        let now = crate::moments_lib::settings_print(&work());
+        return crate::moments_lib::settings_diff(&before, &now).iter().any(|c| c == crate::moments_lib::PAGE_PRINT);
+    }
+    ["moments", "variantes"]
+        .iter()
+        .flat_map(|c| util::list_dir(db().join(c)).into_iter().map(move |n| db().join(c).join(n)))
+        .filter_map(|p| util::mtime(&p))
+        .any(|t| t > rendered + 2.0)
 }
 
 /// Création de la version 4K depuis les pages : possible, et durée estimée sur cette machine.
@@ -660,12 +681,7 @@ pub fn final_info() -> Value {
     // autre tâche en cours ou préparation en pause : création refusée (bouton grisé, avec la raison)
     let busy = if !running && jobs::busy() { json!(jobs::busy_error()) } else { Value::Null };
     // choix de la page des moments changés depuis la vidéo entière : la 4K serait faite sans eux
-    let rendered = util::mtime(&apercu).unwrap_or(0.0);
-    let changed = ["moments", "variantes"]
-        .iter()
-        .flat_map(|c| util::list_dir(db().join(c)).into_iter().map(move |n| db().join(c).join(n)))
-        .filter_map(|p| util::mtime(&p))
-        .any(|t| t > rendered + 2.0);
+    let changed = apercu.exists() && page_changed(util::mtime(&apercu).unwrap_or(0.0));
     // durée prévue seulement si la source 4K et le rendu 4K ont été assez mesurés sur cette machine
     let samples = jobs::load_samples();
     let estimate = if names.iter().all(|n| jobs::measured(&samples, n)) { json!(util::round_int(estimate)) } else { Value::Null };
@@ -718,7 +734,7 @@ pub fn rush_list() -> Value {
     json!({"rushes": items, "current": if current.is_empty() { Value::Null } else { json!(current) },
            "prepared": moments().join("index.html").exists(),
            "free": disk_free(root()), "job": jobs::job_status(),
-           "instructions": instructions_info(), "claude": super::claude::claude_connected(false), "style": style_info(),
+           "instructions": instructions_info(), "claude": super::claude::claude_known(), "style": style_info(),
            // Langue parlée (transcription) : choix de la prochaine préparation, langue du rush en cours.
            "langue": moments_lib::language(&work()),
            "langueRush": if current.is_empty() { Value::Null } else { json!(moments_lib::language_from(&work(), "langue_rush.txt")) },

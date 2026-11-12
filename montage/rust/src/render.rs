@@ -33,6 +33,8 @@ pub fn main(args: &[String]) -> i32 {
     // Rendu sous un nom provisoire, renommé à la fin : un rendu interrompu (« Annuler ») laisse la
     // version précédente intacte.
     let part = format!("{}.part.mp4", out.strip_suffix(".mp4").unwrap_or(out));
+    // Empreinte des réglages du montage rendu (build_edit), lue avant le rendu : gardée pour la vidéo.
+    let print = crate::util::read_json(paths::data().join("edit.json")).and_then(|e| e.get("settingsPrint").cloned());
     let start = Instant::now();
     let code = sub(&["render_hyperframes", mode, &part]);
     if code != 0 {
@@ -45,6 +47,7 @@ pub fn main(args: &[String]) -> i32 {
         return 1;
     }
     say(&format!("Rendu en {} s", start.elapsed().as_secs()));
+    keep_print(out, print);
     // Volume normalisé (son.json « loudness ») : son de la vidéo rendue mesuré puis corrigé.
     if let Err(e) = crate::loudness::after_render(&out_path) {
         say(&format!("Attention : volume non normalisé ({e})"));
@@ -56,6 +59,22 @@ pub fn main(args: &[String]) -> i32 {
         Err(e) => say(&format!("Attention : sous-titres non exportés ({e})")),
     }
     check(out)
+}
+
+/// Note l'empreinte des réglages de la vidéo rendue (work/video_reglages.json, par fichier de out/) :
+/// l'interface dit quels réglages ont changé depuis (moments_lib::settings_print).
+fn keep_print(out: &str, print: Option<serde_json::Value>) {
+    let path = paths::work().join(crate::moments_lib::VIDEO_PRINTS);
+    let mut all = match crate::util::read_json(&path) {
+        Some(serde_json::Value::Object(m)) => m,
+        _ => serde_json::Map::new(),
+    };
+    let name = out.rsplit('/').next().unwrap_or(out).to_string();
+    match print {
+        Some(p) => all.insert(name, p),
+        None => all.remove(&name), // montage sans empreinte (version précédente) : comparé à sa date
+    };
+    let _ = crate::util::write_json(&path, &serde_json::Value::Object(all), Some(1));
 }
 
 /// Chemin du projet écrit avec des « / » (out/montage_apercu.mp4), sur le disque.

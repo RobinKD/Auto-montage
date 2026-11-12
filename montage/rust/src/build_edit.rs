@@ -446,6 +446,9 @@ fn run() -> Result<(), String> {
     let root = paths::root();
     let work = paths::work();
     let fps_i = FPS as i64;
+    // Empreinte des réglages tels qu'ils sont lus ici (moments_lib::settings_print), gardée dans
+    // edit.json : la vidéo rendue d'après ce montage est comparée à elle, pas à sa date.
+    let settings_print = crate::moments_lib::settings_print(&work);
 
     // Moments de parole : la transcription, avec les coupes faites sur la page
     // (work/decoupage.json). SEG : id -> moment ; les choix ci-dessous (KEEP, FIXES…) désignent
@@ -1665,6 +1668,7 @@ fn run() -> Result<(), String> {
     }
     let mut edit = Map::new();
     edit.insert("fps".into(), json!(fps_i));
+    edit.insert("settingsPrint".into(), Value::Object(settings_print));
     // Format de la composition, celui du rush (portrait 1080x1920 ou paysage 1920x1080).
     edit.insert("width".into(), json!(width));
     edit.insert("height".into(), json!(height));

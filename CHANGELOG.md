@@ -4,6 +4,30 @@ Chaque version publiée reprend sa section dans ses notes (onglet Releases). Une
 section, le numéro dans `VERSION` et le tag `v<numéro>` poussé publient la version avec ses
 installateurs (voir `packaging/README.md`).
 
+## 1.8
+
+- **Vidéo « à jour » fiable** : un réglage changé pendant une génération n'est plus considéré comme
+  inclus dans la vidéo, et cocher ou décocher un effet proposé ne demande plus de la régénérer. Une
+  coupe dont les deux parties sont gardées ne compte plus comme deux moments changés.
+- **« Tout refaire » et nouveau rush** : les anciens sous-titres (SRT, VTT), l'ancienne 4K et les
+  anciennes copies pour les plateformes ne sont plus proposés avec le nouveau montage.
+- **Page des moments pendant une préparation** : elle n'est plus modifiable (ce qui y était changé
+  était perdu), et elle a son bouton « Mettre en pause ».
+- **Raccourcis** : G garde ou retire le moment ouvert, I et O placent le début et la fin de la
+  partie gardée à la tête de lecture (modifiables dans « Raccourcis »).
+- **« Télécharger le dérush » plus rapide** : si la vidéo est déjà à jour, elle se télécharge
+  tout de suite (ou seule la 4K est créée), sans tout régénérer.
+- **Préparation plus rapide** : les extraits des moments sont faits plusieurs à la fois, et leurs
+  vignettes sont prises dans les images de la frise.
+- **Pages plus réactives** : l'état de la connexion à Claude n'est plus attendu à chaque
+  chargement de page.
+- **Installation** : chaque gros téléchargement (modèle Parakeet…) montre où il en est, et un
+  téléchargement coupé reprend où il s'était arrêté.
+- **Plus clair** : un seul format de temps (1:36.40) et de durée (1 min 36) ; la durée prévue de la
+  préparation s'affiche avant de la lancer ; « Télécharger » est grisé tant qu'il n'y a pas de
+  vidéo ; les confirmations s'ouvrent dans la page au lieu des fenêtres du navigateur ; textes
+  périmés corrigés.
+
 ## 1.7
 
 - **Lire les vidéos dans le navigateur** : « Lire », à côté de chaque vidéo du menu

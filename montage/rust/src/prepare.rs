@@ -246,7 +246,13 @@ pub fn main(args: &[String]) -> i32 {
         util::remove_all(work.join("reprise"));
         // Vidéo entière rendue pour une préparation précédente de ce rush : elle ne correspond
         // plus à la nouvelle transcription (une préparation sans consignes ne rend rien).
-        let _ = fs::remove_file(paths::out().join("montage_apercu.mp4"));
+        // Avec elle, ce qui en vient : 4K, sous-titres en fichiers, copies pour les plateformes.
+        for f in ["montage_apercu.mp4", "montage_4k.mp4", "montage.srt", "montage.vtt"] {
+            let _ = fs::remove_file(paths::out().join(f));
+        }
+        util::remove_all(paths::out().join("export"));
+        let _ = fs::remove_file(work.join("exports.json"));
+        let _ = fs::remove_file(work.join(crate::moments_lib::VIDEO_PRINTS));
         let _ = fs::remove_file(work.join("moments").join("montage.mp4"));
     }
     // Vidéo d'un dérush validé : ce que la préparation du rush d'origine a trouvé, recalé par

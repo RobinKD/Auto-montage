@@ -164,7 +164,7 @@
   <header>
     <div>
       <h1>Rushes et montages</h1>
-      <p class="sub">Reprenez un montage commencé, ou choisissez une nouvelle vidéo et lancez sa préparation : transcription, découpe en moments et première vidéo entière.</p>
+      <p class="sub">Reprenez un montage commencé, ou choisissez une nouvelle vidéo et lancez sa préparation : transcription et découpe en moments (avec des consignes, Claude choisit aussi les moments ou prépare un premier montage).</p>
     </div>
   </header>
 
@@ -202,7 +202,7 @@
     <p class="note" data-mode-montage>Décrivez le montage voulu (moments à garder, intro, effets, sous-titres…) dans la zone de texte, ou choisissez un fichier texte. Claude l'applique pendant la préparation ; sans consignes, le premier montage garde tous les moments sauf les premières prises.</p>
     <div class="claude-zone" data-needs-claude>
     <h3 class="sub3" style="margin: 0;" id="instructions-h3">Consignes et vidéos d'exemple</h3>
-    <label for="instructions-text" class="note">Consignes de montage</label>
+    <label for="instructions-text" class="note" id="instructions-label">Consignes de montage</label>
     <textarea id="instructions-text" rows="6" placeholder="Par exemple : garde seulement les 3 conseils, coupe les hésitations, intro « Mes 3 astuces pour épargner », bruit de caisse quand je parle d'argent…"></textarea>
     <div class="row">
       <button type="button" id="save-instructions" disabled>Enregistrer les consignes</button>
@@ -270,7 +270,7 @@
 
   <section id="step-prepare" class="off" aria-labelledby="h-prepare">
     <h2 id="h-prepare"><span id="prepare-num">3</span>Préparer</h2>
-    <p class="note">Compter environ la durée du rush pour la transcription, puis 3 à 5 minutes pour la première vidéo entière. La page peut rester ouverte ou être fermée : la préparation continue.</p>
+    <p class="note"><span id="prepare-estimate">La durée prévue s'affiche ici une fois la vidéo choisie, quand cet ordinateur a déjà fait quelques préparations.</span> La page peut rester ouverte ou être fermée : la préparation continue.</p>
     <p class="warn" id="replace" hidden></p>
     <p class="row note"><label for="langue">Langue parlée dans la vidéo :</label> <select id="langue"><option value="fr">Français</option></select>
       <span>(la transcription suit cette langue ; une vidéo dans une autre langue serait mal transcrite)</span></p>
@@ -329,12 +329,15 @@
 
 <script>
   const $ = (id) => document.getElementById(id);
+  // Confirmation dans une fenêtre de la page (local/menu.js : amConfirm), confirm() sinon.
+  const ask = (text, o) => (window.amConfirm ? window.amConfirm(text, o) : Promise.resolve(confirm(text)));
   // Montage en cours en dérushage (work/mode.txt) : ni consignes, ni style, ni Claude ; la section 2 est masquée.
   const DERUSH = document.documentElement.dataset.mode === "derush";
   // Dérushage : seulement des consignes écrites, pour choisir les moments (ni style ni effets).
   if (DERUSH) {
     $("h-instructions").childNodes[1].textContent = "Consignes ";
     $("instructions-h3").textContent = "Consignes pour choisir les moments";
+    $("instructions-label").textContent = "Consignes";
     $("derush-instructions-note").hidden = false;
     $("instructions-text").placeholder = "Par exemple : garde seulement les 3 conseils, retire le passage sur le budget, préfère les prises les plus courtes…";
     $("apply-instructions").nextSibling.textContent = " Choisir les moments avec Claude d'après ces consignes pendant la préparation";
@@ -546,7 +549,7 @@
       : action === "delete_current"
       ? `Supprimer le montage en cours de ${p.rush} ? Ses moments, ses choix, sa copie du rush et ses rendus seront effacés ; la vidéo d'origine reste dans les rushes (à supprimer à part dans « Libérer de la place » si besoin).`
       : `Supprimer le montage enregistré de ${p.rush} (${mb(p.size || 0)}) ? Ses choix, sa copie du rush et ses rendus seront effacés ; la vidéo d'origine reste dans les rushes.`;
-    if (msg && !confirm(msg)) return;
+    if (msg && !await ask(msg, action === "open" ? { title: "Rouvrir ce montage ?", ok: "Rouvrir" } : { title: "Supprimer ce montage ?", ok: "Supprimer", danger: true })) return;
     btn.disabled = true;
     setStatus("projects-status", action === "open" ? `Ouverture de ${p.rush}…` : "Suppression…");
     const r = await fetch(`/api/projects/${action}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: p.id }) });
@@ -615,7 +618,7 @@
     const picked = spacePicked();
     if (!picked.length) return;
     const warn = picked.filter((i) => i.keep).map((i) => `\n• ${i.label} : ${i.note}`).join("");
-    if (!confirm(`Supprimer définitivement ${picked.length} élément(s) (${mb(picked.reduce((n, i) => n + i.size, 0))}) ?${warn}`)) return;
+    if (!await ask(`${picked.length} élément(s), ${mb(picked.reduce((n, i) => n + i.size, 0))}.${warn}`, { title: "Supprimer définitivement ?", ok: "Supprimer", danger: true })) return;
     $("space-delete").disabled = true;
     setStatus("space-status", "Suppression…");
     const r = await fetch("/api/place/delete", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ids: picked.map((i) => i.id) }) });
@@ -786,7 +789,7 @@
           const preparing = !!(info && info.job && ((info.job.kind === "prepare" && info.job.state === "running") || info.job.paused));
           const fresh = !cb.checked && !preparing ? await fetch("/api/effects").then((r) => r.json()).catch(() => null) : null;
           const used = (fresh && fresh.used && fresh.used[e.id]) || 0;
-          if (used && confirm(`« ${e.label} » est placé sur ${used} moment${used > 1 ? "s" : ""} du montage en cours. Le décocher aussi sur ${used > 1 ? "ces moments" : "ce moment"} ? (Fait à la prochaine ouverture de la page des moments.)`)) purge = [...purge, e.id];
+          if (used && await ask(`« ${e.label} » est placé sur ${used} moment${used > 1 ? "s" : ""} du montage en cours. Le décocher aussi sur ${used > 1 ? "ces moments" : "ce moment"} ? (Fait à la prochaine ouverture de la page des moments.)`, { title: "Effet placé sur des moments", ok: "Le décocher aussi", cancel: "Le laisser sur les moments" })) purge = [...purge, e.id];
           data.purge = purge;
           const r = await fetch("/api/effects", { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify({ hidden, purge }) }).catch(() => null);
           setStatus("fx-status", r && r.ok ? `${fxList.length - hidden.length} effet${fxList.length - hidden.length > 1 ? "s" : ""} proposé${fxList.length - hidden.length > 1 ? "s" : ""} sur la page des moments.` : "Le choix n'a pas pu être enregistré.", r && r.ok ? "ok" : "err");
@@ -1122,6 +1125,10 @@
     const m = await fetch(`/api/memoire?${q}`).then((r) => (r.ok ? r.json() : null)).catch(() => null);
     if (key !== memKey) return;
     box.hidden = !m;
+    // Durée prévue de la préparation (mesurée sur cet ordinateur ; absente avant 3 préparations).
+    $("prepare-estimate").textContent = m && typeof m.estimate === "number"
+      ? `Durée prévue sur cet ordinateur : ${m.estimate < 90 ? "1 à 2 min" : `environ ${Math.round(m.estimate / 60)} min`}.`
+      : "Durée prévue : pas encore connue sur cet ordinateur (elle s'affiche après quelques préparations).";
     if (!m) return;
     const go = (n) => `${(n / 1073741824).toFixed(1).replace(".", ",")} Go`;
     const free = m.available == null ? "RAM libre inconnue" : `${go(m.available)} libres sur ${go(m.total)}`;
@@ -1145,7 +1152,7 @@
   $("prepare").addEventListener("click", async () => {
     const paused = info && info.job && info.job.paused;
     const resumes = !!(paused && JSON.stringify(paused.args) === JSON.stringify(parts));
-    if (paused && !resumes && !confirm(`La préparation de ${paused.arg} attend d'être reprise. La préparer à nouveau l'abandonne : tout ce qui en était fait sera effacé (« Abandonner… » permet d'en garder une partie). Continuer ?`)) return;
+    if (paused && !resumes && !await ask(`La préparation de ${paused.arg} attend d'être reprise. La préparer à nouveau l'abandonne : tout ce qui en était fait sera effacé (« Abandonner… » permet d'en garder une partie).`, { title: "Abandonner la préparation en pause ?", ok: "Préparer à nouveau", danger: true })) return;
     $("prepare").disabled = true;
     // Consignes tapées mais pas encore enregistrées : enregistrées avant de préparer.
     if (!$("save-instructions").disabled && $("instructions-text").value.trim()) await saveTyped();
@@ -1262,7 +1269,7 @@
   });
   $("cancel").addEventListener("click", async () => {
     const prep = info && info.job && info.job.kind === "prepare";
-    if (!confirm(`Annuler la tâche en cours ? Elle s'arrête tout de suite ; il faudra la relancer depuis le début.${prep ? " Pour la continuer plus tard, choisissez plutôt « Mettre en pause »." : ""}`)) return;
+    if (!await ask(`Elle s'arrête tout de suite ; il faudra la relancer depuis le début.${prep ? " Pour la continuer plus tard, choisissez plutôt « Mettre en pause »." : ""}`, { title: "Arrêter la tâche en cours ?", ok: "Arrêter", cancel: "Laisser continuer", danger: true })) return;
     $("cancel").disabled = true;
     await fetch("/api/job/cancel", { method: "POST" }).catch(() => {});
     setTimeout(() => { $("cancel").disabled = false; }, 2000);

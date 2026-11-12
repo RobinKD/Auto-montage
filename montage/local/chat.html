@@ -97,6 +97,8 @@
 
 <script>
   const $ = (id) => document.getElementById(id);
+  // Confirmation dans une fenêtre de la page (local/menu.js : amConfirm), confirm() sinon.
+  const ask = (text, o) => (window.amConfirm ? window.amConfirm(text, o) : Promise.resolve(confirm(text)));
   let state = { running: false, messages: [] };
   let timer = null;
 
@@ -225,7 +227,7 @@
   });
   $("stop").addEventListener("click", async () => { await post("/api/chat/stop").catch(() => {}); refresh(); });
   $("new").addEventListener("click", async () => {
-    if (!confirm("Effacer cette conversation et en commencer une nouvelle ?")) return;
+    if (!await ask("La conversation actuelle sera effacée.", { title: "Commencer une nouvelle conversation ?", ok: "Nouvelle conversation", danger: true })) return;
     try { await post("/api/chat/new"); } catch (err) { $("status").textContent = err.message; }
     refresh();
   });

@@ -151,53 +151,171 @@ struct Page {
     made: usize, // extraits refaits par cette page
     face: Vec<Value>,
     persons: Vec<(i64, String)>,
+    strip: Value, // planches de la frise (moments_lib::timeline_strip), pour les vignettes
+}
+
+/// Extraits faits à la fois, au plus (la moitié des cœurs, 2 au moins).
+const EXTRACT_WORKERS: usize = 4;
+
+/// Vignette d'un moment découpée dans les planches de la frise (une image toutes les STRIP_STEP s,
+/// STRIP_TILE x STRIP_TILE par planche) : l'image la plus proche de `t`. false si elle manque.
+fn strip_thumb(strip: &Value, out: &Path, t: f64, dest: &Path) -> bool {
+    let (Some(step), Some(tile), Some(w), Some(h)) = (strip["step"].as_f64(), strip["tile"].as_u64(), strip["w"].as_u64(), strip["h"].as_u64()) else {
+        return false;
+    };
+    if step <= 0.0 || tile == 0 {
+        return false;
+    }
+    let idx = (t / step).floor().max(0.0) as u64;
+    let per = tile * tile;
+    let sheet = out.join("frames").join(format!("s{:03}.jpg", idx / per + 1));
+    let Ok(img) = image::open(&sheet) else { return false };
+    let (col, row) = ((idx % per) % tile, (idx % per) / tile);
+    let (x, y) = (col as u32 * w as u32, row as u32 * h as u32);
+    if x + w as u32 > img.width() || y + h as u32 > img.height() {
+        return false; // fin de la dernière planche : image absente
+    }
+    let crop = img.crop_imm(x, y, w as u32, h as u32).to_rgb8();
+    let Ok(file) = fs::File::create(dest) else { return false };
+    let mut enc = image::codecs::jpeg::JpegEncoder::new_with_quality(std::io::BufWriter::new(file), 82);
+    enc.encode_image(&crop).is_ok()
+}
+
+/// Extrait à faire (Page::prefetch) : nom, bornes, qualité.
+struct Job {
+    name: String,
+    a: T,
+    b: T,
+    crf: i64,
+    abr: &'static str,
 }
 
 impl Page {
-    /// Extrait vidéo et vignette d'un moment ; gardés s'ils existent déjà pour les mêmes bornes.
-    fn extract(&mut self, name: &str, a: T, b: T, crf: i64, abr: &str) -> Result<(), String> {
+    fn sig_of(&self, a: T, b: T) -> Value {
         let ra = if a.int { json!(a.x as i64) } else { num(round_to(a.x, 3)) };
         let rb = if b.int { json!(b.x as i64) } else { num(round_to(b.x, 3)) };
         let mut sig = vec![ra, rb];
         if (self.width, self.height) != (1080, 1920) {
             sig.push(json!(format!("{}x{}", self.width, self.height)));
         }
-        let sig = Value::Array(sig);
+        Value::Array(sig)
+    }
+
+    fn ready(&self, name: &str, sig: &Value) -> bool {
+        self.signatures.get(name).map(|v| same_sig(v, sig)).unwrap_or(false)
+            && self.out.join("clips").join(format!("{name}.mp4")).exists()
+            && self.out.join("thumbs").join(format!("{name}.jpg")).exists()
+    }
+
+    /// Extrait vidéo et vignette d'un moment. Noms provisoires renommés une fois complets.
+    /// Vignette prise dans les planches de la frise (même instant, déjà décodé), sinon par ffmpeg.
+    fn make(&self, job: &Job) -> Result<(), String> {
+        let (name, a, b) = (&job.name, job.a, job.b);
         let clip = self.out.join("clips").join(format!("{name}.mp4"));
         let thumb = self.out.join("thumbs").join(format!("{name}.jpg"));
-        if self.signatures.get(name).map(|v| same_sig(v, &sig)).unwrap_or(false) && clip.exists() && thumb.exists() {
-            return Ok(());
-        }
-        // Noms provisoires renommés une fois complets ; liste des bornes enregistrée régulièrement :
-        // une préparation mise en pause ou coupée ne refait que les extraits manquants.
         let part_clip = self.out.join("clips").join(format!("{name}.part.mp4"));
         let part_thumb = self.out.join("thumbs").join(format!("{name}.part.jpg"));
         let src = p(&self.source);
         ffmpeg_ok(
             &[
                 s("-v"), s("error"), s("-y"), s("-ss"), format!("{:.3}", a.x), s("-to"), format!("{:.3}", b.x), s("-i"), src.clone(),
-                s("-vf"), self.small.clone(), s("-c:v"), s("libx264"), s("-preset"), s("veryfast"), s("-crf"), crf.to_string(),
-                s("-pix_fmt"), s("yuv420p"), s("-c:a"), s("aac"), s("-b:a"), s(abr), s("-ac"), s("1"), s("-movflags"), s("+faststart"),
+                s("-vf"), self.small.clone(), s("-c:v"), s("libx264"), s("-preset"), s("veryfast"), s("-crf"), job.crf.to_string(),
+                s("-pix_fmt"), s("yuv420p"), s("-c:a"), s("aac"), s("-b:a"), s(job.abr), s("-ac"), s("1"), s("-movflags"), s("+faststart"),
                 p(&part_clip),
             ],
             "extrait",
         )?;
-        ffmpeg_ok(
-            &[
-                s("-v"), s("error"), s("-y"), s("-ss"), format!("{:.3}", (a.x + b.x) / 2.0), s("-i"), src, s("-frames:v"), s("1"),
-                s("-vf"), s("scale=120:-2"), s("-q:v"), s("5"), p(&part_thumb),
-            ],
-            "vignette",
-        )?;
+        let mid = (a.x + b.x) / 2.0;
+        if !strip_thumb(&self.strip, &self.out, mid, &part_thumb) {
+            ffmpeg_ok(
+                &[
+                    s("-v"), s("error"), s("-y"), s("-ss"), format!("{mid:.3}"), s("-i"), src, s("-frames:v"), s("1"),
+                    s("-vf"), s("scale=120:-2"), s("-q:v"), s("5"), p(&part_thumb),
+                ],
+                "vignette",
+            )?;
+        }
         fs::rename(&part_clip, &clip).map_err(|e| e.to_string())?;
         fs::rename(&part_thumb, &thumb).map_err(|e| e.to_string())?;
+        Ok(())
+    }
+
+    /// Extraits manquants faits plusieurs à la fois (EXTRACT_WORKERS : un ffmpeg en petite taille
+    /// n'occupe pas tous les cœurs), avec l'avancement ; ceux déjà faits pour les mêmes bornes
+    /// sont gardés. extract() les trouve ensuite prêts.
+    fn prefetch(&mut self, jobs: Vec<Job>, label: &str, total: f64) -> Result<f64, String> {
+        let all: f64 = jobs.iter().map(|j| j.b.x - j.a.x).sum();
+        let todo: Vec<(Job, Value)> = jobs
+            .into_iter()
+            .map(|j| {
+                let sig = self.sig_of(j.a, j.b);
+                (j, sig)
+            })
+            .filter(|(j, sig)| !self.ready(&j.name, sig))
+            .collect();
+        let kept = all - todo.iter().map(|(j, _)| j.b.x - j.a.x).sum::<f64>();
+        report(label, kept.min(total), total);
+        if todo.is_empty() {
+            return Ok(all);
+        }
+        let workers = std::thread::available_parallelism().map(|n| n.get() / 2).unwrap_or(2).clamp(2, EXTRACT_WORKERS).min(todo.len());
+        let next = std::sync::atomic::AtomicUsize::new(0);
+        let done = std::sync::Mutex::new((kept, Vec::<(String, Value)>::new(), None::<String>));
+        let me = &*self;
+        std::thread::scope(|sc| {
+            for _ in 0..workers {
+                sc.spawn(|| loop {
+                    let i = next.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+                    let Some((job, sig)) = todo.get(i) else { break };
+                    if done.lock().unwrap().2.is_some() {
+                        break;
+                    }
+                    let res = me.make(job);
+                    let mut d = done.lock().unwrap();
+                    match res {
+                        Ok(()) => {
+                            d.0 += job.b.x - job.a.x;
+                            d.1.push((job.name.clone(), sig.clone()));
+                            report(label, d.0.min(total), total);
+                            if d.1.len() % 10 == 0 {
+                                me.save_signatures(&d.1);
+                            }
+                        }
+                        Err(e) => d.2 = Some(e),
+                    }
+                });
+            }
+        });
+        let (_, made, err) = done.into_inner().unwrap();
+        self.save_signatures(&made);
+        for (name, sig) in made {
+            self.signatures.insert(name, sig);
+            self.made += 1;
+        }
+        err.map_or(Ok(all), Err)
+    }
+
+    /// Bornes des extraits faits enregistrées (avec `made`, faits depuis) : une préparation mise
+    /// en pause ou coupée ne refait que les extraits manquants.
+    fn save_signatures(&self, made: &[(String, Value)]) {
+        let mut all = self.signatures.clone();
+        for (name, sig) in made {
+            all.insert(name.clone(), sig.clone());
+        }
+        let part = self.sig_path.with_file_name(".bornes.json.part");
+        let _ = util::write_json(&part, &Value::Object(all), None);
+        let _ = fs::rename(&part, &self.sig_path);
+    }
+
+    /// Extrait vidéo et vignette d'un moment ; gardés s'ils existent déjà pour les mêmes bornes.
+    fn extract(&mut self, name: &str, a: T, b: T, crf: i64, abr: &'static str) -> Result<(), String> {
+        let sig = self.sig_of(a, b);
+        if self.ready(name, &sig) {
+            return Ok(());
+        }
+        self.make(&Job { name: name.to_string(), a, b, crf, abr })?;
         self.signatures.insert(name.to_string(), sig);
         self.made += 1;
-        if self.made % 10 == 0 {
-            let part = self.sig_path.with_file_name(".bornes.json.part");
-            let _ = util::write_json(&part, &Value::Object(self.signatures.clone()), None);
-            let _ = fs::rename(&part, &self.sig_path);
-        }
         Ok(())
     }
 
@@ -330,7 +448,9 @@ fn run() -> Result<(), String> {
         Some(Value::Object(m)) => m,
         _ => Map::new(),
     };
-    let mut pg = Page { out: out.clone(), width, height, small, source: source.clone(), sig_path: sig_path.clone(), signatures, made: 0, face, persons };
+    // Frises de la page : images du rush toutes les 0,5 s (aussi les vignettes des moments).
+    let strip = timeline_strip(&source, &out, width, height, paths::ffmpeg());
+    let mut pg = Page { out: out.clone(), width, height, small, source: source.clone(), sig_path: sig_path.clone(), signatures, made: 0, face, persons, strip: strip.clone() };
 
     let preview = paths::out().join("montage_apercu.mp4");
     let fps = edit_data.get("fps").cloned().unwrap_or(Value::Null);
@@ -343,7 +463,6 @@ fn run() -> Result<(), String> {
     let steps_total: f64 = segments.iter().map(|s| fnum(s, "end") - fnum(s, "start") + 0.1).sum::<f64>()
         + gap_list.iter().map(|g| fnum(g, "end") - fnum(g, "start")).sum::<f64>()
         + montage_s;
-    let mut steps_done = 0.0;
     // Tours de parole (diarize) : cadrage « personne qui parle » de l'aperçu, même règle que build_edit.
     let turns = crate::diarize::turns(&work);
     let turns_json = |a: f64, b: f64| -> Value {
@@ -356,14 +475,34 @@ fn run() -> Result<(), String> {
     };
     const LABEL: &str = "Découpage des moments";
     report(LABEL, 0.0, if steps_total != 0.0 { steps_total } else { 1.0 });
+    // Extraits des moments puis des plans sans parole, plusieurs à la fois.
+    let seg_bounds = |seg: &Value| {
+        let (start, end) = (fnum(seg, "start"), fnum(seg, "end"));
+        let a = if start - 0.05 > 0.0 { T { x: start - 0.05, int: false } } else { T { x: 0.0, int: true } };
+        (a, T { x: end + 0.05, int: false })
+    };
+    let mut jobs: Vec<Job> = segments
+        .iter()
+        .map(|seg| {
+            let (a, b) = seg_bounds(seg);
+            Job { name: format!("m_{:03}", seg["id"].as_i64().unwrap_or(0)), a, b, crf: 28, abr: "64k" }
+        })
+        .collect();
+    jobs.extend(gap_list.iter().map(|g| Job {
+        name: format!("g_{:04}", g["id"].as_i64().unwrap_or(0)),
+        a: T::of(&g["start"]),
+        b: T::of(&g["end"]),
+        crf: 30,
+        abr: "48k",
+    }));
+    pg.prefetch(jobs, LABEL, steps_total)?;
     let empty = json!({});
     for seg in &segments {
         let sid = seg["id"].as_i64().unwrap_or(0);
         let name = format!("m_{sid:03}");
         let start = fnum(seg, "start");
         let end = fnum(seg, "end");
-        let a = if start - 0.05 > 0.0 { T { x: start - 0.05, int: false } } else { T { x: 0.0, int: true } };
-        let b = T { x: end + 0.05, int: false };
+        let (a, b) = seg_bounds(seg);
         pg.extract(&name, a, b, 28, "64k")?;
         // Mots avec leurs temps dans l'extrait (qui commence à « a »), corrections du montage appliquées ;
         // « d » : transcription incertaine (confiance sous DOUBT), à vérifier sur la page.
@@ -447,8 +586,6 @@ fn run() -> Result<(), String> {
             ),
         );
         moments.push(Value::Object(m));
-        steps_done += end - start + 0.1;
-        report(LABEL, steps_done, steps_total);
     }
 
     // Plans sans parole (entre les segments) : proposés décochés, à couper à la main sur la page.
@@ -463,8 +600,6 @@ fn run() -> Result<(), String> {
             "persons": pg.persons_in(ga.x, gb.x), "cashWord": null, "chip": null,
             "suggested": false, "reason": "", "clip": format!("clips/{name}.mp4"), "thumb": format!("thumbs/{name}.jpg"),
         }));
-        steps_done += gb.x - ga.x;
-        report(LABEL, steps_done, steps_total);
     }
     moments.sort_by(|x, y| fnum(x, "start").partial_cmp(&fnum(y, "start")).unwrap_or(std::cmp::Ordering::Equal));
     util::write_json(&sig_path, &Value::Object(pg.signatures.clone()), None).map_err(|e| e.to_string())?;
@@ -558,8 +693,7 @@ fn run() -> Result<(), String> {
     // Nombre de lignes des sous-titres et taille de chacune (page publiée : sans le style de l'interface locale).
     let caption_lines = fonts_lib::read_style();
     hf_preview_files(&out); // aperçu des voix faites par HyperFrames (hf/)
-    // Frises de la page : images du rush toutes les 0,5 s et forme d'onde de la voix.
-    let strip = timeline_strip(&source, &out, width, height, paths::ffmpeg());
+    // Forme d'onde de la voix (frises de la page).
     let wave_peaks = timeline_wave(&work);
     let page = fs::read_to_string(root.join("selection").join("page.html")).map_err(|e| e.to_string())?;
     let rush_name = Path::new(&rush).file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
