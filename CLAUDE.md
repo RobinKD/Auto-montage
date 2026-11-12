@@ -416,6 +416,13 @@ interne : les changements attendent la prochaine version.
   `--resolution` pour 9:16, 16:9 et carré, sinon agrandie ×2 dans la page, `HD_PRESETS`),
   `make_hd`, la page des moments (`--ar`, `--u` = 10,8 px de la composition, classe `paysage`
   pour le lecteur large) et les téléchargements (`res_label`).
+- Images par seconde : celles du rush (`moments_lib.native_fps`), écrites par `prepare` dans
+  `work/cadence.txt` (propre au montage, `montage_fps`, 30 sans ce fichier) ; rush de 48 i/s ou plus :
+  moitié (`cadence_for`) si `work/cadence_choix.txt` (commun) n'est pas « origine » (case de /rush/,
+  `fps` de /api/memoire, `cadence` de POST /api/prepare, localStorage `am-cadence`). Reprise par
+  `version_travail` (refaite si sa cadence diffère), `build_edit` (`fps` d'edit.json, rendu et
+  `plain_render`), `derush_video` et `make_hd` (`-r`), la page des moments (`DATA.fps`, pas image par
+  image).
 - Mémoire : `rust/src/memoire.rs` (besoin de chaque opération d'après la taille de l'image et la durée,
   `OPERATIONS` / `STEPS` ; mémoire libre bornée par la limite du cgroup s'il y en a une) ; avertissement « juste » ou
   « insuffisant » dans prepare, sur /rush/ avant de préparer (`/api/memoire`), au début de chaque

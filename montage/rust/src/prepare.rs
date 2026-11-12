@@ -239,6 +239,17 @@ pub fn main(args: &[String]) -> i32 {
         eprintln!("Impossible d'écrire dans work/");
         return 1;
     }
+    // Cadence du montage : celle du rush ; un rush à 50 ou 60 i/s passe à 25 ou 30 i/s (rendu deux fois
+    // plus rapide) sauf si la page a demandé de la garder (work/cadence_choix.txt : « origine »).
+    let native = crate::moments_lib::native_fps(&rush_path).unwrap_or(30);
+    let reduce = util::read_text(work.join(crate::moments_lib::CADENCE_CHOICE)).as_deref() != Some("origine");
+    let cadence = crate::moments_lib::cadence_for(native, reduce);
+    let _ = fs::write(work.join(crate::moments_lib::CADENCE_FILE), format!("{cadence}\n"));
+    progress::say(&if cadence == native {
+        format!("Cadence du montage : {cadence} images/s, comme le rush")
+    } else {
+        format!("Cadence du montage : {cadence} images/s (rush à {native} images/s, une image sur deux)")
+    });
     // Préparation reprise : ce qui est déjà fait est gardé ; sinon, restes d'une préparation
     // interrompue effacés (tout est refait).
     let reprise = std::env::var("AM_REPRISE").as_deref() == Ok("1");
@@ -308,6 +319,10 @@ pub fn main(args: &[String]) -> i32 {
     let work_video = paths::rushes().join("rush_1080.mp4");
     // Version de travail d'une autre taille que celle attendue pour ce rush : refaite.
     if work_video.is_file() && frame_size(root) != size {
+        let _ = fs::remove_file(&work_video);
+    }
+    // … ou d'une autre cadence que celle du montage (rush à 60 i/s gardé ou réduit à 30 i/s).
+    if work_video.is_file() && crate::moments_lib::native_fps(&work_video) != Some(cadence) {
         let _ = fs::remove_file(&work_video);
     }
     //    Encodée par morceaux d'une minute (version_travail) : une reprise repart du premier

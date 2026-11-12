@@ -570,8 +570,8 @@ pub fn downloads_data() -> Value {
         }
         let mt = util::mtime(&path).unwrap_or(0.0);
         let duration = if edit_json().exists() {
-            match util::read_json(edit_json()).and_then(|e| e.get("durationInFrames").and_then(Value::as_f64)) {
-                Some(d) => util::num(d / 30.0),
+            match util::read_json(edit_json()).and_then(|e| Some((e.get("durationInFrames")?.as_f64()?, e.get("fps").and_then(Value::as_f64).filter(|f| *f > 0.0).unwrap_or(30.0)))) {
+                Some((d, fps)) => util::num(d / fps),
                 None => json!(0),
             }
         } else {

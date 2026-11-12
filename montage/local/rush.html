@@ -241,6 +241,8 @@
     <p class="warn" id="replace" hidden></p>
     <p class="row note"><label for="langue">Langue parlée dans la vidéo :</label> <select id="langue"><option value="fr">Français</option></select>
       <span>(la transcription suit cette langue ; une vidéo dans une autre langue serait mal transcrite)</span></p>
+    <p class="row note" id="cadence-row" hidden><label><input type="checkbox" id="cadence-reduite" checked>
+      <span id="cadence-label"></span></label></p>
     <div class="note mem" id="mem-plan" hidden></div>
     <div class="paused" id="paused" hidden>
       <p id="paused-text"></p>
@@ -1202,6 +1204,14 @@
     const m = await fetch(`/api/memoire?${q}`).then((r) => (r.ok ? r.json() : null)).catch(() => null);
     if (key !== memKey) return;
     box.hidden = !m;
+    // Rush à 50 ou 60 i/s : proposer 25 ou 30 i/s (une image sur deux, rendu deux fois plus rapide) ;
+    // sinon la vidéo garde la cadence du rush. Dernier choix retenu.
+    const fps = m && m.fps;
+    $("cadence-row").hidden = !(fps >= 48);
+    if (fps >= 48) {
+      $("cadence-label").textContent = `Passer à ${Math.floor(fps / 2)} images/s (une image sur deux) : le rendu va deux fois plus vite. Décoché, la vidéo garde les ${fps} images/s du rush.`;
+      try { $("cadence-reduite").checked = localStorage.getItem("am-cadence") !== "origine"; } catch (e) { /* stockage indisponible */ }
+    }
     // Durée prévue de la préparation (mesurée sur cet ordinateur ; absente avant 3 préparations).
     $("prepare-estimate").textContent = m && typeof m.estimate === "number"
       ? `Durée prévue sur cet ordinateur : ${m.estimate < 90 ? "1 à 2 min" : `environ ${Math.round(m.estimate / 60)} min`}.`
@@ -1225,6 +1235,7 @@
       textContent: `Repris d'une préparation abandonnée, sans être refait : ${m.kept.join(", ").toLowerCase()}.` }));
   }
   $("apply-instructions").addEventListener("change", () => showMemoryPlan());
+  $("cadence-reduite").addEventListener("change", () => { try { localStorage.setItem("am-cadence", $("cadence-reduite").checked ? "reduite" : "origine"); } catch (e) { /* stockage indisponible */ } });
 
   $("prepare").addEventListener("click", async () => {
     const paused = info && info.job && info.job.paused;
@@ -1252,7 +1263,8 @@
     const withClaude = !!(info && info.claude && $("apply-instructions").checked
       && (info.instructions || (!DERUSH && st && (st.sons.length || st.videos.length))));
     const res = await fetch("/api/prepare", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ rushes: parts,
-      instructions: withClaude, langue: $("langue").value, abandon: !!paused && !resumes, redo }) });
+      instructions: withClaude, langue: $("langue").value, abandon: !!paused && !resumes, redo,
+      cadence: $("cadence-row").hidden ? undefined : ($("cadence-reduite").checked ? "reduite" : "origine") }) });
     if (!res.ok) {
       const e = await res.json().catch(() => ({}));
       setStatus("job-status", e.error || `La préparation n'a pas pu démarrer (erreur ${res.status}).`, "err");

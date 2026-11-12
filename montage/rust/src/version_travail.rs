@@ -160,7 +160,7 @@ impl std::fmt::Display for Frac {
 static VIDEO: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"Stream #\d+:\d+.*?: Video: (.*)").unwrap());
 
 /// (durée en secondes, images par seconde) de la vidéo, lues dans « ffmpeg -i ».
-fn probe(path: &Path) -> (f64, Frac) {
+pub(crate) fn probe(path: &Path) -> (f64, Frac) {
     let out = procs::ffmpeg_info(path);
     let duration = progress::duration_of(&out);
     let video = VIDEO.captures(&out).map(|c| c[1].to_string());
@@ -203,7 +203,11 @@ pub fn run(rush: &Path) -> i32 {
     let out = paths::rushes().join("rush_1080.mp4");
     let dir = root.join("work").join("reprise").join("travail");
     let ffmpeg = paths::display(paths::ffmpeg());
-    let (duration, fps) = probe(rush);
+    let (duration, native) = probe(rush);
+    // Cadence du montage (work/cadence.txt, écrite par prepare) : celle du rush, ou sa moitié pour un
+    // rush à 50 ou 60 i/s quand la page l'a proposé (une image sur deux).
+    let cadence = crate::moments_lib::montage_fps(&root.join("work"));
+    let fps = if (cadence as f64) < native.f() * 0.75 { Frac::int(cadence as i128) } else { native };
     let (w, h) = match display_size(rush) {
         Some((a, b)) => work_size(a, b, 1080),
         None => (1080, 1920),

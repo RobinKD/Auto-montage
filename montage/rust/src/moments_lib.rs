@@ -790,6 +790,37 @@ pub fn voix_main(args: &[String]) -> i32 {
 
 /// Réglages de tout le montage (work/) qui entrent dans le rendu ; en dérushage, seuls ceux que
 /// build_edit lit encore (sous-titres).
+/// Cadence du montage (images par seconde, entier) : work/cadence.txt, écrite par prepare d'après le
+/// rush (cadence du rush arrondie : 23,976 → 24, 29,97 → 30), divisée par deux pour un rush à 50 ou
+/// 60 i/s si la page de préparation le propose (work/cadence_choix.txt : « reduite » par défaut,
+/// « origine »). Sans ce fichier (montage préparé avant) : 30.
+pub const CADENCE_FILE: &str = "cadence.txt";
+pub const CADENCE_CHOICE: &str = "cadence_choix.txt";
+
+pub fn montage_fps(work: &Path) -> u32 {
+    if cfg!(test) {
+        return 30;
+    }
+    util::read_text(work.join(CADENCE_FILE)).and_then(|t| t.parse::<u32>().ok()).filter(|f| (10..=120).contains(f)).unwrap_or(30)
+}
+
+/// Cadence entière d'une vidéo (arrondie), None si inconnue.
+pub fn native_fps(video: &Path) -> Option<u32> {
+    let (_, f) = crate::version_travail::probe(video);
+    let r = f.f().round();
+    (1.0..=120.0).contains(&r).then_some(r as u32)
+}
+
+/// Cadence du montage pour un rush de cadence `native` : moitié (une image sur deux) pour 48 i/s et
+/// plus si `reduce`, sinon celle du rush.
+pub fn cadence_for(native: u32, reduce: bool) -> u32 {
+    if reduce && native >= 48 {
+        native / 2
+    } else {
+        native
+    }
+}
+
 pub const SETTINGS_FILES: [&str; 8] = [
     "habillage.json", "son.json", "caption_style.json", "effets_page.json", "couleur.json", "transitions.json", "derush.json",
     "edit_choices.json",

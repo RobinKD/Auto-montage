@@ -776,7 +776,8 @@ fn run() -> Result<(), String> {
         // prepId : date de la transcription (segments.json, refait seulement par une préparation) :
         // l'historique Annuler / Rétablir de la page est propre à chaque préparation.
         "rush": rush_name, "rushLabel": crate::rush_names::display(&rush_name),
-        "prepId": util::mtime(work.join("segments.json")).map(|t| t.floor() as i64).unwrap_or(0), "width": width, "height": height, "layout": frame_layout(width, height), "moments": moments,
+        "prepId": util::mtime(work.join("segments.json")).map(|t| t.floor() as i64).unwrap_or(0),
+        "fps": crate::moments_lib::montage_fps(&work), "width": width, "height": height, "layout": frame_layout(width, height), "moments": moments,
         "working": working, "sfxCatalog": sfx_catalog, "regenTrigger": trigger, "downloadsPage": downloads_page,
         "intro": intro, "captionFont": font,
         "captionLines": {"lines": caption_lines.get("lines").cloned().unwrap_or(Value::Null),

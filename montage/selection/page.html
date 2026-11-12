@@ -791,6 +791,7 @@
 <script src="hf/hyperframes-player.global.js"></script>
 <script>
   const DATA = /*__DATA__*/null;
+  const FPS = DATA.fps || 30;  // cadence du montage (celle du rush ; 30 pour un montage plus ancien)
   // Montage en dérushage (interface locale, work/mode.txt du montage, <html data-mode>) : couper le
   // rush en moments, les choisir, corriger les sous-titres ; ni effets, ni cadrage, ni réglages du
   // son (masqués ici, ignorés par build_edit). « Valider le dérush » mène à l'auto-montage ; le mode se change
@@ -1732,7 +1733,7 @@ ${HFAudio.voiceElements(spec)}
   let defsKey = "";
   function drawLook(t) {
     const L = LOOK && fx && !DERUSH ? (() => { const lk = fx.looks.find((x) => t >= x.a && t < x.b);
-      return lk ? LOOK.effectLayers(lk.effect, lk.force, t - lk.a, lk.b - lk.a, player.clientWidth || FRAME_W, Math.round(t * 30)) : null; })() : null;
+      return lk ? LOOK.effectLayers(lk.effect, lk.force, t - lk.a, lk.b - lk.a, player.clientWidth || FRAME_W, Math.round(t * FPS)) : null; })() : null;
     const svg = (DERUSH ? "" : colorF.svg) + (L ? L.svg : "");
     if (svg !== defsKey) { defsKey = svg; $("amdefs").innerHTML = svg; }
     const filter = DERUSH ? "" : [colorF.css, L ? L.css : ""].filter(Boolean).join(" ");
@@ -1998,7 +1999,7 @@ ${HFAudio.voiceElements(spec)}
   // images du rush (30 i/s) : une coupe tombe sur l'image affichée.
   let cutPending = null;  // instant visé pendant le chargement du moment
   const clipStart = (m) => (m.gap ? m.start : Math.max(0, m.start - 0.05));
-  const snapIn = (m, t) => Math.max(0, Math.min(momentLen(m), Math.round((clipStart(m) + t) * 30) / 30 - clipStart(m)));
+  const snapIn = (m, t) => Math.max(0, Math.min(momentLen(m), Math.round((clipStart(m) + t) * FPS) / FPS - clipStart(m)));
   const momentTime = (m) => (mode === "moment" && currentMoment === m.id
     ? (cutPending ?? player.currentTime) : (frise.at.get(m.id) ?? trimOf(m).in));
   function seekMoment(m, t) {
@@ -2023,7 +2024,7 @@ ${HFAudio.voiceElements(spec)}
   const momentLen = (m) => (m.gap ? m.end - m.start : clipLen(m));
   function fxBar(m, { start, end, unit = 0, pause = 0, label = "", commit }) {
     const len = momentLen(m), min = unit > 0 ? unit : 0.05;
-    const snap = (t) => Math.max(0, Math.min(len, Math.round(t * 30) / 30));
+    const snap = (t) => Math.max(0, Math.min(len, Math.round(t * FPS) / FPS));
     // Répétitions : autant que la bande en contient, chacune commençant avant la fin du moment.
     const reps = (a, b) => (unit > 0 ? Math.max(1, Math.min(Math.floor((len - a) / (unit + pause)) + 1,
       Math.round((b - a + pause) / (unit + pause)))) : 1);
@@ -2097,7 +2098,7 @@ ${HFAudio.voiceElements(spec)}
       const d = { ArrowLeft: -1, ArrowRight: 1 }[e.key];
       if (!d) return;
       e.preventDefault();
-      const step = ((e.shiftKey ? 10 : 1) * d) / 30;
+      const step = ((e.shiftKey ? 10 : 1) * d) / FPS;
       if (which === "a") a = snap(Math.max(0, Math.min(b - min, a + step)));
       else b = unit > 0 ? Math.max(a + min, fit(a, b) + d * (unit + pause)) : snap(Math.max(a + min, b + step));
       draw();
@@ -2240,8 +2241,8 @@ ${HFAudio.voiceElements(spec)}
     if (mode === "live") liveSeek(liveTime() + dt, false);
     else player.currentTime = Math.max(0, Math.min(player.duration || 0, player.currentTime + dt));
   };
-  $("t-back").addEventListener("click", () => step(-1 / 30));
-  $("t-fwd").addEventListener("click", () => step(1 / 30));
+  $("t-back").addEventListener("click", () => step(-1 / FPS));
+  $("t-fwd").addEventListener("click", () => step(1 / FPS));
   // Relancer la lecture d'un moment recalcule son habillage (corrections et effets à jour).
   player.addEventListener("play", () => {
     if (mode === "live" && fx) {  // vidéo entière en direct : habillage du moment joué à jour
@@ -2716,7 +2717,7 @@ ${HFAudio.voiceElements(spec)}
     const prev = btn("◀ Précédent", `Moment précédent (${keyLabel("momentPrec")})`, () => stepMoment(m, -1)), next = btn("Suivant ▶", `Moment suivant (${keyLabel("momentSuiv")})`, () => stepMoment(m, 1));
     prev.disabled = i <= 0; next.disabled = i >= moments.length - 1;
     const play = btn("▶", `Lecture / pause du moment (${keyLabel("lecture")})`, () => { if (mode !== "moment" || currentMoment !== m.id) showMoment(m.id); else togglePlay(); }, "play");
-    const nudge = (text, frames, title) => btn(text, title, () => seekMoment(m, momentTime(m) + frames / 30));
+    const nudge = (text, frames, title) => btn(text, title, () => seekMoment(m, momentTime(m) + frames / FPS));
     head.append(el("span", "when", `${m.gap ? "Plan sans parole" : "Moment"} à ${clockOf(m.start)}`), el("span", "txt", m.gap ? "" : momentLabel(m)),
       prev, next, play, nudge("‹", -1, `Une image avant (${keyLabel("imagePrec")})`), nudge("›", 1, `Une image après (${keyLabel("imageSuiv")})`), el("span", "at-info"));
     head.append(btn("Début ici", `Commencer la partie gardée à la tête de lecture, le début est retiré (${keyLabel("debutIci")})`, () => trimEdge(m, "a", momentTime(m))),
@@ -3110,7 +3111,7 @@ ${HFAudio.voiceElements(spec)}
     } else if (act === "imagePrec" || act === "imageSuiv") {
       e.preventDefault();
       const d = act === "imagePrec" ? -1 : 1;
-      if (om) seekMoment(om, momentTime(om) + d / 30); else step(d / 30);
+      if (om) seekMoment(om, momentTime(om) + d / FPS); else step(d / FPS);
     } else if (act === "momentPrec" || act === "momentSuiv") {
       e.preventDefault();
       const d = act === "momentPrec" ? -1 : 1, cur = om || (currentMoment !== null ? byId.get(currentMoment) : null);

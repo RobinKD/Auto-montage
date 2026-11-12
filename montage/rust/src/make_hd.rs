@@ -45,21 +45,21 @@ fn minus(b: &Value, a: &Value) -> Value {
     }
 }
 
-/// Filtre de la source 4K : cadence du montage (30 i/s), images gardées (`select`), puis mise à
-/// la taille 4K et numérotation continue. `tail` : fin propre à l'encodeur (gpu::Encoder::filter_tail).
-pub fn video_filter(select: &str, width: i64, height: i64, tail: &str) -> String {
-    format!("fps=30,select='{select}',scale={width}:{height},setsar=1,settb=1/30,setpts=N{tail}")
+/// Filtre de la source 4K : cadence du montage (`fps`, edit.json), images gardées (`select`), puis
+/// mise à la taille 4K et numérotation continue. `tail` : fin propre à l'encodeur (gpu::Encoder::filter_tail).
+pub fn video_filter(select: &str, width: i64, height: i64, fps: u32, tail: &str) -> String {
+    format!("fps={fps},select='{select}',scale={width}:{height},setsar=1,settb=1/{fps},setpts=N{tail}")
 }
 
 /// Commande ffmpeg de la source 4K avec l'encodeur `enc`.
-pub fn command(enc: &Encoder, rush: &Path, select: &str, size: (i64, i64), out: &Path) -> Vec<String> {
+pub fn command(enc: &Encoder, rush: &Path, select: &str, size: (i64, i64), fps: u32, out: &Path) -> Vec<String> {
     let s = |x: &str| x.to_string();
     let mut cmd = vec![paths::display(&enc.ffmpeg()), s("-v"), s("error"), s("-y")];
     cmd.extend(enc.input_args());
-    cmd.extend([s("-i"), paths::display(rush), s("-map"), s("0:v:0"), s("-an"), s("-vf"), video_filter(select, size.0, size.1, enc.filter_tail())]);
+    cmd.extend([s("-i"), paths::display(rush), s("-map"), s("0:v:0"), s("-an"), s("-vf"), video_filter(select, size.0, size.1, fps, enc.filter_tail())]);
     cmd.extend(enc.video_args(Rate::Crf(CRF), "veryfast"));
-    // 30 i/s constants : sans « -r », le MP4 prendrait 25 i/s et sauterait des images.
-    cmd.extend([s("-r"), s("30"), s("-g"), s("15"), paths::display(out)]);
+    // Cadence constante du montage : sans « -r », le MP4 prendrait celle du rush et sauterait des images.
+    cmd.extend([s("-r"), fps.to_string(), s("-g"), s("15"), paths::display(out)]);
     cmd
 }
 
@@ -89,6 +89,7 @@ fn run() -> Result<i32, String> {
         }
     };
     let (width, height) = (dim("width", 1080), dim("height", 1920));
+    let fps = dim("fps", 30).clamp(1, 120) as u32; // cadence du montage
     let ranges: Vec<(Value, Value)> = util::arr(&edit, "hdRanges") // calculées par build_edit
         .iter()
         .map(|r| (r.get(0).cloned().unwrap_or(Value::from(0)), r.get(1).cloned().unwrap_or(Value::from(0))))
@@ -105,7 +106,8 @@ fn run() -> Result<i32, String> {
     }
     let offset_f = offset.as_f64().unwrap_or(0.0);
 
-    let key = format!("{rush}|{}", ranges.iter().map(|(a, b)| format!("{}-{}", n(a), n(b))).collect::<Vec<_>>().join(","));
+    // (cadence dans la clé seulement si elle n'est pas 30 : sources 4K déjà faites gardées)
+    let key = format!("{rush}|{}{}", if fps == 30 { String::new() } else { format!("{fps}|") }, ranges.iter().map(|(a, b)| format!("{}-{}", n(a), n(b))).collect::<Vec<_>>().join(","));
     let previous = fs::read_to_string(&key_file).unwrap_or_default();
     if previous == key && out_video.exists() {
         println!("Source 4K déjà à jour");
@@ -125,9 +127,9 @@ fn run() -> Result<i32, String> {
         Some((w, h)) => format!("rush {w}x{h} agrandi"),
         None => "taille du rush inconnue".into(),
     };
-    progress::say(&format!("Encodage 4K {}x{} ({origin}) de {} images ({:.1} s)…", size.0, size.1, n(&offset), offset_f / 30.0));
+    progress::say(&format!("Encodage 4K {}x{} ({origin}) de {} images ({:.1} s)…", size.0, size.1, n(&offset), offset_f / fps as f64));
     let part = paths::rushes().join("rush_2160.part.mp4"); // renommé une fois complet (« Annuler » possible)
-    let code = gpu::encode(|enc| progress::ffmpeg("Source 4K", &command(enc, &rush_path, &select, size, &part), Some(offset_f / 30.0), 0.0, None));
+    let code = gpu::encode(|enc| progress::ffmpeg("Source 4K", &command(enc, &rush_path, &select, size, fps, &part), Some(offset_f / fps as f64), 0.0, None));
     if code != 0 {
         let _ = fs::remove_file(&part);
         return Err(format!("Échec de l'encodage de la source 4K (ffmpeg, code {code})"));
@@ -145,11 +147,11 @@ mod tests {
 
     #[test]
     fn frames_chosen_before_scaling() {
-        let cmd = command(&Encoder::cpu(), Path::new("r.mov"), "between(n\\,0\\,149)", (3840, 2160), Path::new("o.mp4")).join(" ");
+        let cmd = command(&Encoder::cpu(), Path::new("r.mov"), "between(n\\,0\\,149)", (3840, 2160), 30, Path::new("o.mp4")).join(" ");
         assert!(cmd.contains("-vf fps=30,select='between(n\\,0\\,149)',scale=3840:2160,setsar=1,settb=1/30,setpts=N "), "{cmd}");
         assert!(cmd.ends_with("-c:v libx264 -preset veryfast -crf 16 -pix_fmt yuv420p -r 30 -g 15 o.mp4"), "{cmd}");
         assert!(!cmd.contains("hwaccel"));
-        let va = command(&Encoder::named("h264_vaapi"), Path::new("r.mov"), "between(n\\,0\\,149)", (3840, 2160), Path::new("o.mp4")).join(" ");
+        let va = command(&Encoder::named("h264_vaapi"), Path::new("r.mov"), "between(n\\,0\\,149)", (3840, 2160), 30, Path::new("o.mp4")).join(" ");
         assert!(va.contains("-vaapi_device /dev/dri/renderD128 -hwaccel auto -i r.mov"), "{va}");
         assert!(va.contains("setpts=N,format=nv12,hwupload -c:v h264_vaapi"), "{va}");
     }

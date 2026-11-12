@@ -332,6 +332,8 @@ fn do_get(req: &Req) -> Reply {
             let mut plan = memoire::summary(&names, &memoire::video_info(&vpaths, None));
             let seconds: f64 = vpaths.iter().map(|p| media_seconds(p)).sum();
             plan["estimate"] = jobs::prepare_estimate(&names, seconds).map(|e| json!(util::round_int(e))).unwrap_or(Value::Null);
+            // cadence du rush (première vidéo) : 50 ou 60 i/s → la page propose 25 ou 30 i/s
+            plan["fps"] = vpaths.first().and_then(|p| crate::moments_lib::native_fps(p)).map(|f| json!(f)).unwrap_or(Value::Null);
             let kept = jobs::kept_parts(&parts);
             plan["kept"] = json!(jobs::abandon_parts_def().iter().filter(|(pid, _, _)| kept.iter().any(|k| k == pid)).map(|(_, l, _)| *l).collect::<Vec<_>>());
             return send_json(&plan, 200);
@@ -1339,6 +1341,11 @@ fn post_prepare(body: &Map<String, Value>) -> Reply {
         // langue de la transcription, lue par prepare
         util::mkdirs(work());
         let _ = fs::write(work().join("langue.txt"), format!("{langue}\n"));
+        // rush à 50 ou 60 i/s : garder sa cadence (« origine ») ou passer à 25 ou 30 i/s (« reduite »)
+        let cadence = body_str(body, "cadence");
+        if cadence == "origine" || cadence == "reduite" {
+            let _ = fs::write(work().join(crate::moments_lib::CADENCE_CHOICE), format!("{cadence}\n"));
+        }
     }
     let redo = body_str(body, "redo");
     if (redo == "garder" || redo == "tout") && !jobs::is_running() && crate::project::current().as_deref() == Some(name.as_str()) {

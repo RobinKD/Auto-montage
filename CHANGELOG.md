@@ -6,6 +6,10 @@ installateurs (voir `packaging/README.md`).
 
 ## 1.8
 
+- **Images par seconde du rush gardées** : la vidéo montée a le même nombre d'images par seconde que
+  le rush (25 restent 25 au lieu de passer à 30). Pour un rush filmé à 50 ou 60 images/s, « Rushes et
+  montages » propose de passer à 25 ou 30 images/s (case cochée au départ, choix retenu) : le rendu
+  va deux fois plus vite. La vidéo d'un dérush validé n'est plus réduite à 25 images/s.
 - **Vidéo « à jour » fiable** : un réglage changé pendant une génération n'est plus considéré comme
   inclus dans la vidéo, et cocher ou décocher un effet proposé ne demande plus de la régénérer. Une
   coupe dont les deux parties sont gardées ne compte plus comme deux moments changés.

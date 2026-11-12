@@ -66,26 +66,26 @@ fn ranges(edit: &Value) -> Vec<(f64, f64)> {
         .collect()
 }
 
-/// Graphe ffmpeg : chaque plage coupée dans l'image (30 images/s, comme le montage) et dans le
+/// Graphe ffmpeg : chaque plage coupée dans l'image (`fps` : cadence du montage) et dans le
 /// son mélangé, puis mises bout à bout. `mix` : filtre du son mélangé, sortie [son]. `work` :
 /// aussi la version de travail à cette taille ([wv], [wa]) ; sinon [vout] a l'image carrée de la
 /// version de travail (setsar=1 : la vidéo du dérush en tient lieu).
-fn filter(ranges: &[(f64, f64)], mix: &str, work: Option<(i64, i64)>) -> String {
+fn filter(ranges: &[(f64, f64)], mix: &str, work: Option<(i64, i64)>, fps: f64) -> String {
     let n = ranges.len();
     let mut g = format!("{mix};[son]asplit={n}");
     for i in 0..n {
         g.push_str(&format!("[a{i}]"));
     }
-    g.push_str(&format!(";[0:v]fps=30,format=yuv420p,split={n}"));
+    g.push_str(&format!(";[0:v]fps={},format=yuv420p,split={n}", util::fmt_g(fps, 12)));
     for i in 0..n {
         g.push_str(&format!("[v{i}]"));
     }
     for (i, (a, b)) in ranges.iter().enumerate() {
-        let (fa, fb) = ((a * 30.0).round() as i64, (b * 30.0).round() as i64);
+        let (fa, fb) = ((a * fps).round() as i64, (b * fps).round() as i64);
         g.push_str(&format!(
             ";[v{i}]trim=start_frame={fa}:end_frame={fb},setpts=PTS-STARTPTS[cv{i}];[a{i}]atrim=start={}:end={},asetpts=PTS-STARTPTS[ca{i}]",
-            util::fmt_g(fa as f64 / 30.0, 12),
-            util::fmt_g(fb as f64 / 30.0, 12)
+            util::fmt_g(fa as f64 / fps, 12),
+            util::fmt_g(fb as f64 / fps, 12)
         ));
     }
     g.push(';');
@@ -250,7 +250,8 @@ pub fn main(args: &[String]) -> i32 {
         eprintln!("Le rush n'a pas de son lisible.");
         return 1;
     };
-    let total: f64 = ranges.iter().map(|(a, b)| ((b * 30.0).round() - (a * 30.0).round()) / 30.0).sum();
+    let fps = edit.get("fps").and_then(Value::as_f64).filter(|f| *f > 0.0).unwrap_or(30.0); // cadence du montage
+    let total: f64 = ranges.iter().map(|(a, b)| ((b * fps).round() - (a * fps).round()) / fps).sum();
     // Version de travail de la vidéo du dérush, faite dans le même passage (work/derush_suite/) :
     // à part si le rush n'est pas déjà à la taille de travail, sinon la vidéo du dérush elle-même.
     let suite = suite_dir();
@@ -258,7 +259,7 @@ pub fn main(args: &[String]) -> i32 {
     util::mkdirs(&suite);
     let size = display_size(&rush_path);
     let work_out = size.map(|(w, h)| work_size(w, h, 1080)).filter(|ws| Some(*ws) != size);
-    let graph = filter(&ranges, &map[1], work_out);
+    let graph = filter(&ranges, &map[1], work_out, fps);
     util::mkdirs(paths::rushes());
     let dest = paths::rushes().join(&name);
     let part = paths::rushes().join(format!("{name}.part.mp4"));
@@ -278,14 +279,17 @@ pub fn main(args: &[String]) -> i32 {
     // Images clés toutes les 15 comme la version de travail (version_travail) : la vidéo du
     // dérush en tient lieu quand le rush est déjà à cette taille.
     let gop: &[&str] = if work_out.is_none() { &["-g", "15"] } else { &[] };
-    cmd.extend(["-map", "[vout]", "-map", "[aout]", "-c:v", "libx264", "-crf", "16", "-preset", "veryfast"].iter().map(|s| s.to_string()));
+    // Cadence donnée à chaque sortie : après concat, ffmpeg ne la connaît plus et prendrait 25 i/s
+    // (images sautées ou doublées).
+    let rate = util::fmt_g(fps, 12);
+    cmd.extend(["-map", "[vout]", "-map", "[aout]", "-r", rate.as_str(), "-c:v", "libx264", "-crf", "16", "-preset", "veryfast"].iter().map(|s| s.to_string()));
     cmd.extend(gop.iter().map(|s| s.to_string()));
     cmd.extend(["-c:a", "aac", "-b:a", "192k", "-movflags", "+faststart"].iter().map(|s| s.to_string()));
     cmd.push(paths::display(&part));
     let work_part = suite.join("rush_1080.part.mp4");
     if work_out.is_some() {
         cmd.extend(
-            ["-map", "[wv]", "-map", "[wa]", "-c:v", "libx264", "-crf", "18", "-preset", "veryfast", "-g", "15", "-c:a", "aac", "-b:a", "192k"]
+            ["-map", "[wv]", "-map", "[wa]", "-r", rate.as_str(), "-c:v", "libx264", "-crf", "18", "-preset", "veryfast", "-g", "15", "-c:a", "aac", "-b:a", "192k"]
                 .iter()
                 .map(|s| s.to_string()),
         );
@@ -336,11 +340,11 @@ mod tests {
                           "derushWords": [{"w": "Bonjour", "a": 0.1, "b": 0.5}, {"w": "tous", "a": 2.1, "b": 2.4}]});
         let r = ranges(&edit);
         assert_eq!(r, vec![(1.0, 3.0), (5.0, 5.5)]);
-        let g = filter(&r, "[0:a:0]anull[son]", None);
+        let g = filter(&r, "[0:a:0]anull[son]", None, 30.0);
         assert!(g.contains("trim=start_frame=30:end_frame=90"));
         assert!(g.contains("atrim=start=5:end=5.5"));
         assert!(g.ends_with("[cv0][ca0][cv1][ca1]concat=n=2:v=1:a=1[cv][aout];[cv]setsar=1[vout]"));
-        let g = filter(&r, "[0:a:0]anull[son]", Some((1920, 1080)));
+        let g = filter(&r, "[0:a:0]anull[son]", Some((1920, 1080)), 30.0);
         assert!(g.ends_with("[cv]split=2[vout][cw];[cw]scale=1920:1080,setsar=1[wv];[ca]asplit=2[aout][wa]"));
         let t = transcription(&edit, 2.5);
         assert_eq!(t[0]["text"], "Bonjour tous");

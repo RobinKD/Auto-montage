@@ -17,7 +17,6 @@ use crate::{paths, procs, pyjson};
 use serde_json::{json, Value};
 use std::f64::consts::PI;
 
-const FPS: f64 = 30.0;
 const HOP: f64 = 0.02; // trames de 20 ms
 const LABEL: &str = "Recherche des bruits parasites";
 
@@ -126,11 +125,12 @@ fn run() -> Result<(), String> {
     }
 
     // Parties gardées (temps du rush) et instant correspondant dans la version de travail.
+    let fps = fd(&edit, "fps", 30.0).max(1.0); // cadence du montage
     let kept: Vec<(f64, f64, f64, Value)> = util::arr(&edit, "clips")
         .iter()
         .map(|c| {
             let tb = fd(c, "trimBefore", 0.0);
-            (tb / FPS, (tb + fd(c, "durationInFrames", 0.0)) / FPS, fd(c, "from", 0.0) / FPS, c.get("seg").cloned().unwrap_or(Value::Null))
+            (tb / fps, (tb + fd(c, "durationInFrames", 0.0)) / fps, fd(c, "from", 0.0) / fps, c.get("seg").cloned().unwrap_or(Value::Null))
         })
         .collect();
 
