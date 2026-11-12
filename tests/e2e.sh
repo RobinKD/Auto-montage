@@ -9,7 +9,6 @@ URL="$1"
 RUSH="$2"
 WITH_CLAUDE=false
 [ "${3:-}" = --consignes-claude ] && WITH_CLAUDE=true
-NAME="essai.mov"
 HERE="$(cd "$(dirname "$0")" && pwd)"
 fail() { echo "ÉCHEC : $*" >&2; exit 1; }
 json() { python3 -c "import json,sys; d=json.load(sys.stdin); print($1)"; }
@@ -45,7 +44,11 @@ case "$code" in "302 "*"/rush/") ;; *) fail "accueil : $code" ;; esac
 curl -fsS "$URL/rush/" | has "Rushes et montages" || fail "page Rushes et montages"
 
 echo "2. Envoi du rush et des consignes"
-curl -fsS -X PUT --data-binary "@$RUSH" "$URL/api/rushes/$NAME" | json 'd["name"]' | has -x "$NAME" || fail "envoi du rush"
+# Vidéo enregistrée sous l'empreinte de son contenu (rush_names) : NAME est ce fichier, « essai » le nom montré.
+UP="$(curl -fsS -X PUT --data-binary "@$RUSH" "$URL/api/rushes/essai.mov")" || fail "envoi du rush"
+NAME="$(echo "$UP" | json 'd["name"]')"
+echo "$UP" | json 'd["label"]' | has -x "essai" || fail "nom montré du rush : $UP"
+case "$NAME" in *.mov) ;; *) fail "fichier du rush : $NAME" ;; esac
 curl -fsS -X PUT -H "x-file-name: consignes.md" --data-binary "@$HERE/consignes-essai.md" "$URL/api/instructions" >/dev/null || fail "envoi des consignes"
 curl -fsS "$URL/api/rushes" | json '[r["name"] for r in d["rushes"]], d["instructions"]["name"]' | has "$NAME" || fail "liste des rushes"
 # Son personnel (bibliothèque) : un bip de 0,3 s généré ici.
@@ -106,7 +109,8 @@ case "$LABELS" in *Transcription*) ;; *) fail "pas de barre de progression « Tr
 
 echo "4. Vérifications"
 PAGE="$(curl -fsS "$URL/")"
-echo "$PAGE" | has '"rush": "essai.mov"' || fail "page des moments du rush"
+echo "$PAGE" | has "\"rush\": \"$NAME\"" || fail "page des moments du rush"
+echo "$PAGE" | has '"rushLabel": "essai"' || fail "nom montré du rush sur la page des moments"
 DATA="$(echo "$PAGE" | sed -n 's/^  const DATA = \(.*\);$/\1/p')"
 N="$(echo "$DATA" | json 'len([m for m in d["moments"] if not m.get("gap")])')"
 [ "$N" -ge 3 ] || fail "seulement $N moments de parole"
@@ -156,9 +160,12 @@ if [ "$WITH_CLAUDE" = false ]; then
   wait_job
   DATA="$(curl -fsS "$URL/" | sed -n 's/^  const DATA = \(.*\);$/\1/p')"
 fi
-for f in /montage.mp4 /out/montage_apercu.mp4; do
-  [ "$(curl -s -o /dev/null -w '%{http_code}' -H 'Range: bytes=0-99' "$URL$f")" = 206 ] || fail "vidéo $f"
-done
+[ "$(curl -s -o /dev/null -w '%{http_code}' -H 'Range: bytes=0-99' "$URL/out/montage_apercu.mp4")" = 206 ] || fail "vidéo 1080p"
+# Version légère (720p) : faite à la demande (« Lire » ou « Télécharger » 720p).
+curl -fsS -X POST "$URL/api/legere" >/dev/null || fail "lancement de la version 720p"
+LABELS=""
+wait_job
+[ "$(curl -s -o /dev/null -w '%{http_code}' -H 'Range: bytes=0-99' "$URL/montage.mp4")" = 206 ] || fail "vidéo 720p"
 curl -fsS "$URL/api/logs/rapport" | has "RAM mesurée : .*Rendu de la vidéo" || fail "mémoire du rendu non mesurée"
 curl -fsS "$URL/downloads/" | has "1080p" || fail "page des téléchargements"
 D1="$(echo "$DATA" | json 'd["working"]["duration"]')"
@@ -180,7 +187,7 @@ post() { curl -fsS -X POST -H "content-type: application/json" -d "$2" "$URL$1";
 post /api/projects/save '{}' | has '"ok": true' || fail "mise de côté du montage"
 code="$(curl -s -o /dev/null -w '%{http_code}' "$URL/")"
 [ "$code" = 302 ] || fail "accueil après mise de côté : $code au lieu du renvoi vers « Rushes et montages »"
-PID="$(curl -fsS "$URL/api/projects" | json '[p["id"] for p in d["saved"] if p["rush"] == "essai.mov"][0]')"
+PID="$(curl -fsS "$URL/api/projects" | json '[p["id"] for p in d["saved"] if p["rush"] == "'"$NAME"'"][0]')"
 post /api/projects/open "{\"id\": \"$PID\"}" | has '"ok": true' || fail "réouverture du montage"
 D3="$(curl -fsS "$URL/" | sed -n 's/^  const DATA = \(.*\);$/\1/p' | json 'd["working"]["duration"]')"
 [ "$D3" = "$D2" ] || fail "montage rouvert différent ($D3 s au lieu de $D2 s)"
@@ -191,14 +198,14 @@ echo "7. Deux vidéos pour un même rush (réglages différents : réencodées p
 SUITE="$(mktemp -d)/suite.mp4"
 "${FFMPEG:-ffmpeg}" -v error -y -f lavfi -i testsrc2=size=720x1280:rate=25 -f lavfi -i "sine=f=300:r=44100" -t 4 \
   -c:v libx264 -pix_fmt yuv420p -c:a aac -ac 1 "$SUITE"
-curl -fsS -X PUT --data-binary "@$SUITE" "$URL/api/rushes/suite.mp4" | has '"suite.mp4"' || fail "envoi de la 2e vidéo"
+SUITE_NAME="$(curl -fsS -X PUT --data-binary "@$SUITE" "$URL/api/rushes/suite.mp4" | json 'd["name"]')" || fail "envoi de la 2e vidéo"
 curl -fsS -X POST -H "content-type: application/json" \
-  -d "{\"rushes\": [\"$NAME\", \"suite.mp4\"]}" "$URL/api/prepare" >/dev/null || fail "lancement de la préparation à deux vidéos"
+  -d "{\"rushes\": [\"$NAME\", \"$SUITE_NAME\"]}" "$URL/api/prepare" >/dev/null || fail "lancement de la préparation à deux vidéos"
 LABELS=""
 wait_job
 case "$LABELS" in *"Assemblage des vidéos"*) ;; *) fail "pas de barre « Assemblage des vidéos » (vu : ${LABELS:-aucune})" ;; esac
-curl -fsS "$URL/" | has '"rush": "essai (assemblage de 2).mov"' || fail "page des moments du rush assemblé"
-curl -fsS "$URL/api/projects" | json '[p["rush"] for p in d["saved"]]' | has "essai.mov" || fail "montage d'essai.mov pas mis de côté"
+curl -fsS "$URL/" | has '"rushLabel": "essai (assemblage de 2)"' || fail "page des moments du rush assemblé"
+curl -fsS "$URL/api/projects" | json '[p["rush"] for p in d["saved"]]' | has "$NAME" || fail "montage d'essai pas mis de côté"
 
 echo "8. Couper un moment en deux, puis recoller la partie (page des moments)"
 pdata() { curl -fsS "$URL/" | python3 -c "import json,re,sys; d=json.loads(re.search(r'^  const DATA = (\{.*\});$', sys.stdin.read(), re.M).group(1)); print($1)"; }
