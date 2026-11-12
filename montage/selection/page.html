@@ -1181,10 +1181,12 @@
     return { kind: what.length ? "changed" : "same", what: what.map((k) => CHANGE_LABELS[k]) };
   }
   // Vidéo entière comparée : celle affichée, désignée par la date de son rendu.
-  const workStamp = () => {
+  // Date de la vidéo entière (fixe pour la page) : mise en forme une fois, pas pour chaque moment.
+  const workStampText = (() => {
     const when = working && working.renderedAt ? new Date(working.renderedAt) : null;
     return when ? ` du ${when.toLocaleDateString("fr-FR", { day: "numeric", month: "short" })} à ${when.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}` : "";
-  };
+  })();
+  const workStamp = () => workStampText;
   const changeWhat = (c) => ({ added: "ajouté au montage", removed: "retiré du montage", changed: c.what.join(", ") })[c.kind];
   const changeText = (c) => `Modifié depuis la vidéo entière générée${workStamp()} : ${changeWhat(c)}`;
 
@@ -2438,6 +2440,7 @@ ${HFAudio.voiceElements(spec)}
       h.addEventListener("pointerdown", (ev) => {
         ev.preventDefault(); ev.stopPropagation();
         h.setPointerCapture(ev.pointerId);
+        frise.dragging = true;
         const box = b.getBoundingClientRect();
         let t = side === "a" ? a0 : b0;
         const move = (e) => {
@@ -2448,6 +2451,7 @@ ${HFAudio.voiceElements(spec)}
         };
         const up = () => {
           h.removeEventListener("pointermove", move); h.removeEventListener("pointerup", up);
+          frise.dragging = false;
           if (Math.abs(t - (side === "a" ? a0 : b0)) > 0.02) trimEdge(m, side, t - clipStart(m));
         };
         h.addEventListener("pointermove", move);
@@ -2501,20 +2505,38 @@ ${HFAudio.voiceElements(spec)}
       for (const [x, h] of list) ctx.fillRect(x, H / 2 - h, 1, 2 * h);
     });
   }
-  $("tlm-scroll").addEventListener("scroll", () => requestAnimationFrame(drawWave), { passive: true });
+  // Défilement de la frise du rush : moments redessinés quand la partie visible sort de ceux déjà là.
+  $("tlm-scroll").addEventListener("scroll", () => requestAnimationFrame(() => { ensureClips(); drawWave(); }), { passive: true });
 
   function renderMain() {
     const sc = $("tlm-scroll"), inner = $("tlm-in"), keep = sc.scrollLeft, pps = frise.pps;
     inner.style.width = `${Math.ceil(rushEnd * pps) + 60}px`;
     const v = el("div", "vtrack"), s = el("div", "strack"), end = el("span", "tlm-end");
-    for (const m of moments) v.append(clipBlock(m));
     s.append(document.createElement("canvas"));
     end.style.left = `${rushEnd * pps}px`;
     inner.replaceChildren(ruler(rushEnd, pps, scrubRush, true), v, s, end, el("span", "phead"));
     sc.scrollLeft = keep;
     keptAll = moments.flatMap((m) => keptRanges(m)).sort((x, y) => x[0] - y[0]);
-    syncMain();
+    fillClips();
     drawWave();
+  }
+  // Seuls les moments de la partie visible, plus une largeur d'écran de chaque côté, sont dessinés
+  // (un rush d'une heure en a des milliers) ; « frise.win » : instants du rush couverts.
+  function fillClips() {
+    const sc = $("tlm-scroll"), v = document.querySelector("#tlm-in .vtrack"), pps = frise.pps;
+    if (!v) return;
+    const w = sc.clientWidth || window.innerWidth, t0 = (sc.scrollLeft - w) / pps, t1 = (sc.scrollLeft + 2 * w) / pps;
+    const focused = document.activeElement && v.contains(document.activeElement) ? document.activeElement.dataset.id : null;
+    frise.win = [t0, t1];
+    v.replaceChildren(...moments.filter((m) => m.end >= t0 && m.start <= t1).map(clipBlock));
+    syncMain();
+    if (focused !== null && focused !== undefined) { const b = v.querySelector(`.clip[data-id="${focused}"]`); if (b) b.focus({ preventScroll: true }); }
+  }
+  // Partie visible sortie des moments dessinés : les redessiner (pas pendant le glissé d'une poignée).
+  function ensureClips() {
+    const sc = $("tlm-scroll"), t0 = sc.scrollLeft / frise.pps, t1 = (sc.scrollLeft + sc.clientWidth) / frise.pps;
+    if (frise.dragging || !frise.win) return;
+    if (t0 < frise.win[0] || t1 > frise.win[1]) fillClips();
   }
   // Moment ouvert, sélection, moment en lecture : classes et poignées, sans tout redessiner.
   function syncMain() {
@@ -2532,7 +2554,7 @@ ${HFAudio.voiceElements(spec)}
   // Garder la place du rush « t » visible dans la frise (défilement horizontal).
   function revealRush(t, always = false) {
     const sc = $("tlm-scroll"), x = t * frise.pps;
-    if (always || x < sc.scrollLeft + 20 || x > sc.scrollLeft + sc.clientWidth - 40) sc.scrollLeft = Math.max(0, x - sc.clientWidth / 3);
+    if (always || x < sc.scrollLeft + 20 || x > sc.scrollLeft + sc.clientWidth - 40) { sc.scrollLeft = Math.max(0, x - sc.clientWidth / 3); ensureClips(); }
   }
   // Tête de lecture glissée sur la règle du rush : le moment sous elle s'ouvre, l'image s'affiche.
   function scrubRush(t) {
@@ -2643,12 +2665,21 @@ ${HFAudio.voiceElements(spec)}
   }
 
   // Zoom de la frise du rush (pixels par seconde), le point « anchorX » de l'écran restant en place.
+  // Plusieurs demandes dans la même image (molette, pincement, curseur) : une seule est dessinée,
+  // la dernière, au prochain affichage.
+  let ppsQueued = null;
   function setRushPps(pps, anchorX) {
+    if (ppsQueued) { ppsQueued.pps = pps; ppsQueued.anchorX = anchorX; return; }
+    ppsQueued = { pps, anchorX };
+    requestAnimationFrame(() => { const q = ppsQueued; ppsQueued = null; setRushPpsNow(q.pps, q.anchorX); });
+  }
+  function setRushPpsNow(pps, anchorX) {
     const sc = $("tlm-scroll"), tAnchor = (sc.scrollLeft + anchorX) / frise.pps;
     frise.pps = Math.max(PPS_MIN, Math.min(PPS_MAX, pps));
     try { localStorage.setItem("am-tl-pps", String(frise.pps)); } catch (e) { /* stockage indisponible */ }
     renderMain();
     sc.scrollLeft = Math.max(0, tAnchor * frise.pps - anchorX);
+    fillClips();
     const r = $("tl-zoom");
     if (r) r.value = String(Math.round((100 * Math.log(frise.pps / PPS_MIN)) / Math.log(PPS_MAX / PPS_MIN)));
     drawWave();
@@ -2673,7 +2704,7 @@ ${HFAudio.voiceElements(spec)}
       sc.scrollLeft = Math.max(0, Math.min(max, sc.scrollLeft + d));
     }, { passive: false });
   }
-  wheelPan($("tlm-scroll"), (dy, x) => setRushPps(frise.pps * Math.exp(-dy * 0.002), x));
+  wheelPan($("tlm-scroll"), (dy, x) => setRushPps((ppsQueued ? ppsQueued.pps : frise.pps) * Math.exp(-dy * 0.002), x));
 
   // Frise du moment ouvert : règle, effets, sous-titres mot à mot, images ; début et fin retirés
   // hachurés, repères des effets, losanges du zoom libre (clic : régler ce cadre).
@@ -3008,7 +3039,7 @@ ${HFAudio.voiceElements(spec)}
   function center(which, sc, x, t) {
     if (centered[which] !== null && Math.abs(centered[which] - t) < 1e-3) return;  // pas bougé : défilement de l'utilisateur gardé
     centered[which] = t;
-    if (scrubFrom !== which) sc.scrollLeft = Math.max(0, x - sc.clientWidth / 2);
+    if (scrubFrom !== which) { sc.scrollLeft = Math.max(0, x - sc.clientWidth / 2); if (which === "rush") ensureClips(); }
   }
   function drawPlayheads() {
     const om = openMoment(), playing = !player.paused;

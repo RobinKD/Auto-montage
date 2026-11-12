@@ -289,7 +289,9 @@ interne : les changements attendent la prochaine version.
 - Page des moments façon CapCut (`selection/page.html`, sombre) : barre du haut (`.bar`), lecteur
   et inspecteur (`renderInspector` : moment ouvert, sélection, onglet des panneaux globaux,
   « Paramètres sous-titres » en dérushage, « Paramètres effets et son » ensuite), barre d'outils
-  (`renderToolbar` : Couper, Recoller, Garder, Retirer, Corriger), frise du rush sur une ligne (`renderMain` :
+  (`renderToolbar` : Couper, Recoller, Garder, Retirer, Corriger), frise du rush sur une ligne (`renderMain` ; seuls les moments de la partie visible, plus une largeur
+  d'écran de chaque côté, sont dessinés : `fillClips`, refait au défilement par `ensureClips`, `frise.win` ;
+  zoom dessiné au plus une fois par image, `setRushPps` → `setRushPpsNow` ;
   `clipBlock` avec les images du rush de `filmstrip`, poignées `addHandles` → `trimEdge` (`trim` du
   document du moment : début et fin gardés, plans sans parole comme moments de parole), forme
   d'onde `drawWave`, zoom `frise.pps` gardé dans localStorage, `scrubRush`) et frise du moment

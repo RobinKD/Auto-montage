@@ -29,6 +29,8 @@ installateurs (voir `packaging/README.md`).
 - **Version légère (720p) à la demande** : elle n'est plus faite à chaque génération (plus rapide),
   mais en quelques secondes quand on la lit ou la télécharge.
 - **« Rechercher les bruits parasites »** a sa barre d'avancement et son bouton « Annuler ».
+- **Frise plus fluide sur les longs rushes** : seuls les moments à l'écran (et autour) sont dessinés,
+  et le zoom au pavé tactile ou à la molette ne redessine la frise qu'une fois par image.
 - **Frise plus lisible** : les silences de moins d'une seconde n'y sont plus montrés à part.
 - **Réglages communs à tous les montages** (sons et vidéos d'exemple, lignes des sous-titres,
   effets proposés) : regroupés dans une section à part de « Rushes et montages ».
