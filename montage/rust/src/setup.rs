@@ -582,6 +582,16 @@ pub fn claude_code(_args: &[String]) -> i32 {
     if paths::claude().is_none() {
         println!("Installation de Claude Code…");
         let home = paths::claude_home();
+        // Installation précédente incomplète (programme natif absent ou renommé) : npm la dirait à
+        // jour sans la refaire, elle est donc effacée d'abord.
+        let modules = home.join("node_modules");
+        if modules.is_dir() {
+            println!("Installation précédente de Claude Code incomplète : refaite.");
+            if let Err(e) = fs::remove_dir_all(&modules) {
+                eprintln!("Claude Code : {} impossible à effacer ({e}). Fermez les fenêtres où Claude Code tourne, puis réessayez.", modules.display());
+                return 1;
+            }
+        }
         util::mkdirs(&home);
         let st = paths::npm("npm")
             .args(["install", "--no-audit", "--no-fund", "--prefix"])
@@ -589,8 +599,13 @@ pub fn claude_code(_args: &[String]) -> i32 {
             .arg("@anthropic-ai/claude-code")
             .current_dir(paths::root())
             .status();
-        if !st.map(|s| s.success()).unwrap_or(false) || paths::claude().is_none() {
-            eprintln!("Claude Code : installation impossible (npm).");
+        if !st.map(|s| s.success()).unwrap_or(false) {
+            eprintln!("Claude Code : installation impossible (npm, détail ci-dessus).");
+            return 1;
+        }
+        if paths::claude().is_none() {
+            // depuis la 2.1, le paquet npm attend son programme natif (paquet de la plateforme)
+            eprintln!("Claude Code : installé par npm, mais sans son programme pour ce système ({} {}).", std::env::consts::OS, std::env::consts::ARCH);
             return 1;
         }
     }

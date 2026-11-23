@@ -188,9 +188,10 @@
       const r = await fetch("/api/chat", { cache: "no-store" });
       const data = await r.json();
       state = { ...data, ready: data.installed && data.claude };
-      const warn = !data.installed ? "Claude Code n'est pas installé : relancez Auto-montage pour l'installer."
+      const warn = !data.installed ? "Claude Code n'est pas installé."
         : !data.claude ? "Claude Code n'est pas encore connecté : la discussion ne fonctionne pas sans lui." : "";
       $("not-ready").textContent = warn;
+      if (warn && !data.installed) $("not-ready").insertAdjacentHTML("beforeend", ' <a href="/claude/">L\'installer</a> depuis la page « Connexion à Claude ».');
       if (warn && data.installed) $("not-ready").insertAdjacentHTML("beforeend", ' <a href="/claude/">Se connecter à Claude</a> (une fois, avec votre compte claude.ai).');
       $("not-ready").hidden = !warn;
       render();
@@ -236,6 +237,7 @@
   const NAMES = { prepare: "Une préparation", regen: "La génération de la vidéo entière", final: "La création de la 4K",
     export: "L'export pour les plateformes", derush: "Le passage à l'auto-montage", decoupage: "Le découpage des moments",
     light: "La création de la version légère", son: "La recherche des bruits parasites",
+    claude: "L'installation de Claude Code",
     style: "L'analyse des vidéos d'exemple", update: "La mise à jour", reset: "La réinitialisation" };
   async function context() {
     const st = await fetch("/api/status", { cache: "no-store" }).then((r) => r.json()).catch(() => null);

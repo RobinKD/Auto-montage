@@ -4110,7 +4110,8 @@ ${HFAudio.voiceElements(spec)}
   // se recharge à sa fin, puisqu'elle refait la page des moments.
   const JOB_NAMES = { prepare: "Une préparation", regen: "La génération de la vidéo entière", final: "La création de la 4K", light: "La création de la version légère", son: "La recherche des bruits parasites",
     export: "L'export pour les plateformes", derush: "Le passage à l'auto-montage", decoupage: "Le découpage des moments",
-    style: "L'analyse des vidéos d'exemple", update: "La mise à jour d'Auto-montage", reset: "La réinitialisation d'Auto-montage" };
+    style: "L'analyse des vidéos d'exemple", update: "La mise à jour d'Auto-montage", reset: "La réinitialisation d'Auto-montage",
+    claude: "L'installation de Claude Code" };
   function setJobBusy(job) {
     const reason = !job ? "" : job.state === "running" ? `${JOB_NAMES[job.kind] || "Une tâche"} est en cours : attendez sa fin`
       : job.paused ? `La préparation de ${job.paused.argLabel || job.paused.arg} est en pause : reprenez-la ou abandonnez-la d'abord (page « Rushes et montages »)` : "";

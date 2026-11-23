@@ -1277,7 +1277,8 @@
   const JOB_NAMES = { prepare: "La préparation", regen: "La génération de la vidéo entière", final: "La création de la 4K", update: "La mise à jour d'Auto-montage",
     reset: "La réinitialisation d'Auto-montage", style: "L'analyse des vidéos d'exemple", export: "L'export pour les plateformes",
     derush: "Le passage à l'auto-montage", decoupage: "Le découpage des moments",
-    light: "La création de la version légère", son: "La recherche des bruits parasites" };
+    light: "La création de la version légère", son: "La recherche des bruits parasites",
+    claude: "L'installation de Claude Code" };
   function showJob(job) {
     if (job && job.kind === "style") { showAnalyseJob(job); if (job.state !== "running") return; }
     $("an-progress").hidden = !(job && job.kind === "style" && job.state === "running");
