@@ -4,8 +4,8 @@
 //! Python) : à chaque pas, jeton le plus probable (blanc ou non) et durée la plus probable (0 à 4
 //! pas de 80 ms). Donne chaque jeton, le temps de son début et sa log-probabilité (confiance).
 //!
-//! La bibliothèque ONNX Runtime (`ORT_VERSION`, depuis les versions publiées de Microsoft) est
-//! téléchargée par setup_whisper dans `<parakeet>/onnxruntime/` et chargée au lancement.
+//! La bibliothèque ONNX Runtime (`ORT_VERSION`, paquet NuGet Microsoft.ML.OnnxRuntime de Microsoft)
+//! est téléchargée par setup_whisper dans `<parakeet>/onnxruntime/` et chargée au lancement.
 
 use crate::paths;
 use ort::session::Session;
@@ -21,7 +21,8 @@ pub const ORT_VERSION: &str = "1.22.0";
 const STEP: f64 = 0.08; // une sortie de l'encodeur toutes les 80 ms (10 ms × 8)
 const MAX_TOKENS_PER_STEP: usize = 10;
 
-/// Nom de la bibliothèque ONNX Runtime de ce système, dans l'archive de Microsoft (dossier lib/).
+/// Nom de la bibliothèque ONNX Runtime de ce système dans `<parakeet>/onnxruntime/` (celui des
+/// anciennes archives de Microsoft, gardé pour ne pas retélécharger une bibliothèque déjà là).
 pub fn ort_lib_name() -> String {
     if cfg!(windows) {
         "onnxruntime.dll".into()
@@ -36,18 +37,27 @@ pub fn ort_lib() -> PathBuf {
     paths::parakeet_dir().join("onnxruntime").join(ort_lib_name())
 }
 
-/// Archive ONNX Runtime de ce système (versions publiées de Microsoft sur GitHub).
-pub fn ort_archive() -> Option<String> {
-    let name = match (std::env::consts::OS, std::env::consts::ARCH) {
+/// Bibliothèque ONNX Runtime de ce système dans le paquet NuGet Microsoft.ML.OnnxRuntime
+/// (`runtimes/<système>/native/<fichier>`). Les archives des versions publiées sur GitHub ne sont
+/// plus téléchargeables (HTTP 404, novembre 2026).
+pub fn ort_package_entry() -> Option<String> {
+    let rid = match (std::env::consts::OS, std::env::consts::ARCH) {
         ("linux", "x86_64") => "linux-x64",
-        ("linux", "aarch64") => "linux-aarch64",
-        ("macos", _) => "osx-universal2",
+        ("linux", "aarch64") => "linux-arm64",
+        ("macos", "aarch64") => "osx-arm64",
+        ("macos", "x86_64") => "osx-x64",
         ("windows", "x86_64") => "win-x64",
         ("windows", "aarch64") => "win-arm64",
         _ => return None,
     };
-    let ext = if cfg!(windows) { "zip" } else { "tgz" };
-    Some(format!("onnxruntime-{name}-{ORT_VERSION}.{ext}"))
+    let file = if cfg!(windows) {
+        "onnxruntime.dll"
+    } else if cfg!(target_os = "macos") {
+        "libonnxruntime.dylib"
+    } else {
+        "libonnxruntime.so"
+    };
+    Some(format!("runtimes/{rid}/native/{file}"))
 }
 
 /// Sortie de Parakeet sur un son : jetons (une espace en tête ouvre un mot), temps de leur début en

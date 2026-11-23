@@ -6,6 +6,7 @@
 # domaine                              URL de test                                                                         usage
 huggingface.co                         https://huggingface.co/                                                             modèles Parakeet, Whisper et VAD
 *.hf.co                                https://cas-bridge.xethub.hf.co/                                                    modèles : fichiers servis par Hugging Face
+api.nuget.org                          https://api.nuget.org/v3/index.json                                                 ONNX Runtime (paquet NuGet de Microsoft) : transcription Parakeet
 www.dafont.com                         https://www.dafont.com/                                                             police Oliver : page
 dl.dafont.com                          https://dl.dafont.com/                                                              police Oliver : téléchargement
 pypi.org                               https://pypi.org/                                                                   ffmpeg (archive imageio-ffmpeg) : liste

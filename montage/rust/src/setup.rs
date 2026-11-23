@@ -353,10 +353,14 @@ fn fetch_dictionaries() -> Result<(), String> {
 /// Révision fixée des fichiers de `istupakov/parakeet-tdt-0.6b-v3-onnx` (fichiers vérifiés).
 const PARAKEET_REV: &str = "8f23f0c03c8761650bdb5b40aaf3e40d2c15f1ce";
 
+/// Paquet NuGet Microsoft.ML.OnnxRuntime (`ORT_VERSION`) : empreinte SHA-256 du .nupkg (celle que
+/// NuGet publie est en SHA-512 et a été vérifiée pour ce fichier).
+const ORT_NUPKG_SHA256: &str = "d571e63a2329baacb713f441e65ad75284de354db6e1ac435fe4bebbb417986a";
+
 /// Modèle Parakeet (transcribe_segments) et bibliothèque ONNX Runtime de ce système, extraite seule
-/// de l'archive de Microsoft dans `<parakeet>/onnxruntime/`.
+/// du paquet NuGet de Microsoft (environ 120 Mo, toutes les plateformes) dans `<parakeet>/onnxruntime/`.
 fn fetch_parakeet() -> Result<(), String> {
-    use crate::parakeet::{ort_archive, ort_lib, ort_lib_name, FILES, ORT_VERSION};
+    use crate::parakeet::{ort_lib, ort_lib_name, ort_package_entry, FILES, ORT_VERSION};
     let dir = paths::parakeet_dir();
     util::mkdirs(&dir);
     if FILES.iter().any(|n| !dir.join(n).is_file()) {
@@ -374,36 +378,23 @@ fn fetch_parakeet() -> Result<(), String> {
     if lib.is_file() {
         return Ok(());
     }
-    let archive = ort_archive().ok_or("ONNX Runtime : pas de version pour ce système")?;
-    let url = format!("https://github.com/microsoft/onnxruntime/releases/download/v{ORT_VERSION}/{archive}");
+    let inner = ort_package_entry().ok_or("ONNX Runtime : pas de version pour ce système")?;
+    let url = format!(
+        "https://api.nuget.org/v3-flatcontainer/microsoft.ml.onnxruntime/{ORT_VERSION}/microsoft.ml.onnxruntime.{ORT_VERSION}.nupkg"
+    );
     let ort_dir = lib.parent().unwrap().to_path_buf();
     util::mkdirs(&ort_dir);
-    let tmp = ort_dir.join(format!("{archive}.dl"));
+    say("Téléchargement d'ONNX Runtime (environ 120 Mo, une seule fois)…");
+    let tmp = ort_dir.join(format!("onnxruntime-{ORT_VERSION}.nupkg.dl"));
     download_file(&url, &tmp, 4).map_err(|e| format!("Échec du téléchargement d'ONNX Runtime : {e}"))?;
-    let inner = format!("{}/lib/{}", archive.trim_end_matches(".zip").trim_end_matches(".tgz"), ort_lib_name());
     let part = ort_dir.join(format!("{}.part", ort_lib_name()));
     let result = (|| -> Result<(), String> {
+        check_sha256(&tmp, ORT_NUPKG_SHA256)?;
         let f = fs::File::open(&tmp).map_err(|e| e.to_string())?;
         let mut out = fs::File::create(&part).map_err(|e| e.to_string())?;
-        if archive.ends_with(".zip") {
-            let mut zip = zip::ZipArchive::new(f).map_err(|e| e.to_string())?;
-            let mut entry = zip.by_name(&inner).map_err(|e| format!("{inner} : {e}"))?;
-            std::io::copy(&mut entry, &mut out).map_err(|e| e.to_string())?;
-        } else {
-            let mut tar = tar::Archive::new(flate2::read::GzDecoder::new(f));
-            let mut found = false;
-            for entry in tar.entries().map_err(|e| e.to_string())? {
-                let mut entry = entry.map_err(|e| e.to_string())?;
-                if entry.header().entry_type().is_file() && entry.path().map_err(|e| e.to_string())?.to_string_lossy() == inner {
-                    std::io::copy(&mut entry, &mut out).map_err(|e| e.to_string())?;
-                    found = true;
-                    break;
-                }
-            }
-            if !found {
-                return Err(format!("{inner} absent de l'archive"));
-            }
-        }
+        let mut zip = zip::ZipArchive::new(f).map_err(|e| e.to_string())?;
+        let mut entry = zip.by_name(&inner).map_err(|e| format!("{inner} : {e}"))?;
+        std::io::copy(&mut entry, &mut out).map_err(|e| e.to_string())?;
         drop(out);
         fs::rename(&part, &lib).map_err(|e| e.to_string())
     })();

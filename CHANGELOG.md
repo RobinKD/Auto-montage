@@ -13,6 +13,9 @@ installateurs (voir `packaging/README.md`).
   automatique quand c'est Auto-montage qui le lance.
 - **Bouton « Installer Claude Code »** sur la page « Connexion à Claude » : installe ou répare Claude
   Code sans relancer Auto-montage (une installation incomplète est refaite).
+- **Installation réparée** : la bibliothèque qui fait tourner la transcription (ONNX Runtime) ne
+  se téléchargeait plus (« HTTP 404 »), Microsoft ayant retiré ses archives de GitHub. Elle est
+  maintenant prise dans le paquet officiel de Microsoft sur NuGet, sur Linux, macOS et Windows.
 
 ## 1.8
 
