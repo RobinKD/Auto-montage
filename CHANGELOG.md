@@ -4,7 +4,7 @@ Chaque version publiée reprend sa section dans ses notes (onglet Releases). Une
 section, le numéro dans `VERSION` et le tag `v<numéro>` poussé publient la version avec ses
 installateurs (voir `packaging/README.md`).
 
-## 1.9.1 
+## 1.9.1
 
 - **Installation réparée** : la bibliothèque qui fait tourner la transcription (ONNX Runtime) ne
   se téléchargeait plus (« HTTP 404 »), Microsoft ayant retiré ses archives de GitHub. Elle est
