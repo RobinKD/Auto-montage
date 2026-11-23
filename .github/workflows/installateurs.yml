@@ -33,7 +33,7 @@ jobs:
       version: ${{ steps.version.outputs.version }}
       publish: ${{ steps.version.outputs.publish }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - id: version
         name: Version
         env:
@@ -69,7 +69,7 @@ jobs:
         run: |
           packaging/make-payload.sh build/payload "$V"
           tar -czf payload.tgz -C build payload
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: payload
           path: payload.tgz
@@ -84,11 +84,11 @@ jobs:
     needs: [projet, programme]
     runs-on: ubuntu-22.04
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/download-artifact@v4
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v8
         with:
           name: payload
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           name: programme-linux-x86_64
           path: prog
@@ -119,7 +119,7 @@ jobs:
           # Même chose par l'action « stop » de l'AppImage (sans fenêtre : message affiché).
           OUT="$("$APP" stop)"; echo "$OUT"
           echo "$OUT" | grep -q "n'est pas lancé"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: linux
           path: dist/*.AppImage
@@ -129,11 +129,11 @@ jobs:
     needs: [projet, programme]
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/download-artifact@v4
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v8
         with:
           name: payload
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           name: programme-windows-x86_64
           path: prog
@@ -189,7 +189,7 @@ jobs:
           Write-Host $out
           if ($code -ne 0) { throw "auto-montage stop : code $code" }
           if ($out -notmatch 'pas lanc') { throw 'message attendu absent' }
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: windows
           path: dist/*.exe
@@ -199,11 +199,11 @@ jobs:
     needs: [projet, programme]
     runs-on: macos-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/download-artifact@v4
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v8
         with:
           name: payload
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           pattern: programme-macos-*
           path: prog
@@ -254,7 +254,7 @@ jobs:
           OUT="$("$AM" stop)"; echo "$OUT"
           echo "$OUT" | grep -q "n'est pas lancé"
           hdiutil detach /tmp/am-dmg
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: macos
           path: dist/*.dmg
@@ -271,10 +271,10 @@ jobs:
       group: publication-installateurs
       cancel-in-progress: false
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0  # tags des versions déjà publiées, pour les notes
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           path: dist
           pattern: "{linux,windows,macos,programme-*}"

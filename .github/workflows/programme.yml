@@ -47,13 +47,13 @@ jobs:
         shell: bash
         working-directory: montage/rust
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Rust
         run: |
           rustup toolchain install stable --profile minimal
           rustup default stable
           rustup target add ${{ matrix.target }}
-      - uses: actions/cache@v4
+      - uses: actions/cache@v6
         with:
           path: |
             ~/.cargo/registry
@@ -91,7 +91,7 @@ jobs:
           cp "$BIN/whisper-cli${{ matrix.ext }}" "$BIN/vad-speech-segments${{ matrix.ext }}" build/whisper-bin/
           tar -czf dist/whisper-${{ matrix.name }}.tar.gz -C build/whisper-bin .
           if [ -z "${{ matrix.cross }}" ]; then build/whisper-bin/whisper-cli${{ matrix.ext }} --help > /dev/null; fi
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: programme-${{ matrix.name }}
           path: |

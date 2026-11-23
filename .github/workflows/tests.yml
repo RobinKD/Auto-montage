@@ -30,13 +30,13 @@ jobs:
     name: Rush de synthèse
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Rush de synthèse (voix espeak-ng)
         run: |
           sudo apt-get update -q
           sudo apt-get install -y -q espeak-ng ffmpeg
           tests/make_sample_rush.sh "$RUNNER_TEMP/essai.mov"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: rush-essai
           path: ${{ runner.temp }}/essai.mov
@@ -58,14 +58,14 @@ jobs:
       # pas de Claude Code ici (pas de compte) : le test n'en a pas besoin
       AM_PORT: "8080"
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/download-artifact@v4
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v8
         with:
           name: rush-essai
           path: ${{ runner.temp }}/rush
       - name: Rust
         run: rustup toolchain install stable --profile minimal && rustup default stable
-      - uses: actions/cache@v4
+      - uses: actions/cache@v6
         with:
           path: |
             ~/.cargo/registry
