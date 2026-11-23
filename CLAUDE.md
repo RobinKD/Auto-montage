@@ -393,7 +393,8 @@ interne : les changements attendent la prochaine version.
   arrêtés après chaque rendu, chaque étape, au début d'un rendu et au démarrage du serveur ; page prête
   en 15 min au plus. Transcription : `./am setup_whisper` (whisper.cpp 1.7.6
   compilé pour le VAD et Whisper, modèles de Hugging Face, Parakeet en ONNX dans
-  `parakeet-tdt-0.6b-v3/` à côté de whisper.cpp avec la bibliothèque ONNX Runtime de Microsoft dans
+  `parakeet-tdt-0.6b-v3/` à côté de whisper.cpp avec la bibliothèque ONNX Runtime de Microsoft (paquet NuGet
+  Microsoft.ML.OnnxRuntime, empreinte vérifiée ; les archives GitHub de Microsoft répondent 404) dans
   `onnxruntime/`, chargée au lancement : crate `ort`, `rust/src/parakeet.rs`) ; `transcribe_segments` :
   Parakeet TDT 0.6B v3 par morceaux de 28 s, puis Whisper large-v3-turbo q8_0 forcé dans la langue du
   rush pour les segments restés vides ou sortis dans une autre langue (`foreign` : mots outils d'une
