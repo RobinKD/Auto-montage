@@ -1,6 +1,6 @@
 [package]
 name = "auto-montage"
-version = "0.68.0"
+version = "1.9.0"
 edition = "2021"
 license = "GPL-3.0-only"
 description = "Auto-montage : préparation des rushes, montage et interface locale (version native)"

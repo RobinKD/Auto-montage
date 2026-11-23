@@ -45,7 +45,9 @@ détail est dans `montage/README.md` ; les consignes de montage viennent de l'ut
 
 Après une nouvelle fonctionnalité importante pour l'utilisateur (nouvelle page, nouveau
 bouton, nouvel effet, correction d'un blocage), dans le même push : passer `VERSION` au
-numéro suivant (0.2 → 0.3) et ajouter en tête de `CHANGELOG.md` une section `## 0.3` qui dit
+numéro suivant (0.2 → 0.3), mettre la même version en x.y.z (0.3.0) dans `montage/rust/Cargo.toml`
+et dans le paquet `auto-montage` de `montage/rust/Cargo.lock` (à faire aussi quand l'utilisateur
+change VERSION lui-même), et ajouter en tête de `CHANGELOG.md` une section `## 0.3` qui dit
 ce qui change, en mots d'utilisateur. La version est publiée en poussant le tag `v<numéro>` sur
 le commit de main qui porte ce numéro (`git tag v0.44 && git push origin v0.44`, par
 l'utilisateur) : `installateurs.yml` (GitHub Actions, dépôt public) construit et vérifie les trois
