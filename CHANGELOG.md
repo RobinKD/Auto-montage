@@ -4,6 +4,12 @@ Chaque version publiée reprend sa section dans ses notes (onglet Releases). Une
 section, le numéro dans `VERSION` et le tag `v<numéro>` poussé publient la version avec ses
 installateurs (voir `packaging/README.md`).
 
+## 1.9.1 
+
+- **Installation réparée** : la bibliothèque qui fait tourner la transcription (ONNX Runtime) ne
+  se téléchargeait plus (« HTTP 404 »), Microsoft ayant retiré ses archives de GitHub. Elle est
+  maintenant prise dans le paquet officiel de Microsoft sur NuGet, sur Linux, macOS et Windows.
+
 ## 1.9
 
 - **Claude Code de nouveau trouvé sous Windows** : depuis sa version 2.1, Claude Code s'installe en
@@ -13,10 +19,7 @@ installateurs (voir `packaging/README.md`).
   automatique quand c'est Auto-montage qui le lance.
 - **Bouton « Installer Claude Code »** sur la page « Connexion à Claude » : installe ou répare Claude
   Code sans relancer Auto-montage (une installation incomplète est refaite).
-- **Installation réparée** : la bibliothèque qui fait tourner la transcription (ONNX Runtime) ne
-  se téléchargeait plus (« HTTP 404 »), Microsoft ayant retiré ses archives de GitHub. Elle est
-  maintenant prise dans le paquet officiel de Microsoft sur NuGet, sur Linux, macOS et Windows.
-
+  
 ## 1.8
 
 - **Zooms sur le visage avant de télécharger le dérush** : « Valider le dérush » propose maintenant
