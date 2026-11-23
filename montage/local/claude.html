@@ -84,6 +84,11 @@
     <p id="state" role="status">Vérification…</p>
     <p class="account" id="account" hidden></p>
     <div class="row"><button type="button" id="logout" hidden>Se déconnecter</button></div>
+    <div id="install-box" hidden>
+      <div class="row"><button type="button" class="primary" id="install">Installer Claude Code</button></div>
+      <p class="note">Téléchargé dans le dossier d'Auto-montage (quelques centaines de Mo, quelques minutes). En cas d'échec, le détail est dans le <a href="/logs/">journal</a>.</p>
+      <p id="install-msg" role="status"></p>
+    </div>
   </section>
 
   <section id="connect" aria-labelledby="h-connect" hidden>
@@ -119,7 +124,14 @@
   async function refresh() {
     const st = await fetch("/api/claude", { cache: "no-store" }).then((r) => r.json()).catch(() => null);
     if (!st) { $("state").textContent = "Le serveur Auto-montage ne répond pas."; return; }
-    if (!st.installed) { $("state").textContent = "Claude Code n'est pas installé : relancez Auto-montage pour l'installer."; return; }
+    $("install-box").hidden = st.installed;
+    if (!st.installed) {
+      $("state").textContent = "Claude Code n'est pas installé (ou son installation est incomplète).";
+      $("state").className = "err";
+      $("connect").hidden = true; $("logout").hidden = true; $("account").hidden = true;
+      watchInstall();
+      return;
+    }
     $("state").textContent = st.connected ? "Claude Code est connecté." : "Claude Code n'est pas connecté.";
     $("state").className = st.connected ? "ok" : "err";
     $("account").hidden = !st.account;
@@ -127,6 +139,34 @@
     $("logout").hidden = !st.connected || st.apiKey;
     $("connect").hidden = st.connected;
   }
+
+  // Installation (ou réparation) de Claude Code par le serveur, sans relancer Auto-montage.
+  let installTimer = null;
+  async function watchInstall() {
+    clearTimeout(installTimer);
+    const job = await fetch("/api/job", { cache: "no-store" }).then((r) => r.json()).catch(() => null);
+    const mine = job && job.kind === "claude";
+    const running = job && job.state === "running";
+    $("install").disabled = !!running;
+    if (mine && running) {
+      $("install-msg").textContent = "Installation de Claude Code en cours…"; $("install-msg").className = "";
+      installTimer = setTimeout(watchInstall, 2000);
+    } else if (mine && job.state === "done") {
+      $("install-msg").textContent = ""; refresh();
+    } else if (mine && job.state === "error") {
+      $("install-msg").textContent = `L'installation a échoué : ${job.error || "voir le journal"}.`; $("install-msg").className = "err";
+    } else if (running) {
+      $("install-msg").textContent = "Une autre tâche est en cours : l'installation pourra se faire à sa fin."; $("install-msg").className = "";
+      installTimer = setTimeout(watchInstall, 5000);
+    }
+  }
+  $("install").addEventListener("click", async () => {
+    $("install").disabled = true;
+    const { ok, data } = await post("/api/claude/install");
+    if (!ok) { $("install-msg").textContent = data.error || "L'installation n'a pas pu démarrer."; $("install-msg").className = "err"; $("install").disabled = false; return; }
+    if (data.installed) { refresh(); return; }
+    watchInstall();
+  });
 
   async function post(url, body) {
     const r = await fetch(url, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body || {}) });

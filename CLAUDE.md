@@ -471,6 +471,11 @@ interne : les changements attendent la prochaine version.
   `memoire::PARALLEL`, où les besoins de mémoire s'additionnent).
 - Connexion à Claude (/claude/) : `claude auth login` dans un pseudo-terminal (adresse
   d'autorisation renvoyée à la page, code collé transmis) ; état par `claude auth status`.
+  Claude Code trouvé par `paths::claude` (PATH, `montage/claude/`, `~/.local/bin`, `%APPDATA%\npm`) seulement
+  s'il est utilisable (`claude_usable` : paquet npm 2.1+ avec son programme natif `bin/claude.exe`, pas le
+  script d'erreur ni un programme renommé) ; absent : « Installer Claude Code » de /claude/ (tâche `claude`,
+  `POST /api/claude/install`, `./am claude_code`, installation incomplète effacée puis refaite). Sa mise à
+  jour automatique est coupée pour les programmes lancés (`DISABLE_AUTOUPDATER`, `extend_path`).
 - Mises à jour (/updates/) : `rust/src/update.rs` (check : versions publiées via l'API GitHub,
   sans jeton, dépôt public ; apply : archive du tag copiée sur l'installation, données de
   l'utilisateur gardées (`KEEP`), fichiers retirés d'après `.auto-montage-files` ; reset, bouton

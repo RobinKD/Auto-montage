@@ -6,6 +6,7 @@
 //! ses parents.
 
 use std::env;
+use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::LazyLock;
 
@@ -197,19 +198,75 @@ pub fn claude_home() -> PathBuf {
     root().join("claude")
 }
 
-/// Claude Code : celui de la machine (PATH), sinon celui installé par setup (`montage/claude/`).
+/// Claude Code utilisable : le premier trouvé dans le PATH (sous Windows : `claude.exe` ou
+/// `claude.cmd`, jamais le script `claude` sans extension que npm pose à côté et que Windows ne
+/// sait pas lancer), puis celui installé par setup (`montage/claude/`), puis l'installateur
+/// officiel (`~/.local/bin`) et npm global de Windows (`%APPDATA%\npm`), qui ne sont pas toujours
+/// dans le PATH du programme. Une installation npm cassée (paquet effacé ou renommé, programme
+/// natif absent : il ne reste que le petit script d'erreur) ne compte pas : setup la refait.
 pub fn claude() -> Option<PathBuf> {
-    which("claude").or_else(|| {
-        let bin = claude_home().join("node_modules").join(".bin");
-        let names: &[&str] = if cfg!(windows) { &["claude.cmd", "claude.exe"] } else { &["claude"] };
-        names.iter().map(|n| bin.join(n)).find(|p| p.is_file())
-    })
+    let names: &[&str] = if cfg!(windows) { &["claude.exe", "claude.cmd"] } else { &["claude"] };
+    let mut dirs: Vec<PathBuf> = env::var_os("PATH").map(|p| env::split_paths(&p).collect()).unwrap_or_default();
+    dirs.push(claude_home().join("node_modules").join(".bin"));
+    if let Some(home) = env::var_os("USERPROFILE").or_else(|| env::var_os("HOME")) {
+        dirs.push(PathBuf::from(home).join(".local").join("bin"));
+    }
+    if cfg!(windows) {
+        if let Some(appdata) = env::var_os("APPDATA") {
+            dirs.push(PathBuf::from(appdata).join("npm"));
+        }
+    }
+    dirs.iter().flat_map(|d| names.iter().map(move |n| d.join(n))).find(|p| claude_usable(p))
+}
+
+/// `p` lance vraiment Claude Code. Raccourci de npm (`node_modules/.bin/claude[.cmd]`, ou
+/// `claude.cmd` de npm global sous Windows, `bin/claude` lien vers `lib/node_modules` ailleurs) :
+/// son paquet doit être là avec son programme. Depuis la 2.1, le paquet npm contient un programme
+/// natif (`bin/claude.exe`, quelques centaines de Mo) mis en place après l'installation ; tant
+/// qu'il manque, c'est un script d'erreur de 500 octets.
+pub fn claude_usable(p: &Path) -> bool {
+    if !p.is_file() {
+        return false;
+    }
+    let Some(dir) = p.parent() else { return true };
+    let pkg = |nm: &Path| nm.join("@anthropic-ai").join("claude-code");
+    let package = if dir.file_name().is_some_and(|n| n == ".bin") {
+        dir.parent().map(pkg)
+    } else if dir.join("node_modules").is_dir() {
+        Some(pkg(&dir.join("node_modules")))
+    } else {
+        None
+    };
+    if let Some(package) = package {
+        if package.is_dir() || dir.file_name().is_some_and(|n| n == ".bin") {
+            return claude_package_ok(&package);
+        }
+    }
+    // Lien vers le programme du paquet (npm global sous Linux et macOS).
+    match fs::canonicalize(p) {
+        Ok(real) if real.file_name().is_some_and(|n| n == "claude.exe") => fs::metadata(&real).map(|m| m.len() > 4096).unwrap_or(false),
+        _ => true,
+    }
+}
+
+/// Paquet npm `@anthropic-ai/claude-code` complet : `cli.js` (versions avant la 2.1) ou programme
+/// natif en place (pas le script d'erreur qui l'attend).
+fn claude_package_ok(package: &Path) -> bool {
+    package.join("cli.js").is_file() || fs::metadata(package.join("bin").join("claude.exe")).map(|m| m.len() > 4096).unwrap_or(false)
 }
 
 /// Ajoute au PATH de ce programme (et des programmes qu'il lance : HyperFrames, Claude Code) les
 /// programmes livrés : `montage/bin/` (ffmpeg, Whisper), Node de `montage/node/`, Claude Code de
 /// `montage/claude/`.
+///
+/// Coupe aussi la mise à jour automatique de Claude Code pour les programmes lancés ici : pour une
+/// installation npm sous Windows, elle renomme le programme qui tourne (`claude.exe.old.<date>`)
+/// et installe la nouvelle version avec `npm install -g`, ailleurs que dans `montage/claude/`.
 pub fn extend_path() {
+    if env::var_os("DISABLE_AUTOUPDATER").is_none() {
+        // un seul fil d'exécution à ce moment (début de main)
+        env::set_var("DISABLE_AUTOUPDATER", "1");
+    }
     let extra = [root().join("bin"), node_home_bin(), claude_home().join("node_modules").join(".bin")];
     let extra: Vec<PathBuf> = extra.into_iter().filter(|d| d.is_dir()).collect();
     if extra.is_empty() {
@@ -257,4 +314,32 @@ pub fn whisper_bin(name: &str) -> PathBuf {
 
 pub fn display(p: &Path) -> String {
     p.to_string_lossy().into_owned()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Raccourci npm de Claude Code : valable seulement avec son paquet et son programme en place
+    /// (pas le script d'erreur de 500 octets, ni un programme renommé par sa mise à jour).
+    #[test]
+    fn claude_npm_install_checked() {
+        let base = env::temp_dir().join(format!("am-claude-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&base);
+        let bin = base.join("node_modules").join(".bin");
+        let pkg = base.join("node_modules").join("@anthropic-ai").join("claude-code").join("bin");
+        fs::create_dir_all(&bin).unwrap();
+        let shim = bin.join(if cfg!(windows) { "claude.cmd" } else { "claude" });
+        fs::write(&shim, "shim").unwrap();
+        assert!(!claude_usable(&shim), "paquet absent");
+        fs::create_dir_all(&pkg).unwrap();
+        fs::write(pkg.join("claude.exe"), vec![b'#'; 500]).unwrap();
+        assert!(!claude_usable(&shim), "script d'erreur seul");
+        fs::rename(pkg.join("claude.exe"), pkg.join("claude.exe.old.1")).unwrap();
+        assert!(!claude_usable(&shim), "programme renommé");
+        fs::write(pkg.join("claude.exe"), vec![0u8; 10_000]).unwrap();
+        assert!(claude_usable(&shim));
+        assert!(!claude_usable(&bin.join("absent")));
+        let _ = fs::remove_dir_all(&base);
+    }
 }

@@ -123,6 +123,11 @@ SHEET="$(echo "$DATA" | json 'd["strip"]["sheets"][0]')"
 curl -fsS -o /dev/null "$URL/$SHEET" || fail "images de la frise ($SHEET)"
 echo "$DATA" | json 'len(d["wave"]) > 0' | has -x True || fail "forme d'onde absente de la page"
 curl -fsS "$URL/chat/" | has "Discuter\|Claude" || fail "page de discussion"
+# Claude Code installé par « start » et utilisable (programme natif du paquet npm en place) ; la
+# page « Connexion à Claude » sait l'installer sans relancer, et le dit déjà fait.
+curl -fsS "$URL/api/claude" | json 'd["installed"]' | has -x True || fail "Claude Code pas installé ou introuvable"
+curl -fsS -X POST -H 'content-type: application/json' -d '{}' "$URL/api/claude/install" | json 'd.get("installed")' | has -x True \
+  || fail "installation de Claude Code depuis la page"
 curl -fsS "$URL/logs/" | has "Journal" || fail "page Journal"
 curl -fsS "$URL/tutoriel/" | has "Sans Claude Code" || fail "page Tutoriel"
 [ "$(curl -s -o /dev/null -w '%{http_code}' "$URL/tutoriel/demo-effets.webm")" = 200 ] || fail "vidéo du tutoriel"

@@ -761,7 +761,7 @@ const POST_ROUTES: &[&str] = &[
     "/api/regen", "/api/prepare", "/api/final", "/api/legere", "/api/export", "/api/chat", "/api/chat/stop", "/api/chat/new",
     "/api/projects/open", "/api/projects/delete", "/api/projects/delete_current", "/api/projects/save", "/api/job/cancel", "/api/job/pause",
     "/api/job/resume", "/api/job/abandon", "/api/place/delete",
-    "/api/claude/login", "/api/claude/code", "/api/claude/logout",
+    "/api/claude/login", "/api/claude/code", "/api/claude/logout", "/api/claude/install",
     "/api/update/check", "/api/update/apply", "/api/update/reset", "/api/restart", "/api/quit", "/api/style/analyse", "/api/son/analyse",
     "/api/tutorial/seen", "/api/rushes/renommer", "/api/rushes/assemblage",
     "/api/moments/split", "/api/moments/unsplit", "/api/moments/restore", "/api/derush/valider",
@@ -839,7 +839,7 @@ fn do_post(req: &Req, body_reader: &mut dyn Read) -> Reply {
         }
         "/api/claude/login" => {
             if paths::claude().is_none() {
-                return err_json("Claude Code n'est pas installé : relancez Auto-montage pour l'installer.", 400);
+                return err_json("Claude Code n'est pas installé : installez-le depuis la page « Connexion à Claude ».", 400);
             }
             let out = claude::login_start(util::truthy(body.get("console")));
             let status = if out.get("error").is_some() { 400 } else { 200 };
@@ -853,6 +853,18 @@ fn do_post(req: &Req, body_reader: &mut dyn Read) -> Reply {
             let out = claude::login_code(&code);
             let status = if out.get("error").is_some() { 400 } else { 200 };
             return send_json(&out, status);
+        }
+        "/api/claude/install" => {
+            // Claude Code absent ou cassé : installé (ou réparé) dans montage/claude/ sans relancer
+            // Auto-montage (« auto-montage start » d'une interface déjà lancée ne refait pas setup).
+            if paths::claude().is_some() {
+                return send_json(&json!({"ok": true, "installed": true}), 200);
+            }
+            let steps: Vec<Step> = vec![("installation de Claude Code".into(), vec!["claude_code".into()])];
+            if !start_job("claude", steps, "", None, None, false) {
+                return err_json(&busy_error(), 409);
+            }
+            return send_json(&json!({"ok": true}), 202);
         }
         "/api/claude/logout" => {
             claude::logout();
@@ -1022,7 +1034,7 @@ fn do_post(req: &Req, body_reader: &mut dyn Read) -> Reply {
                 return err_json("Message vide.", 400);
             }
             if paths::claude().is_none() {
-                return err_json("Claude Code n'est pas installé : relancez Auto-montage pour l'installer.", 400);
+                return err_json("Claude Code n'est pas installé : installez-le depuis la page « Connexion à Claude ».", 400);
             }
             if !claude::claude_connected(false) {
                 return err_json("Claude Code n'est pas connecté : connectez-le sur la page « Connexion à Claude ».", 400);

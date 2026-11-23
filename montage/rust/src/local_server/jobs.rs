@@ -1452,6 +1452,7 @@ pub fn kind_name(kind: &str) -> Option<&'static str> {
         "style" => "Analyse du style",
         "export" => "Export pour les plateformes",
         "derush" => "Passage à l'auto-montage",
+        "claude" => "Installation de Claude Code",
         _ => return None,
     })
 }

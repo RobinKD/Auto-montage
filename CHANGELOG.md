@@ -4,6 +4,16 @@ Chaque version publiée reprend sa section dans ses notes (onglet Releases). Une
 section, le numéro dans `VERSION` et le tag `v<numéro>` poussé publient la version avec ses
 installateurs (voir `packaging/README.md`).
 
+## 1.9
+
+- **Claude Code de nouveau trouvé sous Windows** : depuis sa version 2.1, Claude Code s'installe en
+  deux temps et sa mise à jour automatique pouvait le déplacer ; Auto-montage disait alors « Claude
+  Code n'est pas installé », même après l'avoir relancé. Il vérifie maintenant que Claude Code est
+  vraiment utilisable, le cherche aussi là où l'installateur officiel le met, et coupe sa mise à jour
+  automatique quand c'est Auto-montage qui le lance.
+- **Bouton « Installer Claude Code »** sur la page « Connexion à Claude » : installe ou répare Claude
+  Code sans relancer Auto-montage (une installation incomplète est refaite).
+
 ## 1.8
 
 - **Zooms sur le visage avant de télécharger le dérush** : « Valider le dérush » propose maintenant
